@@ -1,6 +1,7 @@
 # Build context is the repo root (needs access to packages/shared and root workspace files).
 FROM node:24-alpine AS builder
 WORKDIR /repo
+RUN apk add --no-cache openssl
 
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/package.json
@@ -15,6 +16,7 @@ RUN npm run build -w apps/api
 
 FROM node:24-alpine AS runner
 WORKDIR /repo
+RUN apk add --no-cache openssl
 ENV NODE_ENV=production
 
 COPY --from=builder /repo/node_modules ./node_modules
