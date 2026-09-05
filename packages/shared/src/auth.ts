@@ -1,6 +1,10 @@
+import { Race } from './game';
+
 export interface RegisterRequest {
   email: string;
+  username: string;
   password: string;
+  race: Race;
 }
 
 export interface LoginRequest {
@@ -16,6 +20,8 @@ export interface AuthTokens {
 export interface PlayerSummary {
   id: string;
   email: string;
+  username: string;
+  race: Race;
   createdAt: string;
 }
 

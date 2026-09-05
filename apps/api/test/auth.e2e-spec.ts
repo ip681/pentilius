@@ -8,6 +8,7 @@ describe('Auth (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   const email = `e2e-${Date.now()}@example.com`;
+  const username = `e2e_${Date.now()}`;
   const password = 'password123';
 
   beforeAll(async () => {
@@ -37,17 +38,28 @@ describe('Auth (e2e)', () => {
   it('registers a new player', () => {
     return request(app.getHttpServer())
       .post('/api/v1/auth/register')
-      .send({ email, password })
+      .send({ email, username, password, race: 'LUXARI' })
       .expect(201)
       .expect((res) => {
         expect(res.body.player.email).toBe(email);
+        expect(res.body.player.username).toBe(username);
         expect(res.body.accessToken).toBeDefined();
         expect(res.body.refreshToken).toBeDefined();
       });
   });
 
-  it('rejects a duplicate registration', () => {
-    return request(app.getHttpServer()).post('/api/v1/auth/register').send({ email, password }).expect(409);
+  it('rejects a duplicate email', () => {
+    return request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ email, username: `${username}_2`, password, race: 'LUXARI' })
+      .expect(409);
+  });
+
+  it('rejects a duplicate username', () => {
+    return request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ email: `other-${email}`, username, password, race: 'LUXARI' })
+      .expect(409);
   });
 
   it('logs in with correct credentials', () => {

@@ -1,13 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { CombatRoundDto } from '@pentilius/shared';
-import { Pentili, Prisma } from '@prisma/client';
+import { Prisma, ResearchBonusType } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
+import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface CombatStats {
   attack: number;
   defense: number;
   hp: number;
+}
+
+/** Anything simulate() can fight: Pentili and Boss both satisfy this shape. */
+export interface CombatOpponent {
+  attack: number;
+  defense: number;
+  maxHp: number;
 }
 
 export interface CombatResult {
@@ -32,7 +40,10 @@ export interface CombatResult {
  */
 @Injectable()
 export class CombatService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly economy: EconomyService,
+  ) {}
 
   async computePlayerStats(playerId: string, tx: Prisma.TransactionClient | PrismaService = this.prisma): Promise<CombatStats> {
     const equipped = await tx.itemInstance.findMany({
@@ -40,7 +51,7 @@ export class CombatService {
       include: { itemDefinition: true },
     });
 
-    return equipped.reduce<CombatStats>(
+    const stats = equipped.reduce<CombatStats>(
       (stats, item) => {
         const baseStats = item.itemDefinition.baseStats as Partial<CombatStats>;
         const multiplier = 1 + item.upgradeLevel * GAME_BALANCE.combat.bonusPerUpgradeLevel;
@@ -52,9 +63,20 @@ export class CombatService {
       },
       { attack: 0, defense: 0, hp: GAME_BALANCE.combat.basePlayerHp },
     );
+
+    const [attackMultiplier, hpMultiplier] = await Promise.all([
+      this.economy.getResearchMultiplier(playerId, ResearchBonusType.COMBAT_ATTACK, tx),
+      this.economy.getResearchMultiplier(playerId, ResearchBonusType.COMBAT_HP, tx),
+    ]);
+
+    return {
+      attack: stats.attack * attackMultiplier,
+      defense: stats.defense,
+      hp: stats.hp * hpMultiplier,
+    };
   }
 
-  simulate(player: CombatStats, pentili: Pentili): CombatResult {
+  simulate(player: CombatStats, pentili: CombatOpponent): CombatResult {
     const playerMaxHp = Math.round(player.hp);
     const pentiliMaxHp = pentili.maxHp;
 

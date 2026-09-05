@@ -2,6 +2,7 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthResponse, AuthTokens } from '@pentilius/shared';
+import { Race } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -20,14 +21,22 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponse> {
-    const existing = await this.prisma.player.findUnique({ where: { email: dto.email } });
-    if (existing) {
-      throw new ConflictException('Email already registered');
+    const [existingEmail, existingUsername] = await Promise.all([
+      this.prisma.player.findUnique({ where: { email: dto.email } }),
+      this.prisma.player.findUnique({ where: { username: dto.username } }),
+    ]);
+    if (existingEmail) {
+      throw new ConflictException('EMAIL_TAKEN');
+    }
+    if (existingUsername) {
+      throw new ConflictException('USERNAME_TAKEN');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
     const player = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.player.create({ data: { email: dto.email, passwordHash } });
+      const created = await tx.player.create({
+        data: { email: dto.email, username: dto.username, passwordHash, race: dto.race },
+      });
 
       // Starter kit so a new player can equip a ship right away (instructions/MILESTONES.md
       // success flow: "equip ship" happens before the first PvE fight).
@@ -41,7 +50,7 @@ export class AuthService {
       return created;
     });
 
-    return this.buildAuthResponse(player.id, player.email, player.createdAt);
+    return this.buildAuthResponse(player.id, player.email, player.username, player.race, player.createdAt);
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {
@@ -55,7 +64,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.buildAuthResponse(player.id, player.email, player.createdAt);
+    return this.buildAuthResponse(player.id, player.email, player.username, player.race, player.createdAt);
   }
 
   async refresh(dto: RefreshDto): Promise<AuthTokens> {
@@ -76,11 +85,11 @@ export class AuthService {
     return this.issueTokens(player.id, player.email);
   }
 
-  private async buildAuthResponse(id: string, email: string, createdAt: Date): Promise<AuthResponse> {
+  private async buildAuthResponse(id: string, email: string, username: string, race: Race, createdAt: Date): Promise<AuthResponse> {
     const tokens = await this.issueTokens(id, email);
     return {
       ...tokens,
-      player: { id, email, createdAt: createdAt.toISOString() },
+      player: { id, email, username, race, createdAt: createdAt.toISOString() },
     };
   }
 

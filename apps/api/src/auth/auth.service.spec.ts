@@ -50,24 +50,38 @@ describe('AuthService', () => {
 
   describe('register', () => {
     it('throws a ConflictException when the email is already taken', async () => {
-      prisma.player.findUnique.mockResolvedValue({ id: '1', email: 'a@b.com' });
-
-      await expect(authService.register({ email: 'a@b.com', password: 'password123' })).rejects.toBeInstanceOf(
-        ConflictException,
+      prisma.player.findUnique.mockImplementation(({ where }: { where: { email?: string; username?: string } }) =>
+        Promise.resolve(where.email ? { id: '1', email: 'a@b.com' } : null),
       );
+
+      await expect(
+        authService.register({ email: 'a@b.com', username: 'playerone', password: 'password123', race: 'LUXARI' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('throws a ConflictException when the username is already taken', async () => {
+      prisma.player.findUnique.mockImplementation(({ where }: { where: { email?: string; username?: string } }) =>
+        Promise.resolve(where.username ? { id: '1', username: 'playerone' } : null),
+      );
+
+      await expect(
+        authService.register({ email: 'a@b.com', username: 'playerone', password: 'password123', race: 'LUXARI' }),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('hashes the password and creates the player', async () => {
       prisma.player.findUnique.mockResolvedValue(null);
-      prisma.player.create.mockResolvedValue({ id: '1', email: 'a@b.com', createdAt: new Date() });
+      prisma.player.create.mockResolvedValue({ id: '1', email: 'a@b.com', username: 'playerone', race: 'LUXARI', createdAt: new Date() });
 
-      const result = await authService.register({ email: 'a@b.com', password: 'password123' });
+      const result = await authService.register({ email: 'a@b.com', username: 'playerone', password: 'password123', race: 'LUXARI' });
 
       expect(prisma.player.create).toHaveBeenCalledTimes(1);
       const createArgs = prisma.player.create.mock.calls[0][0];
       expect(createArgs.data.email).toBe('a@b.com');
+      expect(createArgs.data.username).toBe('playerone');
       expect(await bcrypt.compare('password123', createArgs.data.passwordHash)).toBe(true);
       expect(result.player.email).toBe('a@b.com');
+      expect(result.player.username).toBe('playerone');
       expect(result.accessToken).toBe('signed-token');
     });
   });
@@ -92,7 +106,7 @@ describe('AuthService', () => {
 
     it('returns tokens when credentials are valid', async () => {
       const passwordHash = await bcrypt.hash('correct-password', 10);
-      prisma.player.findUnique.mockResolvedValue({ id: '1', email: 'a@b.com', passwordHash, createdAt: new Date() });
+      prisma.player.findUnique.mockResolvedValue({ id: '1', email: 'a@b.com', username: 'playerone', race: 'LUXARI', passwordHash, createdAt: new Date() });
 
       const result = await authService.login({ email: 'a@b.com', password: 'correct-password' });
 

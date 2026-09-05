@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Player, Prisma } from '@prisma/client';
+import { Player, Prisma, ResearchBonusType } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -28,6 +28,11 @@ export class EconomyService {
       return player;
     }
 
+    const [metalMultiplier, crystalMultiplier] = await Promise.all([
+      this.getResearchMultiplier(playerId, ResearchBonusType.METAL_PRODUCTION, tx),
+      this.getResearchMultiplier(playerId, ResearchBonusType.CRYSTAL_PRODUCTION, tx),
+    ]);
+
     const gains: Record<string, number> = { METAL: 0, CRYSTAL: 0, OXYGEN: 0, CREDITS: 0 };
     for (const building of buildings) {
       const currentLevelCost = building.buildingType.levelCosts.find((cost) => cost.level === building.level);
@@ -35,6 +40,8 @@ export class EconomyService {
         gains[currentLevelCost.producesResourceType] += currentLevelCost.producesPerHour * elapsedHours;
       }
     }
+    gains.METAL *= metalMultiplier;
+    gains.CRYSTAL *= crystalMultiplier;
 
     const hasWholeUnitGain = Object.values(gains).some((amount) => Math.floor(amount) > 0);
     if (!hasWholeUnitGain) {
@@ -107,5 +114,15 @@ export class EconomyService {
   async getXpForNextLevel(level: number, tx: Tx = this.prisma): Promise<number | null> {
     const threshold = await tx.levelThreshold.findUnique({ where: { level } });
     return threshold?.xpRequired ?? null;
+  }
+
+  /** 1 + sum(level * bonusPerLevel) across every researched technology of this bonus type. */
+  async getResearchMultiplier(playerId: string, bonusType: ResearchBonusType, tx: Tx = this.prisma): Promise<number> {
+    const researches = await tx.playerResearch.findMany({
+      where: { playerId, level: { gt: 0 }, researchType: { bonusType } },
+      include: { researchType: true },
+    });
+    const totalBonus = researches.reduce((sum, research) => sum + research.level * research.researchType.bonusPerLevel, 0);
+    return 1 + totalBonus;
   }
 }

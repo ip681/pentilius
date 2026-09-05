@@ -45,7 +45,20 @@ They are not enemy factions.
 
 Clans benefit from having players from multiple races.
 
-Exact race names, visuals, lore details and final racial stat bonuses remain **UNDEFINED**.
+Race names and lore are **LOCKED**:
+
+| Race | Theme | Description |
+|---|---|---|
+| **Luxari** | Masters of Technology | Brilliant engineers and innovators, the Luxari push the boundaries of science and technology. |
+| **Vorlun** | Harmonizers of Life | In tune with life and nature, Vorlun excel in biology, medicine and sustainable development. |
+| **Zaryth** | Keepers of Knowledge | Scholars and seekers of truth, the Zaryth archive and interpret the wisdom of the past. |
+| **Thalion** | Guardians of Honor | Proud and disciplined, Thalion are unmatched in leadership, strategy and combat. |
+| **Nexar** | Forgers of Strength | Resilient and relentless, Nexar thrive in harsh environments and turn resources into power. |
+
+Chosen once at registration, shown as player identity. Final racial visuals
+(symbols/art) and any individual per-race stat bonuses remain **UNDEFINED** —
+Milestone 1 treats race purely as identity with no mechanical effect. See
+`instructions/OPEN_DECISIONS.md`.
 
 ## Racial group synergy — PROVISIONAL
 For cooperative content:

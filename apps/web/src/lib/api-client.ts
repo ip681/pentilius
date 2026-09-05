@@ -1,13 +1,20 @@
 import type {
+  ActiveExpeditionDto,
   AuthResponse,
   BaseResponseDto,
   BattleReportDto,
+  BossDto,
+  BossEncounterResultDto,
   BuildingStateDto,
+  ExpeditionClaimResultDto,
+  ExpeditionsResponseDto,
   InventoryItemDto,
   LoginRequest,
   PentiliDto,
   PlayerProfileDto,
   RegisterRequest,
+  ResearchResponseDto,
+  ResearchStateDto,
   ShipSlotDto,
   ZoneDto,
 } from '@pentilius/shared';
@@ -16,7 +23,13 @@ import { getAccessToken } from './auth';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api/v1';
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, message: string) {
+  // The backend's exception `message` (e.g. "EMAIL_TAKEN"), when the error body carries a
+  // machine-readable one — lets the UI show a specific message instead of a generic fallback.
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly code?: string,
+  ) {
     super(message);
     this.name = 'ApiError';
   }
@@ -36,7 +49,12 @@ async function request<TResponse>(path: string, options: { method?: string; body
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, `Request to ${path} failed with status ${response.status}`);
+    const code = await response
+      .clone()
+      .json()
+      .then((body: { message?: string }) => body.message)
+      .catch(() => undefined);
+    throw new ApiError(response.status, `Request to ${path} failed with status ${response.status}`, code);
   }
 
   if (response.status === 204) {
@@ -106,4 +124,43 @@ export function attackPentili(pentiliId: string): Promise<BattleReportDto> {
 
 export function getBattleReports(): Promise<BattleReportDto[]> {
   return request<BattleReportDto[]>('/pve/reports', { auth: true });
+}
+
+// Expeditions
+export function getExpeditions(): Promise<ExpeditionsResponseDto> {
+  return request<ExpeditionsResponseDto>('/expeditions', { auth: true });
+}
+
+export function startExpedition(key: string): Promise<ActiveExpeditionDto> {
+  return request<ActiveExpeditionDto>(`/expeditions/${key}/start`, { method: 'POST', auth: true });
+}
+
+export function claimExpedition(): Promise<ExpeditionClaimResultDto> {
+  return request<ExpeditionClaimResultDto>('/expeditions/claim', { method: 'POST', auth: true });
+}
+
+export function cancelExpedition(): Promise<ExpeditionClaimResultDto> {
+  return request<ExpeditionClaimResultDto>('/expeditions/cancel', { method: 'POST', auth: true });
+}
+
+// Research
+export function getResearches(): Promise<ResearchResponseDto> {
+  return request<ResearchResponseDto>('/research', { auth: true });
+}
+
+export function startResearch(key: string): Promise<ResearchStateDto> {
+  return request<ResearchStateDto>(`/research/${key}/start`, { method: 'POST', auth: true });
+}
+
+// Bosses
+export function getBosses(): Promise<BossDto[]> {
+  return request<BossDto[]>('/bosses', { auth: true });
+}
+
+export function joinBossEncounter(key: string): Promise<BossDto> {
+  return request<BossDto>(`/bosses/${key}/join`, { method: 'POST', auth: true });
+}
+
+export function resolveBossEncounter(key: string): Promise<BossEncounterResultDto> {
+  return request<BossEncounterResultDto>(`/bosses/${key}/resolve`, { method: 'POST', auth: true });
 }

@@ -9,6 +9,7 @@ describe('Milestone 1 vertical slice (e2e)', () => {
   let prisma: PrismaService;
   let accessToken: string;
   const email = `m1-${Date.now()}@example.com`;
+  const username = `m1_${Date.now()}`;
   const password = 'password123';
   let randomSpy: jest.SpyInstance;
 
@@ -23,7 +24,9 @@ describe('Milestone 1 vertical slice (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    const registerRes = await request(app.getHttpServer()).post('/api/v1/auth/register').send({ email, password });
+    const registerRes = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ email, username, password, race: 'LUXARI' });
     accessToken = registerRes.body.accessToken;
   });
 

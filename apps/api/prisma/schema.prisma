@@ -42,10 +42,27 @@ enum BattleOutcome {
   LOSS
 }
 
+// Names and lore are LOCKED (instructions/PRODUCT_SPEC.md). Chosen once at
+// registration; identity only for now — no stat bonus is tied to race yet
+// (instructions/OPEN_DECISIONS.md).
+enum Race {
+  LUXARI
+  VORLUN
+  ZARYTH
+  THALION
+  NEXAR
+}
+
 model Player {
   id           String   @id @default(uuid())
   email        String   @unique
+  // Public in-game identity. The email stays private to the account owner —
+  // never exposed to other players — and is reserved for future account
+  // verification (instructions/OPEN_DECISIONS.md has no ruling on this yet,
+  // so treat it as owner-specified: username is the only cross-player identity).
+  username     String   @unique
   passwordHash String
+  race         Race
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -65,9 +82,12 @@ model Player {
   actionEnergyMax Int      @default(10)
   energyUpdatedAt DateTime @default(now())
 
-  buildings     PlayerBuilding[]
-  items         ItemInstance[]
-  battleReports BattleReport[]
+  buildings              PlayerBuilding[]
+  items                  ItemInstance[]
+  battleReports          BattleReport[]
+  expeditions            PlayerExpedition[]
+  researches             PlayerResearch[]
+  bossEncounterEntries   BossEncounterParticipant[]
 
   @@map("players")
 }
@@ -81,6 +101,7 @@ model Zone {
 
   pentili       Pentili[]
   battleReports BattleReport[]
+  bosses        Boss[]
 
   @@map("zones")
 }
@@ -162,8 +183,10 @@ model ItemDefinition {
   iconAssetId     String
   isStarterItem   Boolean       @default(false)
 
-  itemInstances ItemInstance[]
-  lootDrops     LootDrop[]
+  itemInstances   ItemInstance[]
+  lootDrops       LootDrop[]
+  bossLootDrops   BossLootDrop[]
+  expeditionTypes ExpeditionType[]
 
   @@map("item_definitions")
 }
@@ -223,4 +246,181 @@ model BattleReport {
   zone    Zone    @relation(fields: [zoneId], references: [id])
 
   @@map("battle_reports")
+}
+
+// Durations and rewards are PROVISIONAL (instructions/GAME_SYSTEMS.md:
+// "Timed automatic missions such as 1h/5h/10h... Exact values are
+// UNDEFINED"). 60/300/600 minutes are the doc's own example, not invented.
+model ExpeditionType {
+  id                    String   @id @default(uuid())
+  key                   String   @unique
+  nameKey               String
+  durationMinutes       Int
+  metalReward           Int
+  crystalReward         Int
+  creditsReward         Int
+  xpReward              Int
+  bonusItemDefinitionId String?
+  bonusItemChance       Float?
+
+  bonusItemDefinition ItemDefinition?    @relation(fields: [bonusItemDefinitionId], references: [id])
+  playerExpeditions   PlayerExpedition[]
+
+  @@map("expedition_types")
+}
+
+model PlayerExpedition {
+  id               String    @id @default(uuid())
+  playerId         String
+  expeditionTypeId String
+  startedAt        DateTime  @default(now())
+  endsAt           DateTime
+  claimedAt        DateTime?
+  cancelled        Boolean   @default(false)
+
+  player         Player         @relation(fields: [playerId], references: [id])
+  expeditionType ExpeditionType @relation(fields: [expeditionTypeId], references: [id])
+
+  @@map("player_expeditions")
+}
+
+// Branches, technology list, costs and effects are UNDEFINED
+// (instructions/OPEN_DECISIONS.md: "Research"). This is a working mechanism
+// with placeholder content, mirroring the building-upgrade pattern — each
+// technology has its own independent timer, several can research in
+// parallel. Bonuses are applied where noted: EconomyService.settleResources
+// (production types) and CombatService.computePlayerStats (combat types).
+enum ResearchBonusType {
+  METAL_PRODUCTION
+  CRYSTAL_PRODUCTION
+  COMBAT_ATTACK
+  COMBAT_HP
+}
+
+model ResearchType {
+  id             String            @id @default(uuid())
+  key            String            @unique
+  nameKey        String
+  descriptionKey String
+  bonusType      ResearchBonusType
+  bonusPerLevel  Float
+  maxLevel       Int
+  iconAssetId    String
+
+  levelCosts       ResearchLevelCost[]
+  playerResearches PlayerResearch[]
+
+  @@map("research_types")
+}
+
+model ResearchLevelCost {
+  id              String @id @default(uuid())
+  researchTypeId  String
+  level           Int
+  metalCost       Int
+  crystalCost     Int
+  creditsCost     Int
+  researchSeconds Int
+
+  researchType ResearchType @relation(fields: [researchTypeId], references: [id])
+
+  @@unique([researchTypeId, level])
+  @@map("research_level_costs")
+}
+
+model PlayerResearch {
+  id             String    @id @default(uuid())
+  playerId       String
+  researchTypeId String
+  level          Int       @default(0)
+  researchEndsAt DateTime?
+
+  player       Player       @relation(fields: [playerId], references: [id])
+  researchType ResearchType @relation(fields: [researchTypeId], references: [id])
+
+  @@unique([playerId, researchTypeId])
+  @@map("player_researches")
+}
+
+// Boss Hunts (instructions/GAME_SYSTEMS.md, LOCKED direction): group size,
+// attempts, loot, boss timers and contribution calculation are UNDEFINED
+// (instructions/OPEN_DECISIONS.md). Since clans (Milestone 4) don't exist
+// yet, joining is an open lobby per zone rather than an invite system: any
+// player with the zone unlocked may freely join a boss's current OPEN
+// encounter while its join window is running. Resolution combines every
+// joined player's combat stats (pve/combat.service.ts) plus the LOCKED
+// racial-synergy bonus (instructions/GAME_SYSTEMS.md) into one party vs. the
+// boss, then splits rewards by each player's share of total party attack —
+// a clearly-isolated placeholder for "contribution calculation".
+enum BossEncounterStatus {
+  OPEN
+  RESOLVED
+}
+
+model Boss {
+  id                     String @id @default(uuid())
+  key                    String @unique
+  nameKey                String
+  zoneId                 String
+  level                  Int
+  maxHp                  Int
+  attack                 Int
+  defense                Int
+  xpReward               Int
+  encounterWindowSeconds Int
+  iconAssetId            String
+
+  zone       Zone            @relation(fields: [zoneId], references: [id])
+  lootDrops  BossLootDrop[]
+  encounters BossEncounter[]
+
+  @@map("bosses")
+}
+
+model BossLootDrop {
+  id               String        @id @default(uuid())
+  bossId           String
+  resourceType     ResourceType?
+  itemDefinitionId String?
+  dropChance       Float
+  minQuantity      Int
+  maxQuantity      Int
+
+  boss           Boss            @relation(fields: [bossId], references: [id])
+  itemDefinition ItemDefinition? @relation(fields: [itemDefinitionId], references: [id])
+
+  @@map("boss_loot_drops")
+}
+
+model BossEncounter {
+  id           String               @id @default(uuid())
+  bossId       String
+  status       BossEncounterStatus  @default(OPEN)
+  openedAt     DateTime             @default(now())
+  resolvesAt   DateTime
+  outcome      BattleOutcome?
+  rounds       Json?
+  partyMaxHp   Int?
+  bossMaxHp    Int?
+
+  boss         Boss                       @relation(fields: [bossId], references: [id])
+  participants BossEncounterParticipant[]
+
+  @@map("boss_encounters")
+}
+
+model BossEncounterParticipant {
+  id                String   @id @default(uuid())
+  encounterId       String
+  playerId          String
+  joinedAt          DateTime @default(now())
+  contributionShare Float?
+  xpGained          Int?
+  lootSummary       Json?
+
+  encounter BossEncounter @relation(fields: [encounterId], references: [id])
+  player    Player        @relation(fields: [playerId], references: [id])
+
+  @@unique([encounterId, playerId])
+  @@map("boss_encounter_participants")
 }

@@ -1,39 +1,39 @@
 'use client';
 
-import type { BaseResponseDto, BuildingStateDto } from '@pentilius/shared';
+import type { ResearchResponseDto, ResearchStateDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
-import { getBase, upgradeBuilding } from '@/lib/api-client';
+import { getResearches, startResearch } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
-function buildingProgress(building: BuildingStateDto): { active: boolean; percent: number; secondsLeft: number } {
-  if (!building.constructionEndsAt || !building.nextLevelCost) {
+function researchProgress(research: ResearchStateDto): { active: boolean; percent: number; secondsLeft: number } {
+  if (!research.researchEndsAt || !research.nextLevelCost) {
     return { active: false, percent: 0, secondsLeft: 0 };
   }
-  const endsAt = new Date(building.constructionEndsAt).getTime();
+  const endsAt = new Date(research.researchEndsAt).getTime();
   const now = Date.now();
   if (endsAt <= now) {
     return { active: false, percent: 100, secondsLeft: 0 };
   }
-  const totalSeconds = building.nextLevelCost.constructionSeconds;
+  const totalSeconds = research.nextLevelCost.researchSeconds;
   const secondsLeft = Math.ceil((endsAt - now) / 1000);
   const percent = Math.max(0, Math.min(100, ((totalSeconds - secondsLeft) / totalSeconds) * 100));
   return { active: true, percent, secondsLeft };
 }
 
-export default function BasePage() {
+export default function ResearchPage() {
   useRequireAuth();
   const t = useTranslations();
-  const [data, setData] = useState<BaseResponseDto | null>(null);
+  const [data, setData] = useState<ResearchResponseDto | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     try {
-      setData(await getBase());
+      setData(await getResearches());
     } catch {
-      setError(t('base.loadError'));
+      setError(t('research.loadError'));
     }
   }
 
@@ -44,82 +44,86 @@ export default function BasePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleUpgrade(key: string) {
+  async function handleStart(key: string) {
+    setError(null);
     try {
-      await upgradeBuilding(key);
+      await startResearch(key);
       await load();
     } catch {
-      setError(t('base.upgradeError'));
+      setError(t('research.startError'));
     }
   }
 
   return (
     <GameLayout>
-      <div className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{t('base.title')}</h1>
-          <p className="text-xs text-textMuted">{t('base.subtitle')}</p>
-        </div>
-        <div className="text-xs uppercase tracking-wide text-positive">● {t('base.status')}</div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">{t('research.title')}</h1>
+        <p className="text-xs text-textMuted">{t('research.subtitle')}</p>
       </div>
 
       {error && <p className="mb-4 text-red-400">{error}</p>}
 
       {data && (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          {data.buildings.map((building) => {
-            const progress = buildingProgress(building);
+          {data.researches.map((research) => {
+            const progress = researchProgress(research);
             return (
-              <section key={building.key} className="overflow-hidden rounded-lg border border-panelBorder bg-panel">
+              <section key={research.key} className="overflow-hidden rounded-lg border border-panelBorder bg-panel">
                 <div className="flex items-center justify-between border-b border-panelBorder bg-panelHeader px-4 py-3">
-                  <span className="text-sm font-semibold">{t(building.nameKey)}</span>
+                  <span className="text-sm font-semibold">{t(research.nameKey)}</span>
                   <span className="text-[10px] uppercase text-textFaint">
-                    {t('base.level')} {building.level}
+                    {t('research.level')} {research.level}/{research.maxLevel}
                   </span>
                 </div>
 
                 <div className="p-5">
-                  <div className="mb-4 flex h-[90px] items-center justify-center rounded-md border border-panelBorder bg-well">
-                    <div className="h-12 w-16 rounded-sm bg-accent opacity-80" />
-                  </div>
+                  <p className="mb-3 text-xs text-textMuted">{t(research.descriptionKey)}</p>
+                  <p className="mb-4 text-[11px] text-accent">
+                    {t('research.bonusPerLevel', { percent: Math.round(research.bonusPerLevel * 100) })}
+                  </p>
 
                   {progress.active ? (
                     <>
                       <div className="mb-1 flex justify-between text-[10px] text-textMuted">
-                        <span>{t('base.underConstruction')}</span>
+                        <span>{t('research.inProgress')}</span>
                         <span className="tabular-nums">{formatDuration(progress.secondsLeft)}</span>
                       </div>
                       <div className="mb-4 h-[7px] overflow-hidden rounded-full bg-wellBorder">
                         <div className="h-full bg-accent transition-all" style={{ width: `${progress.percent}%` }} />
                       </div>
                     </>
-                  ) : building.nextLevelCost ? (
+                  ) : research.nextLevelCost ? (
                     <div className="mb-4 grid grid-cols-2 gap-2">
                       <div className="rounded border border-wellBorder bg-well p-2.5">
-                        <div className="mb-1 text-[8px] uppercase text-textFaint">{t('base.nextLevelCost')}</div>
+                        <div className="mb-1 text-[8px] uppercase text-textFaint">{t('research.nextLevelCost')}</div>
                         <div className="text-sm">
-                          {building.nextLevelCost.metalCost} {t('resource.METAL')}
+                          {research.nextLevelCost.metalCost} {t('resource.METAL')}
                         </div>
                         <div className="text-sm">
-                          {building.nextLevelCost.crystalCost} {t('resource.CRYSTAL')}
+                          {research.nextLevelCost.crystalCost} {t('resource.CRYSTAL')}
                         </div>
+                        {research.nextLevelCost.creditsCost > 0 && (
+                          <div className="text-sm">
+                            {research.nextLevelCost.creditsCost} {t('resource.CREDITS')}
+                          </div>
+                        )}
                       </div>
                       <div className="rounded border border-wellBorder bg-well p-2.5">
-                        <div className="mb-1 text-[8px] uppercase text-textFaint">{t('base.buildTime')}</div>
-                        <div className="text-sm tabular-nums">{formatDuration(building.nextLevelCost.constructionSeconds)}</div>
+                        <div className="mb-1 text-[8px] uppercase text-textFaint">{t('research.researchTime')}</div>
+                        <div className="text-sm tabular-nums">{formatDuration(research.nextLevelCost.researchSeconds)}</div>
                       </div>
                     </div>
                   ) : (
-                    <p className="mb-4 text-xs text-textMuted">{t('base.maxLevel')}</p>
+                    <p className="mb-4 text-xs text-textMuted">{t('research.maxLevel')}</p>
                   )}
 
                   <button
                     type="button"
-                    disabled={progress.active || !building.nextLevelCost}
-                    onClick={() => handleUpgrade(building.key)}
+                    disabled={progress.active || !research.nextLevelCost}
+                    onClick={() => handleStart(research.key)}
                     className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                   >
-                    {t('base.upgrade')}
+                    {t('research.start')}
                   </button>
                 </div>
               </section>

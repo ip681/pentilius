@@ -6,17 +6,32 @@
     "login": "Log in",
     "register": "Register",
     "email": "Email",
+    "username": "Username",
+    "usernameHint": "3-20 characters: letters, digits and underscores only.",
     "password": "Password",
     "submit": "Submit",
     "error": "Something went wrong. Please try again.",
     "errorConflict": "An account with this email already exists.",
+    "errorEmailTaken": "An account with this email already exists.",
+    "errorUsernameTaken": "This username is already taken.",
     "errorInvalidCredentials": "Invalid email or password."
+  },
+  "race": {
+    "chooseLabel": "Choose your race",
+    "LUXARI": { "name": "Luxari", "theme": "Masters of Technology", "description": "Brilliant engineers and innovators, the Luxari push the boundaries of science and technology." },
+    "VORLUN": { "name": "Vorlun", "theme": "Harmonizers of Life", "description": "In tune with life and nature, Vorlun excel in biology, medicine and sustainable development." },
+    "ZARYTH": { "name": "Zaryth", "theme": "Keepers of Knowledge", "description": "Scholars and seekers of truth, the Zaryth archive and interpret the wisdom of the past." },
+    "THALION": { "name": "Thalion", "theme": "Guardians of Honor", "description": "Proud and disciplined, Thalion are unmatched in leadership, strategy and combat." },
+    "NEXAR": { "name": "Nexar", "theme": "Forgers of Strength", "description": "Resilient and relentless, Nexar thrive in harsh environments and turn resources into power." }
   },
   "nav": {
     "overview": "Overview",
     "base": "Base",
+    "research": "Research",
     "ship": "Ship",
     "zones": "Zones",
+    "bosses": "Bosses",
+    "expeditions": "Expeditions",
     "reports": "Battle Reports"
   },
   "sidebar": {
@@ -26,7 +41,8 @@
   "topbar": {
     "online": "Online",
     "loggedOut": "Not logged in",
-    "logout": "Log out"
+    "logout": "Log out",
+    "menu": "Menu"
   },
   "resource": {
     "METAL": "Metal",
@@ -99,7 +115,9 @@
     "locked": "Locked",
     "loadError": "Could not load zones.",
     "verdant_flats": { "name": "Verdant Flats" },
-    "ashen_ridge": { "name": "Ashen Ridge" }
+    "ashen_ridge": { "name": "Ashen Ridge" },
+    "crimson_wastes": { "name": "Crimson Wastes" },
+    "frostbound_reach": { "name": "Frostbound Reach" }
   },
   "pve": {
     "title": "Combat",
@@ -123,10 +141,81 @@
     "attackError": "The attack failed.",
     "reportsTitle": "Battle Reports"
   },
+  "expeditions": {
+    "title": "Expeditions",
+    "subtitle": "Send your ship on a timed automatic mission.",
+    "start": "Start",
+    "claim": "Claim",
+    "inProgress": "Expedition in progress",
+    "readyToClaim": "Expedition complete!",
+    "claimedTitle": "Expedition rewards claimed",
+    "bonusItemFound": "Bonus item found",
+    "bonusChance": "{percent}% chance",
+    "loadError": "Could not load expeditions.",
+    "startError": "Could not start this expedition.",
+    "claimError": "Could not claim rewards.",
+    "cancel": "Cancel expedition",
+    "cancelConfirm": "Cancel this expedition now? You'll only receive 70% of the reward earned so far, proportional to elapsed time.",
+    "cancelHint": "Cancelling early pays out 70% of the reward earned so far.",
+    "cancelError": "Could not cancel this expedition.",
+    "short": { "name": "Short Patrol" },
+    "medium": { "name": "Standard Survey" },
+    "long": { "name": "Deep Range Expedition" }
+  },
+  "research": {
+    "title": "Research",
+    "subtitle": "Invest resources into lasting technologies for your base and ship.",
+    "level": "Level",
+    "maxLevel": "Max level reached",
+    "start": "Research",
+    "inProgress": "Researching",
+    "nextLevelCost": "Next level cost",
+    "researchTime": "Research time",
+    "bonusPerLevel": "+{percent}% per level",
+    "loadError": "Could not load research.",
+    "startError": "Could not start this research.",
+    "metal_production": { "name": "Metal Production", "description": "Improves the yield of every metal-producing building." },
+    "crystal_production": { "name": "Crystal Production", "description": "Improves the yield of every crystal-producing building." },
+    "weapon_systems": { "name": "Weapon Systems", "description": "Increases the attack power of your ship's equipped weapons." },
+    "hull_engineering": { "name": "Hull Engineering", "description": "Increases the maximum hull integrity of your ship." }
+  },
+  "bosses": {
+    "title": "Boss Hunts",
+    "subtitle": "Join forces with other players in an open lobby and take down a boss together.",
+    "locked": "Zone not yet unlocked.",
+    "attack": "ATK",
+    "defense": "DEF",
+    "joinWindow": "Join window closes in",
+    "participants": "{count} joined",
+    "previousResolved": "The last attempt has been resolved.",
+    "join": "Join",
+    "joined": "Joined",
+    "resolve": "Resolve now",
+    "loadError": "Could not load bosses.",
+    "joinError": "Could not join this boss.",
+    "resolveError": "Could not resolve this encounter.",
+    "encounterStart": "The party engages {name}.",
+    "roundHit": "{name} deals {damage} damage.",
+    "victoryLog": "The boss has been defeated.",
+    "defeatLog": "The party has been defeated.",
+    "victory": "Victory!",
+    "defeat": "Defeat",
+    "noOne": "No one joined in time.",
+    "synergyBonus": "Racial synergy bonus: +{percent}%",
+    "party": "The Party",
+    "contribution": "Contribution & Rewards",
+    "ridgeback_alpha": { "name": "Ridgeback Alpha" },
+    "frost_sovereign": { "name": "Frost Sovereign" }
+  },
   "pentili": {
     "skitterling": { "name": "Skitterling" },
     "mossback": { "name": "Mossback" },
-    "ridgefang": { "name": "Ridgefang" }
+    "ridgefang": { "name": "Ridgefang" },
+    "cinderclaw": { "name": "Cinderclaw" },
+    "duskfang": { "name": "Duskfang" },
+    "voidling": { "name": "Voidling" },
+    "glacialwraith": { "name": "Glacialwraith" },
+    "stormcaller": { "name": "Stormcaller" }
   },
   "buildings": {
     "metal_mine": { "name": "Metal Mine" },
@@ -141,6 +230,12 @@
     "reactor_starter_core": { "name": "Starter Core", "description": "A basic power reactor." },
     "utility_starter_scanner": { "name": "Starter Scanner", "description": "A basic utility scanner." },
     "weapon_pulse_cannon": { "name": "Pulse Cannon", "description": "A stronger energy weapon." },
-    "hull_reinforced_plating": { "name": "Reinforced Plating", "description": "Reinforced hull plating with added defense." }
+    "hull_reinforced_plating": { "name": "Reinforced Plating", "description": "Reinforced hull plating with added defense." },
+    "engine_ion_drive": { "name": "Ion Drive", "description": "An advanced engine with improved hull integration." },
+    "shield_aegis_barrier": { "name": "Aegis Barrier", "description": "A reinforced deflector shield." },
+    "reactor_fusion_core": { "name": "Fusion Core", "description": "A high-output reactor boosting attack and defense." },
+    "utility_deep_scanner": { "name": "Deep Scanner", "description": "A long-range targeting utility module." },
+    "weapon_railgun": { "name": "Railgun", "description": "A heavy-hitting kinetic weapon." },
+    "hull_titan_plating": { "name": "Titan Plating", "description": "Dense hull plating for serious punishment." }
   }
 }

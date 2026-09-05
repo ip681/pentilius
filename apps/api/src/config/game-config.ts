@@ -28,4 +28,17 @@ export const GAME_BALANCE = {
     damageVariance: 0.1,
     maxRounds: 30,
   },
+  expeditions: {
+    // Owner-specified: cancelling early pays out 70% of the reward earned
+    // proportionally to elapsed time (not a placeholder — an actual decision).
+    earlyCancelPercentage: 0.7,
+  },
+  bossHunts: {
+    // Racial group synergy percentages are PROVISIONAL but explicitly
+    // specified in instructions/GAME_SYSTEMS.md — not a guess, unlike the
+    // per-boss encounter window (Boss.encounterWindowSeconds, seed data) and
+    // the attack-share contribution split, both UNDEFINED ("boss timers",
+    // "contribution calculation").
+    synergyBonusByUniqueRaceCount: { 1: 0, 2: 0.05, 3: 0.1, 4: 0.15, 5: 0.25 } as Record<number, number>,
+  },
 } as const;

@@ -13,6 +13,8 @@ export class PlayerService {
     return {
       id: player.id,
       email: player.email,
+      username: player.username,
+      race: player.race,
       level: player.level,
       xp: player.xp,
       xpForNextLevel,

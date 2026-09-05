@@ -7,6 +7,7 @@ describe('EconomyService', () => {
   let prisma: {
     player: { findUniqueOrThrow: jest.Mock; update: jest.Mock };
     playerBuilding: { findMany: jest.Mock };
+    playerResearch: { findMany: jest.Mock };
     levelThreshold: { findUnique: jest.Mock };
   };
 
@@ -14,6 +15,7 @@ describe('EconomyService', () => {
     prisma = {
       player: { findUniqueOrThrow: jest.fn(), update: jest.fn() },
       playerBuilding: { findMany: jest.fn() },
+      playerResearch: { findMany: jest.fn().mockResolvedValue([]) },
       levelThreshold: { findUnique: jest.fn() },
     };
 

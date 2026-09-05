@@ -22,7 +22,8 @@ describe('CombatService', () => {
   let randomSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    combat = new CombatService(undefined as never);
+    const economy = { getResearchMultiplier: jest.fn().mockResolvedValue(1) };
+    combat = new CombatService(undefined as never, economy as never);
   });
 
   afterEach(() => {

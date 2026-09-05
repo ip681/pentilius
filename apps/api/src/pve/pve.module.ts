@@ -8,5 +8,6 @@ import { PveService } from './pve.service';
   imports: [PlayerModule],
   controllers: [PveController],
   providers: [PveService, CombatService],
+  exports: [CombatService],
 })
 export class PveModule {}
