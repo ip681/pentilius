@@ -82,12 +82,21 @@ model Player {
   actionEnergyMax Int      @default(10)
   energyUpdatedAt DateTime @default(now())
 
+  // Revenge-protection window granted after losing a PvP defense, so a freshly
+  // raided player cannot be immediately farmed again — instructions/OPEN_DECISIONS.md's
+  // "protected resources" / anti-harassment requirement is UNDEFINED in exact
+  // shape; this is the placeholder mechanism. Null when not protected.
+  pvpProtectedUntil DateTime?
+
   buildings              PlayerBuilding[]
   items                  ItemInstance[]
   battleReports          BattleReport[]
   expeditions            PlayerExpedition[]
   researches             PlayerResearch[]
   bossEncounterEntries   BossEncounterParticipant[]
+  pvpAttacks             PvpBattleReport[] @relation("PvpAttacks")
+  pvpDefenses            PvpBattleReport[] @relation("PvpDefenses")
+  clanMembership         ClanMembership?
 
   @@map("players")
 }
@@ -423,4 +432,74 @@ model BossEncounterParticipant {
 
   @@unique([encounterId, playerId])
   @@map("boss_encounter_participants")
+}
+
+// PvP (instructions/GAME_SYSTEMS.md, LOCKED direction: PvP exists, no
+// world-map coordinates, matchmaking + anti-harassment protection required).
+// Exact power range, cooldowns, defender losses, protected resources, online
+// defense bonus, PvP cost and ranking formula are all UNDEFINED
+// (instructions/OPEN_DECISIONS.md) — this is a working M3 foundation with
+// owner-specified rules (level 5 gate on both sides) and clearly-isolated
+// placeholders for the rest: a random-opponent matchmaker (clan-filtered
+// targeting waits for Milestone 4), a flat resource-steal percentage on
+// defeat, a per-attacker/defender cooldown, and a short revenge-protection
+// window for a player who just lost a defense (Player.pvpProtectedUntil).
+model PvpBattleReport {
+  id            String        @id @default(uuid())
+  attackerId    String
+  defenderId    String
+  outcome       BattleOutcome
+  rounds        Json
+  attackerMaxHp Int
+  defenderMaxHp Int
+  damageDealt   Int
+  damageTaken   Int
+  lootSummary   Json
+  createdAt     DateTime      @default(now())
+
+  attacker Player @relation("PvpAttacks", fields: [attackerId], references: [id])
+  defender Player @relation("PvpDefenses", fields: [defenderId], references: [id])
+
+  @@map("pvp_battle_reports")
+}
+
+// Clans (instructions/GAME_SYSTEMS.md, LOCKED: "Clans are central"). Member
+// cap, roles, clan building list, contribution rules and clan-war rules are
+// all UNDEFINED (instructions/OPEN_DECISIONS.md) — this is an M4 foundation:
+// create/join/leave/roles only. Clan buildings/resources, a member-capacity
+// building, clan-scoped boss hunts and clan-vs-clan systems are deliberately
+// deferred to a later pass, not modeled here yet. Joining is open (owner
+// decision, mirroring the Boss Hunts precedent) rather than invite/request
+// based — no separate invite/request model exists.
+enum ClanRole {
+  LEADER
+  OFFICER
+  MEMBER
+}
+
+model Clan {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  tag         String   @unique
+  description String?
+  // Placeholder — instructions/OPEN_DECISIONS.md: "member cap" is UNDEFINED.
+  memberCap   Int      @default(30)
+  createdAt   DateTime @default(now())
+
+  members ClanMembership[]
+
+  @@map("clans")
+}
+
+model ClanMembership {
+  id       String   @id @default(uuid())
+  clanId   String
+  playerId String   @unique
+  role     ClanRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  clan   Clan   @relation(fields: [clanId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@map("clan_memberships")
 }

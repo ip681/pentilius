@@ -6,12 +6,17 @@ import type {
   BossDto,
   BossEncounterResultDto,
   BuildingStateDto,
+  ClanDetailDto,
+  ClanSummaryDto,
   ExpeditionClaimResultDto,
   ExpeditionsResponseDto,
   InventoryItemDto,
   LoginRequest,
+  MyClanResponseDto,
   PentiliDto,
   PlayerProfileDto,
+  PvpBattleReportDto,
+  PvpStatusDto,
   RegisterRequest,
   ResearchResponseDto,
   ResearchStateDto,
@@ -57,10 +62,14 @@ async function request<TResponse>(path: string, options: { method?: string; body
     throw new ApiError(response.status, `Request to ${path} failed with status ${response.status}`, code);
   }
 
-  if (response.status === 204) {
+  // NestJS sends an empty body (not literal "null") for handlers returning
+  // null/void, regardless of status code — response.json() would throw on
+  // that, so check for actual content first.
+  const text = await response.text();
+  if (!text) {
     return undefined as TResponse;
   }
-  return response.json() as Promise<TResponse>;
+  return JSON.parse(text) as TResponse;
 }
 
 // Auth (unauthenticated)
@@ -163,4 +172,58 @@ export function joinBossEncounter(key: string): Promise<BossDto> {
 
 export function resolveBossEncounter(key: string): Promise<BossEncounterResultDto> {
   return request<BossEncounterResultDto>(`/bosses/${key}/resolve`, { method: 'POST', auth: true });
+}
+
+// PvP
+export function getPvpStatus(): Promise<PvpStatusDto> {
+  return request<PvpStatusDto>('/pvp/status', { auth: true });
+}
+
+export function attackRandomOpponent(): Promise<PvpBattleReportDto> {
+  return request<PvpBattleReportDto>('/pvp/attack', { method: 'POST', auth: true });
+}
+
+export function getPvpReports(): Promise<PvpBattleReportDto[]> {
+  return request<PvpBattleReportDto[]>('/pvp/reports', { auth: true });
+}
+
+// Clans
+export function listClans(): Promise<ClanSummaryDto[]> {
+  return request<ClanSummaryDto[]>('/clans', { auth: true });
+}
+
+export function getMyClan(): Promise<MyClanResponseDto> {
+  return request<MyClanResponseDto>('/clans/me', { auth: true });
+}
+
+export function createClan(payload: { name: string; tag: string; description?: string }): Promise<ClanDetailDto> {
+  return request<ClanDetailDto>('/clans', { method: 'POST', auth: true, body: payload });
+}
+
+export function joinClan(clanId: string): Promise<ClanDetailDto> {
+  return request<ClanDetailDto>(`/clans/${clanId}/join`, { method: 'POST', auth: true });
+}
+
+export function leaveClan(): Promise<void> {
+  return request<void>('/clans/leave', { method: 'POST', auth: true });
+}
+
+export function disbandClan(): Promise<void> {
+  return request<void>('/clans/disband', { method: 'POST', auth: true });
+}
+
+export function kickClanMember(playerId: string): Promise<void> {
+  return request<void>(`/clans/members/${playerId}/kick`, { method: 'POST', auth: true });
+}
+
+export function promoteClanMember(playerId: string): Promise<void> {
+  return request<void>(`/clans/members/${playerId}/promote`, { method: 'POST', auth: true });
+}
+
+export function demoteClanMember(playerId: string): Promise<void> {
+  return request<void>(`/clans/members/${playerId}/demote`, { method: 'POST', auth: true });
+}
+
+export function transferClanLeadership(playerId: string): Promise<void> {
+  return request<void>(`/clans/members/${playerId}/transfer-leadership`, { method: 'POST', auth: true });
 }

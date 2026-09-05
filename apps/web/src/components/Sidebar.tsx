@@ -9,6 +9,7 @@ const GROUPS = [
     titleKey: 'sidebar.command',
     items: [
       { href: '/dashboard', labelKey: 'nav.overview' },
+      { href: '/clans', labelKey: 'nav.clans' },
       { href: '/base', labelKey: 'nav.base' },
       { href: '/research', labelKey: 'nav.research' },
       { href: '/ship', labelKey: 'nav.ship' },
@@ -19,6 +20,7 @@ const GROUPS = [
     items: [
       { href: '/zones', labelKey: 'nav.zones' },
       { href: '/bosses', labelKey: 'nav.bosses' },
+      { href: '/pvp', labelKey: 'nav.pvp' },
       { href: '/expeditions', labelKey: 'nav.expeditions' },
       { href: '/reports', labelKey: 'nav.reports' },
     ],

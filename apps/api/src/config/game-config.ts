@@ -41,4 +41,18 @@ export const GAME_BALANCE = {
     // "contribution calculation").
     synergyBonusByUniqueRaceCount: { 1: 0, 2: 0.05, 3: 0.1, 4: 0.15, 5: 0.25 } as Record<number, number>,
   },
+  pvp: {
+    // Owner-specified: PvP unlocks at level 5, and players below level 5
+    // cannot be targeted either — not a placeholder guess.
+    minLevel: 5,
+    // Reuses Action Energy rather than a separate PvP resource — owner-specified.
+    attackCostEnergy: 1,
+    // Exact power range, cooldowns, defender losses, protected resources,
+    // online defense bonus and ranking formula are all UNDEFINED
+    // (instructions/OPEN_DECISIONS.md: "PvP"). These are placeholders so a
+    // working, non-abusive loop exists — retune once real values are decided.
+    resourceStealPercentage: 0.1,
+    attackCooldownMinutes: 10,
+    revengeProtectionMinutes: 10,
+  },
 } as const;

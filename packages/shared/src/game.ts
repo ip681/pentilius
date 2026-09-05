@@ -238,3 +238,55 @@ export interface BossDto {
   unlocked: boolean;
   encounter: BossEncounterDto;
 }
+
+export interface PvpStatusDto {
+  unlocked: boolean;
+  minLevel: number;
+  attackCostEnergy: number;
+}
+
+export interface PvpBattleReportDto {
+  id: string;
+  role: 'attacker' | 'defender';
+  opponentUsername: string;
+  opponentRace: Race;
+  outcome: BattleOutcome;
+  rounds: CombatRoundDto[];
+  attackerMaxHp: number;
+  defenderMaxHp: number;
+  damageDealt: number;
+  damageTaken: number;
+  lootSummary: LootResultEntryDto[];
+  createdAt: string;
+}
+
+export type ClanRole = 'LEADER' | 'OFFICER' | 'MEMBER';
+
+export interface ClanSummaryDto {
+  id: string;
+  name: string;
+  tag: string;
+  description: string | null;
+  memberCount: number;
+  memberCap: number;
+  leaderUsername: string;
+}
+
+export interface ClanMemberDto {
+  playerId: string;
+  username: string;
+  race: Race;
+  role: ClanRole;
+  joinedAt: string;
+  isCurrentPlayer: boolean;
+}
+
+export interface ClanDetailDto extends ClanSummaryDto {
+  createdAt: string;
+  members: ClanMemberDto[];
+  myRole: ClanRole | null;
+}
+
+export interface MyClanResponseDto {
+  clan: ClanDetailDto | null;
+}
