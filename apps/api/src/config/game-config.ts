@@ -1,14 +1,24 @@
 /**
- * Pattern for data-driven balance values (see instructions/GAME_SYSTEMS.md,
- * instructions/OPEN_DECISIONS.md). Milestone 0 has no gameplay systems yet,
- * so this file intentionally stays empty of real values — it exists only to
- * fix the shape: balance constants live here (or later in a DB-backed
- * GameConfig table), never hard-coded inside game logic.
- *
- * Do not add values for mechanics still marked UNDEFINED in the instructions
- * (e.g. Action Energy regeneration rate) — those belong in OPEN_DECISIONS.md
- * until the owner decides them.
+ * Data-driven balance values (see instructions/GAME_SYSTEMS.md,
+ * instructions/OPEN_DECISIONS.md). Every value here stands in for something
+ * still marked UNDEFINED for the real game design — they exist only so
+ * Milestone 1 has a working vertical slice. Never inline these numbers
+ * elsewhere; import from here so they stay tunable in one place. See
+ * instructions/OPEN_DECISIONS.md for the list of what is still placeholder.
  */
-export interface GameConfig {
-  // Populated starting in Milestone 1, one gameplay system at a time.
-}
+export const GAME_BALANCE = {
+  actionEnergy: {
+    // Regeneration rate is UNDEFINED in GAME_SYSTEMS.md — this interval is a placeholder.
+    regenIntervalMinutes: 30,
+  },
+  itemUpgrade: {
+    // Cost curve and success/failure rules are UNDEFINED — M1 always succeeds
+    // if the player can pay; no failure/protection-stone mechanics yet.
+    stonesPerLevel: 5,
+  },
+  combat: {
+    // Combat formula is UNDEFINED — placeholder linear model:
+    // stat = sum(equipped baseStats) * (1 + upgradeLevel * bonusPerUpgradeLevel).
+    bonusPerUpgradeLevel: 0.1,
+  },
+} as const;

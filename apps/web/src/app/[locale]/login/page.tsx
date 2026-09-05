@@ -2,12 +2,15 @@
 
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import { login, register } from '@/lib/api-client';
+import { useRouter } from '@/i18n/navigation';
+import { ApiError, login, register } from '@/lib/api-client';
+import { storeTokens } from '@/lib/auth';
 
-type Status = { kind: 'idle' } | { kind: 'success'; email: string } | { kind: 'error' };
+type Status = { kind: 'idle' } | { kind: 'error'; messageKey: string };
 
 export default function LoginPage() {
   const t = useTranslations('auth');
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -15,12 +18,20 @@ export default function LoginPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    setStatus({ kind: 'idle' });
     try {
       const action = mode === 'login' ? login : register;
       const result = await action({ email, password });
-      setStatus({ kind: 'success', email: result.player.email });
-    } catch {
-      setStatus({ kind: 'error' });
+      storeTokens(result);
+      router.push('/base');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        setStatus({ kind: 'error', messageKey: 'errorConflict' });
+      } else if (error instanceof ApiError && error.status === 401) {
+        setStatus({ kind: 'error', messageKey: 'errorInvalidCredentials' });
+      } else {
+        setStatus({ kind: 'error', messageKey: 'error' });
+      }
     }
   }
 
@@ -70,8 +81,7 @@ export default function LoginPage() {
         </button>
       </form>
 
-      {status.kind === 'success' && <p>{t('success', { email: status.email })}</p>}
-      {status.kind === 'error' && <p className="text-red-600">{t('error')}</p>}
+      {status.kind === 'error' && <p className="text-red-600">{t(status.messageKey)}</p>}
     </main>
   );
 }

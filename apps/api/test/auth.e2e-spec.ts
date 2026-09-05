@@ -25,7 +25,12 @@ describe('Auth (e2e)', () => {
   });
 
   afterAll(async () => {
-    await prisma.player.deleteMany({ where: { email } });
+    const player = await prisma.player.findUnique({ where: { email } });
+    if (player) {
+      await prisma.itemInstance.deleteMany({ where: { playerId: player.id } });
+      await prisma.playerBuilding.deleteMany({ where: { playerId: player.id } });
+      await prisma.player.delete({ where: { id: player.id } });
+    }
     await app.close();
   });
 

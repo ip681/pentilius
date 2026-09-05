@@ -8,7 +8,97 @@
     "email": "Email",
     "password": "Password",
     "submit": "Submit",
-    "success": "Welcome, {email}!",
-    "error": "Something went wrong. Please try again."
+    "error": "Something went wrong. Please try again.",
+    "errorConflict": "An account with this email already exists.",
+    "errorInvalidCredentials": "Invalid email or password."
+  },
+  "nav": {
+    "base": "Base",
+    "ship": "Ship",
+    "inventory": "Inventory",
+    "zones": "Zones",
+    "reports": "Battle Reports"
+  },
+  "resource": {
+    "METAL": "Metal",
+    "CRYSTAL": "Crystal",
+    "OXYGEN": "Oxygen",
+    "CREDITS": "Credits",
+    "UPGRADE_STONES": "Upgrade Stones"
+  },
+  "equipmentSlot": {
+    "WEAPON": "Weapon",
+    "ENGINE": "Engine",
+    "HULL": "Hull",
+    "SHIELD": "Shield",
+    "REACTOR": "Reactor",
+    "UTILITY": "Utility"
+  },
+  "base": {
+    "title": "Base",
+    "level": "Level",
+    "upgrade": "Upgrade",
+    "nextLevelCost": "Next level cost",
+    "underConstructionUntil": "Under construction until",
+    "maxLevel": "Max level reached",
+    "loadError": "Could not load your base.",
+    "upgradeError": "Could not upgrade this building."
+  },
+  "ship": {
+    "title": "Ship",
+    "empty": "Empty slot",
+    "unequip": "Unequip",
+    "loadError": "Could not load your ship.",
+    "actionError": "That action failed."
+  },
+  "inventory": {
+    "title": "Inventory",
+    "equip": "Equip",
+    "upgrade": "Upgrade",
+    "equipped": "Equipped",
+    "loadError": "Could not load your inventory.",
+    "actionError": "That action failed."
+  },
+  "zones": {
+    "title": "Zones",
+    "unlocksAtLevel": "Unlocks at level",
+    "enter": "Enter",
+    "locked": "Locked",
+    "loadError": "Could not load zones.",
+    "verdant_flats": { "name": "Verdant Flats" },
+    "ashen_ridge": { "name": "Ashen Ridge" }
+  },
+  "pve": {
+    "title": "Pentili",
+    "attack": "Attack",
+    "victory": "Victory!",
+    "defeat": "Defeat",
+    "damageDealt": "Damage dealt",
+    "damageTaken": "Damage taken",
+    "xpGained": "XP gained",
+    "leveledUp": "Level up! You are now level {level}.",
+    "loadError": "Could not load this zone.",
+    "attackError": "The attack failed.",
+    "reportsTitle": "Battle Reports"
+  },
+  "pentili": {
+    "skitterling": { "name": "Skitterling" },
+    "mossback": { "name": "Mossback" },
+    "ridgefang": { "name": "Ridgefang" }
+  },
+  "buildings": {
+    "metal_mine": { "name": "Metal Mine" },
+    "crystal_extractor": { "name": "Crystal Extractor" },
+    "warehouse": { "name": "Warehouse" }
+  },
+  "items": {
+    "weapon_starter_blaster": { "name": "Starter Blaster", "description": "A basic sidearm-grade weapon mount." },
+    "engine_starter_thruster": { "name": "Starter Thruster", "description": "A basic maneuvering engine." },
+    "hull_starter_plating": { "name": "Starter Plating", "description": "Basic hull plating." },
+    "shield_starter_barrier": { "name": "Starter Barrier", "description": "A basic deflector shield." },
+    "reactor_starter_core": { "name": "Starter Core", "description": "A basic power reactor." },
+    "utility_starter_scanner": { "name": "Starter Scanner", "description": "A basic utility scanner." },
+    "weapon_pulse_cannon": { "name": "Pulse Cannon", "description": "A stronger energy weapon." },
+    "hull_reinforced_plating": { "name": "Reinforced Plating", "description": "Reinforced hull plating with added defense." }
   }
 }

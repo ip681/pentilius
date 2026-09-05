@@ -1,6 +1,14 @@
-// Milestone 0: only the player identity needed for auth.
-// Game entities (resources, buildings, ship, inventory, items) arrive in Milestone 1,
-// as static definitions vs. player-state tables per instructions/ARCHITECTURE.md.
+// Milestone 1: single-player vertical slice (base, buildings, ship/equipment,
+// inventory, zones, PvE, XP/level, loot, item upgrade, battle reports).
+// Static definitions vs. player state split per instructions/ARCHITECTURE.md.
+//
+// Several fields here stand in for values marked UNDEFINED in
+// instructions/GAME_SYSTEMS.md / instructions/OPEN_DECISIONS.md (XP curve,
+// land unlock thresholds, combat stats, upgrade costs). They are seeded data
+// (LevelThreshold, Zone.unlockLevel, BuildingLevelCost, ItemDefinition) or
+// constants in src/config/game-config.ts — never hard-coded in game logic —
+// so the real values can be tuned later without touching code. See
+// instructions/OPEN_DECISIONS.md for the list of what is still placeholder.
 
 generator client {
   provider      = "prisma-client-js"
@@ -12,6 +20,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum EquipmentSlot {
+  WEAPON
+  ENGINE
+  HULL
+  SHIELD
+  REACTOR
+  UTILITY
+}
+
+enum ResourceType {
+  METAL
+  CRYSTAL
+  OXYGEN
+  CREDITS
+  UPGRADE_STONES
+}
+
+enum BattleOutcome {
+  WIN
+  LOSS
+}
+
 model Player {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -19,5 +49,175 @@ model Player {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  level Int @default(1)
+  xp    Int @default(0)
+
+  // Starting amounts are placeholders (instructions/OPEN_DECISIONS.md: "final resource list").
+  metal              Int      @default(500)
+  crystal            Int      @default(100)
+  oxygen             Int      @default(100)
+  credits            Int      @default(50)
+  upgradeStones      Int      @default(5)
+  resourcesUpdatedAt DateTime @default(now())
+
+  // 10 is instructions/GAME_SYSTEMS.md's own example standard max, not an invented value.
+  actionEnergy    Int      @default(10)
+  actionEnergyMax Int      @default(10)
+  energyUpdatedAt DateTime @default(now())
+
+  buildings     PlayerBuilding[]
+  items         ItemInstance[]
+  battleReports BattleReport[]
+
   @@map("players")
+}
+
+model Zone {
+  id          String @id @default(uuid())
+  key         String @unique
+  nameKey     String
+  order       Int
+  unlockLevel Int
+
+  pentili       Pentili[]
+  battleReports BattleReport[]
+
+  @@map("zones")
+}
+
+model Pentili {
+  id          String @id @default(uuid())
+  key         String @unique
+  nameKey     String
+  zoneId      String
+  level       Int
+  maxHp       Int
+  attack      Int
+  defense     Int
+  xpReward    Int
+  iconAssetId String
+
+  zone          Zone           @relation(fields: [zoneId], references: [id])
+  lootDrops     LootDrop[]
+  battleReports BattleReport[]
+
+  @@map("pentili")
+}
+
+model LootDrop {
+  id               String        @id @default(uuid())
+  pentiliId        String
+  resourceType     ResourceType?
+  itemDefinitionId String?
+  dropChance       Float
+  minQuantity      Int
+  maxQuantity      Int
+
+  pentili        Pentili         @relation(fields: [pentiliId], references: [id])
+  itemDefinition ItemDefinition? @relation(fields: [itemDefinitionId], references: [id])
+
+  @@map("loot_drops")
+}
+
+model BuildingType {
+  id          String @id @default(uuid())
+  key         String @unique
+  nameKey     String
+  maxLevel    Int
+  iconAssetId String
+
+  levelCosts      BuildingLevelCost[]
+  playerBuildings PlayerBuilding[]
+
+  @@map("building_types")
+}
+
+model BuildingLevelCost {
+  id                   String        @id @default(uuid())
+  buildingTypeId       String
+  level                Int
+  metalCost            Int
+  crystalCost          Int
+  constructionSeconds  Int
+  producesResourceType ResourceType?
+  producesPerHour      Int?
+
+  buildingType BuildingType @relation(fields: [buildingTypeId], references: [id])
+
+  @@unique([buildingTypeId, level])
+  @@map("building_level_costs")
+}
+
+model ItemDefinition {
+  id              String        @id @default(uuid())
+  key             String        @unique
+  nameKey         String
+  descriptionKey  String
+  slot            EquipmentSlot
+  // Flexible bag, not fixed columns: exact stat schema is UNDEFINED
+  // (instructions/OPEN_DECISIONS.md: "final slot list"). M1 reads
+  // attack/defense/hp keys from it — see pve/combat.service.ts.
+  baseStats       Json
+  maxUpgradeLevel Int
+  iconAssetId     String
+  isStarterItem   Boolean       @default(false)
+
+  itemInstances ItemInstance[]
+  lootDrops     LootDrop[]
+
+  @@map("item_definitions")
+}
+
+model LevelThreshold {
+  level      Int @id
+  xpRequired Int
+
+  @@map("level_thresholds")
+}
+
+model PlayerBuilding {
+  id                 String    @id @default(uuid())
+  playerId           String
+  buildingTypeId     String
+  level              Int       @default(0)
+  constructionEndsAt DateTime?
+
+  player       Player       @relation(fields: [playerId], references: [id])
+  buildingType BuildingType @relation(fields: [buildingTypeId], references: [id])
+
+  @@unique([playerId, buildingTypeId])
+  @@map("player_buildings")
+}
+
+model ItemInstance {
+  id               String         @id @default(uuid())
+  playerId         String
+  itemDefinitionId String
+  upgradeLevel     Int            @default(0)
+  equippedSlot     EquipmentSlot?
+  acquiredAt       DateTime       @default(now())
+
+  player         Player         @relation(fields: [playerId], references: [id])
+  itemDefinition ItemDefinition @relation(fields: [itemDefinitionId], references: [id])
+
+  @@map("item_instances")
+}
+
+model BattleReport {
+  id          String        @id @default(uuid())
+  playerId    String
+  pentiliId   String
+  zoneId      String
+  outcome     BattleOutcome
+  xpGained    Int
+  lootSummary Json
+  damageDealt Int
+  damageTaken Int
+  createdAt   DateTime      @default(now())
+
+  player  Player  @relation(fields: [playerId], references: [id])
+  pentili Pentili @relation(fields: [pentiliId], references: [id])
+  zone    Zone    @relation(fields: [zoneId], references: [id])
+
+  @@map("battle_reports")
 }

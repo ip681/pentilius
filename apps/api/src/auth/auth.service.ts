@@ -26,8 +26,19 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
-    const player = await this.prisma.player.create({
-      data: { email: dto.email, passwordHash },
+    const player = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.player.create({ data: { email: dto.email, passwordHash } });
+
+      // Starter kit so a new player can equip a ship right away (instructions/MILESTONES.md
+      // success flow: "equip ship" happens before the first PvE fight).
+      const starterItems = await tx.itemDefinition.findMany({ where: { isStarterItem: true } });
+      if (starterItems.length > 0) {
+        await tx.itemInstance.createMany({
+          data: starterItems.map((item) => ({ playerId: created.id, itemDefinitionId: item.id })),
+        });
+      }
+
+      return created;
     });
 
     return this.buildAuthResponse(player.id, player.email, player.createdAt);

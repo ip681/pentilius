@@ -8,7 +8,97 @@
     "email": "Имейл",
     "password": "Парола",
     "submit": "Изпрати",
-    "success": "Добре дошъл, {email}!",
-    "error": "Възникна грешка. Опитайте отново."
+    "error": "Възникна грешка. Опитайте отново.",
+    "errorConflict": "Вече има акаунт с този имейл.",
+    "errorInvalidCredentials": "Грешен имейл или парола."
+  },
+  "nav": {
+    "base": "База",
+    "ship": "Кораб",
+    "inventory": "Инвентар",
+    "zones": "Земи",
+    "reports": "Бойни отчети"
+  },
+  "resource": {
+    "METAL": "Метал",
+    "CRYSTAL": "Кристал",
+    "OXYGEN": "Кислород",
+    "CREDITS": "Кредити",
+    "UPGRADE_STONES": "Камъни за ъпгрейд"
+  },
+  "equipmentSlot": {
+    "WEAPON": "Оръжие",
+    "ENGINE": "Двигател",
+    "HULL": "Корпус",
+    "SHIELD": "Щит",
+    "REACTOR": "Реактор",
+    "UTILITY": "Помощен модул"
+  },
+  "base": {
+    "title": "База",
+    "level": "Ниво",
+    "upgrade": "Подобри",
+    "nextLevelCost": "Цена за следващо ниво",
+    "underConstructionUntil": "В строеж до",
+    "maxLevel": "Достигнато максимално ниво",
+    "loadError": "Базата не можа да се зареди.",
+    "upgradeError": "Сградата не можа да бъде подобрена."
+  },
+  "ship": {
+    "title": "Кораб",
+    "empty": "Празен слот",
+    "unequip": "Свали",
+    "loadError": "Корабът не можа да се зареди.",
+    "actionError": "Действието се провали."
+  },
+  "inventory": {
+    "title": "Инвентар",
+    "equip": "Екипирай",
+    "upgrade": "Подобри",
+    "equipped": "Екипирано",
+    "loadError": "Инвентарът не можа да се зареди.",
+    "actionError": "Действието се провали."
+  },
+  "zones": {
+    "title": "Земи",
+    "unlocksAtLevel": "Отключва се на ниво",
+    "enter": "Влез",
+    "locked": "Заключено",
+    "loadError": "Земите не можаха да се заредят.",
+    "verdant_flats": { "name": "Зелените равнини" },
+    "ashen_ridge": { "name": "Пепелният хребет" }
+  },
+  "pve": {
+    "title": "Пентили",
+    "attack": "Атакувай",
+    "victory": "Победа!",
+    "defeat": "Поражение",
+    "damageDealt": "Нанесена вреда",
+    "damageTaken": "Получена вреда",
+    "xpGained": "Получен опит",
+    "leveledUp": "Ново ниво! Вече си ниво {level}.",
+    "loadError": "Зоната не можа да се зареди.",
+    "attackError": "Атаката се провали.",
+    "reportsTitle": "Бойни отчети"
+  },
+  "pentili": {
+    "skitterling": { "name": "Скитерлинг" },
+    "mossback": { "name": "Мъхогръб" },
+    "ridgefang": { "name": "Хребетозъб" }
+  },
+  "buildings": {
+    "metal_mine": { "name": "Метална мина" },
+    "crystal_extractor": { "name": "Кристален извлекател" },
+    "warehouse": { "name": "Склад" }
+  },
+  "items": {
+    "weapon_starter_blaster": { "name": "Начален бластер", "description": "Базово леко оръжие." },
+    "engine_starter_thruster": { "name": "Начален двигател", "description": "Базов маневрен двигател." },
+    "hull_starter_plating": { "name": "Начална обшивка", "description": "Базова обшивка на корпуса." },
+    "shield_starter_barrier": { "name": "Начален щит", "description": "Базов защитен щит." },
+    "reactor_starter_core": { "name": "Начално ядро", "description": "Базов енергиен реактор." },
+    "utility_starter_scanner": { "name": "Начален скенер", "description": "Базов помощен скенер." },
+    "weapon_pulse_cannon": { "name": "Пулсов топ", "description": "По-силно енергийно оръжие." },
+    "hull_reinforced_plating": { "name": "Усилена обшивка", "description": "Усилена обшивка с допълнителна защита." }
   }
 }
