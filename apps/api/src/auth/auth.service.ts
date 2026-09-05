@@ -1,0 +1,92 @@
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { AuthResponse, AuthTokens } from '@pentilius/shared';
+import * as bcrypt from 'bcryptjs';
+import { PrismaService } from '../prisma/prisma.service';
+import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
+import { RegisterDto } from './dto/register.dto';
+import { JwtPayload } from './jwt-payload.interface';
+
+const SALT_ROUNDS = 10;
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  async register(dto: RegisterDto): Promise<AuthResponse> {
+    const existing = await this.prisma.player.findUnique({ where: { email: dto.email } });
+    if (existing) {
+      throw new ConflictException('Email already registered');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
+    const player = await this.prisma.player.create({
+      data: { email: dto.email, passwordHash },
+    });
+
+    return this.buildAuthResponse(player.id, player.email, player.createdAt);
+  }
+
+  async login(dto: LoginDto): Promise<AuthResponse> {
+    const player = await this.prisma.player.findUnique({ where: { email: dto.email } });
+    if (!player) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const passwordMatches = await bcrypt.compare(dto.password, player.passwordHash);
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return this.buildAuthResponse(player.id, player.email, player.createdAt);
+  }
+
+  async refresh(dto: RefreshDto): Promise<AuthTokens> {
+    let payload: JwtPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<JwtPayload>(dto.refreshToken, {
+        secret: this.configService.get<string>('jwt.refreshSecret'),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const player = await this.prisma.player.findUnique({ where: { id: payload.sub } });
+    if (!player) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    return this.issueTokens(player.id, player.email);
+  }
+
+  private async buildAuthResponse(id: string, email: string, createdAt: Date): Promise<AuthResponse> {
+    const tokens = await this.issueTokens(id, email);
+    return {
+      ...tokens,
+      player: { id, email, createdAt: createdAt.toISOString() },
+    };
+  }
+
+  private async issueTokens(id: string, email: string): Promise<AuthTokens> {
+    const payload: JwtPayload = { sub: id, email };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: this.configService.get<string>('jwt.accessSecret'),
+        expiresIn: this.configService.get<string>('jwt.accessExpiresIn'),
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: this.configService.get<string>('jwt.refreshSecret'),
+        expiresIn: this.configService.get<string>('jwt.refreshExpiresIn'),
+      }),
+    ]);
+
+    return { accessToken, refreshToken };
+  }
+}

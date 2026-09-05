@@ -1,0 +1,14 @@
+{
+  "common": {
+    "appName": "Pentilius"
+  },
+  "auth": {
+    "login": "Вход",
+    "register": "Регистрация",
+    "email": "Имейл",
+    "password": "Парола",
+    "submit": "Изпрати",
+    "success": "Добре дошъл, {email}!",
+    "error": "Възникна грешка. Опитайте отново."
+  }
+}

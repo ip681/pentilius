@@ -32,6 +32,18 @@ The backend is authoritative for:
 
 The frontend may display countdowns and previews, but never decides outcomes.
 
+## LOCKED: Frontend has no game logic
+The web client (Next.js) is a presentation layer only. It must call the versioned NestJS API for every state-changing action.
+
+Do not implement game logic, state mutation, or direct database access in:
+- Next.js API routes (`app/api/**`, `pages/api/**`);
+- Next.js server actions;
+- any other frontend-side server code.
+
+These may only be used for concerns that do not touch game state, such as proxying static assets or serving translation files.
+
+Reason: Next.js server-side features run on a server the game backend does not control or audit. Logic placed there silently bypasses the server-authoritative rule above and creates a second, uncoordinated source of truth for the future mobile app to diverge from.
+
 ## API versioning
 Use versioned API routes from the beginning:
 

@@ -1,0 +1,14 @@
+{
+  "common": {
+    "appName": "Pentilius"
+  },
+  "auth": {
+    "login": "Log in",
+    "register": "Register",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Submit",
+    "success": "Welcome, {email}!",
+    "error": "Something went wrong. Please try again."
+  }
+}
