@@ -99,6 +99,14 @@ export interface LootResultEntryDto {
   quantity: number;
 }
 
+export interface CombatRoundDto {
+  round: number;
+  playerDamage: number;
+  pentiliDamage: number;
+  playerHpAfter: number;
+  pentiliHpAfter: number;
+}
+
 export interface BattleReportDto {
   id: string;
   pentiliKey: string;
@@ -109,6 +117,9 @@ export interface BattleReportDto {
   lootSummary: LootResultEntryDto[];
   damageDealt: number;
   damageTaken: number;
+  rounds: CombatRoundDto[];
+  playerMaxHp: number;
+  pentiliMaxHp: number;
   createdAt: string;
   playerLevel: number;
   leveledUp: boolean;

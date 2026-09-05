@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pentilius — Combat Prototype</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        background: #080c11;
+        color: #dce5eb;
+        font-family: Arial, Helvetica, sans-serif;
+        min-height: 100vh;
+    }
+
+    /* =========================
+       TOP BAR
+    ========================= */
+
+    .topbar {
+        height: 64px;
+        border-bottom: 1px solid #26313b;
+        background: #0e141b;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 28px;
+    }
+
+    .logo {
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: 4px;
+        color: #f1f4f6;
+    }
+
+    .credits {
+        font-size: 13px;
+        color: #7e8d99;
+    }
+
+    .credits strong {
+        color: #dbe4e9;
+        margin-left: 5px;
+    }
+
+    /* =========================
+       PAGE
+    ========================= */
+
+    .page {
+        max-width: 1200px;
+        margin: auto;
+        padding: 30px 20px;
+    }
+
+    .battle-header {
+        text-align: center;
+        margin-bottom: 28px;
+    }
+
+    .battle-header h1 {
+        font-size: 26px;
+        font-weight: 600;
+        margin-bottom: 7px;
+    }
+
+    .battle-header p {
+        font-size: 12px;
+        color: #6f7d88;
+    }
+
+    /* =========================
+       BATTLE ARENA
+    ========================= */
+
+    .arena {
+        display: grid;
+        grid-template-columns: 1fr 120px 1fr;
+        gap: 20px;
+        align-items: center;
+    }
+
+    .fighter {
+        background: #10171e;
+        border: 1px solid #29343e;
+        border-radius: 9px;
+        padding: 20px;
+    }
+
+    .fighter.enemy {
+        border-color: #403132;
+    }
+
+    .fighter-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .fighter-name {
+        font-size: 17px;
+        font-weight: 600;
+    }
+
+    .fighter-type {
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #6e7d89;
+        letter-spacing: 1px;
+    }
+
+    /* =========================
+       SHIP VISUAL
+    ========================= */
+
+    .ship-container {
+        height: 150px;
+        background:
+            radial-gradient(circle at center, #1b2934 0%, #10171e 55%, #0c1218 100%);
+        border: 1px solid #27343e;
+        border-radius: 7px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 18px;
+        overflow: hidden;
+    }
+
+    .ship {
+        width: 190px;
+        height: 60px;
+        background: #42525d;
+        clip-path: polygon(
+            0% 50%,
+            17% 20%,
+            70% 20%,
+            100% 50%,
+            70% 80%,
+            17% 80%
+        );
+        position: relative;
+    }
+
+    .ship::after {
+        content: "";
+        position: absolute;
+        right: 20px;
+        top: 23px;
+        width: 35px;
+        height: 14px;
+        background: #6c8493;
+    }
+
+    .enemy .ship {
+        transform: scaleX(-1);
+        background: #5a4747;
+    }
+
+    .enemy .ship::after {
+        background: #856565;
+    }
+
+    /* =========================
+       HP
+    ========================= */
+
+    .hp-info {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: #778692;
+        margin-bottom: 7px;
+    }
+
+    .hp-bar {
+        height: 9px;
+        background: #20282f;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+
+    .hp-fill {
+        height: 100%;
+        width: 100%;
+        background: #71927f;
+        transition: width .5s ease;
+    }
+
+    .enemy .hp-fill {
+        background: #9a6c6c;
+    }
+
+    /* =========================
+       STATS
+    ========================= */
+
+    .stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 7px;
+    }
+
+    .stat {
+        background: #0c1217;
+        border: 1px solid #222d36;
+        border-radius: 5px;
+        padding: 9px;
+    }
+
+    .stat-label {
+        color: #657580;
+        font-size: 9px;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .stat-value {
+        font-size: 13px;
+        color: #dce4e9;
+    }
+
+    /* =========================
+       VS
+    ========================= */
+
+    .vs {
+        text-align: center;
+    }
+
+    .vs-circle {
+        width: 72px;
+        height: 72px;
+        border: 1px solid #394853;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: auto;
+        font-size: 19px;
+        font-weight: 700;
+        color: #aebbc3;
+        background: #10171d;
+    }
+
+    .round {
+        margin-top: 12px;
+        font-size: 10px;
+        color: #64727d;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* =========================
+       CONTROLS
+    ========================= */
+
+    .controls {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin: 25px 0;
+    }
+
+    button {
+        border: 1px solid #405360;
+        background: #1c2a33;
+        color: #e6edf1;
+        border-radius: 6px;
+        padding: 12px 25px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: .15s;
+    }
+
+    button:hover {
+        background: #273b47;
+    }
+
+    button:disabled {
+        opacity: .35;
+        cursor: not-allowed;
+    }
+
+    .danger {
+        border-color: #604747;
+        background: #302021;
+    }
+
+    .danger:hover {
+        background: #42292a;
+    }
+
+    /* =========================
+       BOTTOM
+    ========================= */
+
+    .bottom {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 18px;
+    }
+
+    .panel {
+        background: #10171e;
+        border: 1px solid #29343e;
+        border-radius: 8px;
+        padding: 18px;
+    }
+
+    .panel h2 {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 14px;
+    }
+
+    /* =========================
+       COMBAT LOG
+    ========================= */
+
+    .combat-log {
+        height: 190px;
+        overflow-y: auto;
+        background: #0b1015;
+        border: 1px solid #202a32;
+        border-radius: 5px;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 11px;
+        line-height: 1.7;
+    }
+
+    .log-entry {
+        color: #7d8b95;
+    }
+
+    .log-entry.player {
+        color: #a7c3b0;
+    }
+
+    .log-entry.enemy {
+        color: #c09b9b;
+    }
+
+    .log-entry.critical {
+        color: #d5b68c;
+    }
+
+    /* =========================
+       LOOT
+    ========================= */
+
+    .loot {
+        display: none;
+    }
+
+    .loot.show {
+        display: block;
+    }
+
+    .loot-item {
+        background: #0c1217;
+        border: 1px solid #35434d;
+        border-radius: 6px;
+        padding: 14px;
+    }
+
+    .loot-name {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+
+    .loot-quality {
+        color: #9cb5c5;
+        font-size: 10px;
+        text-transform: uppercase;
+        margin-bottom: 9px;
+    }
+
+    .loot-stats {
+        font-size: 11px;
+        line-height: 1.7;
+        color: #82919c;
+    }
+
+    /* =========================
+       RESULT
+    ========================= */
+
+    .result {
+        display: none;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .result.show {
+        display: block;
+    }
+
+    .result-title {
+        font-size: 22px;
+        font-weight: 600;
+        margin-bottom: 7px;
+    }
+
+    .result-subtitle {
+        font-size: 12px;
+        color: #75838e;
+    }
+
+    /* =========================
+       MOBILE
+    ========================= */
+
+    @media (max-width: 800px) {
+
+        .topbar {
+            padding: 0 15px;
+        }
+
+        .arena {
+            grid-template-columns: 1fr;
+        }
+
+        .vs {
+            order: 2;
+        }
+
+        .fighter.enemy {
+            order: 3;
+        }
+
+        .vs-circle {
+            width: 55px;
+            height: 55px;
+            font-size: 15px;
+        }
+
+        .bottom {
+            grid-template-columns: 1fr;
+        }
+
+        .page {
+            padding: 20px 12px;
+        }
+    }
+</style>
+</head>
+
+
+<body>
+
+<header class="topbar">
+
+    <div class="logo">
+        PENTILIUS
+    </div>
+
+    <div class="credits">
+        Credits <strong id="credits">284,920</strong>
+    </div>
+
+</header>
+
+
+<main class="page">
+
+    <div class="battle-header">
+        <h1>Combat Simulation</h1>
+        <p>Explorer MK II versus Rogue Raider</p>
+    </div>
+
+
+    <!-- RESULT -->
+
+    <div class="result" id="result">
+
+        <div class="result-title" id="resultTitle">
+            VICTORY
+        </div>
+
+        <div class="result-subtitle" id="resultSubtitle">
+            Enemy vessel destroyed.
+        </div>
+
+    </div>
+
+
+    <!-- ARENA -->
+
+    <section class="arena">
+
+        <!-- PLAYER -->
+
+        <div class="fighter">
+
+            <div class="fighter-title">
+
+                <div class="fighter-name">
+                    Explorer MK II
+                </div>
+
+                <div class="fighter-type">
+                    Player
+                </div>
+
+            </div>
+
+
+            <div class="ship-container">
+
+                <div class="ship"></div>
+
+            </div>
+
+
+            <div class="hp-info">
+                <span>Hull Integrity</span>
+                <span id="playerHpText">9000 / 9000</span>
+            </div>
+
+            <div class="hp-bar">
+                <div
+                    class="hp-fill"
+                    id="playerHpBar">
+                </div>
+            </div>
+
+
+            <div class="stats">
+
+                <div class="stat">
+                    <div class="stat-label">Damage</div>
+                    <div class="stat-value">1,284</div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">Defense</div>
+                    <div class="stat-value">24%</div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">Reflect</div>
+                    <div class="stat-value">8%</div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">Critical</div>
+                    <div class="stat-value">12%</div>
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- VS -->
+
+        <div class="vs">
+
+            <div class="vs-circle">
+                VS
+            </div>
+
+            <div class="round">
+                Round <span id="round">0</span>
+            </div>
+
+        </div>
+
+
+        <!-- ENEMY -->
+
+        <div class="fighter enemy">
+
+            <div class="fighter-title">
+
+                <div class="fighter-name">
+                    Rogue Raider
+                </div>
+
+                <div class="fighter-type">
+                    NPC
+                </div>
+
+            </div>
+
+
+            <div class="ship-container">
+
+                <div class="ship"></div>
+
+            </div>
+
+
+            <div class="hp-info">
+                <span>Hull Integrity</span>
+                <span id="enemyHpText">10000 / 10000</span>
+            </div>
+
+            <div class="hp-bar">
+                <div
+                    class="hp-fill"
+                    id="enemyHpBar">
+                </div>
+            </div>
+
+
+            <div class="stats">
+
+                <div class="stat">
+                    <div class="stat-label">Damage</div>
+                    <div class="stat-value">920</div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">Defense</div>
+                    <div class="stat-value">18%</div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">Reflect</div>
+                    <div class="stat-value">3%</div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">Critical</div>
+                    <div class="stat-value">8%</div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- CONTROLS -->
+
+    <div class="controls">
+
+        <button id="attackButton" onclick="playerAttack()">
+            ATTACK
+        </button>
+
+        <button onclick="newBattle()">
+            NEW BATTLE
+        </button>
+
+    </div>
+
+
+    <!-- BOTTOM -->
+
+    <section class="bottom">
+
+        <!-- LOG -->
+
+        <div class="panel">
+
+            <h2>Combat Log</h2>
+
+            <div
+                class="combat-log"
+                id="combatLog">
+            </div>
+
+        </div>
+
+
+        <!-- LOOT -->
+
+        <div class="panel">
+
+            <h2>Battle Rewards</h2>
+
+            <div class="loot" id="loot">
+
+                <div class="loot-item">
+
+                    <div class="loot-name">
+                        Reactive Shield
+                    </div>
+
+                    <div class="loot-quality">
+                        Excellent
+                    </div>
+
+                    <div class="loot-stats">
+                        +7% Damage Reduction<br>
+                        +6% Reflect Damage<br>
+                        +420 Max Hull
+                    </div>
+
+                </div>
+
+                <br>
+
+                <div style="font-size:12px;color:#83929c;">
+                    Credits received:
+                    <strong style="color:#dce5eb;">
+                        +4,280
+                    </strong>
+                </div>
+
+            </div>
+
+            <div
+                id="noLoot"
+                style="font-size:11px;color:#687781;">
+                Rewards will appear after victory.
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+<script>
+
+    /* =========================
+       GAME STATE
+    ========================= */
+
+    let playerMaxHp = 9000;
+    let playerHp = 9000;
+
+    let enemyMaxHp = 10000;
+    let enemyHp = 10000;
+
+    let playerDamage = 1284;
+    let enemyDamage = 920;
+
+    let playerDefense = 0.24;
+    let enemyDefense = 0.18;
+
+    let playerReflect = 0.08;
+    let enemyReflect = 0.03;
+
+    let playerCrit = 0.12;
+    let enemyCrit = 0.08;
+
+    let round = 0;
+    let battleOver = false;
+
+
+    /* =========================
+       ELEMENTS
+    ========================= */
+
+    const playerHpBar =
+        document.getElementById("playerHpBar");
+
+    const enemyHpBar =
+        document.getElementById("enemyHpBar");
+
+    const playerHpText =
+        document.getElementById("playerHpText");
+
+    const enemyHpText =
+        document.getElementById("enemyHpText");
+
+    const roundText =
+        document.getElementById("round");
+
+    const combatLog =
+        document.getElementById("combatLog");
+
+    const attackButton =
+        document.getElementById("attackButton");
+
+    const result =
+        document.getElementById("result");
+
+    const resultTitle =
+        document.getElementById("resultTitle");
+
+    const resultSubtitle =
+        document.getElementById("resultSubtitle");
+
+    const loot =
+        document.getElementById("loot");
+
+    const noLoot =
+        document.getElementById("noLoot");
+
+
+    /* =========================
+       LOG
+    ========================= */
+
+    function log(message, type = "") {
+
+        const entry =
+            document.createElement("div");
+
+        entry.className =
+            "log-entry " + type;
+
+        entry.textContent =
+            message;
+
+        combatLog.appendChild(entry);
+
+        combatLog.scrollTop =
+            combatLog.scrollHeight;
+    }
+
+
+    /* =========================
+       UPDATE UI
+    ========================= */
+
+    function updateUI() {
+
+        playerHp =
+            Math.max(0, playerHp);
+
+        enemyHp =
+            Math.max(0, enemyHp);
+
+        playerHpBar.style.width =
+            (playerHp / playerMaxHp * 100) + "%";
+
+        enemyHpBar.style.width =
+            (enemyHp / enemyMaxHp * 100) + "%";
+
+        playerHpText.textContent =
+            `${Math.round(playerHp)} / ${playerMaxHp}`;
+
+        enemyHpText.textContent =
+            `${Math.round(enemyHp)} / ${enemyMaxHp}`;
+
+        roundText.textContent =
+            round;
+    }
+
+
+    /* =========================
+       DAMAGE CALCULATION
+    ========================= */
+
+    function calculateDamage(
+        baseDamage,
+        targetDefense,
+        critChance
+    ) {
+
+        let damage = baseDamage;
+
+        const critical =
+            Math.random() < critChance;
+
+        if (critical) {
+
+            damage *= 1.7;
+
+        }
+
+        damage *=
+            (1 - targetDefense);
+
+        damage *=
+            (0.9 + Math.random() * 0.2);
+
+        return {
+            damage: Math.round(damage),
+            critical: critical
+        };
+    }
+
+
+    /* =========================
+       PLAYER ATTACK
+    ========================= */
+
+    function playerAttack() {
+
+        if (battleOver)
+            return;
+
+        round++;
+
+        const attack =
+            calculateDamage(
+                playerDamage,
+                enemyDefense,
+                playerCrit
+            );
+
+        enemyHp -=
+            attack.damage;
+
+
+        if (attack.critical) {
+
+            log(
+                `CRITICAL HIT — Your Explorer deals ${attack.damage} damage.`,
+                "critical"
+            );
+
+        } else {
+
+            log(
+                `Your Explorer deals ${attack.damage} damage.`,
+                "player"
+            );
+
+        }
+
+
+        updateUI();
+
+
+        if (enemyHp <= 0) {
+
+            victory();
+            return;
+
+        }
+
+
+        /* Enemy response */
+
+        setTimeout(() => {
+
+            if (battleOver)
+                return;
+
+            enemyAttack();
+
+        }, 550);
+
+    }
+
+
+    /* =========================
+       ENEMY ATTACK
+    ========================= */
+
+    function enemyAttack() {
+
+        const attack =
+            calculateDamage(
+                enemyDamage,
+                playerDefense,
+                enemyCrit
+            );
+
+        playerHp -=
+            attack.damage;
+
+
+        if (attack.critical) {
+
+            log(
+                `CRITICAL HIT — Rogue Raider deals ${attack.damage} damage.`,
+                "critical"
+            );
+
+        } else {
+
+            log(
+                `Rogue Raider deals ${attack.damage} damage.`,
+                "enemy"
+            );
+
+        }
+
+
+        /* Reflect damage */
+
+        if (playerReflect > 0) {
+
+            const reflected =
+                Math.round(
+                    attack.damage * playerReflect
+                );
+
+            enemyHp -=
+                reflected;
+
+            log(
+                `Your shield reflects ${reflected} damage.`,
+                "player"
+            );
+
+        }
+
+
+        updateUI();
+
+
+        if (playerHp <= 0) {
+
+            defeat();
+
+        }
+
+        else if (enemyHp <= 0) {
+
+            victory();
+
+        }
+
+    }
+
+
+    /* =========================
+       VICTORY
+    ========================= */
+
+    function victory() {
+
+        battleOver = true;
+
+        attackButton.disabled = true;
+
+        result.classList.add("show");
+
+        resultTitle.textContent =
+            "VICTORY";
+
+        resultSubtitle.textContent =
+            "Rogue Raider destroyed.";
+
+        loot.classList.add("show");
+
+        noLoot.style.display =
+            "none";
+
+        log(
+            "Battle complete. Victory secured.",
+            "critical"
+        );
+
+        log(
+            "Excellent item recovered: Reactive Shield.",
+            "player"
+        );
+
+        log(
+            "Credits received: +4,280.",
+            "player"
+        );
+
+    }
+
+
+    /* =========================
+       DEFEAT
+    ========================= */
+
+    function defeat() {
+
+        battleOver = true;
+
+        attackButton.disabled = true;
+
+        result.classList.add("show");
+
+        resultTitle.textContent =
+            "DEFEAT";
+
+        resultSubtitle.textContent =
+            "Your ship has been disabled.";
+
+        log(
+            "Your ship has been disabled.",
+            "enemy"
+        );
+
+    }
+
+
+    /* =========================
+       NEW BATTLE
+    ========================= */
+
+    function newBattle() {
+
+        playerHp =
+            playerMaxHp;
+
+        enemyHp =
+            enemyMaxHp;
+
+        round = 0;
+
+        battleOver = false;
+
+        attackButton.disabled = false;
+
+        result.classList.remove("show");
+
+        loot.classList.remove("show");
+
+        noLoot.style.display =
+            "block";
+
+        combatLog.innerHTML = "";
+
+        log(
+            "New encounter detected.",
+            ""
+        );
+
+        log(
+            "Rogue Raider is targeting your vessel.",
+            "enemy"
+        );
+
+        updateUI();
+
+    }
+
+
+    /* =========================
+       START
+    ========================= */
+
+    newBattle();
+
+</script>
+
+</body>
+</html>

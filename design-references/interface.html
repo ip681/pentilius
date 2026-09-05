@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pentilius</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        font-family: Inter, Arial, sans-serif;
+        background: #0b0f14;
+        color: #dce5ed;
+        min-height: 100vh;
+    }
+
+    /* =========================
+       TOP BAR
+    ========================= */
+
+    .topbar {
+        height: 64px;
+        background: #10161d;
+        border-bottom: 1px solid #27313b;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 28px;
+    }
+
+    .logo {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        color: #f0f4f7;
+    }
+
+    .resources {
+        display: flex;
+        gap: 24px;
+        font-size: 13px;
+    }
+
+    .resource {
+        color: #93a4b3;
+    }
+
+    .resource span {
+        color: #e7edf2;
+        font-weight: 600;
+        margin-left: 5px;
+    }
+
+    .player {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 13px;
+    }
+
+    .avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: #202b35;
+        border: 1px solid #3a4854;
+    }
+
+    /* =========================
+       MAIN LAYOUT
+    ========================= */
+
+    .layout {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        min-height: calc(100vh - 64px);
+    }
+
+    /* =========================
+       SIDEBAR
+    ========================= */
+
+    .sidebar {
+        background: #0e141a;
+        border-right: 1px solid #27313b;
+        padding: 22px 14px;
+    }
+
+    .nav-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #647482;
+        letter-spacing: 2px;
+        padding: 0 12px;
+        margin-bottom: 10px;
+    }
+
+    .nav {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 28px;
+    }
+
+    .nav-item {
+        padding: 12px;
+        border-radius: 6px;
+        color: #8fa0ad;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .nav-item:hover,
+    .nav-item.active {
+        background: #182129;
+        color: #ffffff;
+    }
+
+    /* =========================
+       CONTENT
+    ========================= */
+
+    .content {
+        padding: 28px;
+        max-width: 1500px;
+        width: 100%;
+        margin: auto;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        font-size: 28px;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+
+    .page-header p {
+        color: #738391;
+        font-size: 13px;
+    }
+
+    .status {
+        color: #7fc7a0;
+        font-size: 12px;
+    }
+
+    /* =========================
+       CARDS
+    ========================= */
+
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 18px;
+    }
+
+    .card {
+        background: #111820;
+        border: 1px solid #27313b;
+        border-radius: 8px;
+        padding: 20px;
+    }
+
+    .card h2 {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: #edf2f5;
+    }
+
+    .card-subtitle {
+        font-size: 11px;
+        color: #6e7e8c;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+    }
+
+    /* =========================
+       BASE
+    ========================= */
+
+    .base {
+        grid-column: span 7;
+    }
+
+    .buildings {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .building {
+        background: #0d1319;
+        border: 1px solid #25303a;
+        border-radius: 6px;
+        padding: 14px;
+    }
+
+    .building-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+
+    .building-name {
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .level {
+        font-size: 11px;
+        color: #8fa1ae;
+    }
+
+    .building-info {
+        color: #72818e;
+        font-size: 11px;
+        margin-bottom: 12px;
+    }
+
+    .progress {
+        height: 5px;
+        background: #202a32;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: #7799ad;
+    }
+
+    /* =========================
+       SHIP
+    ========================= */
+
+    .ship {
+        grid-column: span 5;
+    }
+
+    .ship-visual {
+        height: 150px;
+        background:
+            radial-gradient(circle at center, #1c2a35 0%, #111820 55%, #0d1319 100%);
+        border: 1px solid #26343f;
+        border-radius: 7px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 18px;
+    }
+
+    .ship-shape {
+        width: 170px;
+        height: 48px;
+        background: #33424e;
+        clip-path: polygon(
+            0 50%,
+            22% 12%,
+            75% 12%,
+            100% 50%,
+            75% 88%,
+            22% 88%
+        );
+        border: 1px solid #60727f;
+    }
+
+    .ship-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .stat {
+        background: #0d1319;
+        border: 1px solid #25303a;
+        padding: 10px;
+        border-radius: 5px;
+    }
+
+    .stat-label {
+        color: #687987;
+        font-size: 10px;
+        text-transform: uppercase;
+    }
+
+    .stat-value {
+        font-size: 14px;
+        margin-top: 4px;
+    }
+
+    /* =========================
+       EQUIPMENT
+    ========================= */
+
+    .equipment {
+        grid-column: span 7;
+    }
+
+    .equipment-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+
+    .equipment-slot {
+        min-height: 80px;
+        background: #0d1319;
+        border: 1px solid #293640;
+        border-radius: 6px;
+        padding: 12px;
+    }
+
+    .slot-type {
+        color: #657683;
+        font-size: 10px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+
+    .item-name {
+        font-size: 12px;
+        color: #d9e1e6;
+    }
+
+    .item-quality {
+        font-size: 10px;
+        color: #9eb4c3;
+        margin-top: 4px;
+    }
+
+    /* =========================
+       COMBAT
+    ========================= */
+
+    .combat {
+        grid-column: span 5;
+    }
+
+    .enemy {
+        background: #0d1319;
+        border: 1px solid #3a3030;
+        border-radius: 6px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .enemy-title {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+
+    .enemy-name {
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .enemy-power {
+        color: #a78989;
+        font-size: 11px;
+    }
+
+    .hp {
+        height: 6px;
+        background: #2b2020;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-bottom: 7px;
+    }
+
+    .hp-bar {
+        height: 100%;
+        width: 72%;
+        background: #a56e6e;
+    }
+
+    .enemy-hp {
+        color: #77858f;
+        font-size: 10px;
+    }
+
+    .button {
+        width: 100%;
+        border: 1px solid #526b7a;
+        background: #263844;
+        color: #edf3f6;
+        padding: 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+    }
+
+    .button:hover {
+        background: #304754;
+    }
+
+    /* =========================
+       RESPONSIVE
+    ========================= */
+
+    @media (max-width: 900px) {
+        .layout {
+            grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+            display: none;
+        }
+
+        .content {
+            padding: 18px;
+        }
+
+        .base,
+        .ship,
+        .equipment,
+        .combat {
+            grid-column: span 12;
+        }
+
+        .resources {
+            display: none;
+        }
+    }
+
+    @media (max-width: 550px) {
+        .topbar {
+            padding: 0 16px;
+        }
+
+        .content {
+            padding: 14px;
+        }
+
+        .buildings,
+        .equipment-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .page-header h1 {
+            font-size: 22px;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<header class="topbar">
+
+    <div class="logo">
+        PENTILIUS
+    </div>
+
+    <div class="resources">
+        <div class="resource">
+            Credits <span>284,920</span>
+        </div>
+
+        <div class="resource">
+            Metal <span>14,820</span>
+        </div>
+
+        <div class="resource">
+            Energy <span>7,420</span>
+        </div>
+
+        <div class="resource">
+            Crystal <span>1,842</span>
+        </div>
+    </div>
+
+    <div class="player">
+        <div>
+            <strong>Commander</strong><br>
+            <small style="color:#71808c;">Level 18</small>
+        </div>
+
+        <div class="avatar"></div>
+    </div>
+
+</header>
+
+
+<div class="layout">
+
+    <aside class="sidebar">
+
+        <div class="nav-title">Command</div>
+
+        <nav class="nav">
+            <div class="nav-item active">Overview</div>
+            <div class="nav-item">Base</div>
+            <div class="nav-item">Ship</div>
+            <div class="nav-item">Inventory</div>
+        </nav>
+
+        <div class="nav-title">Operations</div>
+
+        <nav class="nav">
+            <div class="nav-item">Expeditions</div>
+            <div class="nav-item">Combat</div>
+            <div class="nav-item">Auction House</div>
+        </nav>
+
+        <div class="nav-title">Community</div>
+
+        <nav class="nav">
+            <div class="nav-item">Clan</div>
+            <div class="nav-item">Rankings</div>
+        </nav>
+
+    </aside>
+
+
+    <main class="content">
+
+        <div class="page-header">
+
+            <div>
+                <h1>Command Center</h1>
+                <p>Manage your base, ship and operations.</p>
+            </div>
+
+            <div class="status">
+                ● Systems operational
+            </div>
+
+        </div>
+
+
+        <div class="grid">
+
+            <!-- BASE -->
+
+            <section class="card base">
+
+                <div class="card-subtitle">Your settlement</div>
+                <h2>Base Development</h2>
+
+                <div class="buildings">
+
+                    <div class="building">
+                        <div class="building-header">
+                            <div class="building-name">Command Center</div>
+                            <div class="level">LVL 8</div>
+                        </div>
+
+                        <div class="building-info">
+                            Next upgrade in 12h 42m
+                        </div>
+
+                        <div class="progress">
+                            <div class="progress-bar" style="width:64%"></div>
+                        </div>
+                    </div>
+
+
+                    <div class="building">
+                        <div class="building-header">
+                            <div class="building-name">Metal Extractor</div>
+                            <div class="level">LVL 11</div>
+                        </div>
+
+                        <div class="building-info">
+                            Production: 180 / hour
+                        </div>
+
+                        <div class="progress">
+                            <div class="progress-bar" style="width:82%"></div>
+                        </div>
+                    </div>
+
+
+                    <div class="building">
+                        <div class="building-header">
+                            <div class="building-name">Storage</div>
+                            <div class="level">LVL 7</div>
+                        </div>
+
+                        <div class="building-info">
+                            Capacity: 80,000
+                        </div>
+
+                        <div class="progress">
+                            <div class="progress-bar" style="width:41%"></div>
+                        </div>
+                    </div>
+
+
+                    <div class="building">
+                        <div class="building-header">
+                            <div class="building-name">Workshop</div>
+                            <div class="level">LVL 6</div>
+                        </div>
+
+                        <div class="building-info">
+                            Crafting available
+                        </div>
+
+                        <div class="progress">
+                            <div class="progress-bar" style="width:57%"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- SHIP -->
+
+            <section class="card ship">
+
+                <div class="card-subtitle">Active vessel</div>
+                <h2>Explorer — MK II</h2>
+
+                <div class="ship-visual">
+                    <div class="ship-shape"></div>
+                </div>
+
+                <div class="ship-stats">
+
+                    <div class="stat">
+                        <div class="stat-label">Power</div>
+                        <div class="stat-value">12,480</div>
+                    </div>
+
+                    <div class="stat">
+                        <div class="stat-label">Hull</div>
+                        <div class="stat-value">8,420 / 9,000</div>
+                    </div>
+
+                    <div class="stat">
+                        <div class="stat-label">Damage</div>
+                        <div class="stat-value">1,284</div>
+                    </div>
+
+                    <div class="stat">
+                        <div class="stat-label">Defense</div>
+                        <div class="stat-value">24%</div>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- EQUIPMENT -->
+
+            <section class="card equipment">
+
+                <div class="card-subtitle">Ship configuration</div>
+                <h2>Equipment</h2>
+
+                <div class="equipment-grid">
+
+                    <div class="equipment-slot">
+                        <div class="slot-type">Weapon</div>
+                        <div class="item-name">Plasma Cannon</div>
+                        <div class="item-quality">Excellent +6</div>
+                    </div>
+
+                    <div class="equipment-slot">
+                        <div class="slot-type">Reactor</div>
+                        <div class="item-name">Quantum Reactor</div>
+                        <div class="item-quality">Rare +8</div>
+                    </div>
+
+                    <div class="equipment-slot">
+                        <div class="slot-type">Shield</div>
+                        <div class="item-name">Deflector Mk II</div>
+                        <div class="item-quality">Epic +4</div>
+                    </div>
+
+                    <div class="equipment-slot">
+                        <div class="slot-type">Engine</div>
+                        <div class="item-name">Ion Drive</div>
+                        <div class="item-quality">Rare +5</div>
+                    </div>
+
+                    <div class="equipment-slot">
+                        <div class="slot-type">Hull</div>
+                        <div class="item-name">Reinforced Hull</div>
+                        <div class="item-quality">Excellent +3</div>
+                    </div>
+
+                    <div class="equipment-slot">
+                        <div class="slot-type">Scanner</div>
+                        <div class="item-name">Deep Space Scanner</div>
+                        <div class="item-quality">Epic +2</div>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- COMBAT -->
+
+            <section class="card combat">
+
+                <div class="card-subtitle">Available target</div>
+                <h2>NPC Encounter</h2>
+
+                <div class="enemy">
+
+                    <div class="enemy-title">
+                        <div class="enemy-name">
+                            Rogue Raider
+                        </div>
+
+                        <div class="enemy-power">
+                            Power 11,920
+                        </div>
+                    </div>
+
+                    <div class="hp">
+                        <div class="hp-bar"></div>
+                    </div>
+
+                    <div class="enemy-hp">
+                        Hull: 7,240 / 10,000
+                    </div>
+
+                </div>
+
+                <button class="button">
+                    ENGAGE TARGET
+                </button>
+
+            </section>
+
+        </div>
+
+    </main>
+
+</div>
+
+</body>
+</html>

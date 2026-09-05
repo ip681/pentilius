@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { CombatRoundDto } from '@pentilius/shared';
 import { Pentili, Prisma } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,6 +14,9 @@ export interface CombatResult {
   won: boolean;
   damageDealt: number;
   damageTaken: number;
+  rounds: CombatRoundDto[];
+  playerMaxHp: number;
+  pentiliMaxHp: number;
 }
 
 /**
@@ -21,6 +25,10 @@ export interface CombatResult {
  * Milestone 1 has a working automatic/simulated battle (LOCKED requirement in
  * instructions/GAME_SYSTEMS.md) — swap this service's internals, not its
  * callers, once the real formula is decided.
+ *
+ * The battle is fully resolved here, round by round, in one call — the
+ * frontend only replays the returned `rounds` log with a timed animation,
+ * per instructions/ARCHITECTURE.md's "frontend has no game logic" rule.
  */
 @Injectable()
 export class CombatService {
@@ -42,28 +50,51 @@ export class CombatService {
           hp: stats.hp + (baseStats.hp ?? 0) * multiplier,
         };
       },
-      { attack: 0, defense: 0, hp: 0 },
+      { attack: 0, defense: 0, hp: GAME_BALANCE.combat.basePlayerHp },
     );
   }
 
   simulate(player: CombatStats, pentili: Pentili): CombatResult {
-    const playerPower = player.attack + player.defense + player.hp;
-    const pentiliPower = pentili.attack + pentili.defense + pentili.maxHp;
-    const winProbability = playerPower / (playerPower + pentiliPower || 1);
-    const won = Math.random() < winProbability;
+    const playerMaxHp = Math.round(player.hp);
+    const pentiliMaxHp = pentili.maxHp;
 
-    if (won) {
-      return {
-        won: true,
-        damageDealt: pentili.maxHp,
-        damageTaken: Math.max(0, Math.round(pentili.attack - player.defense)),
-      };
+    let playerHp = playerMaxHp;
+    let pentiliHp = pentiliMaxHp;
+    let totalDamageDealt = 0;
+    let totalDamageTaken = 0;
+    const rounds: CombatRoundDto[] = [];
+
+    for (let round = 1; round <= GAME_BALANCE.combat.maxRounds; round += 1) {
+      const playerDamage = rollDamage(player.attack, pentili.defense);
+      pentiliHp = Math.max(0, pentiliHp - playerDamage);
+      totalDamageDealt += playerDamage;
+
+      let pentiliDamage = 0;
+      if (pentiliHp > 0) {
+        pentiliDamage = rollDamage(pentili.attack, player.defense);
+        playerHp = Math.max(0, playerHp - pentiliDamage);
+        totalDamageTaken += pentiliDamage;
+      }
+
+      rounds.push({ round, playerDamage, pentiliDamage, playerHpAfter: playerHp, pentiliHpAfter: pentiliHp });
+
+      if (pentiliHp <= 0 || playerHp <= 0) {
+        break;
+      }
     }
 
     return {
-      won: false,
-      damageDealt: Math.min(pentili.maxHp - 1, Math.max(0, Math.round(player.attack))),
-      damageTaken: Math.round(pentili.attack),
+      won: pentiliHp <= 0,
+      damageDealt: totalDamageDealt,
+      damageTaken: totalDamageTaken,
+      rounds,
+      playerMaxHp,
+      pentiliMaxHp,
     };
   }
+}
+
+function rollDamage(attack: number, defense: number): number {
+  const variance = 1 - GAME_BALANCE.combat.damageVariance + Math.random() * (2 * GAME_BALANCE.combat.damageVariance);
+  return Math.max(1, Math.round((attack - defense * 0.5) * variance));
 }

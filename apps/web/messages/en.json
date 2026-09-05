@@ -13,11 +13,20 @@
     "errorInvalidCredentials": "Invalid email or password."
   },
   "nav": {
+    "overview": "Overview",
     "base": "Base",
     "ship": "Ship",
-    "inventory": "Inventory",
     "zones": "Zones",
     "reports": "Battle Reports"
+  },
+  "sidebar": {
+    "command": "Command",
+    "operations": "Operations"
+  },
+  "topbar": {
+    "online": "Online",
+    "loggedOut": "Not logged in",
+    "logout": "Log out"
   },
   "resource": {
     "METAL": "Metal",
@@ -34,29 +43,53 @@
     "REACTOR": "Reactor",
     "UTILITY": "Utility"
   },
+  "dashboard": {
+    "title": "Command Center",
+    "subtitle": "Manage your base, ship and operations.",
+    "status": "Systems operational",
+    "level": "Level",
+    "energy": "Energy",
+    "baseSubtitle": "Your settlement",
+    "baseTitle": "Base Development",
+    "buildingsBuilt": "buildings built",
+    "shipSubtitle": "Active vessel",
+    "shipTitle": "Ship Equipment",
+    "slotsEquipped": "slots equipped",
+    "zonesSubtitle": "Available targets",
+    "zonesTitle": "Zones",
+    "zonesUnlocked": "zones unlocked",
+    "manage": "Manage",
+    "explore": "Explore"
+  },
   "base": {
     "title": "Base",
+    "subtitle": "Resource buildings generate materials automatically.",
+    "status": "Base production active",
     "level": "Level",
     "upgrade": "Upgrade",
     "nextLevelCost": "Next level cost",
-    "underConstructionUntil": "Under construction until",
+    "buildTime": "Build time",
+    "underConstruction": "Under construction",
     "maxLevel": "Max level reached",
     "loadError": "Could not load your base.",
     "upgradeError": "Could not upgrade this building."
   },
   "ship": {
-    "title": "Ship",
+    "title": "Ship Equipment",
+    "subtitle": "Configure the modules installed on your vessel.",
+    "inventory": "Inventory",
+    "items": "Items",
+    "all": "All",
+    "vessel": "Your Vessel",
+    "details": "Item Details",
+    "notSelected": "Not selected",
+    "selectPrompt": "Choose an item from your inventory to inspect its properties.",
+    "upgradeLevel": "Upgrade level",
     "empty": "Empty slot",
-    "unequip": "Unequip",
-    "loadError": "Could not load your ship.",
-    "actionError": "That action failed."
-  },
-  "inventory": {
-    "title": "Inventory",
     "equip": "Equip",
+    "unequip": "Unequip",
     "upgrade": "Upgrade",
-    "equipped": "Equipped",
-    "loadError": "Could not load your inventory.",
+    "loadError": "Could not load your ship.",
     "actionError": "That action failed."
   },
   "zones": {
@@ -69,12 +102,21 @@
     "ashen_ridge": { "name": "Ashen Ridge" }
   },
   "pve": {
-    "title": "Pentili",
+    "title": "Combat",
+    "subtitle": "Engage a Pentili in automatic, simulated combat.",
     "attack": "Attack",
+    "you": "Your Ship",
+    "vs": "VS",
+    "round": "Round",
+    "combatLog": "Combat Log",
+    "rewards": "Battle Rewards",
+    "noRewardsYet": "Rewards will appear after victory.",
+    "encounterStart": "Encounter started against {name}.",
+    "roundHit": "{name} deals {damage} damage.",
+    "victoryLog": "Battle complete. Victory secured.",
+    "defeatLog": "Your ship has been disabled.",
     "victory": "Victory!",
     "defeat": "Defeat",
-    "damageDealt": "Damage dealt",
-    "damageTaken": "Damage taken",
     "xpGained": "XP gained",
     "leveledUp": "Level up! You are now level {level}.",
     "loadError": "Could not load this zone.",

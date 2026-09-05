@@ -1,0 +1,2004 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Pentilius — Clan Battle</title>
+
+<style>
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: #080c11;
+    color: #dce5eb;
+    font-family: Arial, Helvetica, sans-serif;
+    min-height: 100vh;
+}
+
+/* =========================
+   TOP BAR
+========================= */
+
+.topbar {
+    height: 64px;
+    background: #0e141b;
+    border-bottom: 1px solid #27323c;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 28px;
+}
+
+.logo {
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #f1f4f6;
+}
+
+.battle-status {
+    font-size: 11px;
+    color: #71808b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.battle-status span {
+    color: #80ad91;
+}
+
+/* =========================
+   PAGE
+========================= */
+
+.page {
+    max-width: 1300px;
+    margin: auto;
+    padding: 28px 20px 50px;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.header h1 {
+    font-size: 27px;
+    font-weight: 600;
+    margin-bottom: 7px;
+}
+
+.header p {
+    color: #6f7d87;
+    font-size: 12px;
+}
+
+/* =========================
+   CLAN HEADER
+========================= */
+
+.clan-header {
+    display: grid;
+    grid-template-columns: 1fr 120px 1fr;
+    gap: 20px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.clan {
+    background: #10171e;
+    border: 1px solid #29353f;
+    border-radius: 8px;
+    padding: 17px 20px;
+}
+
+.clan.enemy {
+    border-color: #403132;
+}
+
+.clan-name {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 13px;
+}
+
+.clan-name strong {
+    font-size: 17px;
+}
+
+.clan-name span {
+    font-size: 10px;
+    color: #687781;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.clan-hp-info {
+    display: flex;
+    justify-content: space-between;
+    color: #788792;
+    font-size: 10px;
+    margin-bottom: 6px;
+}
+
+.clan-hp {
+    height: 10px;
+    background: #20282f;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.clan-hp-fill {
+    width: 100%;
+    height: 100%;
+    background: #71927f;
+    transition: width .3s ease;
+}
+
+.enemy .clan-hp-fill {
+    background: #986c6c;
+}
+
+.vs {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.vs-circle {
+    width: 66px;
+    height: 66px;
+    border: 1px solid #394853;
+    background: #11181f;
+    border-radius: 50%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 18px;
+    font-weight: 700;
+    color: #aab7bf;
+}
+
+/* =========================
+   ROUND
+========================= */
+
+.round-display {
+    text-align: center;
+    margin-bottom: 22px;
+}
+
+.round-number {
+    font-size: 30px;
+    font-weight: 600;
+}
+
+.round-label {
+    color: #667580;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* =========================
+   MEMBERS
+========================= */
+
+.members {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}
+
+.team {
+    background: #10171e;
+    border: 1px solid #29353f;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.team.enemy {
+    border-color: #3d3031;
+}
+
+.team-header {
+    padding: 14px 16px;
+    background: #0d1319;
+    border-bottom: 1px solid #26313a;
+
+    display: flex;
+    justify-content: space-between;
+}
+
+.team-header strong {
+    font-size: 13px;
+}
+
+.team-header span {
+    font-size: 10px;
+    color: #697883;
+}
+
+.member {
+    padding: 13px 15px;
+    border-bottom: 1px solid #202a32;
+    transition: opacity .3s ease;
+}
+
+.member:last-child {
+    border-bottom: none;
+}
+
+.member.dead {
+    opacity: .3;
+}
+
+.member-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 7px;
+}
+
+.member-name {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.race {
+    font-size: 9px;
+    color: #758692;
+    text-transform: uppercase;
+}
+
+.member-bottom {
+    display: grid;
+    grid-template-columns: 1fr 65px;
+    gap: 12px;
+    align-items: center;
+}
+
+.member-hp {
+    height: 5px;
+    background: #20282f;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.member-hp-fill {
+    height: 100%;
+    width: 100%;
+    background: #708e7d;
+    transition: width .35s ease;
+}
+
+.enemy .member-hp-fill {
+    background: #956c6c;
+}
+
+.member-hp-text {
+    font-size: 9px;
+    color: #71808a;
+    text-align: right;
+}
+
+.member-stats {
+    margin-top: 7px;
+    display: flex;
+    gap: 12px;
+    font-size: 9px;
+    color: #63727d;
+}
+
+/* =========================
+   COMBAT LOG
+========================= */
+
+.bottom {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 18px;
+}
+
+.panel {
+    background: #10171e;
+    border: 1px solid #29353f;
+    border-radius: 8px;
+    padding: 17px;
+}
+
+.panel h2 {
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.combat-log {
+    height: 210px;
+    overflow-y: auto;
+
+    background: #0b1015;
+    border: 1px solid #202a32;
+    border-radius: 5px;
+
+    padding: 10px;
+
+    font-family: monospace;
+    font-size: 10px;
+    line-height: 1.8;
+}
+
+.log-entry {
+    color: #71808b;
+}
+
+.log-entry.player {
+    color: #9ebca9;
+}
+
+.log-entry.enemy {
+    color: #c09a9a;
+}
+
+.log-entry.critical {
+    color: #d1b287;
+}
+
+.log-entry.system {
+    color: #9aaab4;
+}
+
+/* =========================
+   STATS
+========================= */
+
+.battle-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 9px;
+}
+
+.stat {
+    background: #0c1217;
+    border: 1px solid #222d35;
+    border-radius: 5px;
+    padding: 11px;
+}
+
+.stat-label {
+    color: #687781;
+    font-size: 9px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.stat-value {
+    font-size: 15px;
+}
+
+/* =========================
+   RESULT
+========================= */
+
+.result {
+    display: none;
+    text-align: center;
+    background: #10171e;
+    border: 1px solid #3b4a54;
+    border-radius: 8px;
+    padding: 18px;
+    margin-bottom: 20px;
+}
+
+.result.show {
+    display: block;
+}
+
+.result h2 {
+    font-size: 23px;
+    margin-bottom: 6px;
+}
+
+.result p {
+    color: #74838d;
+    font-size: 11px;
+}
+
+/* =========================
+   BUTTON
+========================= */
+
+.controls {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+button {
+    border: 1px solid #405360;
+    background: #1d2b34;
+    color: #e5edf1;
+
+    border-radius: 6px;
+    padding: 12px 27px;
+
+    font-size: 11px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #2a3d48;
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 800px) {
+
+    .topbar {
+        padding: 0 15px;
+    }
+
+    .page {
+        padding: 20px 12px;
+    }
+
+    .clan-header {
+        grid-template-columns: 1fr;
+    }
+
+    .vs {
+        order: 2;
+    }
+
+    .members {
+        grid-template-columns: 1fr;
+    }
+
+    .bottom {
+        grid-template-columns: 1fr;
+    }
+
+    .battle-status {
+        display: none;
+    }
+
+}
+
+</style>
+</head>
+
+
+<body>
+
+<header class="topbar">
+
+    <div class="logo">
+        PENTILIUS
+    </div>
+
+    <div class="battle-status">
+        Clan Battle — <span id="status">IN PROGRESS</span>
+    </div>
+
+</header>
+
+
+<main class="page">
+
+    <div class="header">
+
+        <h1>Clan War</h1>
+
+        <p>
+            The battle is automatically resolved round by round.
+        </p>
+
+    </div>
+
+
+    <!-- RESULT -->
+
+    <div class="result" id="result">
+
+        <h2 id="resultTitle">
+            VICTORY
+        </h2>
+
+        <p id="resultText">
+            Iron Horizon has defeated Voidborn.
+        </p>
+
+    </div>
+
+
+    <!-- CLAN HP -->
+
+    <section class="clan-header">
+
+        <div class="clan">
+
+            <div class="clan-name">
+
+                <strong>Iron Horizon</strong>
+
+                <span>Clan #1842</span>
+
+            </div>
+
+            <div class="clan-hp-info">
+
+                <span>Clan Integrity</span>
+
+                <span id="playerClanHpText">
+                    45,000 / 45,000
+                </span>
+
+            </div>
+
+            <div class="clan-hp">
+
+                <div
+                    class="clan-hp-fill"
+                    id="playerClanHpBar">
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="vs">
+
+            <div class="vs-circle">
+                VS
+            </div>
+
+        </div>
+
+
+        <div class="clan enemy">
+
+            <div class="clan-name">
+
+                <strong>Voidborn</strong>
+
+                <span>Clan #2917</span>
+
+            </div>
+
+            <div class="clan-hp-info">
+
+                <span>Clan Integrity</span>
+
+                <span id="enemyClanHpText">
+                    45,000 / 45,000
+                </span>
+
+            </div>
+
+            <div class="clan-hp">
+
+                <div
+                    class="clan-hp-fill"
+                    id="enemyClanHpBar">
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ROUND -->
+
+    <div class="round-display">
+
+        <div class="round-number" id="round">
+            0
+        </div>
+
+        <div class="round-label">
+            Round
+        </div>
+
+    </div>
+
+
+    <!-- MEMBERS -->
+
+    <section class="members">
+
+
+        <!-- PLAYER TEAM -->
+
+        <div class="team">
+
+            <div class="team-header">
+
+                <strong>IRON HORIZON</strong>
+
+                <span id="playerAlive">
+                    5 / 5 alive
+                </span>
+
+            </div>
+
+
+            <div class="member" id="p1">
+
+                <div class="member-top">
+
+                    <div class="member-name">
+                        Arkon
+                    </div>
+
+                    <div class="race">
+                        Aetherian
+                    </div>
+
+                </div>
+
+                <div class="member-bottom">
+
+                    <div class="member-hp">
+                        <div
+                            class="member-hp-fill"
+                            id="p1hp">
+                        </div>
+                    </div>
+
+                    <div
+                        class="member-hp-text"
+                        id="p1text">
+                        9000
+                    </div>
+
+                </div>
+
+                <div class="member-stats">
+                    <span>DMG 1280</span>
+                    <span>DEF 24%</span>
+                    <span>CRIT 12%</span>
+                </div>
+
+            </div>
+
+
+            <div class="member" id="p2">
+
+                <div class="member-top">
+
+                    <div class="member-name">
+                        Veyra
+                    </div>
+
+                    <div class="race">
+                        Krynt
+                    </div>
+
+                </div>
+
+                <div class="member-bottom">
+
+                    <div class="member-hp">
+                        <div
+                            class="member-hp-fill"
+                            id="p2hp">
+                        </div>
+                    </div>
+
+                    <div
+                        class="member-hp-text"
+                        id="p2text">
+                        8200
+                    </div>
+
+                </div>
+
+                <div class="member-stats">
+                    <span>DMG 1120</span>
+                    <span>DEF 29%</span>
+                    <span>CRIT 8%</span>
+                </div>
+
+            </div>
+
+
+            <div class="member" id="p3">
+
+                <div class="member-top">
+
+                    <div class="member-name">
+                        Torren
+                    </div>
+
+                    <div class="race">
+                        Solari
+                    </div>
+
+                </div>
+
+                <div class="member-bottom">
+
+                    <div class="member-hp">
+                        <div
+                            class="member-hp-fill"
+                            id="p3hp">
+                        </div>
+                    </div>
+
+                    <div
+                        class="member-hp-text"
+                        id="p3text">
+                        9600
+                    </div>
+
+                </div>
+
+                <div class="member-stats">
+                    <span>DMG 980</span>
+                    <span>DEF 35%</span>
+                    <span>CRIT 6%</span>
+                </div>
+
+            </div>
+
+
+            <div class="member" id="p4">
+
+                <div class="member-top">
+
+                    <div class="member-name">
+                        Nyx
+                    </div>
+
+                    <div class="race">
+                        Veyl
+                    </div>
+
+                </div>
+
+                <div class="member-bottom">
+
+                    <div class="member-hp">
+                        <div
+                            class="member-hp-fill"
+                            id="p4hp">
+                        </div>
+                    </div>
+
+                    <div
+                        class="member-hp-text"
+                        id="p4text">
+                        7600
+                    </div>
+
+                </div>
+
+                <div class="member-stats">
+                    <span>DMG 1380</span>
+                    <span>DEF 18%</span>
+                    <span>CRIT 18%</span>
+                </div>
+
+            </div>
+
+
+            <div class="member" id="p5">
+
+                <div class="member-top">
+
+                    <div class="member-name">
+                        Kael
+                    </div>
+
+                    <div class="race">
+                        Orinth
+                    </div>
+
+                </div>
+
+                <div class="member-bottom">
+
+                    <div class="member-hp">
+                        <div
+                            class="member-hp-fill"
+                            id="p5hp">
+                        </div>
+                    </div>
+
+                    <div
+                        class="member-hp-text"
+                        id="p5text">
+                        10600
+                    </div>
+
+                </div>
+
+                <div class="member-stats">
+                    <span>DMG 860</span>
+                    <span>DEF 42%</span>
+                    <span>CRIT 5%</span>
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- ENEMY TEAM -->
+
+        <div class="team enemy">
+
+            <div class="team-header">
+
+                <strong>VOIDBORN</strong>
+
+                <span id="enemyAlive">
+                    5 / 5 alive
+                </span>
+
+            </div>
+
+
+            <div class="member" id="e1">
+
+                <div class="member-top">
+
+                    <div class="member-name">
+                        Draven
+                    </div>
+
+                    <div class="race">
+                        Aetherian
+                    </div>
+
+                </div>
+
+                <div class="member-bottom">
+
+                    <div class="member-hp">
+                        <div
+                            class="member-hp-fill"
+                            id="e1hp">
+                        </div>
+                    </div>
+
+                    <div
+                        class="member-hp-text"
+                        id="e1text">
+                        8800
+                    </div>
+
+                </div>
+
+                <div class="member-stats">
+                    <span>DMG 1190</span>
+                    <span>DEF 22%</span>
+                    <span>CRIT 11%</span>
+                </div>
+
+            </div>
+
+
+            <div class="member" id="e2">
+
+                <div class="member-top">
+
+                    <div class="member-name">
+                        Serah
+                    </div>
+
+                    <div class="race">
+                        Krynt
+                    </div>
+
+                </div>
+
+                <div class="member-bottom">
+
+                    <div class="member-hp">
+                        <div
+                            class="member-hp-fill"
+                            id="e2hp">
+                        </div>
+                    </div>
+
+                    <div
+                        class="member-hp-text"
+                        id="e2text">
+                        9100
+                    </div>
+
+                </div>
+
+                <div class="member-stats">
+                    <span>DMG 1050</span>
+                    <span>DEF 31%</span>
+                    <span>CRIT 9%</span>
+                </div>
+
+            </div>
+
+
+            <div class="member" id="e3">
+
+                <div class="member-top">
+
+                    <div class="member-name">
+                        Morvek
+                    </div>
+
+                    <div class="race">
+                        Solari
+                    </div>
+
+                </div>
+
+                <div class="member-bottom">
+
+                    <div class="member-hp">
+                        <div
+                            class="member-hp-fill"
+                            id="e3hp">
+                        </div>
+                    </div>
+
+                    <div
+                        class="member-hp-text"
+                        id="e3text">
+                        9400
+                    </div>
+
+                </div>
+
+                <div class="member-stats">
+                    <span>DMG 1020</span>
+                    <span>DEF 34%</span>
+                    <span>CRIT 7%</span>
+                </div>
+
+            </div>
+
+
+            <div class="member" id="e4">
+
+                <div class="member-top">
+
+                    <div class="member-name">
+                        Zareth
+                    </div>
+
+                    <div class="race">
+                        Veyl
+                    </div>
+
+                </div>
+
+                <div class="member-bottom">
+
+                    <div class="member-hp">
+                        <div
+                            class="member-hp-fill"
+                            id="e4hp">
+                        </div>
+                    </div>
+
+                    <div
+                        class="member-hp-text"
+                        id="e4text">
+                        7900
+                    </div>
+
+                </div>
+
+                <div class="member-stats">
+                    <span>DMG 1300</span>
+                    <span>DEF 20%</span>
+                    <span>CRIT 16%</span>
+                </div>
+
+            </div>
+
+
+            <div class="member" id="e5">
+
+                <div class="member-top">
+
+                    <div class="member-name">
+                        Ruun
+                    </div>
+
+                    <div class="race">
+                        Orinth
+                    </div>
+
+                </div>
+
+                <div class="member-bottom">
+
+                    <div class="member-hp">
+                        <div
+                            class="member-hp-fill"
+                            id="e5hp">
+                        </div>
+                    </div>
+
+                    <div
+                        class="member-hp-text"
+                        id="e5text">
+                        10200
+                    </div>
+
+                </div>
+
+                <div class="member-stats">
+                    <span>DMG 900</span>
+                    <span>DEF 39%</span>
+                    <span>CRIT 5%</span>
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- BOTTOM -->
+
+    <section class="bottom">
+
+        <div class="panel">
+
+            <h2>Combat Log</h2>
+
+            <div
+                class="combat-log"
+                id="combatLog">
+            </div>
+
+        </div>
+
+
+        <div class="panel">
+
+            <h2>Battle Statistics</h2>
+
+            <div class="battle-stats">
+
+                <div class="stat">
+                    <div class="stat-label">
+                        Rounds
+                    </div>
+
+                    <div
+                        class="stat-value"
+                        id="statRounds">
+                        0
+                    </div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">
+                        Your Damage
+                    </div>
+
+                    <div
+                        class="stat-value"
+                        id="statPlayerDamage">
+                        0
+                    </div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">
+                        Enemy Damage
+                    </div>
+
+                    <div
+                        class="stat-value"
+                        id="statEnemyDamage">
+                        0
+                    </div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">
+                        Ships Destroyed
+                    </div>
+
+                    <div
+                        class="stat-value"
+                        id="statDestroyed">
+                        0
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <div class="controls">
+
+        <button onclick="newBattle()">
+            NEW CLAN BATTLE
+        </button>
+
+    </div>
+
+</main>
+
+
+<script>
+
+/* =====================================================
+   CLAN BATTLE DATA
+===================================================== */
+
+const playerTeam = [
+
+    {
+        id: "p1",
+        name: "Arkon",
+        race: "Aetherian",
+        hp: 9000,
+        maxHp: 9000,
+        damage: 1280,
+        defense: 0.24,
+        crit: 0.12,
+        reflect: 0.08,
+        alive: true
+    },
+
+    {
+        id: "p2",
+        name: "Veyra",
+        race: "Krynt",
+        hp: 8200,
+        maxHp: 8200,
+        damage: 1120,
+        defense: 0.29,
+        crit: 0.08,
+        reflect: 0.05,
+        alive: true
+    },
+
+    {
+        id: "p3",
+        name: "Torren",
+        race: "Solari",
+        hp: 9600,
+        maxHp: 9600,
+        damage: 980,
+        defense: 0.35,
+        crit: 0.06,
+        reflect: 0.12,
+        alive: true
+    },
+
+    {
+        id: "p4",
+        name: "Nyx",
+        race: "Veyl",
+        hp: 7600,
+        maxHp: 7600,
+        damage: 1380,
+        defense: 0.18,
+        crit: 0.18,
+        reflect: 0.03,
+        alive: true
+    },
+
+    {
+        id: "p5",
+        name: "Kael",
+        race: "Orinth",
+        hp: 10600,
+        maxHp: 10600,
+        damage: 860,
+        defense: 0.42,
+        crit: 0.05,
+        reflect: 0.16,
+        alive: true
+    }
+
+];
+
+
+const enemyTeam = [
+
+    {
+        id: "e1",
+        name: "Draven",
+        race: "Aetherian",
+        hp: 8800,
+        maxHp: 8800,
+        damage: 1190,
+        defense: 0.22,
+        crit: 0.11,
+        reflect: 0.05,
+        alive: true
+    },
+
+    {
+        id: "e2",
+        name: "Serah",
+        race: "Krynt",
+        hp: 9100,
+        maxHp: 9100,
+        damage: 1050,
+        defense: 0.31,
+        crit: 0.09,
+        reflect: 0.06,
+        alive: true
+    },
+
+    {
+        id: "e3",
+        name: "Morvek",
+        race: "Solari",
+        hp: 9400,
+        maxHp: 9400,
+        damage: 1020,
+        defense: 0.34,
+        crit: 0.07,
+        reflect: 0.10,
+        alive: true
+    },
+
+    {
+        id: "e4",
+        name: "Zareth",
+        race: "Veyl",
+        hp: 7900,
+        maxHp: 7900,
+        damage: 1300,
+        defense: 0.20,
+        crit: 0.16,
+        reflect: 0.04,
+        alive: true
+    },
+
+    {
+        id: "e5",
+        name: "Ruun",
+        race: "Orinth",
+        hp: 10200,
+        maxHp: 10200,
+        damage: 900,
+        defense: 0.39,
+        crit: 0.05,
+        reflect: 0.14,
+        alive: true
+    }
+
+];
+
+
+/* =====================================================
+   STATE
+===================================================== */
+
+let round = 0;
+
+let battleTimer = null;
+
+let battleOver = false;
+
+let playerTotalDamage = 0;
+
+let enemyTotalDamage = 0;
+
+let destroyedShips = 0;
+
+
+/* =====================================================
+   HELPERS
+===================================================== */
+
+function alive(team) {
+
+    return team.filter(
+        member => member.alive
+    );
+
+}
+
+
+function totalHp(team) {
+
+    return team.reduce(
+        (sum, member) => sum + Math.max(0, member.hp),
+        0
+    );
+
+}
+
+
+function maxTotalHp(team) {
+
+    return team.reduce(
+        (sum, member) => sum + member.maxHp,
+        0
+    );
+
+}
+
+
+/* =====================================================
+   DAMAGE
+===================================================== */
+
+function calculateDamage(attacker, defender) {
+
+    let damage = attacker.damage;
+
+    const critical =
+        Math.random() < attacker.crit;
+
+    if (critical) {
+
+        damage *= 1.7;
+
+    }
+
+    damage *=
+        (1 - defender.defense);
+
+    damage *=
+        (0.9 + Math.random() * 0.2);
+
+    return {
+        damage: Math.round(damage),
+        critical: critical
+    };
+
+}
+
+
+/* =====================================================
+   SELECT TARGET
+===================================================== */
+
+/*
+   Засега атакуващият избира случаен жив противник.
+
+   По-късно това спокойно може да стане:
+   - най-нисък HP
+   - най-висок damage
+   - healer first
+   - random
+   - AI strategy
+   - race counter
+*/
+
+function selectTarget(team) {
+
+    const living = alive(team);
+
+    if (!living.length)
+        return null;
+
+    return living[
+        Math.floor(
+            Math.random() * living.length
+        )
+    ];
+
+}
+
+
+/* =====================================================
+   ATTACK
+===================================================== */
+
+function attack(attacker, defender, attackerIsPlayer) {
+
+    const result =
+        calculateDamage(
+            attacker,
+            defender
+        );
+
+    defender.hp -=
+        result.damage;
+
+
+    if (attackerIsPlayer) {
+
+        playerTotalDamage +=
+            result.damage;
+
+    } else {
+
+        enemyTotalDamage +=
+            result.damage;
+
+    }
+
+
+    if (result.critical) {
+
+        log(
+            `CRITICAL — ${attacker.name} [${attacker.race}] hits ${defender.name} for ${result.damage}.`,
+            "critical"
+        );
+
+    } else {
+
+        log(
+            `${attacker.name} hits ${defender.name} for ${result.damage}.`,
+            attackerIsPlayer
+                ? "player"
+                : "enemy"
+        );
+
+    }
+
+
+    /* Reflect */
+
+    if (
+        defender.alive &&
+        defender.reflect > 0
+    ) {
+
+        const reflected =
+            Math.round(
+                result.damage *
+                defender.reflect
+            );
+
+        attacker.hp -=
+            reflected;
+
+
+        if (attackerIsPlayer) {
+
+            enemyTotalDamage +=
+                reflected;
+
+        } else {
+
+            playerTotalDamage +=
+                reflected;
+
+        }
+
+
+        log(
+            `${defender.name} reflects ${reflected} damage.`,
+            "system"
+        );
+
+    }
+
+
+    /* Destroy attacker */
+
+    if (
+        attacker.hp <= 0 &&
+        attacker.alive
+    ) {
+
+        attacker.hp = 0;
+
+        attacker.alive = false;
+
+        destroyedShips++;
+
+        log(
+            `${attacker.name} has been destroyed.`,
+            attackerIsPlayer
+                ? "enemy"
+                : "player"
+        );
+
+    }
+
+
+    /* Destroy defender */
+
+    if (
+        defender.hp <= 0 &&
+        defender.alive
+    ) {
+
+        defender.hp = 0;
+
+        defender.alive = false;
+
+        destroyedShips++;
+
+        log(
+            `${defender.name} has been destroyed.`,
+            attackerIsPlayer
+                ? "player"
+                : "enemy"
+        );
+
+    }
+
+}
+
+
+/* =====================================================
+   ONE ROUND
+===================================================== */
+
+function executeRound() {
+
+    if (battleOver)
+        return;
+
+
+    round++;
+
+
+    /*
+       First each living player attacks once.
+       Then each living enemy attacks once.
+    */
+
+    const players =
+        [...alive(playerTeam)];
+
+    const enemies =
+        [...alive(enemyTeam)];
+
+
+    log(
+        `── ROUND ${round} ──`,
+        "system"
+    );
+
+
+    /* PLAYER ATTACKS */
+
+    players.forEach(player => {
+
+        if (!player.alive)
+            return;
+
+        const target =
+            selectTarget(enemyTeam);
+
+        if (!target)
+            return;
+
+        attack(
+            player,
+            target,
+            true
+        );
+
+    });
+
+
+    /* ENEMY ATTACKS */
+
+    enemies.forEach(enemy => {
+
+        if (!enemy.alive)
+            return;
+
+        const target =
+            selectTarget(playerTeam);
+
+        if (!target)
+            return;
+
+        attack(
+            enemy,
+            target,
+            false
+        );
+
+    });
+
+
+    updateUI();
+
+
+    /* CHECK WIN */
+
+    if (
+        alive(enemyTeam).length === 0
+    ) {
+
+        finishBattle(
+            true
+        );
+
+        return;
+
+    }
+
+
+    if (
+        alive(playerTeam).length === 0
+    ) {
+
+        finishBattle(
+            false
+        );
+
+        return;
+
+    }
+
+}
+
+
+/* =====================================================
+   UI
+===================================================== */
+
+function updateUI() {
+
+    document.getElementById("round")
+        .textContent = round;
+
+
+    /* Clan HP */
+
+    const playerHp =
+        totalHp(playerTeam);
+
+    const enemyHp =
+        totalHp(enemyTeam);
+
+    const playerMax =
+        maxTotalHp(playerTeam);
+
+    const enemyMax =
+        maxTotalHp(enemyTeam);
+
+
+    document.getElementById(
+        "playerClanHpText"
+    ).textContent =
+        `${Math.round(playerHp).toLocaleString()} / ${playerMax.toLocaleString()}`;
+
+
+    document.getElementById(
+        "enemyClanHpText"
+    ).textContent =
+        `${Math.round(enemyHp).toLocaleString()} / ${enemyMax.toLocaleString()}`;
+
+
+    document.getElementById(
+        "playerClanHpBar"
+    ).style.width =
+        `${(playerHp / playerMax) * 100}%`;
+
+
+    document.getElementById(
+        "enemyClanHpBar"
+    ).style.width =
+        `${(enemyHp / enemyMax) * 100}%`;
+
+
+    /* Members */
+
+    [...playerTeam, ...enemyTeam]
+        .forEach(member => {
+
+            const hpBar =
+                document.getElementById(
+                    member.id + "hp"
+                );
+
+            const hpText =
+                document.getElementById(
+                    member.id + "text"
+                );
+
+            const card =
+                document.getElementById(
+                    member.id
+                );
+
+
+            hpBar.style.width =
+                `${(member.hp / member.maxHp) * 100}%`;
+
+
+            hpText.textContent =
+                Math.round(member.hp).toLocaleString();
+
+
+            if (!member.alive) {
+
+                card.classList.add("dead");
+
+            }
+
+        });
+
+
+    /* Alive counters */
+
+    document.getElementById(
+        "playerAlive"
+    ).textContent =
+        `${alive(playerTeam).length} / 5 alive`;
+
+
+    document.getElementById(
+        "enemyAlive"
+    ).textContent =
+        `${alive(enemyTeam).length} / 5 alive`;
+
+
+    /* Statistics */
+
+    document.getElementById(
+        "statRounds"
+    ).textContent =
+        round;
+
+
+    document.getElementById(
+        "statPlayerDamage"
+    ).textContent =
+        Math.round(
+            playerTotalDamage
+        ).toLocaleString();
+
+
+    document.getElementById(
+        "statEnemyDamage"
+    ).textContent =
+        Math.round(
+            enemyTotalDamage
+        ).toLocaleString();
+
+
+    document.getElementById(
+        "statDestroyed"
+    ).textContent =
+        destroyedShips;
+
+}
+
+
+/* =====================================================
+   LOG
+===================================================== */
+
+function log(message, type = "") {
+
+    const entry =
+        document.createElement("div");
+
+    entry.className =
+        "log-entry " + type;
+
+    entry.textContent =
+        message;
+
+    const logElement =
+        document.getElementById(
+            "combatLog"
+        );
+
+    logElement.appendChild(entry);
+
+    logElement.scrollTop =
+        logElement.scrollHeight;
+
+}
+
+
+/* =====================================================
+   END BATTLE
+===================================================== */
+
+function finishBattle(playerWon) {
+
+    battleOver = true;
+
+    clearInterval(
+        battleTimer
+    );
+
+
+    const result =
+        document.getElementById(
+            "result"
+        );
+
+    const title =
+        document.getElementById(
+            "resultTitle"
+        );
+
+    const text =
+        document.getElementById(
+            "resultText"
+        );
+
+    const status =
+        document.getElementById(
+            "status"
+        );
+
+
+    result.classList.add(
+        "show"
+    );
+
+
+    if (playerWon) {
+
+        title.textContent =
+            "VICTORY";
+
+        text.textContent =
+            "Iron Horizon has destroyed the opposing clan.";
+
+        status.textContent =
+            "VICTORY";
+
+        log(
+            "════════ BATTLE WON ════════",
+            "critical"
+        );
+
+    } else {
+
+        title.textContent =
+            "DEFEAT";
+
+        text.textContent =
+            "Iron Horizon has been defeated.";
+
+        status.textContent =
+            "DEFEAT";
+
+        log(
+            "════════ BATTLE LOST ════════",
+            "enemy"
+        );
+
+    }
+
+}
+
+
+/* =====================================================
+   NEW BATTLE
+===================================================== */
+
+function newBattle() {
+
+    clearInterval(
+        battleTimer
+    );
+
+
+    /* Reset teams */
+
+    playerTeam.forEach(member => {
+
+        member.hp =
+            member.maxHp;
+
+        member.alive =
+            true;
+
+    });
+
+
+    enemyTeam.forEach(member => {
+
+        member.hp =
+            member.maxHp;
+
+        member.alive =
+            true;
+
+    });
+
+
+    round = 0;
+
+    battleOver = false;
+
+    playerTotalDamage = 0;
+
+    enemyTotalDamage = 0;
+
+    destroyedShips = 0;
+
+
+    document.getElementById(
+        "combatLog"
+    ).innerHTML = "";
+
+
+    document.getElementById(
+        "result"
+    ).classList.remove(
+        "show"
+    );
+
+
+    document.getElementById(
+        "status"
+    ).textContent =
+        "IN PROGRESS";
+
+
+    /*
+       Remove dead state from UI
+    */
+
+    [...playerTeam, ...enemyTeam]
+        .forEach(member => {
+
+            document.getElementById(
+                member.id
+            ).classList.remove(
+                "dead"
+            );
+
+        });
+
+
+    log(
+        "Clan battle initiated.",
+        "system"
+    );
+
+    log(
+        "Both clans have deployed their ships.",
+        "system"
+    );
+
+    updateUI();
+
+
+    /*
+       IMPORTANT:
+       Exactly one round every second.
+    */
+
+    battleTimer =
+        setInterval(
+            executeRound,
+            1000
+        );
+
+}
+
+
+/* =====================================================
+   START
+===================================================== */
+
+newBattle();
+
+</script>
+
+</body>
+</html>

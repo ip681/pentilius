@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
@@ -23,7 +24,7 @@ export default function LoginPage() {
       const action = mode === 'login' ? login : register;
       const result = await action({ email, password });
       storeTokens(result);
-      router.push('/base');
+      router.push('/dashboard');
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         setStatus({ kind: 'error', messageKey: 'errorConflict' });
@@ -36,52 +37,68 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-6">
-      <div className="flex gap-4 text-sm">
-        <button
-          type="button"
-          className={mode === 'login' ? 'font-bold underline' : ''}
-          onClick={() => setMode('login')}
-        >
-          {t('login')}
-        </button>
-        <button
-          type="button"
-          className={mode === 'register' ? 'font-bold underline' : ''}
-          onClick={() => setMode('register')}
-        >
-          {t('register')}
-        </button>
+    <main className="flex min-h-screen items-center justify-center bg-ink px-4 text-text">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex justify-center">
+          <Image src="/logo.png" alt="Pentilius" width={220} height={132} className="h-auto w-[220px]" priority />
+        </div>
+
+        <div className="overflow-hidden rounded-lg border border-panelBorder bg-panel">
+          <div className="flex border-b border-panelBorder">
+            <button
+              type="button"
+              onClick={() => setMode('login')}
+              className={`flex-1 py-3 text-xs uppercase tracking-wide ${
+                mode === 'login' ? 'bg-panelHeader text-text' : 'text-textMuted hover:text-text'
+              }`}
+            >
+              {t('login')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('register')}
+              className={`flex-1 py-3 text-xs uppercase tracking-wide ${
+                mode === 'register' ? 'bg-panelHeader text-text' : 'text-textMuted hover:text-text'
+              }`}
+            >
+              {t('register')}
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-6">
+            <label className="flex flex-col gap-1.5 text-xs text-textMuted">
+              {t('email')}
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="rounded-md border border-wellBorder bg-well px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs text-textMuted">
+              {t('password')}
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="rounded-md border border-wellBorder bg-well px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+              />
+            </label>
+
+            {status.kind === 'error' && <p className="text-xs text-danger">{t(status.messageKey)}</p>}
+
+            <button
+              type="submit"
+              className="mt-1 w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase tracking-wide text-text hover:bg-accentBgHover"
+            >
+              {t('submit')}
+            </button>
+          </form>
+        </div>
       </div>
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          {t('email')}
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="rounded border px-3 py-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          {t('password')}
-          <input
-            type="password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="rounded border px-3 py-2"
-          />
-        </label>
-        <button type="submit" className="rounded bg-black px-3 py-2 text-white">
-          {t('submit')}
-        </button>
-      </form>
-
-      {status.kind === 'error' && <p className="text-red-600">{t(status.messageKey)}</p>}
     </main>
   );
 }

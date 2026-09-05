@@ -20,5 +20,12 @@ export const GAME_BALANCE = {
     // Combat formula is UNDEFINED — placeholder linear model:
     // stat = sum(equipped baseStats) * (1 + upgradeLevel * bonusPerUpgradeLevel).
     bonusPerUpgradeLevel: 0.1,
+    // Ships without hp-boosting gear equipped would otherwise start combat
+    // with ~0 HP; this floor is a placeholder, not a real ship-hull rule.
+    basePlayerHp: 100,
+    // Damage variance per round and a hard round cap so combat always
+    // terminates even if both sides' stats are near-identical.
+    damageVariance: 0.1,
+    maxRounds: 30,
   },
 } as const;

@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { BattleReportDto, LootResultEntryDto, ResourceType } from '@pentilius/shared';
+import { BattleReportDto, CombatRoundDto, LootResultEntryDto, ResourceType } from '@pentilius/shared';
 import { Prisma } from '@prisma/client';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -86,10 +86,13 @@ export class PveService {
           lootSummary: lootSummary as unknown as Prisma.InputJsonValue,
           damageDealt: result.damageDealt,
           damageTaken: result.damageTaken,
+          rounds: result.rounds as unknown as Prisma.InputJsonValue,
+          playerMaxHp: result.playerMaxHp,
+          pentiliMaxHp: result.pentiliMaxHp,
         },
       });
 
-      return toBattleReportDto(report, pentili, pentili.zone, player.level, leveledUp, lootSummary);
+      return toBattleReportDto(report, pentili, pentili.zone, player.level, leveledUp, lootSummary, result.rounds);
     });
   }
 
@@ -109,6 +112,7 @@ export class PveService {
         0,
         false,
         report.lootSummary as unknown as LootResultEntryDto[],
+        report.rounds as unknown as CombatRoundDto[],
       ),
     );
   }
@@ -119,12 +123,22 @@ function randomInt(min: number, max: number): number {
 }
 
 function toBattleReportDto(
-  report: { id: string; outcome: string; xpGained: number; damageDealt: number; damageTaken: number; createdAt: Date },
+  report: {
+    id: string;
+    outcome: string;
+    xpGained: number;
+    damageDealt: number;
+    damageTaken: number;
+    playerMaxHp: number;
+    pentiliMaxHp: number;
+    createdAt: Date;
+  },
   pentili: { key: string; nameKey: string },
   zone: { key: string },
   playerLevel: number,
   leveledUp: boolean,
   lootSummary: LootResultEntryDto[],
+  rounds: CombatRoundDto[],
 ): BattleReportDto {
   return {
     id: report.id,
@@ -136,6 +150,9 @@ function toBattleReportDto(
     lootSummary,
     damageDealt: report.damageDealt,
     damageTaken: report.damageTaken,
+    rounds,
+    playerMaxHp: report.playerMaxHp,
+    pentiliMaxHp: report.pentiliMaxHp,
     createdAt: report.createdAt.toISOString(),
     playerLevel,
     leveledUp,

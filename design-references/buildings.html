@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pentilius — Base Resources</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+}
+
+body{
+    background:#080c11;
+    color:#dce5eb;
+    font-family:Arial,Helvetica,sans-serif;
+    min-height:100vh;
+}
+
+.topbar{
+    height:64px;
+    background:#0e141b;
+    border-bottom:1px solid #27323c;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 28px;
+}
+
+.logo{
+    font-size:21px;
+    font-weight:700;
+    letter-spacing:4px;
+}
+
+.resources{
+    display:flex;
+    gap:22px;
+    font-size:11px;
+    color:#71808b;
+}
+
+.resources strong{
+    color:#dce5eb;
+    margin-left:5px;
+}
+
+.page{
+    max-width:1250px;
+    margin:auto;
+    padding:28px 20px 50px;
+}
+
+.header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:22px;
+}
+
+.header h1{
+    font-size:27px;
+    font-weight:600;
+    margin-bottom:6px;
+}
+
+.header p{
+    font-size:11px;
+    color:#6f7d87;
+}
+
+.status{
+    font-size:10px;
+    color:#7ea78c;
+    text-transform:uppercase;
+    letter-spacing:1px;
+}
+
+/* GRID */
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:18px;
+}
+
+.card{
+    background:#10171e;
+    border:1px solid #29353f;
+    border-radius:8px;
+    overflow:hidden;
+}
+
+.card-header{
+    padding:16px;
+    background:#0d1319;
+    border-bottom:1px solid #26313a;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.card-title{
+    font-size:14px;
+    font-weight:600;
+}
+
+.level{
+    font-size:9px;
+    color:#75858f;
+    text-transform:uppercase;
+}
+
+.card-body{
+    padding:18px;
+}
+
+.building-visual{
+    height:120px;
+    border:1px solid #27343d;
+    background:
+        radial-gradient(circle at center,#18242d,#0c1217 72%);
+    border-radius:7px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin-bottom:16px;
+}
+
+.building-shape{
+    width:100px;
+    height:70px;
+    background:#43535e;
+    clip-path:polygon(
+        10% 100%,
+        10% 30%,
+        30% 30%,
+        30% 10%,
+        70% 10%,
+        70% 30%,
+        90% 30%,
+        90% 100%
+    );
+    opacity:.85;
+}
+
+.info-row{
+    display:flex;
+    justify-content:space-between;
+    font-size:10px;
+    color:#75848e;
+    margin-bottom:8px;
+}
+
+.info-row strong{
+    color:#dce5eb;
+}
+
+.progress{
+    height:7px;
+    background:#20282f;
+    border-radius:6px;
+    overflow:hidden;
+    margin:8px 0 14px;
+}
+
+.progress-bar{
+    height:100%;
+    background:#748f9d;
+    transition:width .25s ease;
+}
+
+.production-box{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+.stat{
+    background:#0c1217;
+    border:1px solid #222d35;
+    border-radius:5px;
+    padding:10px;
+}
+
+.stat-label{
+    font-size:8px;
+    color:#687781;
+    text-transform:uppercase;
+    margin-bottom:5px;
+}
+
+.stat-value{
+    font-size:14px;
+}
+
+.tick{
+    font-size:9px;
+    color:#82a68e;
+}
+
+.actions{
+    display:flex;
+    gap:8px;
+}
+
+button{
+    flex:1;
+    border:1px solid #354853;
+    background:#17242c;
+    color:#dce5eb;
+    border-radius:5px;
+    padding:10px;
+    font-size:9px;
+    cursor:pointer;
+    text-transform:uppercase;
+}
+
+button:hover{
+    background:#22343e;
+}
+
+button:disabled{
+    opacity:.35;
+    cursor:not-allowed;
+}
+
+/* EVENT LOG */
+
+.log-panel{
+    margin-top:18px;
+    background:#10171e;
+    border:1px solid #29353f;
+    border-radius:8px;
+    padding:16px;
+}
+
+.log-panel h2{
+    font-size:13px;
+    margin-bottom:12px;
+}
+
+.log{
+    height:150px;
+    overflow:auto;
+    background:#0b1015;
+    border:1px solid #202a32;
+    border-radius:5px;
+    padding:10px;
+    font-family:monospace;
+    font-size:10px;
+    line-height:1.8;
+    color:#778690;
+}
+
+.log .gain{
+    color:#92b59b;
+}
+
+.log .upgrade{
+    color:#c1a978;
+}
+
+@media(max-width:800px){
+
+    .topbar{
+        padding:0 14px;
+    }
+
+    .resources{
+        gap:10px;
+        font-size:9px;
+    }
+
+    .page{
+        padding:18px 10px;
+    }
+
+    .header{
+        display:block;
+    }
+
+    .status{
+        margin-top:10px;
+    }
+
+    .grid{
+        grid-template-columns:1fr;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header class="topbar">
+
+    <div class="logo">
+        PENTILIUS
+    </div>
+
+    <div class="resources">
+
+        <div>
+            Metal
+            <strong id="topMetal">1200</strong>
+        </div>
+
+        <div>
+            Energy
+            <strong id="topEnergy">900</strong>
+        </div>
+
+        <div>
+            Crystal
+            <strong id="topCrystal">320</strong>
+        </div>
+
+    </div>
+
+</header>
+
+<main class="page">
+
+<div class="header">
+
+    <div>
+        <h1>Base Resources</h1>
+        <p>
+            Resource buildings generate materials automatically.
+        </p>
+    </div>
+
+    <div class="status">
+        ● Base production active
+    </div>
+
+</div>
+
+
+<div class="grid">
+
+<!-- METAL -->
+
+<section class="card">
+
+<div class="card-header">
+
+    <div class="card-title">
+        Metal Extractor
+    </div>
+
+    <div class="level" id="metalLevel">
+        Level 1
+    </div>
+
+</div>
+
+<div class="card-body">
+
+<div class="building-visual">
+    <div class="building-shape"></div>
+</div>
+
+<div class="info-row">
+    <span>Stored</span>
+    <strong id="metalStored">1200 / 5000</strong>
+</div>
+
+<div class="progress">
+    <div class="progress-bar" id="metalBar"></div>
+</div>
+
+<div class="production-box">
+
+<div class="stat">
+<div class="stat-label">Production</div>
+<div class="stat-value" id="metalProduction">
++10
+</div>
+</div>
+
+<div class="stat">
+<div class="stat-label">Every</div>
+<div class="stat-value">
+3 sec
+</div>
+</div>
+
+</div>
+
+<div class="tick" id="metalTick">
+Next production in 3s
+</div>
+
+<div class="actions">
+
+<button onclick="upgradeBuilding('metal')">
+Upgrade
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- ENERGY -->
+
+<section class="card">
+
+<div class="card-header">
+
+    <div class="card-title">
+        Energy Plant
+    </div>
+
+    <div class="level" id="energyLevel">
+        Level 1
+    </div>
+
+</div>
+
+<div class="card-body">
+
+<div class="building-visual">
+    <div class="building-shape"></div>
+</div>
+
+<div class="info-row">
+    <span>Stored</span>
+    <strong id="energyStored">900 / 5000</strong>
+</div>
+
+<div class="progress">
+    <div class="progress-bar" id="energyBar"></div>
+</div>
+
+<div class="production-box">
+
+<div class="stat">
+<div class="stat-label">Production</div>
+<div class="stat-value" id="energyProduction">
++8
+</div>
+</div>
+
+<div class="stat">
+<div class="stat-label">Every</div>
+<div class="stat-value">
+2 sec
+</div>
+</div>
+
+</div>
+
+<div class="tick" id="energyTick">
+Next production in 2s
+</div>
+
+<div class="actions">
+
+<button onclick="upgradeBuilding('energy')">
+Upgrade
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- CRYSTAL -->
+
+<section class="card">
+
+<div class="card-header">
+
+    <div class="card-title">
+        Crystal Refinery
+    </div>
+
+    <div class="level" id="crystalLevel">
+        Level 1
+    </div>
+
+</div>
+
+<div class="card-body">
+
+<div class="building-visual">
+    <div class="building-shape"></div>
+</div>
+
+<div class="info-row">
+    <span>Stored</span>
+    <strong id="crystalStored">320 / 3000</strong>
+</div>
+
+<div class="progress">
+    <div class="progress-bar" id="crystalBar"></div>
+</div>
+
+<div class="production-box">
+
+<div class="stat">
+<div class="stat-label">Production</div>
+<div class="stat-value" id="crystalProduction">
++4
+</div>
+</div>
+
+<div class="stat">
+<div class="stat-label">Every</div>
+<div class="stat-value">
+5 sec
+</div>
+</div>
+
+</div>
+
+<div class="tick" id="crystalTick">
+Next production in 5s
+</div>
+
+<div class="actions">
+
+<button onclick="upgradeBuilding('crystal')">
+Upgrade
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- STORAGE -->
+
+<section class="card">
+
+<div class="card-header">
+
+    <div class="card-title">
+        Central Storage
+    </div>
+
+    <div class="level" id="storageLevel">
+        Level 1
+    </div>
+
+</div>
+
+<div class="card-body">
+
+<div class="building-visual">
+    <div class="building-shape"></div>
+</div>
+
+<div class="info-row">
+    <span>Metal capacity</span>
+    <strong id="metalCapText">
+        5000
+    </strong>
+</div>
+
+<div class="info-row">
+    <span>Energy capacity</span>
+    <strong id="energyCapText">
+        5000
+    </strong>
+</div>
+
+<div class="info-row">
+    <span>Crystal capacity</span>
+    <strong id="crystalCapText">
+        3000
+    </strong>
+</div>
+
+<div class="production-box">
+
+<div class="stat">
+<div class="stat-label">Capacity bonus</div>
+<div class="stat-value" id="storageBonus">
+Base
+</div>
+</div>
+
+<div class="stat">
+<div class="stat-label">Next level</div>
+<div class="stat-value">
++20%
+</div>
+</div>
+
+</div>
+
+<div class="actions">
+
+<button onclick="upgradeStorage()">
+Upgrade
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+</div>
+
+
+<section class="log-panel">
+
+<h2>Base Activity</h2>
+
+<div class="log" id="log"></div>
+
+</section>
+
+</main>
+
+
+<script>
+
+/* ================================
+   GAME DATA
+================================ */
+
+const game = {
+
+metal:{
+    amount:1200,
+    level:1,
+    production:10,
+    interval:3,
+    timer:3,
+    cap:5000
+},
+
+energy:{
+    amount:900,
+    level:1,
+    production:8,
+    interval:2,
+    timer:2,
+    cap:5000
+},
+
+crystal:{
+    amount:320,
+    level:1,
+    production:4,
+    interval:5,
+    timer:5,
+    cap:3000
+},
+
+storageLevel:1
+
+};
+
+
+/* ================================
+   PRODUCTION LOOP
+================================ */
+
+setInterval(function(){
+
+tickResource(
+"metal"
+);
+
+tickResource(
+"energy"
+);
+
+tickResource(
+"crystal"
+);
+
+updateUI();
+
+},1000);
+
+
+/* ================================
+   RESOURCE TIMER
+================================ */
+
+function tickResource(type){
+
+const resource =
+game[type];
+
+resource.timer--;
+
+
+if(resource.timer <= 0){
+
+resource.timer =
+resource.interval;
+
+
+if(resource.amount <
+resource.cap){
+
+const previous =
+resource.amount;
+
+resource.amount +=
+resource.production;
+
+
+if(resource.amount >
+resource.cap){
+
+resource.amount =
+resource.cap;
+
+}
+
+
+const gained =
+resource.amount -
+previous;
+
+
+if(gained > 0){
+
+addLog(
+
+"+" +
+gained +
+" " +
+capitalize(type),
+
+"gain"
+
+);
+
+}
+
+}
+
+}
+
+}
+
+
+/* ================================
+   UPGRADE BUILDING
+================================ */
+
+function upgradeBuilding(type){
+
+const resource =
+game[type];
+
+resource.level++;
+
+
+/*
+Every upgrade increases
+production by 25%.
+*/
+
+resource.production =
+Math.round(
+resource.production *
+1.25
+);
+
+
+addLog(
+
+capitalize(type) +
+" building upgraded to level " +
+resource.level,
+
+"upgrade"
+
+);
+
+
+updateUI();
+
+}
+
+
+/* ================================
+   STORAGE UPGRADE
+================================ */
+
+function upgradeStorage(){
+
+game.storageLevel++;
+
+
+/*
+Each storage upgrade adds 20%.
+*/
+
+game.metal.cap =
+Math.round(
+game.metal.cap *
+1.20
+);
+
+game.energy.cap =
+Math.round(
+game.energy.cap *
+1.20
+);
+
+game.crystal.cap =
+Math.round(
+game.crystal.cap *
+1.20
+);
+
+
+addLog(
+
+"Central Storage upgraded to level " +
+game.storageLevel,
+
+"upgrade"
+
+);
+
+
+updateUI();
+
+}
+
+
+/* ================================
+   UPDATE UI
+================================ */
+
+function updateUI(){
+
+updateResourceUI(
+"metal"
+);
+
+updateResourceUI(
+"energy"
+);
+
+updateResourceUI(
+"crystal"
+);
+
+
+/* TOP BAR */
+
+document.getElementById(
+"topMetal"
+).textContent =
+game.metal.amount.toLocaleString();
+
+
+document.getElementById(
+"topEnergy"
+).textContent =
+game.energy.amount.toLocaleString();
+
+
+document.getElementById(
+"topCrystal"
+).textContent =
+game.crystal.amount.toLocaleString();
+
+
+/* STORAGE */
+
+document.getElementById(
+"storageLevel"
+).textContent =
+"Level " +
+game.storageLevel;
+
+
+document.getElementById(
+"metalCapText"
+).textContent =
+game.metal.cap.toLocaleString();
+
+
+document.getElementById(
+"energyCapText"
+).textContent =
+game.energy.cap.toLocaleString();
+
+
+document.getElementById(
+"crystalCapText"
+).textContent =
+game.crystal.cap.toLocaleString();
+
+
+document.getElementById(
+"storageBonus"
+).textContent =
+
+"+" +
+((game.storageLevel - 1) * 20) +
+"%";
+
+}
+
+
+/* ================================
+   RESOURCE UI
+================================ */
+
+function updateResourceUI(type){
+
+const resource =
+game[type];
+
+
+document.getElementById(
+type + "Level"
+).textContent =
+
+"Level " +
+resource.level;
+
+
+document.getElementById(
+type + "Stored"
+).textContent =
+
+resource.amount.toLocaleString() +
+
+" / " +
+
+resource.cap.toLocaleString();
+
+
+document.getElementById(
+type + "Production"
+).textContent =
+
+"+" +
+resource.production;
+
+
+document.getElementById(
+type + "Tick"
+).textContent =
+
+"Next production in " +
+resource.timer +
+"s";
+
+
+const percent =
+
+(resource.amount /
+resource.cap)
+*
+100;
+
+
+document.getElementById(
+type + "Bar"
+).style.width =
+
+percent +
+"%";
+
+}
+
+
+/* ================================
+   ACTIVITY LOG
+================================ */
+
+function addLog(
+message,
+type=""
+){
+
+const log =
+document.getElementById(
+"log"
+);
+
+
+const row =
+document.createElement(
+"div"
+);
+
+
+row.className =
+type;
+
+
+const time =
+new Date()
+.toLocaleTimeString();
+
+
+row.textContent =
+
+"[" +
+time +
+"] " +
+message;
+
+
+log.appendChild(
+row
+);
+
+
+log.scrollTop =
+log.scrollHeight;
+
+}
+
+
+/* ================================
+   HELPERS
+================================ */
+
+function capitalize(text){
+
+return text.charAt(0)
+.toUpperCase()
++
+text.slice(1);
+
+}
+
+
+/* ================================
+   START
+================================ */
+
+updateUI();
+
+addLog(
+"Base production started."
+);
+
+</script>
+
+</body>
+</html>

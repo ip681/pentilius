@@ -204,16 +204,19 @@ model ItemInstance {
 }
 
 model BattleReport {
-  id          String        @id @default(uuid())
-  playerId    String
-  pentiliId   String
-  zoneId      String
-  outcome     BattleOutcome
-  xpGained    Int
-  lootSummary Json
-  damageDealt Int
-  damageTaken Int
-  createdAt   DateTime      @default(now())
+  id            String        @id @default(uuid())
+  playerId      String
+  pentiliId     String
+  zoneId        String
+  outcome       BattleOutcome
+  xpGained      Int
+  lootSummary   Json
+  damageDealt   Int
+  damageTaken   Int
+  rounds        Json
+  playerMaxHp   Int
+  pentiliMaxHp  Int
+  createdAt     DateTime      @default(now())
 
   player  Player  @relation(fields: [playerId], references: [id])
   pentili Pentili @relation(fields: [pentiliId], references: [id])

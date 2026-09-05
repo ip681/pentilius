@@ -36,6 +36,11 @@ export class EconomyService {
       }
     }
 
+    const hasWholeUnitGain = Object.values(gains).some((amount) => Math.floor(amount) > 0);
+    if (!hasWholeUnitGain) {
+      return player;
+    }
+
     return tx.player.update({
       where: { id: playerId },
       data: {

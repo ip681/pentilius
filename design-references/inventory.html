@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pentilius — Ship Equipment</title>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+    background:#080c11;
+    color:#dce5eb;
+    font-family:Arial,Helvetica,sans-serif;
+    min-height:100vh;
+}
+
+.topbar{
+    height:64px;
+    background:#0e141b;
+    border-bottom:1px solid #27323c;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 28px;
+}
+
+.logo{
+    font-size:21px;
+    font-weight:700;
+    letter-spacing:4px;
+}
+
+.commander{
+    font-size:11px;
+    color:#71808b;
+}
+
+.page{
+    max-width:1400px;
+    margin:auto;
+    padding:28px 20px 50px;
+}
+
+.header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:20px;
+}
+
+.header h1{
+    font-size:26px;
+    font-weight:600;
+    margin-bottom:6px;
+}
+
+.header p{
+    font-size:11px;
+    color:#6f7d87;
+}
+
+.power{
+    font-size:10px;
+    color:#71808b;
+    text-transform:uppercase;
+}
+
+.power strong{
+    font-size:17px;
+    color:#dce5eb;
+    margin-left:8px;
+}
+
+/* LAYOUT */
+
+.layout{
+    display:grid;
+    grid-template-columns:300px 1fr 310px;
+    gap:18px;
+}
+
+.panel{
+    background:#10171e;
+    border:1px solid #29353f;
+    border-radius:8px;
+    overflow:hidden;
+}
+
+.panel-header{
+    padding:14px 16px;
+    background:#0d1319;
+    border-bottom:1px solid #26313a;
+    display:flex;
+    justify-content:space-between;
+}
+
+.panel-header strong{
+    font-size:12px;
+}
+
+.panel-header span{
+    font-size:9px;
+    color:#697984;
+    text-transform:uppercase;
+}
+
+/* INVENTORY */
+
+.inventory{
+    padding:12px;
+}
+
+.filters{
+    display:flex;
+    gap:5px;
+    margin-bottom:10px;
+}
+
+button{
+    border:1px solid #354853;
+    background:#17242c;
+    color:#dce5eb;
+    border-radius:5px;
+    padding:9px 11px;
+    font-size:9px;
+    cursor:pointer;
+    text-transform:uppercase;
+}
+
+button:hover{
+    background:#22343e;
+}
+
+button.active{
+    background:#2a3b45;
+    border-color:#71838d;
+}
+
+button:disabled{
+    opacity:.3;
+    cursor:not-allowed;
+}
+
+.filters button{
+    flex:1;
+}
+
+.items{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:7px;
+}
+
+.item{
+    background:#0c1217;
+    border:1px solid #26323b;
+    border-radius:6px;
+    padding:10px;
+    min-height:115px;
+    cursor:pointer;
+}
+
+.item:hover{
+    border-color:#566a76;
+}
+
+.item.selected{
+    border-color:#a5b5bd;
+}
+
+.item.equipped{
+    opacity:.4;
+}
+
+.item-name{
+    font-size:10px;
+    font-weight:600;
+    line-height:1.3;
+}
+
+.rarity{
+    font-size:8px;
+    text-transform:uppercase;
+    margin:6px 0;
+    letter-spacing:.8px;
+}
+
+.common{color:#89969e}
+.rare{color:#78a0b9}
+.epic{color:#ad8ebd}
+.excellent{color:#c5a873}
+
+.item-stats{
+    font-size:8px;
+    color:#75848e;
+    line-height:1.6;
+}
+
+/* SHIP */
+
+.ship-panel{
+    padding:18px;
+}
+
+.ship-title{
+    text-align:center;
+    margin-bottom:12px;
+}
+
+.ship-title h2{
+    font-size:17px;
+    margin-bottom:4px;
+}
+
+.ship-title p{
+    font-size:9px;
+    color:#6c7b85;
+}
+
+.ship-area{
+    height:450px;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    background:
+        radial-gradient(circle,#182630,#0c1217 70%);
+
+    border:1px solid #26333c;
+    border-radius:7px;
+}
+
+/* SHIP BODY */
+
+.ship{
+    width:320px;
+    height:145px;
+
+    background:#536671;
+
+    clip-path:polygon(
+        0 50%,
+        15% 27%,
+        52% 27%,
+        72% 7%,
+        100% 50%,
+        72% 93%,
+        52% 73%,
+        15% 73%
+    );
+
+    opacity:.75;
+}
+
+/* EQUIPMENT SLOTS */
+
+.slot{
+    position:absolute;
+
+    width:120px;
+    min-height:65px;
+
+    background:#0a1015;
+
+    border:1px dashed #4b5e68;
+    border-radius:6px;
+
+    padding:8px;
+
+    cursor:pointer;
+}
+
+.slot:hover{
+    border-color:#9aabb4;
+}
+
+.slot-label{
+    font-size:8px;
+    color:#6d7d87;
+    text-transform:uppercase;
+    letter-spacing:.8px;
+    margin-bottom:5px;
+}
+
+.slot-name{
+    font-size:9px;
+    font-weight:600;
+}
+
+.slot-rarity{
+    font-size:7px;
+    margin-top:4px;
+    color:#82919a;
+}
+
+.empty{
+    text-align:center;
+}
+
+.weapon{
+    left:4%;
+    top:16%;
+}
+
+.shield{
+    left:4%;
+    bottom:16%;
+}
+
+.engine{
+    right:4%;
+    top:16%;
+}
+
+.reactor{
+    right:4%;
+    bottom:16%;
+}
+
+.hull{
+    left:50%;
+    transform:translateX(-50%);
+    top:4%;
+}
+
+.utility{
+    left:50%;
+    transform:translateX(-50%);
+    bottom:4%;
+}
+
+/* SHIP STATS */
+
+.ship-stats{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:7px;
+    margin-top:12px;
+}
+
+.stat{
+    background:#0c1217;
+    border:1px solid #222d35;
+    border-radius:5px;
+    padding:10px;
+}
+
+.stat-label{
+    font-size:8px;
+    color:#687781;
+    text-transform:uppercase;
+    margin-bottom:5px;
+}
+
+.stat-value{
+    font-size:14px;
+}
+
+/* DETAILS */
+
+.details{
+    padding:14px;
+}
+
+.preview{
+    background:#0c1217;
+    border:1px solid #222d35;
+    border-radius:6px;
+    padding:14px;
+}
+
+.preview h3{
+    font-size:13px;
+    margin-bottom:5px;
+}
+
+.detail-stats{
+    font-size:10px;
+    color:#82919a;
+    line-height:1.8;
+}
+
+.special{
+    margin-top:10px;
+    background:#141c22;
+    border:1px solid #303d46;
+    border-radius:5px;
+    padding:10px;
+}
+
+.special-title{
+    font-size:8px;
+    color:#c5a873;
+    text-transform:uppercase;
+    margin-bottom:6px;
+}
+
+.actions{
+    display:flex;
+    gap:7px;
+    margin-top:12px;
+}
+
+.actions button{
+    flex:1;
+}
+
+.info{
+    margin-top:15px;
+    font-size:9px;
+    color:#687781;
+    line-height:1.6;
+}
+
+/* MOBILE */
+
+@media(max-width:1050px){
+
+    .layout{
+        grid-template-columns:280px 1fr;
+    }
+
+    .details-panel{
+        grid-column:1/-1;
+    }
+}
+
+@media(max-width:750px){
+
+    .topbar{
+        padding:0 14px;
+    }
+
+    .commander{
+        display:none;
+    }
+
+    .page{
+        padding:18px 10px;
+    }
+
+    .header{
+        display:block;
+    }
+
+    .power{
+        margin-top:10px;
+    }
+
+    .layout{
+        grid-template-columns:1fr;
+    }
+
+    .details-panel{
+        grid-column:auto;
+    }
+
+    .ship-area{
+        height:400px;
+    }
+
+    .ship{
+        width:220px;
+        height:110px;
+    }
+
+    .slot{
+        width:100px;
+    }
+
+    .ship-stats{
+        grid-template-columns:1fr 1fr;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header class="topbar">
+
+    <div class="logo">
+        PENTILIUS
+    </div>
+
+    <div class="commander">
+        COMMANDER <strong>ARKON</strong>
+    </div>
+
+</header>
+
+<main class="page">
+
+<div class="header">
+
+    <div>
+        <h1>Ship Equipment</h1>
+        <p>Configure the modules installed on your vessel.</p>
+    </div>
+
+    <div class="power">
+        Combat Power
+        <strong id="combatPower">0</strong>
+    </div>
+
+</div>
+
+
+<div class="layout">
+
+<!-- INVENTORY -->
+
+<section class="panel">
+
+<div class="panel-header">
+
+    <strong>Inventory</strong>
+
+    <span id="inventoryCount">
+        8 Items
+    </span>
+
+</div>
+
+<div class="inventory">
+
+<div class="filters">
+
+<button
+class="active"
+onclick="setFilter('all',this)">
+All
+</button>
+
+<button
+onclick="setFilter('weapon',this)">
+Weapons
+</button>
+
+<button
+onclick="setFilter('defense',this)">
+Defense
+</button>
+
+</div>
+
+<div
+class="items"
+id="inventory">
+</div>
+
+</div>
+
+</section>
+
+
+<!-- SHIP -->
+
+<section class="panel ship-panel">
+
+<div class="ship-title">
+
+<h2>Explorer MK II</h2>
+
+<p>
+Universal exploration vessel · Level 18
+</p>
+
+</div>
+
+
+<div class="ship-area">
+
+<div class="ship"></div>
+
+<div
+class="slot hull"
+data-slot="hull">
+</div>
+
+<div
+class="slot weapon"
+data-slot="weapon">
+</div>
+
+<div
+class="slot shield"
+data-slot="shield">
+</div>
+
+<div
+class="slot engine"
+data-slot="engine">
+</div>
+
+<div
+class="slot reactor"
+data-slot="reactor">
+</div>
+
+<div
+class="slot utility"
+data-slot="utility">
+</div>
+
+</div>
+
+
+<div class="ship-stats">
+
+<div class="stat">
+<div class="stat-label">Hull</div>
+<div class="stat-value" id="hullStat">9000</div>
+</div>
+
+<div class="stat">
+<div class="stat-label">Damage</div>
+<div class="stat-value" id="damageStat">1284</div>
+</div>
+
+<div class="stat">
+<div class="stat-label">Defense</div>
+<div class="stat-value" id="defenseStat">24%</div>
+</div>
+
+<div class="stat">
+<div class="stat-label">Reflect</div>
+<div class="stat-value" id="reflectStat">8%</div>
+</div>
+
+</div>
+
+</section>
+
+
+<!-- ITEM DETAILS -->
+
+<section class="panel details-panel">
+
+<div class="panel-header">
+
+<strong>Item Details</strong>
+
+<span id="selectedType">
+NOT SELECTED
+</span>
+
+</div>
+
+
+<div class="details">
+
+<div
+class="preview"
+id="itemPreview">
+
+<h3>Select an item</h3>
+
+<div class="detail-stats">
+
+Choose an item from your inventory to inspect its properties.
+
+</div>
+
+</div>
+
+
+<div class="actions">
+
+<button
+id="equipButton"
+disabled
+onclick="equipSelected()">
+
+Equip
+
+</button>
+
+
+<button
+id="removeButton"
+disabled
+onclick="removeSelected()">
+
+Remove
+
+</button>
+
+</div>
+
+
+<div class="info">
+
+Basic equipment can be installed on universal vessels.
+
+Advanced equipment may later require a specific race,
+ship class or technology level.
+
+</div>
+
+</div>
+
+</section>
+
+</div>
+
+</main>
+
+
+<script>
+
+/* ===========================
+   ITEMS
+=========================== */
+
+const items = [
+
+{
+id:1,
+name:"Pulse Cannon Mk I",
+category:"weapon",
+slot:"weapon",
+rarity:"common",
+
+damage:180,
+
+stats:[
+"+180 Damage"
+]
+},
+
+{
+id:2,
+name:"Kinetic Barrier",
+category:"defense",
+slot:"shield",
+rarity:"rare",
+
+defense:5,
+hull:180,
+
+stats:[
+"+5% Defense",
+"+180 Max Hull"
+]
+},
+
+{
+id:3,
+name:"Reactive Shield",
+category:"defense",
+slot:"shield",
+rarity:"excellent",
+
+reflect:6,
+damageReduction:7,
+hull:420,
+
+stats:[
+"+420 Max Hull"
+],
+
+excellent:[
+"+7% Damage Reduction",
+"+6% Reflect Damage"
+]
+},
+
+{
+id:4,
+name:"Aether Drive",
+category:"defense",
+slot:"engine",
+rarity:"epic",
+
+defense:5,
+hull:120,
+
+stats:[
+"+120 Max Hull",
+"+5% Defense Success Rate"
+]
+},
+
+{
+id:5,
+name:"Reinforced Hull",
+category:"defense",
+slot:"hull",
+rarity:"rare",
+
+hull:850,
+damageReduction:3,
+
+stats:[
+"+850 Max Hull",
+"+3% Damage Reduction"
+]
+},
+
+{
+id:6,
+name:"Quantum Reactor",
+category:"weapon",
+slot:"reactor",
+rarity:"excellent",
+
+damage:110,
+defense:2,
+critical:4,
+
+stats:[
+"+110 Damage"
+],
+
+excellent:[
+"+4% Critical Rate",
+"+2% Defense"
+]
+},
+
+{
+id:7,
+name:"Targeting Array",
+category:"weapon",
+slot:"utility",
+rarity:"epic",
+
+damage:90,
+critical:6,
+
+stats:[
+"+90 Damage",
+"+6% Critical Rate"
+]
+},
+
+{
+id:8,
+name:"Veyl Shadow Core",
+category:"weapon",
+slot:"reactor",
+rarity:"excellent",
+
+damage:260,
+critical:8,
+
+race:"Veyl",
+
+stats:[
+"+260 Damage"
+],
+
+excellent:[
+"+8% Critical Rate"
+]
+}
+
+];
+
+
+/* ===========================
+   STATE
+=========================== */
+
+let equipped = {};
+
+let selectedItem = null;
+
+let currentFilter = "all";
+
+
+/* ===========================
+   INVENTORY
+=========================== */
+
+function renderInventory(){
+
+const container =
+document.getElementById("inventory");
+
+container.innerHTML = "";
+
+
+const visible =
+items.filter(item =>
+
+currentFilter === "all" ||
+
+item.category === currentFilter
+
+);
+
+
+visible.forEach(item => {
+
+const isEquipped =
+Object.values(equipped)
+.includes(item.id);
+
+
+const div =
+document.createElement("div");
+
+
+div.className =
+"item" +
+
+(selectedItem &&
+selectedItem.id === item.id
+? " selected"
+: "") +
+
+(isEquipped
+? " equipped"
+: "");
+
+
+div.innerHTML = `
+
+<div class="item-name">
+${item.name}
+</div>
+
+<div class="rarity ${item.rarity}">
+${item.rarity}
+${item.race ? " · " + item.race : ""}
+</div>
+
+<div class="item-stats">
+${item.stats.join("<br>")}
+</div>
+
+`;
+
+
+div.onclick =
+() => selectItem(item);
+
+
+container.appendChild(div);
+
+});
+
+
+document.getElementById(
+"inventoryCount"
+).textContent =
+visible.length + " Items";
+
+}
+
+
+/* ===========================
+   SELECT
+=========================== */
+
+function selectItem(item){
+
+selectedItem = item;
+
+renderInventory();
+
+
+document.getElementById(
+"selectedType"
+).textContent =
+item.slot.toUpperCase();
+
+
+let excellentHTML = "";
+
+
+if(item.excellent){
+
+excellentHTML = `
+
+<div class="special">
+
+<div class="special-title">
+Excellent Options
+</div>
+
+<div class="detail-stats">
+
+${item.excellent.join("<br>")}
+
+</div>
+
+</div>
+
+`;
+
+}
+
+
+document.getElementById(
+"itemPreview"
+).innerHTML = `
+
+<h3>${item.name}</h3>
+
+<div class="rarity ${item.rarity}">
+${item.rarity}
+${item.race ? " · " + item.race + " ONLY" : ""}
+</div>
+
+<div class="detail-stats">
+
+${item.stats.join("<br>")}
+
+</div>
+
+${excellentHTML}
+
+`;
+
+
+const equippedNow =
+Object.values(equipped)
+.includes(item.id);
+
+
+document.getElementById(
+"equipButton"
+).disabled =
+equippedNow;
+
+
+document.getElementById(
+"removeButton"
+).disabled =
+!equippedNow;
+
+}
+
+
+/* ===========================
+   EQUIP
+=========================== */
+
+function equipSelected(){
+
+if(!selectedItem)
+return;
+
+
+const slot =
+selectedItem.slot;
+
+
+/*
+If something already occupies
+the slot, it is automatically
+returned to inventory.
+*/
+
+equipped[slot] =
+selectedItem.id;
+
+
+renderSlots();
+
+renderInventory();
+
+updateShipStats();
+
+selectItem(selectedItem);
+
+}
+
+
+/* ===========================
+   REMOVE
+=========================== */
+
+function removeSelected(){
+
+if(!selectedItem)
+return;
+
+
+const slot =
+Object.keys(equipped)
+.find(
+
+key =>
+equipped[key] ===
+selectedItem.id
+
+);
+
+
+if(slot){
+
+delete equipped[slot];
+
+}
+
+
+renderSlots();
+
+renderInventory();
+
+updateShipStats();
+
+selectItem(selectedItem);
+
+}
+
+
+/* ===========================
+   SHIP SLOTS
+=========================== */
+
+function renderSlots(){
+
+document
+.querySelectorAll(".slot")
+.forEach(element => {
+
+const slot =
+element.dataset.slot;
+
+const itemID =
+equipped[slot];
+
+const item =
+items.find(
+i => i.id === itemID
+);
+
+
+if(item){
+
+element.classList.remove(
+"empty"
+);
+
+element.innerHTML = `
+
+<div class="slot-label">
+${slot}
+</div>
+
+<div class="slot-name">
+${item.name}
+</div>
+
+<div class="slot-rarity">
+${item.rarity}
+</div>
+
+`;
+
+element.onclick =
+() => selectItem(item);
+
+}
+
+else{
+
+element.classList.add(
+"empty"
+);
+
+element.innerHTML = `
+
+<div class="slot-label">
+${slot}
+</div>
+
+<div
+style="
+font-size:8px;
+color:#53636d;
+">
+
+EMPTY SLOT
+
+</div>
+
+`;
+
+element.onclick = null;
+
+}
+
+});
+
+}
+
+
+/* ===========================
+   CALCULATE SHIP
+=========================== */
+
+function updateShipStats(){
+
+let hull = 9000;
+
+let damage = 1284;
+
+let defense = 24;
+
+let reflect = 8;
+
+let critical = 12;
+
+let damageReduction = 0;
+
+
+Object.values(equipped)
+.forEach(id => {
+
+const item =
+items.find(
+i => i.id === id
+);
+
+
+hull +=
+item.hull || 0;
+
+damage +=
+item.damage || 0;
+
+defense +=
+item.defense || 0;
+
+reflect +=
+item.reflect || 0;
+
+critical +=
+item.critical || 0;
+
+damageReduction +=
+item.damageReduction || 0;
+
+});
+
+
+document.getElementById(
+"hullStat"
+).textContent =
+hull.toLocaleString();
+
+
+document.getElementById(
+"damageStat"
+).textContent =
+damage.toLocaleString();
+
+
+document.getElementById(
+"defenseStat"
+).textContent =
+defense + "%";
+
+
+document.getElementById(
+"reflectStat"
+).textContent =
+reflect + "%";
+
+
+/*
+Temporary combat-power formula.
+This can later be replaced by
+the real Pentilius formula.
+*/
+
+const combatPower =
+Math.round(
+
+damage * 2 +
+
+hull * 0.25 +
+
+defense * 40 +
+
+reflect * 30 +
+
+critical * 20 +
+
+damageReduction * 30
+
+);
+
+
+document.getElementById(
+"combatPower"
+).textContent =
+combatPower.toLocaleString();
+
+}
+
+
+/* ===========================
+   FILTERS
+=========================== */
+
+function setFilter(
+filter,
+button
+){
+
+currentFilter = filter;
+
+
+document
+.querySelectorAll(
+".filters button"
+)
+.forEach(btn =>
+
+btn.classList.remove(
+"active"
+)
+
+);
+
+
+button.classList.add(
+"active"
+);
+
+
+renderInventory();
+
+}
+
+
+/* ===========================
+   INITIAL EQUIPMENT
+=========================== */
+
+/*
+Ship starts with a few
+items already equipped.
+*/
+
+equipped = {
+
+weapon:1,
+
+engine:4,
+
+hull:5
+
+};
+
+
+renderInventory();
+
+renderSlots();
+
+updateShipStats();
+
+</script>
+
+</body>
+</html>
