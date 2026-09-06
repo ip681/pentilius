@@ -1,8 +1,10 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { AuthResponse, AuthTokens } from '@pentilius/shared';
+import { AuthResponse, AuthTokens, RaceCountsDto } from '@pentilius/shared';
 import { Race } from '@prisma/client';
+
+const ALL_RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -65,6 +67,15 @@ export class AuthService {
     }
 
     return this.buildAuthResponse(player.id, player.email, player.username, player.race, player.createdAt);
+  }
+
+  async getRaceCounts(): Promise<RaceCountsDto> {
+    const grouped = await this.prisma.player.groupBy({ by: ['race'], _count: { race: true } });
+    const counts = Object.fromEntries(ALL_RACES.map((race) => [race, 0])) as RaceCountsDto;
+    for (const row of grouped) {
+      counts[row.race] = row._count.race;
+    }
+    return counts;
   }
 
   async refresh(dto: RefreshDto): Promise<AuthTokens> {

@@ -221,9 +221,33 @@ export default function BossesPage() {
                             <span>{t('bosses.joinWindow')}</span>
                             <span className="tabular-nums">{formatDuration(remainingMs / 1000)}</span>
                           </div>
-                          <p className="mb-4 text-xs text-textMuted">
+                          <p className="mb-3 text-xs text-textMuted">
                             {t('bosses.participants', { count: boss.encounter.participants.length })}
                           </p>
+                          {boss.encounter.partyPreview && (
+                            <div className="mb-4 rounded border border-wellBorder bg-well p-2.5 text-[11px]">
+                              <div className="flex justify-between">
+                                <span className="text-textFaint">{t('bosses.attack')}</span>
+                                <span>{Math.round(boss.encounter.partyPreview.attack)}</span>
+                              </div>
+                              <div className="mt-1 flex justify-between">
+                                <span className="text-textFaint">{t('bosses.defense')}</span>
+                                <span>{Math.round(boss.encounter.partyPreview.defense)}</span>
+                              </div>
+                              <div className="mt-1 flex justify-between">
+                                <span className="text-textFaint">{t('robot.stat.hp')}</span>
+                                <span>{Math.round(boss.encounter.partyPreview.hp)}</span>
+                              </div>
+                              <div className="mt-1 flex justify-between">
+                                <span className="text-textFaint">{t('bosses.raceBonus')}</span>
+                                <span className={boss.encounter.partyPreview.synergyBonusPercent > 0 ? 'text-positive' : ''}>
+                                  {boss.encounter.partyPreview.synergyBonusPercent > 0
+                                    ? `+${Math.round(boss.encounter.partyPreview.synergyBonusPercent * 100)}%`
+                                    : t('bosses.raceBonusNone')}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                         </>
                       ) : (
                         <p className="mb-4 text-xs text-positive">{t('bosses.previousResolved')}</p>

@@ -257,7 +257,7 @@ async function main() {
   ];
   const bossesByKey: Record<string, Awaited<ReturnType<typeof prisma.boss.upsert>>> = {};
   for (const data of bossData) {
-    bossesByKey[data.key] = await prisma.boss.upsert({ where: { key: data.key }, update: {}, create: data });
+    bossesByKey[data.key] = await prisma.boss.upsert({ where: { key: data.key }, update: data, create: data });
   }
   const { boss_ridgeback_alpha: ridgebackAlpha, boss_frost_sovereign: frostSovereign } = bossesByKey;
 

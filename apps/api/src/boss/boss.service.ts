@@ -4,6 +4,7 @@ import {
   BossEncounterDto,
   BossEncounterParticipantDto,
   BossEncounterResultDto,
+  BossPartyPreviewDto,
   LootResultEntryDto,
   ResourceType,
 } from '@pentilius/shared';
@@ -47,7 +48,8 @@ export class BossService {
     for (const boss of bosses) {
       await this.finalizeIfExpired(boss.id);
       const encounter = await this.loadLatestEncounter(boss.id);
-      result.push(toBossDto(boss, boss.zone, player, encounter));
+      const partyPreview = encounter ? await this.computePartyPreview(encounter, this.prisma) : null;
+      result.push(toBossDto(boss, boss.zone, player, encounter, partyPreview));
     }
     return result;
   }
@@ -81,7 +83,8 @@ export class BossService {
 
       const updatedPlayer = await tx.player.findUniqueOrThrow({ where: { id: playerId } });
       const refreshed = await this.loadLatestEncounter(boss.id, tx);
-      return toBossDto(boss, boss.zone, updatedPlayer, refreshed!);
+      const partyPreview = await this.computePartyPreview(refreshed!, tx);
+      return toBossDto(boss, boss.zone, updatedPlayer, refreshed!, partyPreview);
     });
   }
 
@@ -131,18 +134,7 @@ export class BossService {
       return toResultDto(resolved, []);
     }
 
-    const synergyBonusPercent = computeSynergyBonusPercent(encounter.participants.map((p) => p.player.race));
-
-    const perPlayerStats = await Promise.all(
-      encounter.participants.map((p) => this.combat.computePlayerStats(p.playerId, tx)),
-    );
-
-    const totalIndividualAttack = perPlayerStats.reduce((sum, s) => sum + s.attack, 0);
-    const partyStats = {
-      attack: totalIndividualAttack * (1 + synergyBonusPercent),
-      defense: perPlayerStats.reduce((sum, s) => sum + s.defense, 0),
-      hp: perPlayerStats.reduce((sum, s) => sum + s.hp, 0),
-    };
+    const { perPlayerStats, synergyBonusPercent, totalIndividualAttack, partyStats } = await this.computePartyAggregate(encounter, tx);
 
     const combatResult = this.combat.simulate(partyStats, boss);
 
@@ -217,6 +209,27 @@ export class BossService {
     };
   }
 
+  /** Live totals for an OPEN encounter, so players can see what they'd be walking into before committing energy to join. */
+  private async computePartyPreview(encounter: EncounterWithParticipants, tx: Tx): Promise<BossPartyPreviewDto | null> {
+    if (encounter.status !== 'OPEN' || encounter.participants.length === 0) {
+      return null;
+    }
+    const { partyStats, synergyBonusPercent } = await this.computePartyAggregate(encounter, tx);
+    return { attack: partyStats.attack, defense: partyStats.defense, hp: partyStats.hp, synergyBonusPercent };
+  }
+
+  private async computePartyAggregate(encounter: EncounterWithParticipants, tx: Tx) {
+    const perPlayerStats = await Promise.all(encounter.participants.map((p) => this.combat.computePlayerStats(p.playerId, tx)));
+    const synergyBonusPercent = computeSynergyBonusPercent(encounter.participants.map((p) => p.player.race));
+    const totalIndividualAttack = perPlayerStats.reduce((sum, s) => sum + s.attack, 0);
+    const partyStats = {
+      attack: totalIndividualAttack * (1 + synergyBonusPercent),
+      defense: perPlayerStats.reduce((sum, s) => sum + s.defense, 0),
+      hp: perPlayerStats.reduce((sum, s) => sum + s.hp, 0),
+    };
+    return { perPlayerStats, synergyBonusPercent, totalIndividualAttack, partyStats };
+  }
+
   private async openNewEncounter(boss: Boss, tx: Tx): Promise<EncounterWithParticipants> {
     return tx.bossEncounter.create({
       data: {
@@ -240,7 +253,13 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function toBossDto(boss: Boss, zone: Zone, player: Player, encounter: EncounterWithParticipants | null): BossDto {
+function toBossDto(
+  boss: Boss,
+  zone: Zone,
+  player: Player,
+  encounter: EncounterWithParticipants | null,
+  partyPreview: BossPartyPreviewDto | null,
+): BossDto {
   return {
     id: boss.id,
     key: boss.key,
@@ -254,19 +273,20 @@ function toBossDto(boss: Boss, zone: Zone, player: Player, encounter: EncounterW
     iconAssetId: boss.iconAssetId,
     unlocked: player.level >= zone.unlockLevel,
     encounter: encounter
-      ? toEncounterDto(encounter, player.id)
+      ? toEncounterDto(encounter, player.id, partyPreview)
       : {
           id: '',
           status: 'OPEN',
           openedAt: new Date().toISOString(),
           resolvesAt: new Date().toISOString(),
           participants: [],
+          partyPreview: null,
           result: null,
         },
   };
 }
 
-function toEncounterDto(encounter: EncounterWithParticipants, currentPlayerId: string): BossEncounterDto {
+function toEncounterDto(encounter: EncounterWithParticipants, currentPlayerId: string, partyPreview: BossPartyPreviewDto | null): BossEncounterDto {
   const participants: BossEncounterParticipantDto[] = encounter.participants.map((p) => ({
     playerId: p.playerId,
     race: p.player.race,
@@ -277,6 +297,7 @@ function toEncounterDto(encounter: EncounterWithParticipants, currentPlayerId: s
   return {
     id: encounter.id,
     status: encounter.status,
+    partyPreview,
     openedAt: encounter.openedAt.toISOString(),
     resolvesAt: encounter.resolvesAt.toISOString(),
     participants,

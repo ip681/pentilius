@@ -32,3 +32,8 @@ export interface AuthResponse extends AuthTokens {
 export interface RefreshRequest {
   refreshToken: string;
 }
+
+// Registered-player count per race, shown at registration to nudge new players
+// toward the least-represented race (flavor/social nudge only — race carries no
+// mechanical bonus yet, see instructions/OPEN_DECISIONS.md).
+export type RaceCountsDto = Record<Race, number>;

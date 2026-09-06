@@ -88,6 +88,7 @@ describe('Boss Hunts (e2e)', () => {
     expect(boss.unlocked).toBe(true);
     expect(boss.encounter.status).toBe('OPEN');
     expect(boss.encounter.participants).toHaveLength(0);
+    expect(boss.encounter.partyPreview).toBeNull();
   });
 
   it('joins the open encounter and deducts one Action Energy', async () => {
@@ -96,6 +97,10 @@ describe('Boss Hunts (e2e)', () => {
     const joined = await request(app.getHttpServer()).post(`/api/v1/bosses/${bossKey}/join`).set(auth(tokenA)).expect(201);
     expect(joined.body.encounter.participants).toHaveLength(1);
     expect(joined.body.encounter.participants[0].isCurrentPlayer).toBe(true);
+    // Solo so far — one race, no synergy bonus yet, but the party's own attack/defense/hp already show.
+    expect(joined.body.encounter.partyPreview).not.toBeNull();
+    expect(joined.body.encounter.partyPreview.synergyBonusPercent).toBe(0);
+    expect(joined.body.encounter.partyPreview.attack).toBeGreaterThan(0);
 
     const after = await request(app.getHttpServer()).get('/api/v1/player/me').set(auth(tokenA)).expect(200);
     expect(after.body.energy.current).toBe(before.body.energy.current - 1);
@@ -108,6 +113,8 @@ describe('Boss Hunts (e2e)', () => {
   it('allows a second player of a different race to join the same open encounter', async () => {
     const joined = await request(app.getHttpServer()).post(`/api/v1/bosses/${bossKey}/join`).set(auth(tokenB)).expect(201);
     expect(joined.body.encounter.participants).toHaveLength(2);
+    // Two unique races now — the live preview should reflect the racial synergy bonus before anyone resolves.
+    expect(joined.body.encounter.partyPreview.synergyBonusPercent).toBeCloseTo(0.05);
   });
 
   it('rejects manual resolve from a player who never joined', async () => {

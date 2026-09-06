@@ -1,12 +1,13 @@
 'use client';
 
-import type { Race } from '@pentilius/shared';
+import type { Race, RaceCountsDto } from '@pentilius/shared';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { AssetIcon } from '@/components/AssetIcon';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useRouter } from '@/i18n/navigation';
-import { ApiError, login, register } from '@/lib/api-client';
+import { ApiError, getRaceCounts, login, register } from '@/lib/api-client';
 import { storeTokens } from '@/lib/auth';
 
 type Status = { kind: 'idle' } | { kind: 'error'; messageKey: string };
@@ -19,15 +20,28 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [race, setRace] = useState<Race>('LUXARI');
+  const [race, setRace] = useState<Race | null>(null);
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  const [raceCounts, setRaceCounts] = useState<RaceCountsDto | null>(null);
+
+  useEffect(() => {
+    getRaceCounts()
+      .then(setRaceCounts)
+      .catch(() => setRaceCounts(null));
+  }, []);
+
+  const rarestCount = raceCounts ? Math.min(...RACES.map((option) => raceCounts[option])) : null;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (mode === 'register' && !race) {
+      setStatus({ kind: 'error', messageKey: 'race.required' });
+      return;
+    }
     setStatus({ kind: 'idle' });
     try {
-      const result = mode === 'login' ? await login({ email, password }) : await register({ email, username, password, race });
+      const result = mode === 'login' ? await login({ email, password }) : await register({ email, username, password, race: race as Race });
       storeTokens(result);
       router.push('/dashboard');
     } catch (error) {
@@ -122,21 +136,47 @@ export default function LoginPage() {
             {mode === 'register' && (
               <div className="flex flex-col gap-1.5">
                 <span className="text-xs text-textMuted">{t('race.chooseLabel')}</span>
-                <div className="flex flex-col gap-1.5">
-                  {RACES.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setRace(option)}
-                      className={`rounded-md border p-2.5 text-left ${
-                        race === option ? 'border-textFaint bg-accentBgHover' : 'border-wellBorder bg-well hover:border-accent'
-                      }`}
-                    >
-                      <div className="text-sm font-semibold">{t(`race.${option}.name`)}</div>
-                      <div className="text-[10px] text-textMuted">{t(`race.${option}.theme`)}</div>
-                    </button>
-                  ))}
+                <p className="text-[10px] text-textFaint">{t('race.rarityHint')}</p>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {RACES.map((option) => {
+                    const count = raceCounts?.[option];
+                    const isRarest = raceCounts !== null && rarestCount !== null && count === rarestCount;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setRace(option)}
+                        title={t(`race.${option}.name`)}
+                        className={`relative flex flex-col items-center gap-1 rounded-md border p-1.5 ${
+                          race === option
+                            ? 'border-textFaint bg-accentBgHover'
+                            : isRarest
+                              ? 'border-positive bg-well hover:border-positive'
+                              : 'border-wellBorder bg-well hover:border-accent'
+                        }`}
+                      >
+                        {isRarest && (
+                          <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 rounded-full bg-positive px-1 text-[6px] uppercase text-ink">
+                            {t('race.recommended')}
+                          </span>
+                        )}
+                        <AssetIcon
+                          assetId={`races.${option.toLowerCase()}.icon`}
+                          alt={t(`race.${option}.name`)}
+                          className="aspect-square w-full object-contain"
+                          fallback={<div className="aspect-square w-full rounded-sm bg-accent opacity-60" />}
+                        />
+                        <span className="text-center text-[8px] font-semibold uppercase leading-tight">{t(`race.${option}.name`)}</span>
+                        {count !== undefined && <span className="text-[8px] tabular-nums text-textFaint">{t('race.playerCount', { count })}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
+                {race ? (
+                  <p className="text-[10px] text-textMuted">{t(`race.${race}.theme`)}</p>
+                ) : (
+                  <p className="text-[10px] text-textFaint">{t('race.required')}</p>
+                )}
               </div>
             )}
 
@@ -144,7 +184,8 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="mt-1 w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase tracking-wide text-text hover:bg-accentBgHover"
+              disabled={mode === 'register' && !race}
+              className="mt-1 w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase tracking-wide text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
             >
               {t('auth.submit')}
             </button>

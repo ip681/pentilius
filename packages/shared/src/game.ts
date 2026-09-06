@@ -288,12 +288,21 @@ export interface BossEncounterResultDto {
   }[];
 }
 
+export interface BossPartyPreviewDto {
+  attack: number;
+  defense: number;
+  hp: number;
+  synergyBonusPercent: number;
+}
+
 export interface BossEncounterDto {
   id: string;
   status: BossEncounterStatus;
   openedAt: string;
   resolvesAt: string;
   participants: BossEncounterParticipantDto[];
+  // Live totals for an OPEN encounter (null once no one has joined, or once RESOLVED — see `result` then).
+  partyPreview: BossPartyPreviewDto | null;
   result: BossEncounterResultDto | null;
 }
 

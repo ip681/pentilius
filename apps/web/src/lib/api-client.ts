@@ -23,6 +23,7 @@ import type {
   PvpScoutDto,
   PvpStatusDto,
   Race,
+  RaceCountsDto,
   RegisterRequest,
   ResearchResponseDto,
   ResearchStateDto,
@@ -86,6 +87,10 @@ export function register(payload: RegisterRequest): Promise<AuthResponse> {
 
 export function login(payload: LoginRequest): Promise<AuthResponse> {
   return request<AuthResponse>('/auth/login', { method: 'POST', body: payload });
+}
+
+export function getRaceCounts(): Promise<RaceCountsDto> {
+  return request<RaceCountsDto>('/auth/race-counts');
 }
 
 // Player
