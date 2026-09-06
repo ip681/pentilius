@@ -40,7 +40,7 @@ export class EconomyService {
     const metalMultiplier = researchMetalMultiplier + clanProductionBonus;
     const crystalMultiplier = researchCrystalMultiplier + clanProductionBonus;
 
-    const gains: Record<string, number> = { METAL: 0, CRYSTAL: 0, OXYGEN: 0, CREDITS: 0 };
+    const gains: Record<string, number> = { METAL: 0, CRYSTAL: 0, CREDITS: 0 };
     for (const building of buildings) {
       const currentLevelCost = building.buildingType.levelCosts.find((cost) => cost.level === building.level);
       if (currentLevelCost?.producesResourceType && currentLevelCost.producesPerHour) {
@@ -60,7 +60,6 @@ export class EconomyService {
       data: {
         metal: { increment: Math.floor(gains.METAL) },
         crystal: { increment: Math.floor(gains.CRYSTAL) },
-        oxygen: { increment: Math.floor(gains.OXYGEN) },
         credits: { increment: Math.floor(gains.CREDITS) },
         resourcesUpdatedAt: new Date(),
       },

@@ -9,6 +9,7 @@ import type {
   ClanDetailDto,
   ClanMessageDto,
   ClanSummaryDto,
+  CombatReportDto,
   CombatStatsDto,
   ExpeditionClaimResultDto,
   ExpeditionsResponseDto,
@@ -161,6 +162,10 @@ export function consumeItem(itemInstanceId: string, buildingKey?: string): Promi
   return request<InventoryResponseDto>(`/inventory/items/${itemInstanceId}/use`, { method: 'POST', auth: true, body: { buildingKey } });
 }
 
+export function sellItem(itemInstanceId: string): Promise<InventoryResponseDto> {
+  return request<InventoryResponseDto>(`/inventory/items/${itemInstanceId}/sell`, { method: 'POST', auth: true });
+}
+
 // Zones / Pentili
 export function getZones(): Promise<ZoneDto[]> {
   return request<ZoneDto[]>('/zones', { auth: true });
@@ -177,6 +182,11 @@ export function attackPentili(pentiliId: string): Promise<BattleReportDto> {
 
 export function getBattleReports(): Promise<BattleReportDto[]> {
   return request<BattleReportDto[]>('/pve/reports', { auth: true });
+}
+
+// Unified combat history (PvE + PvP + Boss)
+export function getCombatReports(): Promise<CombatReportDto[]> {
+  return request<CombatReportDto[]>('/reports', { auth: true });
 }
 
 // Expeditions

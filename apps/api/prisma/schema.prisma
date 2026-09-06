@@ -33,9 +33,7 @@ enum EquipmentSlot {
 enum ResourceType {
   METAL
   CRYSTAL
-  OXYGEN
   CREDITS
-  UPGRADE_STONES
 }
 
 enum BattleOutcome {
@@ -52,6 +50,36 @@ enum Race {
   ZARYTH
   THALION
   NEXAR
+}
+
+// Named equipment sets (instructions/GAME_SYSTEMS.md): 7 slots each, escalating
+// power. Null for CONSUMABLE items.
+enum ItemTier {
+  PIONEER
+  ASCENDANT
+  COREFORGED
+}
+
+// "Excellent options" quality (instructions/GAME_SYSTEMS.md). NORMAL has no
+// bonus option; RARE rolls 1 from ItemInstance.rolledOptions; EPIC (2 options)
+// isn't rollable through the normal loot path yet — reserved for a future
+// boss box/cache mechanic (instructions/OPEN_DECISIONS.md).
+enum ItemQuality {
+  NORMAL
+  RARE
+  EPIC
+}
+
+// Bonus stat options rolled onto RARE/EPIC ItemInstances. Pool depends on slot
+// category (weapon: LEFT_ARM/RIGHT_ARM: INCREASE_DAMAGE, CRITICAL_DAMAGE; armor:
+// every other slot: INCREASE_MAX_HP, DAMAGE_DECREASE, DAMAGE_REFLECT). Fixed
+// magnitudes live in game-config.ts's GAME_BALANCE.itemOptionValues.
+enum ItemOption {
+  INCREASE_DAMAGE
+  CRITICAL_DAMAGE
+  INCREASE_MAX_HP
+  DAMAGE_DECREASE
+  DAMAGE_REFLECT
 }
 
 model Player {
@@ -76,15 +104,18 @@ model Player {
   // Starting amounts are placeholders (instructions/OPEN_DECISIONS.md: "final resource list").
   metal              Int      @default(500)
   crystal            Int      @default(100)
-  oxygen             Int      @default(100)
   credits            Int      @default(50)
-  upgradeStones      Int      @default(5)
   resourcesUpdatedAt DateTime @default(now())
 
   // 10 is instructions/GAME_SYSTEMS.md's own example standard max, not an invented value.
   actionEnergy    Int      @default(10)
   actionEnergyMax Int      @default(10)
   energyUpdatedAt DateTime @default(now())
+
+  // Touched (throttled) on every authenticated request by JwtStrategy — no
+  // real-time presence system, just "was this player active recently" for
+  // the clan roster's On liniya / "last seen" display.
+  lastActiveAt DateTime @default(now())
 
   // Revenge-protection window granted after losing a PvP defense, so a freshly
   // raided player cannot be immediately farmed again — instructions/OPEN_DECISIONS.md's
@@ -227,10 +258,15 @@ model ItemDefinition {
   maxUpgradeLevel Int
   iconAssetId     String
   isStarterItem   Boolean       @default(false)
-  // Future race-restricted advanced parts (instructions/GAME_SYSTEMS.md:
-  // "Advanced parts may be race-specific") — schema-ready per owner request,
-  // but not built yet: every seeded item leaves this null (universal).
+  // Reserved for a possible future fixed-race item TYPE (a definition that is
+  // always restricted to one race) — distinct from and unrelated to
+  // ItemInstance.race below, which is how Coreforged race-locking actually
+  // ships. Every seeded item leaves this null (universal).
   race            Race?
+  // For EQUIPMENT, which named set this is. Also set on the 3 tier-specific
+  // Upgrade-material CONSUMABLEs (see seed.ts) to say which set's gear they
+  // upgrade — null only for consumables that aren't upgrade materials.
+  tier            ItemTier?
 
   itemInstances   ItemInstance[]
   lootDrops       LootDrop[]
@@ -271,6 +307,15 @@ model ItemInstance {
   // item with its own upgrade level); a CONSUMABLE stacks multiple pickups
   // of the same ItemDefinition into one row instead of one row each.
   quantity         Int            @default(1)
+  // Excellent-option quality rolled at grant time (inventory-capacity.ts's
+  // grantItem) — NORMAL/RARE only today; see ItemQuality.
+  quality          ItemQuality    @default(NORMAL)
+  rolledOptions    ItemOption[]   @default([])
+  // Set only for COREFORGED-tier drops (one of the 5 races, chosen at grant
+  // time) — the specific dropped instance can only be equipped by a player of
+  // that race. Null for every other tier/consumable. Distinct from the
+  // separate, unused ItemDefinition.race above.
+  race             Race?
   acquiredAt       DateTime       @default(now())
 
   player         Player         @relation(fields: [playerId], references: [id])

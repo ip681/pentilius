@@ -76,14 +76,7 @@ export function StatusBar({ profile }: { profile: PlayerProfileDto }) {
           {t('resource.CRYSTAL')} <strong className="ml-1 font-semibold text-text">{profile.resources.crystal.toLocaleString()}</strong>
         </span>
         <span className="whitespace-nowrap">
-          {t('resource.OXYGEN')} <strong className="ml-1 font-semibold text-text">{profile.resources.oxygen.toLocaleString()}</strong>
-        </span>
-        <span className="whitespace-nowrap">
           {t('resource.CREDITS')} <strong className="ml-1 font-semibold text-text">{profile.resources.credits.toLocaleString()}</strong>
-        </span>
-        <span className="whitespace-nowrap">
-          {t('resource.UPGRADE_STONES')}{' '}
-          <strong className="ml-1 font-semibold text-text">{profile.resources.upgradeStones.toLocaleString()}</strong>
         </span>
       </div>
     </div>

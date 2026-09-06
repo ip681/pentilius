@@ -1,3 +1,5 @@
+import { EquipmentSlot, ItemOption, ItemQuality, ItemTier } from '@prisma/client';
+
 /**
  * Data-driven balance values (see instructions/GAME_SYSTEMS.md,
  * instructions/OPEN_DECISIONS.md). Every value here stands in for something
@@ -14,13 +16,26 @@ export const GAME_BALANCE = {
   },
   itemUpgrade: {
     // Cost curve and success/failure rules are UNDEFINED — M1 always succeeds
-    // if the player can pay; no failure/protection-stone mechanics yet.
-    stonesPerLevel: 5,
+    // if the player can pay; no failure/protection-stone mechanics yet. Each
+    // set has its own upgrade material (seed.ts's pioneer_upgrade/ascendant_upgrade/
+    // coreforged_upgrade), same cost curve for every tier — owner-specified:
+    // reaching level N costs N materials (level 1 -> 1, level 2 -> 2, ...).
+    // cost(level) = materialsPerLevel * (level + 1).
+    materialsPerLevel: 1,
   },
   inventory: {
     // Owner-specified: 30 unequipped-item slots, before any Warehouse bonus
     // (BuildingType.capacityBonusPerLevel). Equipped items don't count.
     baseCapacity: 30,
+  },
+  itemSell: {
+    // Recycling value is UNDEFINED in GAME_SYSTEMS.md — flat by tier and quality,
+    // deliberately ignoring upgradeLevel to keep the formula simple (owner
+    // preference). Returns raw Metal/Crystal rather than Credits or the tier's
+    // own upgrade material (kept scarce on purpose).
+    baseMetalByTier: { PIONEER: 15, ASCENDANT: 40, COREFORGED: 100 } as Record<ItemTier, number>,
+    baseCrystalByTier: { PIONEER: 5, ASCENDANT: 15, COREFORGED: 35 } as Record<ItemTier, number>,
+    qualityMultiplier: { NORMAL: 1, RARE: 1.5, EPIC: 2 } as Record<ItemQuality, number>,
   },
   combat: {
     // Combat formula is UNDEFINED — placeholder linear model:
@@ -33,6 +48,34 @@ export const GAME_BALANCE = {
     // terminates even if both sides' stats are near-identical.
     damageVariance: 0.1,
     maxRounds: 30,
+    // Critical hits (instructions/GAME_SYSTEMS.md "Item quality and Excellent
+    // options"): flat chance for every attack, same for all combatants — items
+    // only add to the damage multiplier via the CRITICAL_DAMAGE option below,
+    // never to the chance itself.
+    criticalChance: 0.1,
+    criticalMultiplier: 1.5,
+  },
+  // Fixed magnitudes for rolled "Excellent options" (owner-specified, not
+  // ranges) — see ItemOption. Applied in pve/combat.service.ts's
+  // computePlayerStats() by summing each equipped item's rolledOptions.
+  itemOptionValues: {
+    INCREASE_DAMAGE: 0.02,
+    CRITICAL_DAMAGE: 0.1,
+    INCREASE_MAX_HP: 0.04,
+    DAMAGE_DECREASE: 0.04,
+    DAMAGE_REFLECT: 0.04,
+  } as Record<ItemOption, number>,
+  // Which options a slot can roll — weapon slots deal damage, every other
+  // slot is defensive.
+  itemOptionPools: {
+    WEAPON: ['INCREASE_DAMAGE', 'CRITICAL_DAMAGE'] as ItemOption[],
+    ARMOR: ['INCREASE_MAX_HP', 'DAMAGE_DECREASE', 'DAMAGE_REFLECT'] as ItemOption[],
+  },
+  rarity: {
+    // Chance any newly granted EQUIPMENT ItemInstance rolls RARE (1 option)
+    // instead of NORMAL. EPIC (2 options) isn't rollable through grantItem yet
+    // — reserved for a future boss box/cache mechanic, see OPEN_DECISIONS.md.
+    rareChance: 0.05,
   },
   robotAttributes: {
     // "Core Attributes" point-buy system (instructions/GAME_SYSTEMS.md has no
@@ -86,6 +129,16 @@ export const GAME_BALANCE = {
     attackCooldownMinutes: 10,
     revengeProtectionMinutes: 10,
   },
+  presence: {
+    // No real-time system (instructions/ARCHITECTURE.md prefers elapsed-time
+    // computation over a background job/socket per player) — "online" is just
+    // "made an authenticated request within the last N minutes." No prior
+    // ruling in GAME_SYSTEMS.md; owner-specified for the clan roster.
+    onlineThresholdMinutes: 5,
+    // How stale Player.lastActiveAt must be before JwtStrategy bothers
+    // rewriting it — keeps this from adding a DB write to every request.
+    activityUpdateThrottleSeconds: 60,
+  },
   clanChat: {
     // Owner-specified, not placeholders: plain text only, no formatting/
     // attachments/edit/delete. Rate limit and history cap keep this cheap
@@ -107,4 +160,9 @@ export function attributePointsForLevel(level: number): number {
 export function attributeCostForRank(currentRank: number): number {
   const { baseAttributeCost, attributeCostGrowthRate } = GAME_BALANCE.robotAttributes;
   return Math.round(baseAttributeCost * (1 + attributeCostGrowthRate) ** currentRank);
+}
+
+/** The pool of rollable "Excellent options" for a given equipment slot. */
+export function getOptionPool(slot: EquipmentSlot): ItemOption[] {
+  return slot === 'LEFT_ARM' || slot === 'RIGHT_ARM' ? GAME_BALANCE.itemOptionPools.WEAPON : GAME_BALANCE.itemOptionPools.ARMOR;
 }

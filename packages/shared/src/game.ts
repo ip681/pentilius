@@ -1,6 +1,11 @@
 export type EquipmentSlot = 'HEAD' | 'LEFT_ARM' | 'RIGHT_ARM' | 'ARMOR' | 'CORE' | 'LEFT_LEG' | 'RIGHT_LEG';
 export type ItemCategory = 'EQUIPMENT' | 'CONSUMABLE';
-export type ResourceType = 'METAL' | 'CRYSTAL' | 'OXYGEN' | 'CREDITS' | 'UPGRADE_STONES';
+// Named equipment sets — see instructions/GAME_SYSTEMS.md. Null for consumables.
+export type ItemTier = 'PIONEER' | 'ASCENDANT' | 'COREFORGED';
+// "Excellent options" quality. EPIC (2 options) isn't rollable through normal loot yet.
+export type ItemQuality = 'NORMAL' | 'RARE' | 'EPIC';
+export type ItemOption = 'INCREASE_DAMAGE' | 'CRITICAL_DAMAGE' | 'INCREASE_MAX_HP' | 'DAMAGE_DECREASE' | 'DAMAGE_REFLECT';
+export type ResourceType = 'METAL' | 'CRYSTAL' | 'CREDITS';
 export type BattleOutcome = 'WIN' | 'LOSS';
 // Names/lore LOCKED (instructions/PRODUCT_SPEC.md); identity only for now — no stat bonus.
 export type Race = 'LUXARI' | 'VORLUN' | 'ZARYTH' | 'THALION' | 'NEXAR';
@@ -8,9 +13,7 @@ export type Race = 'LUXARI' | 'VORLUN' | 'ZARYTH' | 'THALION' | 'NEXAR';
 export interface ResourcesDto {
   metal: number;
   crystal: number;
-  oxygen: number;
   credits: number;
-  upgradeStones: number;
 }
 
 export interface EnergyDto {
@@ -120,6 +123,22 @@ export interface RobotAttributesDto {
   evasionAtCap: boolean;
 }
 
+export interface ItemStatsDto {
+  attack?: number;
+  defense?: number;
+  hp?: number;
+}
+
+export interface UpgradeCostDto {
+  itemDefinitionKey: string;
+  quantity: number;
+}
+
+export interface SellValueDto {
+  metal: number;
+  crystal: number;
+}
+
 export interface InventoryItemDto {
   id: string;
   itemDefinitionKey: string;
@@ -128,12 +147,29 @@ export interface InventoryItemDto {
   category: ItemCategory;
   // Null for CONSUMABLE items — they have no equipment slot.
   slot: EquipmentSlot | null;
+  // Null for CONSUMABLE items.
+  tier: ItemTier | null;
   iconAssetId: string;
   upgradeLevel: number;
   maxUpgradeLevel: number;
   // Stack size — always 1 for EQUIPMENT, may be >1 for CONSUMABLE.
   quantity: number;
   equipped: boolean;
+  quality: ItemQuality;
+  rolledOptions: ItemOption[];
+  // Set only for COREFORGED items — this specific dropped instance can only be
+  // equipped by a player of this race. Null for everything else.
+  race: Race | null;
+  // Null for CONSUMABLE items. Effective stat contribution of this specific
+  // item at its current/next upgrade level (baseStats scaled by upgrade bonus).
+  currentStats: ItemStatsDto | null;
+  // Null for CONSUMABLE items and once already at maxUpgradeLevel.
+  nextLevelStats: ItemStatsDto | null;
+  // Null for CONSUMABLE items and once already at maxUpgradeLevel.
+  upgradeCost: UpgradeCostDto | null;
+  // Null for CONSUMABLE items. Always populated for EQUIPMENT regardless of
+  // upgrade level (unlike upgradeCost, which nulls out at maxUpgradeLevel).
+  sellValue: SellValueDto | null;
 }
 
 export interface InventoryResponseDto {
@@ -172,6 +208,27 @@ export interface LootResultEntryDto {
   quantity: number;
 }
 
+// Unified combat history across PvE/PvP/Boss Hunts (GET /reports) — one row
+// shape covering all three sources, mirroring how LootResultEntryDto already
+// keys optional fields off a `type`/`source` discriminator instead of a
+// nested union.
+export type CombatReportSource = 'PVE' | 'PVP' | 'BOSS';
+
+export interface CombatReportDto {
+  id: string;
+  source: CombatReportSource;
+  createdAt: string;
+  // Always relative to the viewing player — a PvP defender's own row has
+  // this flipped from the underlying attacker-relative stored outcome.
+  outcome: BattleOutcome;
+  zoneNameKey: string | null; // PvE + Boss only
+  opponentNameKey: string | null; // Pentili name (PvE) or Boss name (BOSS) — a translation key
+  opponentPlayerId: string | null; // PvP only
+  opponentUsername: string | null; // PvP only — a literal player-chosen name, never a translation key
+  xpGained: number;
+  lootSummary: LootResultEntryDto[];
+}
+
 export interface CombatRoundDto {
   round: number;
   playerDamage: number;
@@ -182,6 +239,12 @@ export interface CombatRoundDto {
   playerDodged: boolean;
   // true when the opponent evaded the player's swing this round (playerDamage forced to 0)
   pentiliDodged: boolean;
+  // true when that side's hit this round was a critical hit
+  playerCritical: boolean;
+  pentiliCritical: boolean;
+  // Damage reflected back onto this side this round, from the other side's Damage Reflect option.
+  playerReflectedDamage: number;
+  pentiliReflectedDamage: number;
 }
 
 export interface BattleReportDto {
@@ -332,6 +395,10 @@ export interface CombatStatsDto {
   defense: number;
   hp: number;
   evasion: number;
+  // All percentages (e.g. 10 = 10%), summed from equipped items' rolled options.
+  criticalDamageBonus: number;
+  damageDecrease: number;
+  damageReflect: number;
 }
 
 export interface PvpScoutDto {
@@ -383,10 +450,15 @@ export interface ClanMemberDto {
   playerId: string;
   username: string;
   race: Race;
+  level: number;
   role: ClanRole;
   joinedAt: string;
   isCurrentPlayer: boolean;
   contributed: ClanTreasuryDto;
+  // No real-time presence system — "online" is a server-computed threshold
+  // (GAME_BALANCE.presence.onlineThresholdMinutes) against lastActiveAt.
+  online: boolean;
+  lastActiveAt: string;
 }
 
 export type ClanBuildingBonusType = 'MEMBER_CAPACITY' | 'COMBAT_BONUS' | 'PRODUCTION_BONUS';

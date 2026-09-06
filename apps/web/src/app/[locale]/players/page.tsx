@@ -3,6 +3,7 @@
 import type { PlayerListEntryDto, Race } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
+import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
 import { ClanLink } from '@/components/ClanLink';
 import { PlayerLink } from '@/components/PlayerLink';
@@ -80,7 +81,17 @@ export default function LeaderboardPage() {
                 <td className="px-4 py-2.5">
                   <PlayerLink playerId={player.id} username={player.username} />
                 </td>
-                <td className="px-4 py-2.5 text-textMuted">{t(`race.${player.race}.name`)}</td>
+                <td className="px-4 py-2.5 text-textMuted">
+                  <div className="flex items-center gap-1.5">
+                    <AssetIcon
+                      assetId={`races.${player.race.toLowerCase()}.icon`}
+                      alt={t(`race.${player.race}.name`)}
+                      className="h-4 w-4 object-contain"
+                      fallback={<div className="h-4 w-4 rounded-sm bg-accent opacity-60" />}
+                    />
+                    {t(`race.${player.race}.name`)}
+                  </div>
+                </td>
                 <td className="px-4 py-2.5">{player.level}</td>
                 <td className="px-4 py-2.5">
                   {player.clanId && player.clanTag ? (

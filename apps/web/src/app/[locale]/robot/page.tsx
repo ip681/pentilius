@@ -5,9 +5,11 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { CombatStatsCard } from '@/components/CombatStatsCard';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
 import {
   allocateAttribute,
+  ApiError,
   consumeItem,
   equipItem,
   getInventory,
@@ -15,6 +17,7 @@ import {
   getRobot,
   getRobotAttributes,
   getRobotCombatStats,
+  sellItem,
   unequipSlot,
   upgradeItem,
 } from '@/lib/api-client';
@@ -82,6 +85,10 @@ export default function RobotPage() {
   }, []);
 
   const selected = items?.find((item) => item.id === selectedId) ?? null;
+  const ownedUpgradeMaterial = selected?.upgradeCost
+    ? (items?.find((i) => i.itemDefinitionKey === selected.upgradeCost!.itemDefinitionKey)?.quantity ?? 0)
+    : 0;
+  const canAffordUpgrade = !selected?.upgradeCost || ownedUpgradeMaterial >= selected.upgradeCost.quantity;
   const visibleItems = useMemo(() => {
     if (!items) return [];
     if (filter === 'ALL') return items;
@@ -94,8 +101,8 @@ export default function RobotPage() {
     try {
       await equipItem(selected.id);
       await load();
-    } catch {
-      setError(t('robot.actionError'));
+    } catch (err) {
+      setError(err instanceof ApiError && err.code === 'RACE_MISMATCH' ? t('robot.raceMismatch') : t('robot.actionError'));
     }
   }
 
@@ -125,6 +132,18 @@ export default function RobotPage() {
     try {
       await upgradeItem(selected.id);
       notifyProfileChanged();
+      await load();
+    } catch {
+      setError(t('robot.actionError'));
+    }
+  }
+
+  async function handleSell() {
+    if (!selected) return;
+    try {
+      await sellItem(selected.id);
+      notifyProfileChanged();
+      setSelectedId(null);
       await load();
     } catch {
       setError(t('robot.actionError'));
@@ -197,8 +216,8 @@ export default function RobotPage() {
                   title={t(item.nameKey)}
                   onClick={() => setSelectedId(item.id)}
                   className={`relative flex aspect-square items-center justify-center rounded-md border ${
-                    selectedId === item.id ? 'border-textFaint' : 'border-wellBorder'
-                  } ${item.equipped ? 'opacity-50' : ''} bg-well`}
+                    selectedId === item.id ? 'border-textFaint' : item.equipped ? 'border-accent' : item.quality === 'RARE' ? 'border-positive' : 'border-wellBorder'
+                  } bg-well`}
                 >
                   <AssetIcon
                     assetId={item.iconAssetId}
@@ -206,6 +225,12 @@ export default function RobotPage() {
                     className="h-full w-full object-contain p-1"
                     fallback={<span className="text-sm font-semibold text-textMuted">{t(item.nameKey).charAt(0)}</span>}
                   />
+                  {item.quality === 'RARE' && <span className="absolute left-0.5 top-0.5 text-[7px] font-semibold uppercase text-positive">{t('itemQuality.RARE')}</span>}
+                  {item.equipped && (
+                    <span className="absolute bottom-0.5 left-0.5 rounded bg-[#1e40af] px-1 py-0.5 text-[7px] font-semibold uppercase leading-none text-text">
+                      {t('robot.equippedBadge')}
+                    </span>
+                  )}
                   {item.slot ? (
                     item.upgradeLevel > 0 && (
                       <span className="absolute bottom-0.5 right-1 text-[8px] font-semibold text-accent">+{item.upgradeLevel}</span>
@@ -332,6 +357,49 @@ export default function RobotPage() {
                     <p className="text-[10px] text-textMuted">
                       {t('robot.upgradeLevel')}: {selected.upgradeLevel}/{selected.maxUpgradeLevel}
                     </p>
+                    {(selected.currentStats?.attack !== undefined || selected.currentStats?.defense !== undefined || selected.currentStats?.hp !== undefined) && (
+                      <div className="mt-2 rounded border border-wellBorder bg-ink p-2.5">
+                        {(['attack', 'defense', 'hp'] as const).map((key) => {
+                          const current = selected.currentStats?.[key];
+                          if (current === undefined) return null;
+                          const next = selected.nextLevelStats?.[key];
+                          return (
+                            <div key={key} className="mb-1 flex justify-between text-[10px] last:mb-0">
+                              <span className="text-textFaint">{t(`robot.stat.${key === 'attack' ? 'damage' : key}`)}</span>
+                              <span>
+                                {current}
+                                {next !== undefined && <span className="ml-1 text-positive">→ {next}</span>}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {selected.upgradeCost && (
+                      <p className={`mt-2 text-[10px] ${canAffordUpgrade ? 'text-textFaint' : 'text-danger'}`}>
+                        {t('robot.upgradeCost')}: {t(`items.${selected.upgradeCost.itemDefinitionKey}.name`)} × {selected.upgradeCost.quantity} (
+                        {t('robot.owned')}: {ownedUpgradeMaterial})
+                      </p>
+                    )}
+                    {selected.race && (
+                      <p className={`mt-1 text-[10px] ${selected.race === profile?.race ? 'text-positive' : 'text-danger'}`}>
+                        {t('robot.raceLocked', { race: t(`race.${selected.race}.name`) })}
+                      </p>
+                    )}
+                    {selected.rolledOptions.length > 0 && (
+                      <ul className="mt-2 flex flex-col gap-0.5">
+                        {selected.rolledOptions.map((option) => (
+                          <li key={option} className="text-[10px] text-positive">
+                            {t(`itemOption.${option}`)}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {selected.sellValue && (
+                      <p className="mt-2 text-[10px] text-textFaint">
+                        {t('robot.sellValue')}: {selected.sellValue.metal} {t('resource.METAL')}, {selected.sellValue.crystal} {t('resource.CRYSTAL')}
+                      </p>
+                    )}
                   </>
                 )
               ) : (
@@ -356,7 +424,7 @@ export default function RobotPage() {
                 <div className="mt-3 flex gap-2">
                   <button
                     type="button"
-                    disabled={!selected || selected.equipped}
+                    disabled={!selected || selected.equipped || (!!selected.race && selected.race !== profile?.race)}
                     onClick={handleEquip}
                     className="flex-1 rounded-md border border-accent bg-accentBg py-2.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                   >
@@ -374,12 +442,31 @@ export default function RobotPage() {
 
                 <button
                   type="button"
-                  disabled={!selected || selected.upgradeLevel >= selected.maxUpgradeLevel}
+                  disabled={!selected || selected.upgradeLevel >= selected.maxUpgradeLevel || !canAffordUpgrade}
                   onClick={handleUpgrade}
                   className="mt-2 w-full rounded-md border border-accent bg-accentBg py-2.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                 >
                   {t('robot.upgrade')}
                 </button>
+
+                <div className="mt-2">
+                  <ConfirmButton
+                    key={selected?.id}
+                    label={t('robot.sell')}
+                    confirmLabel={t('common.confirm')}
+                    cancelLabel={t('common.cancel')}
+                    message={
+                      selected?.sellValue
+                        ? t('robot.sellConfirm', { metal: selected.sellValue.metal, crystal: selected.sellValue.crystal })
+                        : undefined
+                    }
+                    onConfirm={handleSell}
+                    disabled={!selected || selected.equipped}
+                    className="w-full rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                    confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover"
+                    cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+                  />
+                </div>
               </>
             )}
           </div>

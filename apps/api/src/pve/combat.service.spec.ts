@@ -81,4 +81,65 @@ describe('CombatService', () => {
     expect(result.damageTaken).toBe(0);
     expect(result.rounds.some((round) => round.playerDodged)).toBe(true);
   });
+
+  it("multiplies damage by the critical multiplier plus the attacker's Critical Damage bonus on a crit", () => {
+    randomSpy = jest.spyOn(Math, 'random');
+    (randomSpy as jest.SpyInstance)
+      .mockReturnValueOnce(0.99) // pentili doesn't dodge
+      .mockReturnValueOnce(0.5) // player's hit: neutral variance (1.0)
+      .mockReturnValueOnce(0) // player's hit: crit
+      .mockReturnValueOnce(0.99) // player doesn't dodge
+      .mockReturnValueOnce(0.5) // pentili's hit: neutral variance (1.0)
+      .mockReturnValueOnce(0.99); // pentili's hit: not a crit
+
+    const result = combat.simulate(
+      { attack: 100, defense: 0, hp: 1000, criticalDamageBonus: 0.2 },
+      makePentili({ maxHp: 10_000, attack: 10, defense: 0 }),
+    );
+
+    const [firstRound] = result.rounds;
+    // Base 100 * (criticalMultiplier 1.5 + bonus 0.2) = 170.
+    expect(firstRound.playerCritical).toBe(true);
+    expect(firstRound.playerDamage).toBe(170);
+    expect(firstRound.pentiliCritical).toBe(false);
+    expect(firstRound.pentiliDamage).toBe(10);
+  });
+
+  it("reduces incoming damage by the defender's Damage Decrease total", () => {
+    randomSpy = jest.spyOn(Math, 'random');
+    (randomSpy as jest.SpyInstance)
+      .mockReturnValueOnce(0.99) // pentili doesn't dodge
+      .mockReturnValueOnce(0.5) // player's hit: neutral variance
+      .mockReturnValueOnce(0.99) // player's hit: not a crit
+      .mockReturnValueOnce(0.99) // player doesn't dodge
+      .mockReturnValueOnce(0.5) // pentili's hit: neutral variance
+      .mockReturnValueOnce(0.99); // pentili's hit: not a crit
+
+    const result = combat.simulate(
+      { attack: 1, defense: 0, hp: 1000, damageDecrease: 0.5 },
+      makePentili({ maxHp: 10_000, attack: 100, defense: 0 }),
+    );
+
+    // Base 100 halved by a 50% Damage Decrease.
+    expect(result.rounds[0].pentiliDamage).toBe(50);
+  });
+
+  it("bounces a share of incoming damage back onto the attacker via the defender's Damage Reflect", () => {
+    randomSpy = jest.spyOn(Math, 'random');
+    (randomSpy as jest.SpyInstance)
+      .mockReturnValueOnce(0.99) // pentili doesn't dodge
+      .mockReturnValueOnce(0.5) // player's hit: neutral variance
+      .mockReturnValueOnce(0.99) // player's hit: not a crit
+      .mockReturnValueOnce(0.99) // player doesn't dodge
+      .mockReturnValueOnce(0.5) // pentili's hit: neutral variance
+      .mockReturnValueOnce(0.99); // pentili's hit: not a crit
+
+    const result = combat.simulate(
+      { attack: 1, defense: 0, hp: 1000, damageReflect: 0.3 },
+      makePentili({ maxHp: 10_000, attack: 100, defense: 0 }),
+    );
+
+    // 30% of the 100 damage the pentili dealt bounces back onto it.
+    expect(result.rounds[0].pentiliReflectedDamage).toBe(30);
+  });
 });

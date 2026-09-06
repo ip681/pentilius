@@ -67,6 +67,12 @@ export class RobotService {
     if (!item.itemDefinition.slot) {
       throw new BadRequestException('This item cannot be equipped');
     }
+    if (item.race) {
+      const player = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+      if (item.race !== player.race) {
+        throw new BadRequestException('RACE_MISMATCH');
+      }
+    }
 
     await this.prisma.$transaction([
       this.prisma.itemInstance.updateMany({

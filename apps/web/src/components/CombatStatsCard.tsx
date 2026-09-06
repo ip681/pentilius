@@ -36,6 +36,24 @@ export function CombatStatsCard({
           <span className="text-textMuted">{t('robot.stat.evasion')}</span>
           <span>{stats.evasion}%</span>
         </div>
+        {stats.criticalDamageBonus > 0 && (
+          <div className="flex justify-between">
+            <span className="text-textMuted">{t('robot.stat.criticalDamageBonus')}</span>
+            <span>{stats.criticalDamageBonus}%</span>
+          </div>
+        )}
+        {stats.damageDecrease > 0 && (
+          <div className="flex justify-between">
+            <span className="text-textMuted">{t('robot.stat.damageDecrease')}</span>
+            <span>{stats.damageDecrease}%</span>
+          </div>
+        )}
+        {stats.damageReflect > 0 && (
+          <div className="flex justify-between">
+            <span className="text-textMuted">{t('robot.stat.damageReflect')}</span>
+            <span>{stats.damageReflect}%</span>
+          </div>
+        )}
       </div>
     </div>
   );

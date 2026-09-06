@@ -105,11 +105,19 @@ export default function PvpPage() {
             log.push({ text: t('pvp.roundDodge', { name: report.opponentUsername }), kind: 'enemy' });
           } else {
             log.push({ text: t('pvp.roundHit', { name: myName, damage: roundData.playerDamage }), kind: 'player' });
+            if (roundData.playerCritical) log.push({ text: t('pvp.roundCritical', { name: myName }), kind: 'player' });
+            if (roundData.pentiliReflectedDamage > 0) {
+              log.push({ text: t('pvp.roundReflect', { name: report.opponentUsername, damage: roundData.pentiliReflectedDamage }), kind: 'enemy' });
+            }
           }
           if (roundData.playerDodged) {
             log.push({ text: t('pvp.roundDodge', { name: myName }), kind: 'player' });
           } else if (roundData.pentiliDamage > 0) {
             log.push({ text: t('pvp.roundHit', { name: report.opponentUsername, damage: roundData.pentiliDamage }), kind: 'enemy' });
+            if (roundData.pentiliCritical) log.push({ text: t('pvp.roundCritical', { name: report.opponentUsername }), kind: 'enemy' });
+            if (roundData.playerReflectedDamage > 0) {
+              log.push({ text: t('pvp.roundReflect', { name: myName, damage: roundData.playerReflectedDamage }), kind: 'player' });
+            }
           }
           const finished = index >= report.rounds.length;
           if (finished) {

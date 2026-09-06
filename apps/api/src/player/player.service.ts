@@ -28,9 +28,7 @@ export class PlayerService {
       resources: {
         metal: player.metal,
         crystal: player.crystal,
-        oxygen: player.oxygen,
         credits: player.credits,
-        upgradeStones: player.upgradeStones,
       },
       energy: {
         current: player.actionEnergy,

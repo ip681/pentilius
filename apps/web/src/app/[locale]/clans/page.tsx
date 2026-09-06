@@ -1,11 +1,14 @@
 'use client';
 
 import type { ClanBuildingStateDto, ClanDetailDto, ClanMessageDto, ClanSummaryDto } from '@pentilius/shared';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
+import { AssetIcon } from '@/components/AssetIcon';
 import { ClanLink } from '@/components/ClanLink';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerLink } from '@/components/PlayerLink';
+import { formatRelativeTime } from '@/lib/format-relative-time';
 import {
   ApiError,
   createClan,
@@ -46,6 +49,7 @@ function buildingProgress(building: ClanBuildingStateDto): { active: boolean; pe
 export default function ClansPage() {
   useRequireAuth();
   const t = useTranslations();
+  const locale = useLocale();
   const [myClan, setMyClan] = useState<ClanDetailDto | null | undefined>(undefined);
   const [clans, setClans] = useState<ClanSummaryDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +146,6 @@ export default function ClansPage() {
   }
 
   async function handleLeave() {
-    if (!window.confirm(t('clans.confirmLeave'))) return;
     setError(null);
     try {
       await leaveClan();
@@ -153,7 +156,6 @@ export default function ClansPage() {
   }
 
   async function handleDisband() {
-    if (!window.confirm(t('clans.confirmDisband'))) return;
     setError(null);
     try {
       await disbandClan();
@@ -164,7 +166,6 @@ export default function ClansPage() {
   }
 
   async function handleKick(playerId: string) {
-    if (!window.confirm(t('clans.confirmKick'))) return;
     setError(null);
     try {
       await kickClanMember(playerId);
@@ -195,7 +196,6 @@ export default function ClansPage() {
   }
 
   async function handleTransfer(playerId: string) {
-    if (!window.confirm(t('clans.confirmTransfer'))) return;
     setError(null);
     try {
       await transferClanLeadership(playerId);
@@ -517,50 +517,102 @@ export default function ClansPage() {
           <table className="mb-4 w-full text-left text-xs">
             <thead>
               <tr className="text-[10px] uppercase text-textFaint">
+                <th className="pb-2">{t('clans.level')}</th>
                 <th className="pb-2">{t('clans.member')}</th>
+                <th className="pb-2">{t('clans.race')}</th>
                 <th className="pb-2">{t('clans.role')}</th>
-                <th className="pb-2">{t('clans.contributed')}</th>
+                <th className="pb-2 text-right">{t('resource.METAL')}</th>
+                <th className="pb-2 text-right">{t('resource.CRYSTAL')}</th>
+                <th className="pb-2 text-right">{t('resource.CREDITS')}</th>
+                <th className="pb-2 text-right">{t('clans.lastActive')}</th>
                 <th className="pb-2 text-right">{t('clans.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {myClan.members.map((member) => (
                 <tr key={member.playerId} className="border-t border-wellBorder">
+                  <td className="py-2 text-textMuted">{member.level}</td>
                   <td className="py-2">
                     <PlayerLink playerId={member.playerId} username={member.username} />{' '}
                     {member.isCurrentPlayer && <span className="text-textFaint">({t('clans.you')})</span>}
                   </td>
+                  <td className="py-2">
+                    <div className="flex items-center gap-1.5 text-textMuted">
+                      <AssetIcon
+                        assetId={`races.${member.race.toLowerCase()}.icon`}
+                        alt={t(`race.${member.race}.name`)}
+                        className="h-4 w-4 object-contain"
+                        fallback={<div className="h-4 w-4 rounded-sm bg-accent opacity-60" />}
+                      />
+                      {t(`race.${member.race}.name`)}
+                    </div>
+                  </td>
                   <td className="py-2">{t(`clans.roleLabel.${member.role}`)}</td>
-                  <td className="py-2 text-textMuted">
-                    {member.contributed.metal + member.contributed.crystal + member.contributed.credits === 0
-                      ? '—'
-                      : `${member.contributed.metal}M / ${member.contributed.crystal}C / ${member.contributed.credits}Cr`}
+                  <td className="py-2 text-right text-textMuted">{member.contributed.metal || '—'}</td>
+                  <td className="py-2 text-right text-textMuted">{member.contributed.crystal || '—'}</td>
+                  <td className="py-2 text-right text-textMuted">{member.contributed.credits || '—'}</td>
+                  <td className="py-2 text-right">
+                    {member.online ? (
+                      <span className="text-positive">{t('clans.online')}</span>
+                    ) : (
+                      <span className="text-textFaint">{formatRelativeTime(member.lastActiveAt, locale)}</span>
+                    )}
                   </td>
                   <td className="py-2 text-right">
                     {!member.isCurrentPlayer && myClan.myRole === 'LEADER' && (
                       <div className="flex justify-end gap-1.5">
                         {member.role === 'MEMBER' && (
-                          <button type="button" onClick={() => handlePromote(member.playerId)} className="text-positive underline">
-                            {t('clans.promote')}
-                          </button>
+                          <ConfirmButton
+                            label={t('clans.promote')}
+                            confirmLabel={t('common.confirm')}
+                            cancelLabel={t('common.cancel')}
+                            onConfirm={() => handlePromote(member.playerId)}
+                            className="whitespace-nowrap text-positive underline"
+                            confirmClassName="whitespace-nowrap text-positive underline"
+                            cancelClassName="whitespace-nowrap text-textFaint underline"
+                          />
                         )}
                         {member.role === 'OFFICER' && (
-                          <button type="button" onClick={() => handleDemote(member.playerId)} className="text-textMuted underline">
-                            {t('clans.demote')}
-                          </button>
+                          <ConfirmButton
+                            label={t('clans.demote')}
+                            confirmLabel={t('common.confirm')}
+                            cancelLabel={t('common.cancel')}
+                            onConfirm={() => handleDemote(member.playerId)}
+                            className="whitespace-nowrap text-textMuted underline"
+                            confirmClassName="whitespace-nowrap text-textMuted underline"
+                            cancelClassName="whitespace-nowrap text-textFaint underline"
+                          />
                         )}
-                        <button type="button" onClick={() => handleTransfer(member.playerId)} className="text-textMuted underline">
-                          {t('clans.transferLeadership')}
-                        </button>
-                        <button type="button" onClick={() => handleKick(member.playerId)} className="text-danger underline">
-                          {t('clans.kick')}
-                        </button>
+                        <ConfirmButton
+                          label={t('clans.transferLeadership')}
+                          confirmLabel={t('common.confirm')}
+                          cancelLabel={t('common.cancel')}
+                          onConfirm={() => handleTransfer(member.playerId)}
+                          className="whitespace-nowrap text-textMuted underline"
+                          confirmClassName="whitespace-nowrap text-textMuted underline"
+                          cancelClassName="whitespace-nowrap text-textFaint underline"
+                        />
+                        <ConfirmButton
+                          label={t('clans.kick')}
+                          confirmLabel={t('common.confirm')}
+                          cancelLabel={t('common.cancel')}
+                          onConfirm={() => handleKick(member.playerId)}
+                          className="whitespace-nowrap text-danger underline"
+                          confirmClassName="whitespace-nowrap text-danger underline"
+                          cancelClassName="whitespace-nowrap text-textFaint underline"
+                        />
                       </div>
                     )}
                     {!member.isCurrentPlayer && myClan.myRole === 'OFFICER' && member.role === 'MEMBER' && (
-                      <button type="button" onClick={() => handleKick(member.playerId)} className="text-danger underline">
-                        {t('clans.kick')}
-                      </button>
+                      <ConfirmButton
+                        label={t('clans.kick')}
+                        confirmLabel={t('common.confirm')}
+                        cancelLabel={t('common.cancel')}
+                        onConfirm={() => handleKick(member.playerId)}
+                        className="whitespace-nowrap text-danger underline"
+                        confirmClassName="whitespace-nowrap text-danger underline"
+                        cancelClassName="whitespace-nowrap text-textFaint underline"
+                      />
                     )}
                   </td>
                 </tr>
@@ -604,21 +656,29 @@ export default function ClansPage() {
           </div>
 
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleLeave}
+            <ConfirmButton
+              label={t('clans.leave')}
+              confirmLabel={t('common.confirm')}
+              cancelLabel={t('common.cancel')}
+              message={t('clans.confirmLeave')}
+              onConfirm={handleLeave}
               className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[11px] uppercase text-danger hover:bg-accentBgHover"
-            >
-              {t('clans.leave')}
-            </button>
+              confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[11px] uppercase text-danger hover:bg-accentBgHover"
+              cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[11px] uppercase text-textMuted hover:bg-accentBgHover"
+              wrapperClassName="flex-1"
+            />
             {myClan.myRole === 'LEADER' && (
-              <button
-                type="button"
-                onClick={handleDisband}
+              <ConfirmButton
+                label={t('clans.disband')}
+                confirmLabel={t('common.confirm')}
+                cancelLabel={t('common.cancel')}
+                message={t('clans.confirmDisband')}
+                onConfirm={handleDisband}
                 className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[11px] uppercase text-danger hover:bg-accentBgHover"
-              >
-                {t('clans.disband')}
-              </button>
+                confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[11px] uppercase text-danger hover:bg-accentBgHover"
+                cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[11px] uppercase text-textMuted hover:bg-accentBgHover"
+                wrapperClassName="flex-1"
+              />
             )}
           </div>
         </section>

@@ -3,6 +3,7 @@
 import type { ExpeditionClaimResultDto, ExpeditionsResponseDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
 import { cancelExpedition, claimExpedition, getExpeditions, startExpedition } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
@@ -63,7 +64,6 @@ export default function ExpeditionsPage() {
   }
 
   async function handleCancel() {
-    if (!window.confirm(t('expeditions.cancelConfirm'))) return;
     setError(null);
     try {
       setResult(await cancelExpedition());
@@ -121,13 +121,16 @@ export default function ExpeditionsPage() {
           ) : (
             <>
               <p className="mb-4 text-3xl font-semibold tabular-nums">{formatDuration(remainingMs / 1000)}</p>
-              <button
-                type="button"
-                onClick={handleCancel}
+              <ConfirmButton
+                label={t('expeditions.cancel')}
+                confirmLabel={t('common.confirm')}
+                cancelLabel={t('common.cancel')}
+                message={t('expeditions.cancelConfirm')}
+                onConfirm={handleCancel}
                 className="rounded-md border border-panelBorderDanger bg-well px-5 py-2 text-[11px] uppercase text-danger hover:bg-accentBgHover"
-              >
-                {t('expeditions.cancel')}
-              </button>
+                confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well px-5 py-2 text-[11px] uppercase text-danger hover:bg-accentBgHover"
+                cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel px-5 py-2 text-[11px] uppercase text-textMuted hover:bg-accentBgHover"
+              />
               <p className="mt-2 text-[10px] text-textFaint">{t('expeditions.cancelHint')}</p>
             </>
           )}

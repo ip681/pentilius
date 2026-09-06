@@ -1,8 +1,10 @@
-import { Prisma } from '@prisma/client';
-import { GAME_BALANCE } from '../config/game-config';
+import { Prisma, Race } from '@prisma/client';
+import { GAME_BALANCE, getOptionPool } from '../config/game-config';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
+
+const ALL_RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
 
 /** Base capacity plus any Warehouse (or future capacity-granting building) bonus. */
 export async function getEffectiveInventoryCapacity(playerId: string, tx: Tx): Promise<number> {
@@ -14,9 +16,13 @@ export async function getEffectiveInventoryCapacity(playerId: string, tx: Tx): P
   return GAME_BALANCE.inventory.baseCapacity + bonus;
 }
 
-/** Equipped items don't count against capacity — only what's actually sitting in the bag does. */
+/**
+ * Every owned item counts against capacity, equipped or not — an equipped
+ * item stays visible in the inventory grid (just marked "Equipped"), so it
+ * still occupies a slot rather than silently vanishing from the count.
+ */
 export function getUsedInventorySlots(playerId: string, tx: Tx): Promise<number> {
-  return tx.itemInstance.count({ where: { playerId, equippedSlot: null } });
+  return tx.itemInstance.count({ where: { playerId } });
 }
 
 /**
@@ -45,6 +51,22 @@ export async function grantItem(playerId: string, itemDefinitionId: string, tx: 
     return false;
   }
 
-  await tx.itemInstance.create({ data: { playerId, itemDefinitionId } });
+  // Coreforged drops are the same ItemDefinition for everyone, but each dropped
+  // instance is stamped with a random race and can only be equipped by that race
+  // (instructions/GAME_SYSTEMS.md) — distinct from the separate, unused ItemDefinition.race.
+  // category check matters: the Coreforged Upgrade material also has tier COREFORGED
+  // but is a CONSUMABLE — it must never get a (meaningless) race stamp.
+  const race = itemDefinition.category === 'EQUIPMENT' && itemDefinition.tier === 'COREFORGED' ? ALL_RACES[Math.floor(Math.random() * ALL_RACES.length)] : null;
+
+  const rare = itemDefinition.category === 'EQUIPMENT' && Math.random() < GAME_BALANCE.rarity.rareChance;
+  const rolledOptions = rare && itemDefinition.slot ? [pickOption(getOptionPool(itemDefinition.slot))] : [];
+
+  await tx.itemInstance.create({
+    data: { playerId, itemDefinitionId, race, quality: rare ? 'RARE' : 'NORMAL', rolledOptions },
+  });
   return true;
+}
+
+function pickOption<T>(pool: T[]): T {
+  return pool[Math.floor(Math.random() * pool.length)];
 }

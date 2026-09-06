@@ -89,26 +89,61 @@ async function main() {
     });
   }
 
+  // The old starter/advanced/elite catalog is fully superseded by the 3 named
+  // sets below — clear out its ItemInstance rows (any equipped/inventory copy
+  // a player held) and ItemDefinition rows so re-running this seed doesn't
+  // leave both the old and new catalogs granting starter kits side by side.
+  const obsoleteItemKeys = [
+    'head_scanner_mk1', 'left_arm_blaster_mk1', 'right_arm_guard_mk1', 'armor_plating_mk1', 'core_battery_mk1', 'left_leg_actuator_mk1', 'right_leg_actuator_mk1',
+    'head_targeting_array', 'left_arm_pulse_cannon', 'right_arm_kinetic_shield', 'armor_reinforced_plating', 'core_fusion_battery', 'left_leg_servo_drive', 'right_leg_servo_drive',
+    'right_arm_railgun', 'armor_titan_plating',
+  ];
+  const obsoleteItems = await prisma.itemDefinition.findMany({ where: { key: { in: obsoleteItemKeys } } });
+  if (obsoleteItems.length > 0) {
+    const obsoleteIds = obsoleteItems.map((item) => item.id);
+    await prisma.itemInstance.deleteMany({ where: { itemDefinitionId: { in: obsoleteIds } } });
+    await prisma.itemDefinition.deleteMany({ where: { id: { in: obsoleteIds } } });
+  }
+
+  // 3 named equipment sets (instructions/GAME_SYSTEMS.md), 7 slots each, same
+  // part-type word per slot across tiers ("<Set> Head Scanner") — stats double
+  // each tier. Coreforged's Armor numbers intentionally land on the old
+  // elite armor_titan_plating values as a sanity check on the 2x/2x curve.
+  const equipmentData = [
+    // Pioneer — starter tier, granted free to every new robot (Player.isStarterItem).
+    { key: 'pioneer_head_scanner', slot: 'HEAD' as const, tier: 'PIONEER' as const, baseStats: { attack: 1 }, maxUpgradeLevel: 5, isStarterItem: true },
+    { key: 'pioneer_left_arm_blaster', slot: 'LEFT_ARM' as const, tier: 'PIONEER' as const, baseStats: { attack: 5 }, maxUpgradeLevel: 5, isStarterItem: true },
+    { key: 'pioneer_right_arm_guard', slot: 'RIGHT_ARM' as const, tier: 'PIONEER' as const, baseStats: { defense: 5 }, maxUpgradeLevel: 5, isStarterItem: true },
+    { key: 'pioneer_armor_plating', slot: 'ARMOR' as const, tier: 'PIONEER' as const, baseStats: { hp: 15, defense: 2 }, maxUpgradeLevel: 5, isStarterItem: true },
+    { key: 'pioneer_core_battery', slot: 'CORE' as const, tier: 'PIONEER' as const, baseStats: { attack: 2, defense: 2 }, maxUpgradeLevel: 5, isStarterItem: true },
+    { key: 'pioneer_left_leg_actuator', slot: 'LEFT_LEG' as const, tier: 'PIONEER' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5, isStarterItem: true },
+    { key: 'pioneer_right_leg_actuator', slot: 'RIGHT_LEG' as const, tier: 'PIONEER' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5, isStarterItem: true },
+    // Ascendant — advanced tier, 2x Pioneer.
+    { key: 'ascendant_head_scanner', slot: 'HEAD' as const, tier: 'ASCENDANT' as const, baseStats: { attack: 4 }, maxUpgradeLevel: 8, isStarterItem: false },
+    { key: 'ascendant_left_arm_blaster', slot: 'LEFT_ARM' as const, tier: 'ASCENDANT' as const, baseStats: { attack: 12 }, maxUpgradeLevel: 8, isStarterItem: false },
+    { key: 'ascendant_right_arm_guard', slot: 'RIGHT_ARM' as const, tier: 'ASCENDANT' as const, baseStats: { defense: 10 }, maxUpgradeLevel: 8, isStarterItem: false },
+    { key: 'ascendant_armor_plating', slot: 'ARMOR' as const, tier: 'ASCENDANT' as const, baseStats: { hp: 30, defense: 5 }, maxUpgradeLevel: 8, isStarterItem: false },
+    { key: 'ascendant_core_battery', slot: 'CORE' as const, tier: 'ASCENDANT' as const, baseStats: { attack: 6, defense: 4 }, maxUpgradeLevel: 8, isStarterItem: false },
+    { key: 'ascendant_left_leg_actuator', slot: 'LEFT_LEG' as const, tier: 'ASCENDANT' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8, isStarterItem: false },
+    { key: 'ascendant_right_leg_actuator', slot: 'RIGHT_LEG' as const, tier: 'ASCENDANT' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8, isStarterItem: false },
+    // Coreforged — elite tier, 2x Ascendant. Race-locked per dropped instance
+    // (ItemInstance.race), rolled by inventory-capacity.ts's grantItem — not here.
+    { key: 'coreforged_head_scanner', slot: 'HEAD' as const, tier: 'COREFORGED' as const, baseStats: { attack: 8 }, maxUpgradeLevel: 10, isStarterItem: false },
+    { key: 'coreforged_left_arm_blaster', slot: 'LEFT_ARM' as const, tier: 'COREFORGED' as const, baseStats: { attack: 24 }, maxUpgradeLevel: 10, isStarterItem: false },
+    { key: 'coreforged_right_arm_guard', slot: 'RIGHT_ARM' as const, tier: 'COREFORGED' as const, baseStats: { defense: 20 }, maxUpgradeLevel: 10, isStarterItem: false },
+    { key: 'coreforged_armor_plating', slot: 'ARMOR' as const, tier: 'COREFORGED' as const, baseStats: { hp: 60, defense: 10 }, maxUpgradeLevel: 10, isStarterItem: false },
+    { key: 'coreforged_core_battery', slot: 'CORE' as const, tier: 'COREFORGED' as const, baseStats: { attack: 12, defense: 8 }, maxUpgradeLevel: 10, isStarterItem: false },
+    { key: 'coreforged_left_leg_actuator', slot: 'LEFT_LEG' as const, tier: 'COREFORGED' as const, baseStats: { hp: 40 }, maxUpgradeLevel: 10, isStarterItem: false },
+    { key: 'coreforged_right_leg_actuator', slot: 'RIGHT_LEG' as const, tier: 'COREFORGED' as const, baseStats: { hp: 40 }, maxUpgradeLevel: 10, isStarterItem: false },
+  ].map((item) => ({
+    ...item,
+    nameKey: `items.${item.key}.name`,
+    descriptionKey: `items.${item.key}.description`,
+    iconAssetId: `items.${item.key}.icon`,
+  }));
+
   const itemData = [
-    // Starter tier — one per slot, granted free to every new robot (Player.isStarterItem).
-    { key: 'head_scanner_mk1', nameKey: 'items.head_scanner_mk1.name', descriptionKey: 'items.head_scanner_mk1.description', slot: 'HEAD' as const, baseStats: { attack: 1 }, maxUpgradeLevel: 5, iconAssetId: 'items.head_scanner_mk1.icon', isStarterItem: true },
-    { key: 'left_arm_blaster_mk1', nameKey: 'items.left_arm_blaster_mk1.name', descriptionKey: 'items.left_arm_blaster_mk1.description', slot: 'LEFT_ARM' as const, baseStats: { attack: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.left_arm_blaster_mk1.icon', isStarterItem: true },
-    { key: 'right_arm_guard_mk1', nameKey: 'items.right_arm_guard_mk1.name', descriptionKey: 'items.right_arm_guard_mk1.description', slot: 'RIGHT_ARM' as const, baseStats: { defense: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.right_arm_guard_mk1.icon', isStarterItem: true },
-    { key: 'armor_plating_mk1', nameKey: 'items.armor_plating_mk1.name', descriptionKey: 'items.armor_plating_mk1.description', slot: 'ARMOR' as const, baseStats: { hp: 15, defense: 2 }, maxUpgradeLevel: 5, iconAssetId: 'items.armor_plating_mk1.icon', isStarterItem: true },
-    { key: 'core_battery_mk1', nameKey: 'items.core_battery_mk1.name', descriptionKey: 'items.core_battery_mk1.description', slot: 'CORE' as const, baseStats: { attack: 2, defense: 2 }, maxUpgradeLevel: 5, iconAssetId: 'items.core_battery_mk1.icon', isStarterItem: true },
-    { key: 'left_leg_actuator_mk1', nameKey: 'items.left_leg_actuator_mk1.name', descriptionKey: 'items.left_leg_actuator_mk1.description', slot: 'LEFT_LEG' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.left_leg_actuator_mk1.icon', isStarterItem: true },
-    { key: 'right_leg_actuator_mk1', nameKey: 'items.right_leg_actuator_mk1.name', descriptionKey: 'items.right_leg_actuator_mk1.description', slot: 'RIGHT_LEG' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.right_leg_actuator_mk1.icon', isStarterItem: true },
-    // Advanced tier — one per slot, found as loot/expedition/boss rewards.
-    { key: 'head_targeting_array', nameKey: 'items.head_targeting_array.name', descriptionKey: 'items.head_targeting_array.description', slot: 'HEAD' as const, baseStats: { attack: 4 }, maxUpgradeLevel: 8, iconAssetId: 'items.head_targeting_array.icon', isStarterItem: false },
-    { key: 'left_arm_pulse_cannon', nameKey: 'items.left_arm_pulse_cannon.name', descriptionKey: 'items.left_arm_pulse_cannon.description', slot: 'LEFT_ARM' as const, baseStats: { attack: 12 }, maxUpgradeLevel: 8, iconAssetId: 'items.left_arm_pulse_cannon.icon', isStarterItem: false },
-    { key: 'right_arm_kinetic_shield', nameKey: 'items.right_arm_kinetic_shield.name', descriptionKey: 'items.right_arm_kinetic_shield.description', slot: 'RIGHT_ARM' as const, baseStats: { defense: 10 }, maxUpgradeLevel: 8, iconAssetId: 'items.right_arm_kinetic_shield.icon', isStarterItem: false },
-    { key: 'armor_reinforced_plating', nameKey: 'items.armor_reinforced_plating.name', descriptionKey: 'items.armor_reinforced_plating.description', slot: 'ARMOR' as const, baseStats: { hp: 30, defense: 5 }, maxUpgradeLevel: 8, iconAssetId: 'items.armor_reinforced_plating.icon', isStarterItem: false },
-    { key: 'core_fusion_battery', nameKey: 'items.core_fusion_battery.name', descriptionKey: 'items.core_fusion_battery.description', slot: 'CORE' as const, baseStats: { attack: 6, defense: 4 }, maxUpgradeLevel: 8, iconAssetId: 'items.core_fusion_battery.icon', isStarterItem: false },
-    { key: 'left_leg_servo_drive', nameKey: 'items.left_leg_servo_drive.name', descriptionKey: 'items.left_leg_servo_drive.description', slot: 'LEFT_LEG' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8, iconAssetId: 'items.left_leg_servo_drive.icon', isStarterItem: false },
-    { key: 'right_leg_servo_drive', nameKey: 'items.right_leg_servo_drive.name', descriptionKey: 'items.right_leg_servo_drive.description', slot: 'RIGHT_LEG' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8, iconAssetId: 'items.right_leg_servo_drive.icon', isStarterItem: false },
-    // Elite tier — flagship drops, one offense/one defense.
-    { key: 'right_arm_railgun', nameKey: 'items.right_arm_railgun.name', descriptionKey: 'items.right_arm_railgun.description', slot: 'RIGHT_ARM' as const, baseStats: { attack: 20 }, maxUpgradeLevel: 10, iconAssetId: 'items.right_arm_railgun.icon', isStarterItem: false },
-    { key: 'armor_titan_plating', nameKey: 'items.armor_titan_plating.name', descriptionKey: 'items.armor_titan_plating.description', slot: 'ARMOR' as const, baseStats: { hp: 60, defense: 10 }, maxUpgradeLevel: 10, iconAssetId: 'items.armor_titan_plating.icon', isStarterItem: false },
+    ...equipmentData,
     // Consumables (general inventory, owner decision) — no slot, stack in one
     // ItemInstance row via quantity. baseStats holds { energy } instead of
     // combat stats — read by inventory.service.ts's useConsumable().
@@ -139,6 +174,45 @@ async function main() {
       iconAssetId: 'items.construction_speedup_large.icon',
       isStarterItem: false,
     },
+    // Tier-specific upgrade materials (owner decision) — replace the old
+    // generic Upgrade Stones resource. Spent by inventory.service.ts's
+    // upgradeItem(), keyed off the item being upgraded's own tier.
+    {
+      key: 'pioneer_upgrade',
+      nameKey: 'items.pioneer_upgrade.name',
+      descriptionKey: 'items.pioneer_upgrade.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      tier: 'PIONEER' as const,
+      baseStats: {},
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.pioneer_upgrade.icon',
+      isStarterItem: false,
+    },
+    {
+      key: 'ascendant_upgrade',
+      nameKey: 'items.ascendant_upgrade.name',
+      descriptionKey: 'items.ascendant_upgrade.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      tier: 'ASCENDANT' as const,
+      baseStats: {},
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.ascendant_upgrade.icon',
+      isStarterItem: false,
+    },
+    {
+      key: 'coreforged_upgrade',
+      nameKey: 'items.coreforged_upgrade.name',
+      descriptionKey: 'items.coreforged_upgrade.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      tier: 'COREFORGED' as const,
+      baseStats: {},
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.coreforged_upgrade.icon',
+      isStarterItem: false,
+    },
   ];
   const itemsByKey: Record<string, Awaited<ReturnType<typeof prisma.itemDefinition.upsert>>> = {};
   for (const data of itemData) {
@@ -151,39 +225,59 @@ async function main() {
   await prisma.lootDrop.deleteMany({ where: { pentiliId: { in: allPentiliIds } } });
   await prisma.lootDrop.createMany({
     data: [
+      // Zone 1 (Verdant Flats) — Pioneer tier only, per owner decision.
       { pentiliId: skitterling.id, resourceType: 'METAL', dropChance: 0.8, minQuantity: 5, maxQuantity: 15 },
-      { pentiliId: skitterling.id, resourceType: 'UPGRADE_STONES', dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.pioneer_upgrade.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
       { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.energy_pack_small.id, dropChance: 0.12, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.pioneer_head_scanner.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.pioneer_left_arm_blaster.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.pioneer_left_leg_actuator.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: mossback.id, resourceType: 'CRYSTAL', dropChance: 0.5, minQuantity: 3, maxQuantity: 8 },
-      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.left_arm_pulse_cannon.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
       { pentiliId: mossback.id, itemDefinitionId: itemsByKey.construction_speedup_small.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.pioneer_right_arm_guard.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.pioneer_armor_plating.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.pioneer_core_battery.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.pioneer_right_leg_actuator.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
 
+      // Zone 2 (Ashen Ridge) — Ascendant tier introduced.
       { pentiliId: ridgefang.id, resourceType: 'CREDITS', dropChance: 0.6, minQuantity: 10, maxQuantity: 20 },
-      { pentiliId: ridgefang.id, resourceType: 'UPGRADE_STONES', dropChance: 0.15, minQuantity: 1, maxQuantity: 2 },
-      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.armor_reinforced_plating.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.ascendant_upgrade.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.ascendant_head_scanner.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.ascendant_left_arm_blaster.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.ascendant_left_leg_actuator.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: cinderclaw.id, resourceType: 'METAL', dropChance: 0.6, minQuantity: 15, maxQuantity: 30 },
-      { pentiliId: cinderclaw.id, resourceType: 'UPGRADE_STONES', dropChance: 0.15, minQuantity: 1, maxQuantity: 2 },
-      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.right_arm_kinetic_shield.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.ascendant_upgrade.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.ascendant_right_arm_guard.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.ascendant_armor_plating.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.ascendant_core_battery.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.ascendant_right_leg_actuator.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
 
+      // Zone 3 (Crimson Wastes) — Coreforged tier introduced (race-locked per drop, low chance).
       { pentiliId: duskfang.id, resourceType: 'CRYSTAL', dropChance: 0.55, minQuantity: 15, maxQuantity: 30 },
       { pentiliId: duskfang.id, resourceType: 'CREDITS', dropChance: 0.4, minQuantity: 20, maxQuantity: 40 },
-      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.core_fusion_battery.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
       { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.energy_pack_large.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.coreforged_head_scanner.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.coreforged_left_arm_blaster.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.coreforged_left_leg_actuator.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: voidling.id, resourceType: 'CREDITS', dropChance: 0.5, minQuantity: 30, maxQuantity: 60 },
-      { pentiliId: voidling.id, resourceType: 'UPGRADE_STONES', dropChance: 0.2, minQuantity: 2, maxQuantity: 3 },
-      { pentiliId: voidling.id, itemDefinitionId: itemsByKey.right_arm_railgun.id, dropChance: 0.07, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: voidling.id, itemDefinitionId: itemsByKey.coreforged_upgrade.id, dropChance: 0.03, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: voidling.id, itemDefinitionId: itemsByKey.coreforged_right_arm_guard.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: voidling.id, itemDefinitionId: itemsByKey.coreforged_armor_plating.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
 
+      // Zone 4 (Frostbound Reach) — Coreforged tier continues.
       { pentiliId: glacialwraith.id, resourceType: 'METAL', dropChance: 0.6, minQuantity: 40, maxQuantity: 70 },
       { pentiliId: glacialwraith.id, resourceType: 'CRYSTAL', dropChance: 0.5, minQuantity: 30, maxQuantity: 50 },
-      { pentiliId: glacialwraith.id, itemDefinitionId: itemsByKey.armor_titan_plating.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
       { pentiliId: glacialwraith.id, itemDefinitionId: itemsByKey.construction_speedup_large.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: glacialwraith.id, itemDefinitionId: itemsByKey.coreforged_core_battery.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: glacialwraith.id, itemDefinitionId: itemsByKey.coreforged_right_leg_actuator.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: stormcaller.id, resourceType: 'CREDITS', dropChance: 0.5, minQuantity: 50, maxQuantity: 90 },
-      { pentiliId: stormcaller.id, resourceType: 'UPGRADE_STONES', dropChance: 0.25, minQuantity: 2, maxQuantity: 4 },
-      { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.head_targeting_array.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.coreforged_upgrade.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.coreforged_head_scanner.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.coreforged_armor_plating.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
     ],
   });
 
@@ -191,9 +285,9 @@ async function main() {
   // per-hour as duration grows (short = efficient, long = bigger total,
   // better for offline play) — see instructions/OPEN_DECISIONS.md.
   const expeditionTypes = [
-    { key: 'expedition_short', nameKey: 'expeditions.short.name', durationMinutes: 60, metalReward: 60, crystalReward: 20, creditsReward: 10, xpReward: 15, bonusItemDefinitionId: itemsByKey.left_leg_servo_drive.id, bonusItemChance: 0.03 },
-    { key: 'expedition_medium', nameKey: 'expeditions.medium.name', durationMinutes: 300, metalReward: 250, crystalReward: 90, creditsReward: 50, xpReward: 70, bonusItemDefinitionId: itemsByKey.right_arm_kinetic_shield.id, bonusItemChance: 0.06 },
-    { key: 'expedition_long', nameKey: 'expeditions.long.name', durationMinutes: 600, metalReward: 450, crystalReward: 160, creditsReward: 100, xpReward: 130, bonusItemDefinitionId: itemsByKey.core_fusion_battery.id, bonusItemChance: 0.1 },
+    { key: 'expedition_short', nameKey: 'expeditions.short.name', durationMinutes: 60, metalReward: 60, crystalReward: 20, creditsReward: 10, xpReward: 15, bonusItemDefinitionId: itemsByKey.ascendant_left_leg_actuator.id, bonusItemChance: 0.03 },
+    { key: 'expedition_medium', nameKey: 'expeditions.medium.name', durationMinutes: 300, metalReward: 250, crystalReward: 90, creditsReward: 50, xpReward: 70, bonusItemDefinitionId: itemsByKey.ascendant_right_arm_guard.id, bonusItemChance: 0.06 },
+    { key: 'expedition_long', nameKey: 'expeditions.long.name', durationMinutes: 600, metalReward: 450, crystalReward: 160, creditsReward: 100, xpReward: 130, bonusItemDefinitionId: itemsByKey.ascendant_core_battery.id, bonusItemChance: 0.1 },
   ];
   for (const data of expeditionTypes) {
     // update: data (not {}) — bonusItemDefinitionId must follow the item catalog
@@ -267,12 +361,12 @@ async function main() {
     data: [
       { bossId: ridgebackAlpha.id, resourceType: 'METAL', dropChance: 0.9, minQuantity: 50, maxQuantity: 100 },
       { bossId: ridgebackAlpha.id, resourceType: 'CRYSTAL', dropChance: 0.7, minQuantity: 20, maxQuantity: 40 },
-      { bossId: ridgebackAlpha.id, itemDefinitionId: itemsByKey.right_arm_railgun.id, dropChance: 0.15, minQuantity: 1, maxQuantity: 1 },
+      { bossId: ridgebackAlpha.id, itemDefinitionId: itemsByKey.coreforged_left_arm_blaster.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
 
       { bossId: frostSovereign.id, resourceType: 'CREDITS', dropChance: 0.9, minQuantity: 100, maxQuantity: 200 },
-      { bossId: frostSovereign.id, resourceType: 'UPGRADE_STONES', dropChance: 0.5, minQuantity: 3, maxQuantity: 6 },
-      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.core_fusion_battery.id, dropChance: 0.2, minQuantity: 1, maxQuantity: 1 },
-      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.armor_titan_plating.id, dropChance: 0.15, minQuantity: 1, maxQuantity: 1 },
+      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.coreforged_upgrade.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 2 },
+      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.coreforged_core_battery.id, dropChance: 0.12, minQuantity: 1, maxQuantity: 1 },
+      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.coreforged_armor_plating.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
     ],
   });
 

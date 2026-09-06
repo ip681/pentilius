@@ -11,6 +11,7 @@ import { PlayerModule } from './player/player.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PveModule } from './pve/pve.module';
 import { PvpModule } from './pvp/pvp.module';
+import { ReportsModule } from './reports/reports.module';
 import { ResearchModule } from './research/research.module';
 import { RobotModule } from './robot/robot.module';
 import { ZonesModule } from './zones/zones.module';
@@ -31,6 +32,7 @@ import { ZonesModule } from './zones/zones.module';
     BossModule,
     PvpModule,
     ClansModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}

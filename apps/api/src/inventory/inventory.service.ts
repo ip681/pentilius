@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { InventoryItemDto, InventoryResponseDto } from '@pentilius/shared';
-import { Prisma } from '@prisma/client';
+import { InventoryItemDto, InventoryResponseDto, ItemStatsDto, SellValueDto, UpgradeCostDto } from '@pentilius/shared';
+import { ItemQuality, ItemTier, Prisma } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
 import { getEffectiveInventoryCapacity, getUsedInventorySlots } from './inventory-capacity';
 import { EconomyService } from '../player/economy.service';
@@ -48,14 +48,52 @@ export class InventoryService {
         throw new BadRequestException('Item is already at max upgrade level');
       }
 
-      const cost = GAME_BALANCE.itemUpgrade.stonesPerLevel * (item.upgradeLevel + 1);
-      const player = await tx.player.findUniqueOrThrow({ where: { id: playerId } });
-      if (player.upgradeStones < cost) {
-        throw new BadRequestException('Not enough upgrade stones');
+      // Each set has its own upgrade material (e.g. Coreforged gear needs coreforged_upgrade).
+      const tier = item.itemDefinition.tier!;
+      const materialKey = `${tier.toLowerCase()}_upgrade`;
+      const cost = GAME_BALANCE.itemUpgrade.materialsPerLevel * (item.upgradeLevel + 1);
+
+      const material = await tx.itemDefinition.findUniqueOrThrow({ where: { key: materialKey } });
+      const materialStack = await tx.itemInstance.findFirst({
+        where: { playerId, itemDefinitionId: material.id, equippedSlot: null },
+      });
+      if (!materialStack || materialStack.quantity < cost) {
+        throw new BadRequestException('NOT_ENOUGH_MATERIALS');
       }
 
-      await tx.player.update({ where: { id: playerId }, data: { upgradeStones: { decrement: cost } } });
+      if (materialStack.quantity === cost) {
+        await tx.itemInstance.delete({ where: { id: materialStack.id } });
+      } else {
+        await tx.itemInstance.update({ where: { id: materialStack.id }, data: { quantity: { decrement: cost } } });
+      }
       await tx.itemInstance.update({ where: { id: itemInstanceId }, data: { upgradeLevel: { increment: 1 } } });
+
+      return this.getInventory(playerId, tx);
+    });
+  }
+
+  async sellItem(playerId: string, itemInstanceId: string): Promise<InventoryResponseDto> {
+    return this.prisma.$transaction(async (tx) => {
+      const item = await tx.itemInstance.findUnique({
+        where: { id: itemInstanceId },
+        include: { itemDefinition: true },
+      });
+      if (!item) {
+        throw new NotFoundException('Item not found');
+      }
+      if (item.playerId !== playerId) {
+        throw new ForbiddenException('Item does not belong to this player');
+      }
+      if (item.itemDefinition.category !== 'EQUIPMENT') {
+        throw new BadRequestException('ITEM_NOT_SELLABLE');
+      }
+      if (item.equippedSlot !== null) {
+        throw new BadRequestException('ITEM_EQUIPPED');
+      }
+
+      const { metal, crystal } = computeSellValue(item.itemDefinition.tier!, item.quality);
+      await tx.player.update({ where: { id: playerId }, data: { metal: { increment: metal }, crystal: { increment: crystal } } });
+      await tx.itemInstance.delete({ where: { id: itemInstanceId } });
 
       return this.getInventory(playerId, tx);
     });
@@ -121,6 +159,10 @@ export class InventoryService {
 }
 
 function toInventoryItemDto(item: Prisma.ItemInstanceGetPayload<{ include: { itemDefinition: true } }>): InventoryItemDto {
+  const isEquipment = item.itemDefinition.category === 'EQUIPMENT';
+  const baseStats = item.itemDefinition.baseStats as { attack?: number; defense?: number; hp?: number };
+  const atMaxLevel = item.upgradeLevel >= item.itemDefinition.maxUpgradeLevel;
+
   return {
     id: item.id,
     itemDefinitionKey: item.itemDefinition.key,
@@ -128,10 +170,50 @@ function toInventoryItemDto(item: Prisma.ItemInstanceGetPayload<{ include: { ite
     descriptionKey: item.itemDefinition.descriptionKey,
     category: item.itemDefinition.category,
     slot: item.itemDefinition.slot,
+    tier: item.itemDefinition.tier,
     iconAssetId: item.itemDefinition.iconAssetId,
     upgradeLevel: item.upgradeLevel,
     maxUpgradeLevel: item.itemDefinition.maxUpgradeLevel,
     quantity: item.quantity,
     equipped: item.equippedSlot !== null,
+    quality: item.quality,
+    rolledOptions: item.rolledOptions,
+    race: item.race,
+    currentStats: isEquipment ? computeItemStats(baseStats, item.upgradeLevel) : null,
+    nextLevelStats: isEquipment && !atMaxLevel ? computeItemStats(baseStats, item.upgradeLevel + 1) : null,
+    upgradeCost: isEquipment && !atMaxLevel && item.itemDefinition.tier ? computeUpgradeCost(item.itemDefinition.tier, item.upgradeLevel) : null,
+    sellValue: isEquipment && item.itemDefinition.tier ? computeSellValue(item.itemDefinition.tier, item.quality) : null,
+  };
+}
+
+/** This item's own effective attack/defense/hp contribution at the given upgrade level. */
+function computeItemStats(baseStats: { attack?: number; defense?: number; hp?: number }, upgradeLevel: number): ItemStatsDto {
+  const multiplier = 1 + upgradeLevel * GAME_BALANCE.combat.bonusPerUpgradeLevel;
+  const stats: ItemStatsDto = {};
+  if (baseStats.attack) stats.attack = roundToOneDecimal(baseStats.attack * multiplier);
+  if (baseStats.defense) stats.defense = roundToOneDecimal(baseStats.defense * multiplier);
+  if (baseStats.hp) stats.hp = roundToOneDecimal(baseStats.hp * multiplier);
+  return stats;
+}
+
+function roundToOneDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+/** Mirrors inventory.service.ts's upgradeItem() cost formula, for display before the player commits. */
+function computeUpgradeCost(tier: string, upgradeLevel: number): UpgradeCostDto {
+  return {
+    itemDefinitionKey: `${tier.toLowerCase()}_upgrade`,
+    quantity: GAME_BALANCE.itemUpgrade.materialsPerLevel * (upgradeLevel + 1),
+  };
+}
+
+/** Mirrors inventory.service.ts's sellItem() payout formula, for display before the player commits. */
+function computeSellValue(tier: ItemTier, quality: ItemQuality): SellValueDto {
+  const { baseMetalByTier, baseCrystalByTier, qualityMultiplier } = GAME_BALANCE.itemSell;
+  const multiplier = qualityMultiplier[quality];
+  return {
+    metal: Math.round(baseMetalByTier[tier] * multiplier),
+    crystal: Math.round(baseCrystalByTier[tier] * multiplier),
   };
 }

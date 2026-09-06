@@ -6,12 +6,10 @@ import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CombatService } from './combat.service';
 
-const RESOURCE_FIELD: Record<ResourceType, 'metal' | 'crystal' | 'oxygen' | 'credits' | 'upgradeStones'> = {
+const RESOURCE_FIELD: Record<ResourceType, 'metal' | 'crystal' | 'credits'> = {
   METAL: 'metal',
   CRYSTAL: 'crystal',
-  OXYGEN: 'oxygen',
   CREDITS: 'credits',
-  UPGRADE_STONES: 'upgradeStones',
 };
 
 @Injectable()

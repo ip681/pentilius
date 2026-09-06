@@ -8,7 +8,7 @@ const GROUPS = [
   {
     titleKey: 'sidebar.command',
     items: [
-      { href: '/dashboard', labelKey: 'nav.overview' },
+      { href: '/dashboard', labelKey: 'nav.commandCenter' },
       { href: '/clans', labelKey: 'nav.clans' },
       { href: '/players', labelKey: 'nav.leaderboard' },
       { href: '/base', labelKey: 'nav.base' },

@@ -40,7 +40,7 @@ describe('General inventory (e2e)', () => {
     return { Authorization: `Bearer ${accessToken}` };
   }
 
-  it('does not count the equipped starter kit against inventory capacity', async () => {
+  it('counts equipped items against inventory capacity the same as unequipped ones', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
     // The 7-slot starter kit isn't equipped yet at this point in the suite.
     expect(res.body.used).toBe(7);
@@ -52,7 +52,10 @@ describe('General inventory (e2e)', () => {
     }
 
     const afterEquip = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
-    expect(afterEquip.body.used).toBe(0);
+    // Equipping doesn't free up a slot — an equipped item stays visible in the
+    // grid (marked "Equipped"), so it still occupies capacity like anything else.
+    expect(afterEquip.body.used).toBe(7);
+    expect((afterEquip.body.items as { equipped: boolean }[]).every((item) => item.equipped)).toBe(true);
   });
 
   it('rejects using a non-consumable item', async () => {
@@ -84,13 +87,16 @@ describe('General inventory (e2e)', () => {
   });
 
   it('skips a loot item drop once the inventory is at capacity, without blocking the resource/XP reward', async () => {
-    const junk = await prisma.itemDefinition.findUniqueOrThrow({ where: { key: 'left_arm_pulse_cannon' } });
-    // Fill the bag to exactly capacity (30) with unequipped junk.
-    await prisma.itemInstance.createMany({
-      data: Array.from({ length: 30 }, () => ({ playerId, itemDefinitionId: junk.id })),
-    });
+    const junk = await prisma.itemDefinition.findUniqueOrThrow({ where: { key: 'ascendant_left_arm_blaster' } });
+    // Fill the bag to exactly capacity — the player already owns the (now
+    // equipped) starter kit, which counts too, so top up only the remainder.
     const before = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
-    expect(before.body.used).toBe(30);
+    const remainingSlots = before.body.capacity - before.body.used;
+    await prisma.itemInstance.createMany({
+      data: Array.from({ length: remainingSlots }, () => ({ playerId, itemDefinitionId: junk.id })),
+    });
+    const atCapacity = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
+    expect(atCapacity.body.used).toBe(atCapacity.body.capacity);
 
     const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0); // forces a win and every loot roll to hit
     const zones = await request(app.getHttpServer()).get('/api/v1/zones').set(auth()).expect(200);
@@ -106,8 +112,31 @@ describe('General inventory (e2e)', () => {
     expect(attackRes.body.lootSummary.some((entry: { type: string }) => entry.type === 'item')).toBe(false); // the pack drop was skipped — bag was full
 
     const after = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
-    expect(after.body.used).toBe(30); // unchanged — nothing new was added
+    expect(after.body.used).toBe(atCapacity.body.capacity); // unchanged — nothing new was added
 
     await prisma.itemInstance.deleteMany({ where: { playerId, itemDefinitionId: junk.id } });
+  });
+
+  it("rejects upgrading without enough of the item's tier-specific material, and leaves other tiers' stacks untouched", async () => {
+    const inventory = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
+    const weapon = inventory.body.items.find((item: { itemDefinitionKey: string }) => item.itemDefinitionKey === 'pioneer_left_arm_blaster');
+
+    const rejected = await request(app.getHttpServer()).post(`/api/v1/inventory/items/${weapon.id}/upgrade`).set(auth()).expect(400);
+    expect(rejected.body.message).toBe('NOT_ENOUGH_MATERIALS');
+
+    const pioneerMaterial = await prisma.itemDefinition.findUniqueOrThrow({ where: { key: 'pioneer_upgrade' } });
+    const ascendantMaterial = await prisma.itemDefinition.findUniqueOrThrow({ where: { key: 'ascendant_upgrade' } });
+    await prisma.itemInstance.create({ data: { playerId, itemDefinitionId: pioneerMaterial.id, quantity: 1 } });
+    await prisma.itemInstance.create({ data: { playerId, itemDefinitionId: ascendantMaterial.id, quantity: 5 } });
+
+    const upgraded = await request(app.getHttpServer()).post(`/api/v1/inventory/items/${weapon.id}/upgrade`).set(auth()).expect(201);
+    const upgradedWeapon = upgraded.body.items.find((item: { id: string }) => item.id === weapon.id);
+    expect(upgradedWeapon.upgradeLevel).toBe(1);
+
+    // Cost to reach level 1 = materialsPerLevel (1) * (0 + 1) = 1 — the exact-1 stack is fully consumed (row deleted).
+    expect(upgraded.body.items.some((item: { itemDefinitionKey: string }) => item.itemDefinitionKey === 'pioneer_upgrade')).toBe(false);
+    // A different tier's material stack must be untouched.
+    const ascendantAfter = upgraded.body.items.find((item: { itemDefinitionKey: string }) => item.itemDefinitionKey === 'ascendant_upgrade');
+    expect(ascendantAfter.quantity).toBe(5);
   });
 });

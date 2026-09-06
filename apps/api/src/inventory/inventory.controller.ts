@@ -24,4 +24,9 @@ export class InventoryController {
   useItem(@CurrentPlayer() currentPlayer: JwtPayload, @Param('id') id: string, @Body() body: UseItemDto) {
     return this.inventoryService.useConsumable(currentPlayer.sub, id, body.buildingKey);
   }
+
+  @Post('items/:id/sell')
+  sellItem(@CurrentPlayer() currentPlayer: JwtPayload, @Param('id') id: string) {
+    return this.inventoryService.sellItem(currentPlayer.sub, id);
+  }
 }

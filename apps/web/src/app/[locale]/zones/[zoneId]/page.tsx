@@ -82,11 +82,19 @@ export default function ZonePentiliPage() {
             log.push({ text: t('pve.roundDodge', { name: t(target.nameKey) }), kind: 'enemy' });
           } else {
             log.push({ text: t('pve.roundHit', { name: myName, damage: roundData.playerDamage }), kind: 'player' });
+            if (roundData.playerCritical) log.push({ text: t('pve.roundCritical', { name: myName }), kind: 'player' });
+            if (roundData.pentiliReflectedDamage > 0) {
+              log.push({ text: t('pve.roundReflect', { name: t(target.nameKey), damage: roundData.pentiliReflectedDamage }), kind: 'enemy' });
+            }
           }
           if (roundData.playerDodged) {
             log.push({ text: t('pve.roundDodge', { name: myName }), kind: 'player' });
           } else if (roundData.pentiliDamage > 0) {
             log.push({ text: t('pve.roundHit', { name: t(target.nameKey), damage: roundData.pentiliDamage }), kind: 'enemy' });
+            if (roundData.pentiliCritical) log.push({ text: t('pve.roundCritical', { name: t(target.nameKey) }), kind: 'enemy' });
+            if (roundData.playerReflectedDamage > 0) {
+              log.push({ text: t('pve.roundReflect', { name: myName, damage: roundData.playerReflectedDamage }), kind: 'player' });
+            }
           }
           const finished = index >= report.rounds.length;
           if (finished) {

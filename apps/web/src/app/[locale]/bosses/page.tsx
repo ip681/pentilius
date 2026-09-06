@@ -97,8 +97,16 @@ export default function BossesPage() {
             ...previous.log,
             { text: t('bosses.roundHit', { name: t('bosses.party'), damage: roundData.playerDamage }), kind: 'player' },
           ];
+          if (roundData.playerCritical) log.push({ text: t('bosses.roundCritical', { name: t('bosses.party') }), kind: 'player' });
+          if (roundData.pentiliReflectedDamage > 0) {
+            log.push({ text: t('bosses.roundReflect', { name: t(boss.nameKey), damage: roundData.pentiliReflectedDamage }), kind: 'enemy' });
+          }
           if (roundData.pentiliDamage > 0) {
             log.push({ text: t('bosses.roundHit', { name: t(boss.nameKey), damage: roundData.pentiliDamage }), kind: 'enemy' });
+            if (roundData.pentiliCritical) log.push({ text: t('bosses.roundCritical', { name: t(boss.nameKey) }), kind: 'enemy' });
+            if (roundData.playerReflectedDamage > 0) {
+              log.push({ text: t('bosses.roundReflect', { name: t('bosses.party'), damage: roundData.playerReflectedDamage }), kind: 'player' });
+            }
           }
           const finished = index >= result.rounds.length;
           if (finished) {
@@ -250,17 +258,46 @@ export default function BossesPage() {
                           )}
                         </>
                       ) : (
-                        <p className="mb-4 text-xs text-positive">{t('bosses.previousResolved')}</p>
+                        <div className="mb-4 rounded border border-wellBorder bg-well p-3">
+                          <p className="mb-1 text-xs text-textFaint">{t('bosses.previousResolved')}</p>
+                          {(() => {
+                            const myId = boss.encounter.participants.find((p) => p.isCurrentPlayer)?.playerId;
+                            const mine = myId ? boss.encounter.result?.participants.find((p) => p.playerId === myId) : undefined;
+                            if (!mine) return null;
+                            const outcome = boss.encounter.result?.outcome;
+                            return (
+                              <>
+                                <p
+                                  className={`text-sm font-semibold ${outcome === 'WIN' ? 'text-positive' : outcome === 'LOSS' ? 'text-danger' : 'text-textMuted'}`}
+                                >
+                                  {outcome === 'WIN' ? t('bosses.victory') : outcome === 'LOSS' ? t('bosses.defeat') : t('bosses.noOne')}
+                                </p>
+                                {outcome === 'WIN' && (
+                                  <ul className="mt-1 text-xs text-textMuted">
+                                    <li>
+                                      +{mine.xpGained} {t('pve.xpGained')}
+                                    </li>
+                                    {mine.lootSummary.map((loot, index) => (
+                                      <li key={index}>
+                                        {loot.type === 'resource' ? t(`resource.${loot.resourceType}`) : t(loot.itemNameKey!)} x{loot.quantity}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
                       )}
 
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          disabled={!isOpen || isParticipant}
+                          disabled={isOpen && isParticipant}
                           onClick={() => handleJoin(boss.key)}
                           className="flex-1 rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                         >
-                          {isParticipant ? t('bosses.joined') : t('bosses.join')}
+                          {isOpen && isParticipant ? t('bosses.joined') : t('bosses.join')}
                         </button>
                         <button
                           type="button"

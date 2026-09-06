@@ -4,6 +4,7 @@ import type { PlayerPublicProfileDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
 import { Link } from '@/i18n/navigation';
 import { getProfile, getPublicProfile, updateBio } from '@/lib/api-client';
@@ -65,7 +66,15 @@ export default function PlayerProfilePage() {
           </div>
 
           <div className="mb-4 flex flex-wrap gap-4 text-xs text-textMuted">
-            <span>{t(`race.${profile.race}.name`)}</span>
+            <span className="flex items-center gap-1.5">
+              <AssetIcon
+                assetId={`races.${profile.race.toLowerCase()}.icon`}
+                alt={t(`race.${profile.race}.name`)}
+                className="h-4 w-4 object-contain"
+                fallback={<div className="h-4 w-4 rounded-sm bg-accent opacity-60" />}
+              />
+              {t(`race.${profile.race}.name`)}
+            </span>
             <span>
               {profile.clan ? (
                 <>

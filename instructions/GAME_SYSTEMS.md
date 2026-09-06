@@ -82,9 +82,12 @@ Still **UNDEFINED**:
 ## Robot equipment
 **LOCKED:** One combat-robot progression concept based on equipped parts/items — no separate robot classes/types, the robot is entirely defined by what's equipped.
 
-Early weak parts may be universal.
+**LOCKED direction:** Equipment is organized into 3 named sets, one item per anatomical slot per set, each roughly doubling the previous set's base stats:
+- **Pioneer** — starter tier, granted free at registration, also loots in the first zone.
+- **Ascendant** — advanced tier, introduced in the second zone.
+- **Coreforged** — elite tier, introduced in the third zone and continuing into the fourth zone and both bosses.
 
-Advanced parts may be race-specific. Not built yet — deferred to a later milestone (see `instructions/OPEN_DECISIONS.md`) — but `ItemDefinition.race` exists in the schema so this doesn't require another migration later.
+Coreforged items are race-locked, but at the *dropped instance* level, not the item type: "Coreforged Head Scanner" is one definition for every player, but each time one drops it is stamped with one of the 5 races at random, and only a player of that race can equip that specific copy. Early (Pioneer/Ascendant) parts remain universal. `ItemDefinition.race` also exists in the schema, reserved for a possible future fixed-race item *type* — unrelated to and unused by the instance-stamping above.
 
 Slot schema — **LOCKED** (7 anatomical slots):
 - Head;
@@ -100,18 +103,20 @@ Slot schema — **LOCKED** (7 anatomical slots):
 
 - Points awarded per level and the cost to raise a stat both grow with a percentage curve (compounding), so higher levels grant proportionally more points, and each successive point in the *same* stat costs progressively more. Cost resets per stat, so spreading points across stats is cheaper than dumping everything into one.
 - Exact starting points, growth rates, and how much each point contributes to combat are **PROVISIONAL** — see `apps/api/src/config/game-config.ts`'s `robotAttributes` block, not hard-coded anywhere else.
-- Evasion is tracked and spendable but has no combat effect yet — critical rate, damage reduction, reflect damage, and defense success rate (see "Item quality and Excellent options" below) are **UNDEFINED** and deferred to a later phase, along with rarity tiers and a "Combat Power" summary score.
+- Evasion has a real combat effect (per-round dodge chance). Critical hits, Damage Decrease and Damage Reflect are also built now (see "Item quality and Excellent options" below). Defense Success Rate and a "Combat Power" summary score remain **UNDEFINED** and deferred.
+- Critical hits: a flat 10% chance on every attack (same for every combatant, not itemized), dealing a ×1.5 base multiplier — see `apps/api/src/config/game-config.ts`'s `combat.criticalChance`/`combat.criticalMultiplier`.
 
 ## Item quality and Excellent options
-**LOCKED direction:** Some items have special bonus options.
+**LOCKED direction:** Equipment can roll a quality tier with bonus "Excellent options":
+- **Normal** — no bonus option (the common case).
+- **Rare** — 1 bonus option, a flat 5% chance on every granted equipment drop (`GAME_BALANCE.rarity.rareChance`), across all 3 sets.
+- **Epic** — 2 bonus options. Not obtainable through normal loot yet — reserved for a future boss "box/cache" mechanic (see `instructions/OPEN_DECISIONS.md`).
 
-Examples:
-- Defense Success Rate;
-- Damage Decrease;
-- additional Hull/HP;
-- Reflect Damage.
+The option pool depends on the slot's category, and every value is fixed (no rolled ranges) — see `apps/api/src/config/game-config.ts`'s `itemOptionValues`/`itemOptionPools`:
+- **Weapon slots** (Left Arm, Right Arm): Increase Damage +2%, Critical Damage +10%.
+- **Armor slots** (Head, Armor, Core, Left Leg, Right Leg): Increase Max HP +4%, Damage Decrease +4%, Damage Reflect +4%.
 
-Exact rarity tiers, ranges and caps are **UNDEFINED**.
+Defense Success Rate and exact caps on stacking multiple rare/epic items remain **UNDEFINED**.
 
 ## Item upgrades
 **LOCKED:** Items can be upgraded with stones/materials.

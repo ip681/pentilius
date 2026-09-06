@@ -14,7 +14,8 @@ every one can be retuned without touching application code:
 - **Action Energy regeneration rate** → `apps/api/src/config/game-config.ts` (`actionEnergy.regenIntervalMinutes`).
 - **Item upgrade cost/success rules** → `game-config.ts` (`itemUpgrade.stonesPerLevel`); Milestone 1 has no failure chance or protection stones at all yet.
 - **Final damage formula** → `apps/api/src/pve/combat.service.ts` (a simple power-ratio win-probability model); isolated in one service specifically so it can be replaced without touching callers.
-- **Robot item catalog and Core Attributes** → the ship concept was replaced by a combat robot (owner decision) with a LOCKED 7-slot anatomy (Head/Left Arm/Right Arm/Armor/Core/Left Leg/Right Leg, see `instructions/GAME_SYSTEMS.md`). `apps/api/prisma/seed.ts`'s `itemData` is a 3-tier placeholder catalog (starter/advanced/elite), not a final content list. The new Core Attributes point-buy system's curves (points per level, cost per rank, and how much each point contributes to combat) live in `game-config.ts`'s `robotAttributes` block — owner-specified starting points (20) and curve shapes (percentage growth), but the exact rates are placeholders pending playtesting. Evasion points are tracked but inert; critical rate, damage reduction, reflect damage, defense success rate, rarity tiers, and a "Combat Power" score are explicitly deferred to a later phase, not built yet.
+- **Robot item catalog and Core Attributes** → the ship concept was replaced by a combat robot (owner decision) with a LOCKED 7-slot anatomy (Head/Left Arm/Right Arm/Armor/Core/Left Leg/Right Leg, see `instructions/GAME_SYSTEMS.md`). `apps/api/prisma/seed.ts`'s `itemData` is now 3 named sets — Pioneer/Ascendant/Coreforged (owner-named, see `instructions/GAME_SYSTEMS.md`) — one item per slot per set, not a final content list. The Core Attributes point-buy system's curves (points per level, cost per rank, and how much each point contributes to combat) live in `game-config.ts`'s `robotAttributes` block — owner-specified starting points (20) and curve shapes (percentage growth), but the exact rates are placeholders pending playtesting. Evasion, critical hits (flat chance + multiplier), Damage Decrease and Damage Reflect are now built (`game-config.ts`'s `combat`/`itemOptionValues`/`itemOptionPools` blocks); Defense Success Rate and a "Combat Power" summary score remain deferred.
+- **Epic items ("boxes/caches")** → the owner wants Epic-quality gear (2 Excellent options) to come from an openable box/cache dropped by some activity, rather than a direct loot roll — "boxes/caches" was already an anticipated asset category (`instructions/ASSETS.md`) but the mechanic wasn't designed. Not built yet: which activity drops the box (one or both existing bosses, a different/future activity, or several), the box's own drop chance, and what opening it actually does. `apps/api/src/inventory/inventory-capacity.ts`'s `grantItem` only ever rolls Normal/Rare today (`GAME_BALANCE.rarity.rareChance`, 5%) — Epic is schema-ready (`ItemQuality.EPIC`, `ItemInstance.rolledOptions` already accepts 2+ entries) but no code path produces it.
 - **Construction costs/times, building production rates** → `BuildingLevelCost` seed rows in `seed.ts`.
 - **Final resource list** → Milestone 1 ships Metal, Crystal, Oxygen, Credits, and Upgrade Stones (Oxygen currently has no producing building or use — placeholder field only).
 - **Race** → chosen at registration (`Player.race`, one of the five LOCKED races in `instructions/PRODUCT_SPEC.md`) but purely identity for now — no stat bonus is applied. Group synergy (`instructions/GAME_SYSTEMS.md`) only needs to count distinct races in a group, so it doesn't require per-race bonuses to exist yet.
@@ -27,7 +28,7 @@ every one can be retuned without touching application code:
 ## Races
 - individual per-race stat bonuses (group synergy by race *count* is separate and already specified in instructions/GAME_SYSTEMS.md)
 - race symbols/visual art (names and lore are LOCKED — see instructions/PRODUCT_SPEC.md)
-- race-restricted advanced robot parts — owner decision: build later, not now. `ItemDefinition.race` exists in the schema (nullable, every seeded item currently `null`/universal) so this doesn't need another migration once designed.
+- Race-restricted advanced robot parts are now built, but as an **instance-level** stamp, not a per-definition restriction: Coreforged items are shipped via `ItemInstance.race`, set randomly at grant time (`inventory-capacity.ts`'s `grantItem`), not `ItemDefinition.race`. That original field still exists (nullable, every seeded item `null`) and is reserved for a possible different future mechanic — a definition that's *always* one fixed race — which remains undecided/unbuilt.
 
 ## Progression
 - XP curve
@@ -39,9 +40,9 @@ every one can be retuned without touching application code:
 ## Combat
 - final damage formula
 - defense formula
-- critical mechanics
-- reflect caps
-- damage reduction caps
+- critical mechanics beyond the flat 10% chance / ×1.5 base multiplier now built (`game-config.ts`'s `combat.criticalChance`/`criticalMultiplier`) — e.g. whether chance itself should ever be itemized
+- reflect caps — Damage Reflect itself is built (fixed +4% per item, no stacking cap yet)
+- damage reduction caps — Damage Decrease itself is built (fixed +4% per item, no stacking cap yet)
 - online defense bonus
 
 ## PvP
@@ -53,12 +54,13 @@ every one can be retuned without touching application code:
 - PvP costs
 
 ## Items
+- Smelting/Recycling (GAME_SYSTEMS.md): the "sell" half is now built — EQUIPMENT items can be sold for flat Metal/Crystal by tier+quality (`game-config.ts`'s `GAME_BALANCE.itemSell`, `inventory.service.ts`'s `sellItem`), ignoring upgradeLevel by design. A later idea floated by the owner — recycled items yield "fragments" that accumulate into a tier's upgrade stone once enough are collected — is explicitly deferred, not decided or built.
 - final slot list
-- rarity tiers
-- Excellent option ranges
+- rarity tiers beyond Rare — Epic's source (which activity's "box/cache") is undecided, see the bullet above
+- Excellent option values are fixed for the built options (game-config.ts's itemOptionValues); Defense Success Rate and stacking caps across multiple items remain undecided
 - upgrade maximum
 - success/failure rules
-- race restrictions
+- race restrictions beyond Coreforged's instance-level stamp (see the Races section above)
 
 ## Resources
 - final resource list

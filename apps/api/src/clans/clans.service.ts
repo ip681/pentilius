@@ -463,15 +463,18 @@ function toDetailDto(clan: ClanWithDetails, currentPlayerId: string): ClanDetail
     createdAt: clan.createdAt.toISOString(),
     members: clan.members
       .slice()
-      .sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())
+      .sort((a, b) => b.player.level - a.player.level)
       .map((m) => ({
         playerId: m.playerId,
         username: m.player.username,
         race: m.player.race,
+        level: m.player.level,
         role: m.role,
         joinedAt: m.joinedAt.toISOString(),
         isCurrentPlayer: m.playerId === currentPlayerId,
         contributed: { metal: m.contributedMetal, crystal: m.contributedCrystal, credits: m.contributedCredits },
+        online: Date.now() - m.player.lastActiveAt.getTime() < GAME_BALANCE.presence.onlineThresholdMinutes * 60_000,
+        lastActiveAt: m.player.lastActiveAt.toISOString(),
       })),
     myRole: myMembership?.role ?? null,
     buildings: clan.buildings

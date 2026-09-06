@@ -169,13 +169,13 @@ describe('Boss Hunts (e2e)', () => {
 
 async function equipTopTierLoadout(prisma: PrismaService, playerId: string): Promise<void> {
   const keys: { key: string; slot: 'HEAD' | 'LEFT_ARM' | 'RIGHT_ARM' | 'ARMOR' | 'CORE' | 'LEFT_LEG' | 'RIGHT_LEG' }[] = [
-    { key: 'head_targeting_array', slot: 'HEAD' },
-    { key: 'left_arm_pulse_cannon', slot: 'LEFT_ARM' },
-    { key: 'right_arm_railgun', slot: 'RIGHT_ARM' },
-    { key: 'armor_titan_plating', slot: 'ARMOR' },
-    { key: 'core_fusion_battery', slot: 'CORE' },
-    { key: 'left_leg_servo_drive', slot: 'LEFT_LEG' },
-    { key: 'right_leg_servo_drive', slot: 'RIGHT_LEG' },
+    { key: 'coreforged_head_scanner', slot: 'HEAD' },
+    { key: 'coreforged_left_arm_blaster', slot: 'LEFT_ARM' },
+    { key: 'coreforged_right_arm_guard', slot: 'RIGHT_ARM' },
+    { key: 'coreforged_armor_plating', slot: 'ARMOR' },
+    { key: 'coreforged_core_battery', slot: 'CORE' },
+    { key: 'coreforged_left_leg_actuator', slot: 'LEFT_LEG' },
+    { key: 'coreforged_right_leg_actuator', slot: 'RIGHT_LEG' },
   ];
   for (const { key, slot } of keys) {
     const itemDefinition = await prisma.itemDefinition.findUniqueOrThrow({ where: { key } });

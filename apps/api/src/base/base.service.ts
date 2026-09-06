@@ -103,9 +103,7 @@ function toResourcesDto(player: Player): ResourcesDto {
   return {
     metal: player.metal,
     crystal: player.crystal,
-    oxygen: player.oxygen,
     credits: player.credits,
-    upgradeStones: player.upgradeStones,
   };
 }
 

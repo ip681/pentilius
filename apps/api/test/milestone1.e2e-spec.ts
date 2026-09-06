@@ -49,7 +49,6 @@ describe('Milestone 1 vertical slice (e2e)', () => {
     const res = await request(app.getHttpServer()).get('/api/v1/player/me').set(auth()).expect(200);
     expect(res.body.level).toBe(1);
     expect(res.body.resources.metal).toBe(500);
-    expect(res.body.resources.upgradeStones).toBe(5);
 
     const inventory = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
     expect(inventory.body.items).toHaveLength(7);
@@ -120,9 +119,17 @@ describe('Milestone 1 vertical slice (e2e)', () => {
     expect(reports.body[0].outcome).toBe('WIN');
   });
 
-  it('upgrades an equipped item, spending upgrade stones', async () => {
+  it("upgrades an equipped item, spending its tier's upgrade material", async () => {
+    const player = await prisma.player.findUniqueOrThrow({ where: { email } });
+    const material = await prisma.itemDefinition.findUniqueOrThrow({ where: { key: 'pioneer_upgrade' } });
+    // The forced-loot "defeats a Pentili" test above may have already granted a
+    // stack (skitterling now drops pioneer_upgrade too) — clear it first so this
+    // test controls the exact quantity instead of relying on find-order between two stacks.
+    await prisma.itemInstance.deleteMany({ where: { playerId: player.id, itemDefinitionId: material.id } });
+    await prisma.itemInstance.create({ data: { playerId: player.id, itemDefinitionId: material.id, quantity: 10 } });
+
     const inventory = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
-    const weapon = inventory.body.items.find((item: { itemDefinitionKey: string }) => item.itemDefinitionKey === 'left_arm_blaster_mk1');
+    const weapon = inventory.body.items.find((item: { itemDefinitionKey: string }) => item.itemDefinitionKey === 'pioneer_left_arm_blaster');
 
     const upgraded = await request(app.getHttpServer())
       .post(`/api/v1/inventory/items/${weapon.id}/upgrade`)
@@ -131,8 +138,8 @@ describe('Milestone 1 vertical slice (e2e)', () => {
     const upgradedWeapon = upgraded.body.items.find((item: { id: string }) => item.id === weapon.id);
     expect(upgradedWeapon.upgradeLevel).toBe(1);
 
-    const profile = await request(app.getHttpServer()).get('/api/v1/player/me').set(auth()).expect(200);
-    // Started with 5, +1 from the forced skitterling loot roll in the previous test, -5 for this upgrade.
-    expect(profile.body.resources.upgradeStones).toBe(1);
+    // Cost to reach level 1 = materialsPerLevel (1) * (0 + 1) = 1; started with 10.
+    const materialAfter = upgraded.body.items.find((item: { itemDefinitionKey: string }) => item.itemDefinitionKey === 'pioneer_upgrade');
+    expect(materialAfter.quantity).toBe(9);
   });
 });
