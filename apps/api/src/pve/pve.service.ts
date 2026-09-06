@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BattleReportDto, CombatRoundDto, LootResultEntryDto, ResourceType } from '@pentilius/shared';
 import { Prisma } from '@prisma/client';
+import { grantItem } from '../inventory/inventory-capacity';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CombatService } from './combat.service';
@@ -63,15 +64,20 @@ export class PveService {
             lootSummary.push({ type: 'resource', resourceType: drop.resourceType as ResourceType, quantity });
           } else if (drop.itemDefinitionId) {
             const itemDefinition = await tx.itemDefinition.findUniqueOrThrow({ where: { id: drop.itemDefinitionId } });
+            let granted = 0;
             for (let i = 0; i < quantity; i += 1) {
-              await tx.itemInstance.create({ data: { playerId, itemDefinitionId: itemDefinition.id } });
+              if (await grantItem(playerId, itemDefinition.id, tx)) {
+                granted += 1;
+              }
             }
-            lootSummary.push({
-              type: 'item',
-              itemDefinitionKey: itemDefinition.key,
-              itemNameKey: itemDefinition.nameKey,
-              quantity,
-            });
+            if (granted > 0) {
+              lootSummary.push({
+                type: 'item',
+                itemDefinitionKey: itemDefinition.key,
+                itemNameKey: itemDefinition.nameKey,
+                quantity: granted,
+              });
+            }
           }
         }
       }

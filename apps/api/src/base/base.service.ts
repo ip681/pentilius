@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BaseResponseDto, BuildingStateDto, ResourcesDto } from '@pentilius/shared';
-import { BuildingType, Player, PlayerBuilding } from '@prisma/client';
+import { BaseResponseDto, BuildingProductionDto, BuildingStateDto, ResourcesDto } from '@pentilius/shared';
+import { BuildingLevelCost, BuildingType, Player, PlayerBuilding } from '@prisma/client';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-type BuildingWithType = PlayerBuilding & { buildingType: BuildingType & { levelCosts: { level: number; metalCost: number; crystalCost: number; constructionSeconds: number }[] } };
+type BuildingWithType = PlayerBuilding & { buildingType: BuildingType & { levelCosts: BuildingLevelCost[] } };
 
 @Injectable()
 export class BaseService {
@@ -110,6 +110,7 @@ function toResourcesDto(player: Player): ResourcesDto {
 }
 
 function toBuildingStateDto(building: BuildingWithType): BuildingStateDto {
+  const currentLevelCost = building.buildingType.levelCosts.find((cost) => cost.level === building.level);
   const nextLevelCost = building.buildingType.levelCosts.find((cost) => cost.level === building.level + 1);
   return {
     key: building.buildingType.key,
@@ -125,5 +126,23 @@ function toBuildingStateDto(building: BuildingWithType): BuildingStateDto {
           constructionSeconds: nextLevelCost.constructionSeconds,
         }
       : null,
+    currentProduction: toProductionDto(currentLevelCost),
+    nextLevelProduction: toProductionDto(nextLevelCost),
+    currentCapacityBonus: toCapacityBonusDto(building.level, building.buildingType.capacityBonusPerLevel),
+    nextLevelCapacityBonus: nextLevelCost ? toCapacityBonusDto(building.level + 1, building.buildingType.capacityBonusPerLevel) : null,
   };
+}
+
+function toProductionDto(levelCost: BuildingLevelCost | undefined): BuildingProductionDto | null {
+  if (!levelCost?.producesResourceType || !levelCost.producesPerHour) {
+    return null;
+  }
+  return { resourceType: levelCost.producesResourceType, perHour: levelCost.producesPerHour };
+}
+
+function toCapacityBonusDto(level: number, capacityBonusPerLevel: number | null): number | null {
+  if (!capacityBonusPerLevel || level <= 0) {
+    return null;
+  }
+  return level * capacityBonusPerLevel;
 }

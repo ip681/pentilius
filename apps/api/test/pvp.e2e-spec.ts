@@ -158,13 +158,14 @@ describe('PvP (e2e)', () => {
 });
 
 async function equipTopTierLoadout(prisma: PrismaService, playerId: string): Promise<void> {
-  const keys: { key: string; slot: 'WEAPON' | 'HULL' | 'SHIELD' | 'REACTOR' | 'ENGINE' | 'UTILITY' }[] = [
-    { key: 'weapon_railgun', slot: 'WEAPON' },
-    { key: 'hull_titan_plating', slot: 'HULL' },
-    { key: 'shield_aegis_barrier', slot: 'SHIELD' },
-    { key: 'reactor_fusion_core', slot: 'REACTOR' },
-    { key: 'engine_ion_drive', slot: 'ENGINE' },
-    { key: 'utility_deep_scanner', slot: 'UTILITY' },
+  const keys: { key: string; slot: 'HEAD' | 'LEFT_ARM' | 'RIGHT_ARM' | 'ARMOR' | 'CORE' | 'LEFT_LEG' | 'RIGHT_LEG' }[] = [
+    { key: 'head_targeting_array', slot: 'HEAD' },
+    { key: 'left_arm_pulse_cannon', slot: 'LEFT_ARM' },
+    { key: 'right_arm_railgun', slot: 'RIGHT_ARM' },
+    { key: 'armor_titan_plating', slot: 'ARMOR' },
+    { key: 'core_fusion_battery', slot: 'CORE' },
+    { key: 'left_leg_servo_drive', slot: 'LEFT_LEG' },
+    { key: 'right_leg_servo_drive', slot: 'RIGHT_LEG' },
   ];
   for (const { key, slot } of keys) {
     const itemDefinition = await prisma.itemDefinition.findUniqueOrThrow({ where: { key } });

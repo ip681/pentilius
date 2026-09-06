@@ -52,7 +52,7 @@ Use versioned API routes from the beginning:
 /api/v1/player
 /api/v1/base
 /api/v1/buildings
-/api/v1/ship
+/api/v1/robot
 /api/v1/inventory
 /api/v1/pve
 ```

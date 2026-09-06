@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { GAME_BALANCE } from '../config/game-config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClanBonusService } from './clan-bonus.service';
 import { EconomyService } from './economy.service';
@@ -73,7 +74,7 @@ describe('EconomyService', () => {
     });
 
     it('adds one point per regen interval elapsed, preserving remainder time', async () => {
-      const intervalMs = 30 * 60_000;
+      const intervalMs = GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000;
       const start = new Date(Date.now() - intervalMs * 2.5);
       prisma.player.findUniqueOrThrow.mockResolvedValue({ actionEnergy: 5, actionEnergyMax: 10, energyUpdatedAt: start });
       prisma.player.update.mockResolvedValue({ actionEnergy: 7 });
@@ -113,6 +114,21 @@ describe('EconomyService', () => {
       expect(result.leveledUp).toBe(false);
       expect(result.player.level).toBe(1);
       expect(result.player.xp).toBe(10);
+      expect(prisma.player.update.mock.calls[0][0].data.attributePointsAvailable.increment).toBe(0);
+    });
+
+    it('awards Core Attribute points for every level gained, using the growth curve', async () => {
+      prisma.player.findUniqueOrThrow.mockResolvedValue({ id: 'p1', xp: 10, level: 1 });
+      prisma.levelThreshold.findUnique.mockImplementation(({ where }: { where: { level: number } }) => {
+        const thresholds: Record<number, number> = { 1: 20, 2: 30 };
+        return Promise.resolve(thresholds[where.level] ? { level: where.level, xpRequired: thresholds[where.level] } : null);
+      });
+      prisma.player.update.mockImplementation(({ data }) => Promise.resolve({ id: 'p1', ...data }));
+
+      await economy.applyXp('p1', 45);
+
+      // Reaching level 2 awards round(3*1.15^1)=3, reaching level 3 awards round(3*1.15^2)=4.
+      expect(prisma.player.update.mock.calls[0][0].data.attributePointsAvailable.increment).toBe(7);
     });
   });
 });

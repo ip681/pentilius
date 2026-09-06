@@ -1,11 +1,13 @@
 'use client';
 
-import type { CombatStatsDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto } from '@pentilius/shared';
+import type { PlayerProfileDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
+import { CombatStatsCard } from '@/components/CombatStatsCard';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerLink } from '@/components/PlayerLink';
-import { ApiError, attackPvpOpponent, getPvpReports, getPvpStatus, scoutPvpOpponent } from '@/lib/api-client';
+import { ApiError, attackPvpOpponent, getProfile, getPvpReports, getPvpStatus, scoutPvpOpponent } from '@/lib/api-client';
+import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface LogLine {
@@ -30,9 +32,11 @@ export default function PvpPage() {
   const [status, setStatus] = useState<PvpStatusDto | null>(null);
   const [reports, setReports] = useState<PvpBattleReportDto[] | null>(null);
   const [scout, setScout] = useState<PvpScoutDto | null>(null);
+  const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const myName = profile?.username ?? t('pvp.you');
 
   async function loadScout() {
     try {
@@ -48,9 +52,10 @@ export default function PvpPage() {
 
   async function load() {
     try {
-      const [statusRes, reportsRes] = await Promise.all([getPvpStatus(), getPvpReports()]);
+      const [statusRes, reportsRes, profileRes] = await Promise.all([getPvpStatus(), getPvpReports(), getProfile()]);
       setStatus(statusRes);
       setReports(reportsRes);
+      setProfile(profileRes);
       if (statusRes.unlocked) {
         await loadScout();
       }
@@ -72,6 +77,7 @@ export default function PvpPage() {
     setError(null);
     try {
       const report = await attackPvpOpponent(scout.opponentId);
+      notifyProfileChanged();
       setScout(null);
 
       setBattle({
@@ -94,11 +100,15 @@ export default function PvpPage() {
 
         setBattle((previous) => {
           if (!previous) return previous;
-          const log: LogLine[] = [
-            ...previous.log,
-            { text: t('pvp.roundHit', { name: t('pvp.you'), damage: roundData.playerDamage }), kind: 'player' },
-          ];
-          if (roundData.pentiliDamage > 0) {
+          const log: LogLine[] = [...previous.log];
+          if (roundData.pentiliDodged) {
+            log.push({ text: t('pvp.roundDodge', { name: report.opponentUsername }), kind: 'enemy' });
+          } else {
+            log.push({ text: t('pvp.roundHit', { name: myName, damage: roundData.playerDamage }), kind: 'player' });
+          }
+          if (roundData.playerDodged) {
+            log.push({ text: t('pvp.roundDodge', { name: myName }), kind: 'player' });
+          } else if (roundData.pentiliDamage > 0) {
             log.push({ text: t('pvp.roundHit', { name: report.opponentUsername, damage: roundData.pentiliDamage }), kind: 'enemy' });
           }
           const finished = index >= report.rounds.length;
@@ -174,8 +184,8 @@ export default function PvpPage() {
             <div className="rounded-lg border border-panelBorder bg-panel p-5">
               <h2 className="mb-4 text-center text-sm font-semibold">{t('pvp.scoutTitle')}</h2>
               <div className="mb-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                <StatsCard title={t('pvp.you')} stats={scout.myStats} variant="player" />
-                <StatsCard
+                <CombatStatsCard title={myName} stats={scout.myStats} variant="player" />
+                <CombatStatsCard
                   title={<PlayerLink playerId={scout.opponentId} username={scout.opponentUsername} className="hover:text-accent" />}
                   subtitle={`${t(`race.${scout.opponentRace}.name`)} · ${t('pvp.level')} ${scout.opponentLevel}`}
                   stats={scout.opponentStats}
@@ -242,7 +252,7 @@ export default function PvpPage() {
           )}
 
           <section className="mb-6 grid grid-cols-1 items-center gap-5 md:grid-cols-[1fr_120px_1fr]">
-            <FighterPanel name={t('pvp.you')} hp={battle.youHp} maxHp={battle.report.attackerMaxHp} variant="player" />
+            <FighterPanel name={myName} hp={battle.youHp} maxHp={battle.report.attackerMaxHp} variant="player" />
 
             <div className="text-center">
               <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-full border border-accent bg-panelHeader text-lg font-bold text-textMuted">
@@ -291,41 +301,8 @@ export default function PvpPage() {
   );
 }
 
-function StatsCard({
-  title,
-  subtitle,
-  stats,
-  variant,
-}: {
-  title: React.ReactNode;
-  subtitle?: string;
-  stats: CombatStatsDto;
-  variant: 'player' | 'enemy';
-}) {
-  const t = useTranslations();
-  return (
-    <div className={`rounded-md border p-4 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-well`}>
-      <div className="mb-1 text-sm font-semibold">{title}</div>
-      {subtitle && <div className="mb-3 text-[10px] text-textFaint">{subtitle}</div>}
-      <div className="flex flex-col gap-1.5 text-xs">
-        <div className="flex justify-between">
-          <span className="text-textMuted">{t('bosses.attack')}</span>
-          <span>{stats.attack}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-textMuted">{t('bosses.defense')}</span>
-          <span>{stats.defense}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-textMuted">HP</span>
-          <span>{stats.hp}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function FighterPanel({ name, hp, maxHp, variant }: { name: React.ReactNode; hp: number; maxHp: number; variant: 'player' | 'enemy' }) {
+  const t = useTranslations();
   const percent = maxHp > 0 ? Math.max(0, (hp / maxHp) * 100) : 0;
   return (
     <div className={`rounded-lg border p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
@@ -334,7 +311,7 @@ function FighterPanel({ name, hp, maxHp, variant }: { name: React.ReactNode; hp:
         <div className={`h-10 w-32 ${variant === 'enemy' ? 'bg-danger' : 'bg-accent'} opacity-70`} style={{ clipPath: 'polygon(0 50%, 20% 15%, 80% 15%, 100% 50%, 80% 85%, 20% 85%)' }} />
       </div>
       <div className="mb-1.5 flex justify-between text-[11px] text-textMuted">
-        <span>HP</span>
+        <span>{t('robot.stat.hp')}</span>
         <span>
           {Math.round(hp)} / {maxHp}
         </span>

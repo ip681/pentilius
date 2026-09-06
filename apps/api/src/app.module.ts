@@ -12,7 +12,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { PveModule } from './pve/pve.module';
 import { PvpModule } from './pvp/pvp.module';
 import { ResearchModule } from './research/research.module';
-import { ShipModule } from './ship/ship.module';
+import { RobotModule } from './robot/robot.module';
 import { ZonesModule } from './zones/zones.module';
 
 @Module({
@@ -22,7 +22,7 @@ import { ZonesModule } from './zones/zones.module';
     AuthModule,
     PlayerModule,
     BaseModule,
-    ShipModule,
+    RobotModule,
     InventoryModule,
     ZonesModule,
     PveModule,

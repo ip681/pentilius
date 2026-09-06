@@ -14,6 +14,7 @@ every one can be retuned without touching application code:
 - **Action Energy regeneration rate** → `apps/api/src/config/game-config.ts` (`actionEnergy.regenIntervalMinutes`).
 - **Item upgrade cost/success rules** → `game-config.ts` (`itemUpgrade.stonesPerLevel`); Milestone 1 has no failure chance or protection stones at all yet.
 - **Final damage formula** → `apps/api/src/pve/combat.service.ts` (a simple power-ratio win-probability model); isolated in one service specifically so it can be replaced without touching callers.
+- **Robot item catalog and Core Attributes** → the ship concept was replaced by a combat robot (owner decision) with a LOCKED 7-slot anatomy (Head/Left Arm/Right Arm/Armor/Core/Left Leg/Right Leg, see `instructions/GAME_SYSTEMS.md`). `apps/api/prisma/seed.ts`'s `itemData` is a 3-tier placeholder catalog (starter/advanced/elite), not a final content list. The new Core Attributes point-buy system's curves (points per level, cost per rank, and how much each point contributes to combat) live in `game-config.ts`'s `robotAttributes` block — owner-specified starting points (20) and curve shapes (percentage growth), but the exact rates are placeholders pending playtesting. Evasion points are tracked but inert; critical rate, damage reduction, reflect damage, defense success rate, rarity tiers, and a "Combat Power" score are explicitly deferred to a later phase, not built yet.
 - **Construction costs/times, building production rates** → `BuildingLevelCost` seed rows in `seed.ts`.
 - **Final resource list** → Milestone 1 ships Metal, Crystal, Oxygen, Credits, and Upgrade Stones (Oxygen currently has no producing building or use — placeholder field only).
 - **Race** → chosen at registration (`Player.race`, one of the five LOCKED races in `instructions/PRODUCT_SPEC.md`) but purely identity for now — no stat bonus is applied. Group synergy (`instructions/GAME_SYSTEMS.md`) only needs to count distinct races in a group, so it doesn't require per-race bonuses to exist yet.
@@ -26,6 +27,7 @@ every one can be retuned without touching application code:
 ## Races
 - individual per-race stat bonuses (group synergy by race *count* is separate and already specified in instructions/GAME_SYSTEMS.md)
 - race symbols/visual art (names and lore are LOCKED — see instructions/PRODUCT_SPEC.md)
+- race-restricted advanced robot parts — owner decision: build later, not now. `ItemDefinition.race` exists in the schema (nullable, every seeded item currently `null`/universal) so this doesn't need another migration once designed.
 
 ## Progression
 - XP curve
@@ -111,7 +113,7 @@ every one can be retuned without touching application code:
 
 ## Art
 (race symbols moved to the "Races" section below — names/lore are LOCKED)
-- final ship part layering
+- final robot part layering
 - final Pentili visual catalogue
 - final zone art direction
 

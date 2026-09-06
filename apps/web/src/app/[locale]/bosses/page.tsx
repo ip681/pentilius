@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
 import { getBosses, joinBossEncounter, resolveBossEncounter } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
+import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface LogLine {
@@ -56,6 +57,7 @@ export default function BossesPage() {
     setError(null);
     try {
       await joinBossEncounter(key);
+      notifyProfileChanged();
       await load();
     } catch {
       setError(t('bosses.joinError'));
@@ -66,6 +68,7 @@ export default function BossesPage() {
     setError(null);
     try {
       const result = await resolveBossEncounter(boss.key);
+      notifyProfileChanged();
       await load();
 
       setBattle({
@@ -257,6 +260,7 @@ export default function BossesPage() {
 }
 
 function FighterPanel({ name, hp, maxHp, variant }: { name: string; hp: number; maxHp: number; variant: 'player' | 'enemy' }) {
+  const t = useTranslations();
   const percent = maxHp > 0 ? Math.max(0, (hp / maxHp) * 100) : 0;
   return (
     <div className={`rounded-lg border p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
@@ -265,7 +269,7 @@ function FighterPanel({ name, hp, maxHp, variant }: { name: string; hp: number; 
         <div className={`h-10 w-32 ${variant === 'enemy' ? 'bg-danger' : 'bg-accent'} opacity-70`} style={{ clipPath: 'polygon(0 50%, 20% 15%, 80% 15%, 100% 50%, 80% 85%, 20% 85%)' }} />
       </div>
       <div className="mb-1.5 flex justify-between text-[11px] text-textMuted">
-        <span>HP</span>
+        <span>{t('robot.stat.hp')}</span>
         <span>
           {Math.round(hp)} / {maxHp}
         </span>

@@ -7,10 +7,12 @@ import type {
   BossEncounterResultDto,
   BuildingStateDto,
   ClanDetailDto,
+  ClanMessageDto,
   ClanSummaryDto,
+  CombatStatsDto,
   ExpeditionClaimResultDto,
   ExpeditionsResponseDto,
-  InventoryItemDto,
+  InventoryResponseDto,
   LoginRequest,
   MyClanResponseDto,
   PentiliDto,
@@ -24,7 +26,8 @@ import type {
   RegisterRequest,
   ResearchResponseDto,
   ResearchStateDto,
-  ShipSlotDto,
+  RobotAttributesDto,
+  RobotSlotDto,
   ZoneDto,
 } from '@pentilius/shared';
 import { getAccessToken } from './auth';
@@ -115,26 +118,42 @@ export function upgradeBuilding(key: string): Promise<BuildingStateDto> {
   return request<BuildingStateDto>(`/base/buildings/${key}/upgrade`, { method: 'POST', auth: true });
 }
 
-// Ship / equipment
-export function getShip(): Promise<ShipSlotDto[]> {
-  return request<ShipSlotDto[]>('/ship', { auth: true });
+// Robot / equipment
+export function getRobot(): Promise<RobotSlotDto[]> {
+  return request<RobotSlotDto[]>('/robot', { auth: true });
 }
 
-export function equipItem(itemInstanceId: string): Promise<ShipSlotDto[]> {
-  return request<ShipSlotDto[]>(`/ship/equip/${itemInstanceId}`, { method: 'POST', auth: true });
+export function equipItem(itemInstanceId: string): Promise<RobotSlotDto[]> {
+  return request<RobotSlotDto[]>(`/robot/equip/${itemInstanceId}`, { method: 'POST', auth: true });
 }
 
-export function unequipSlot(slot: string): Promise<ShipSlotDto[]> {
-  return request<ShipSlotDto[]>(`/ship/unequip/${slot}`, { method: 'POST', auth: true });
+export function unequipSlot(slot: string): Promise<RobotSlotDto[]> {
+  return request<RobotSlotDto[]>(`/robot/unequip/${slot}`, { method: 'POST', auth: true });
+}
+
+export function getRobotAttributes(): Promise<RobotAttributesDto> {
+  return request<RobotAttributesDto>('/robot/attributes', { auth: true });
+}
+
+export function allocateAttribute(stat: string): Promise<RobotAttributesDto> {
+  return request<RobotAttributesDto>('/robot/attributes/allocate', { method: 'POST', auth: true, body: { stat } });
+}
+
+export function getRobotCombatStats(): Promise<CombatStatsDto> {
+  return request<CombatStatsDto>('/robot/combat-stats', { auth: true });
 }
 
 // Inventory
-export function getInventory(): Promise<InventoryItemDto[]> {
-  return request<InventoryItemDto[]>('/inventory', { auth: true });
+export function getInventory(): Promise<InventoryResponseDto> {
+  return request<InventoryResponseDto>('/inventory', { auth: true });
 }
 
-export function upgradeItem(itemInstanceId: string): Promise<InventoryItemDto> {
-  return request<InventoryItemDto>(`/inventory/items/${itemInstanceId}/upgrade`, { method: 'POST', auth: true });
+export function upgradeItem(itemInstanceId: string): Promise<InventoryResponseDto> {
+  return request<InventoryResponseDto>(`/inventory/items/${itemInstanceId}/upgrade`, { method: 'POST', auth: true });
+}
+
+export function consumeItem(itemInstanceId: string, buildingKey?: string): Promise<InventoryResponseDto> {
+  return request<InventoryResponseDto>(`/inventory/items/${itemInstanceId}/use`, { method: 'POST', auth: true, body: { buildingKey } });
 }
 
 // Zones / Pentili
@@ -266,4 +285,12 @@ export function donateToClan(payload: { metal?: number; crystal?: number; credit
 
 export function upgradeClanBuilding(key: string): Promise<ClanDetailDto> {
   return request<ClanDetailDto>(`/clans/buildings/${key}/upgrade`, { method: 'POST', auth: true });
+}
+
+export function getClanMessages(clanId: string): Promise<ClanMessageDto[]> {
+  return request<ClanMessageDto[]>(`/clans/${clanId}/messages`, { auth: true });
+}
+
+export function sendClanMessage(clanId: string, text: string): Promise<ClanMessageDto> {
+  return request<ClanMessageDto>(`/clans/${clanId}/messages`, { method: 'POST', auth: true, body: { text } });
 }

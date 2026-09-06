@@ -7,8 +7,8 @@ Use placeholders during early implementation and replace them later.
 
 ## Asset categories
 Expected categories include:
-- ship;
-- ship parts/modules;
+- robot;
+- robot parts/modules;
 - Pentili;
 - lands/zones;
 - buildings;
@@ -19,18 +19,18 @@ Expected categories include:
 - boxes/caches;
 - UI backgrounds and decorative elements.
 
-## Ship equipment visuals
-Because the ship is defined by its equipped parts, visual parts should eventually use a consistent master canvas/perspective.
+## Robot equipment visuals
+Because the robot is defined by its equipped parts, visual parts should eventually use a consistent master canvas/perspective (a fixed humanoid frame: head, left arm, right arm, armor/torso, core, left leg, right leg).
 
 Do not generate arbitrary equipment images in incompatible perspectives.
 
 Potential future approach:
-- base ship layer;
-- weapon layer;
-- engine layer;
-- hull layer;
-- shield/effect layer;
-- utility visuals.
+- base frame layer;
+- head layer;
+- arm layers (left/right);
+- armor/torso layer;
+- core/effect layer;
+- leg layers (left/right).
 
 Exact layering and coordinates are **UNDEFINED**.
 
@@ -51,7 +51,7 @@ The visual file can later be replaced without changing game logic.
 Placeholder assets are sufficient.
 
 Recommended initial placeholder set:
-- 1 ship;
+- 1 robot;
 - several equipment icons;
 - 3–5 Pentili;
 - 2 lands;

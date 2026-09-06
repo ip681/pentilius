@@ -1,8 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { CombatStatsDto, LootResultEntryDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto, ResourceType } from '@pentilius/shared';
+import { LootResultEntryDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto, ResourceType } from '@pentilius/shared';
 import { Player, Prisma, PvpBattleReport } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
-import { CombatService } from '../pve/combat.service';
+import { CombatService, toStatsDto } from '../pve/combat.service';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -71,8 +71,8 @@ export class PvpService {
       opponentUsername: opponent.username,
       opponentRace: opponent.race,
       opponentLevel: opponent.level,
-      myStats: roundStats(myStats),
-      opponentStats: roundStats(opponentStats),
+      myStats: toStatsDto(myStats),
+      opponentStats: toStatsDto(opponentStats),
     };
   }
 
@@ -112,6 +112,7 @@ export class PvpService {
         attack: defenderStats.attack,
         defense: defenderStats.defense,
         maxHp: Math.round(defenderStats.hp),
+        evasion: defenderStats.evasion,
       });
 
       const lootSummary: LootResultEntryDto[] = [];
@@ -213,9 +214,6 @@ export class PvpService {
   }
 }
 
-function roundStats(stats: CombatStatsDto): CombatStatsDto {
-  return { attack: Math.round(stats.attack), defense: Math.round(stats.defense), hp: Math.round(stats.hp) };
-}
 
 function toReportDto(
   report: PvpBattleReport,

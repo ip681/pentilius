@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
 import { getResearches, startResearch } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
+import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 function researchProgress(research: ResearchStateDto): { active: boolean; percent: number; secondsLeft: number } {
@@ -48,6 +49,7 @@ export default function ResearchPage() {
     setError(null);
     try {
       await startResearch(key);
+      notifyProfileChanged();
       await load();
     } catch {
       setError(t('research.startError'));

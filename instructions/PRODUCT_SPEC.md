@@ -32,7 +32,7 @@ A new season restarts the same competitive race.
 Pentilius is intended for busy working people.
 
 - No manual character movement.
-- No manual ship piloting.
+- No manual robot piloting.
 - No action-combat requirement.
 - Battles are automatically simulated.
 - Short sessions should provide meaningful progress.
@@ -71,12 +71,12 @@ For cooperative content:
 
 Do not create boss-specific race roles. Races improve their own player stats/builds; group diversity provides synergy.
 
-## Ship and base — LOCKED
-There are no separate ship classes/types as the core progression model.
+## Robot and base — LOCKED
+There are no separate robot classes/types as the core progression model.
 
 There are no separate base classes/types.
 
-The player's ship is defined by the equipped parts/items and their upgrades.
+The player's combat robot is defined by the equipped parts/items and their upgrades.
 
 The base is defined by its buildings and development.
 

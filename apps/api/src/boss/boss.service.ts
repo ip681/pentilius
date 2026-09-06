@@ -9,6 +9,7 @@ import {
 } from '@pentilius/shared';
 import { Boss, BossEncounter, BossEncounterParticipant, BossLootDrop, Player, Prisma, Zone } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
+import { grantItem } from '../inventory/inventory-capacity';
 import { CombatService } from '../pve/combat.service';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -170,10 +171,15 @@ export class BossService {
             lootSummary.push({ type: 'resource', resourceType: drop.resourceType as ResourceType, quantity });
           } else if (drop.itemDefinitionId) {
             const itemDefinition = await tx.itemDefinition.findUniqueOrThrow({ where: { id: drop.itemDefinitionId } });
+            let granted = 0;
             for (let q = 0; q < quantity; q += 1) {
-              await tx.itemInstance.create({ data: { playerId: participant.playerId, itemDefinitionId: itemDefinition.id } });
+              if (await grantItem(participant.playerId, itemDefinition.id, tx)) {
+                granted += 1;
+              }
             }
-            lootSummary.push({ type: 'item', itemDefinitionKey: itemDefinition.key, itemNameKey: itemDefinition.nameKey, quantity });
+            if (granted > 0) {
+              lootSummary.push({ type: 'item', itemDefinitionKey: itemDefinition.key, itemNameKey: itemDefinition.nameKey, quantity: granted });
+            }
           }
         }
       }

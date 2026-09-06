@@ -27,7 +27,7 @@ Implement:
 4. initial resources;
 5. basic resource production;
 6. building upgrade with server timer;
-7. ship page;
+7. robot page;
 8. inventory;
 9. equipment slots;
 10. equip/unequip;
@@ -45,7 +45,7 @@ Implement:
 Success condition:
 A new player can start locally and experience:
 
-`base → collect/develop → equip ship → spend energy → fight Pentili → receive XP/loot → level up → unlock land → improve equipment`
+`base → collect/develop → equip robot → spend energy → fight Pentili → receive XP/loot → level up → unlock land → improve equipment`
 
 ## Milestone 2 — PvE depth
 Planned:

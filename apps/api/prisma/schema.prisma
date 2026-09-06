@@ -1,4 +1,4 @@
-// Milestone 1: single-player vertical slice (base, buildings, ship/equipment,
+// Milestone 1: single-player vertical slice (base, buildings, robot/equipment,
 // inventory, zones, PvE, XP/level, loot, item upgrade, battle reports).
 // Static definitions vs. player state split per instructions/ARCHITECTURE.md.
 //
@@ -21,12 +21,13 @@ datasource db {
 }
 
 enum EquipmentSlot {
-  WEAPON
-  ENGINE
-  HULL
-  SHIELD
-  REACTOR
-  UTILITY
+  HEAD
+  LEFT_ARM
+  RIGHT_ARM
+  ARMOR
+  CORE
+  LEFT_LEG
+  RIGHT_LEG
 }
 
 enum ResourceType {
@@ -91,6 +92,20 @@ model Player {
   // shape; this is the placeholder mechanism. Null when not protected.
   pvpProtectedUntil DateTime?
 
+  // "Core Attributes" — personal stat points earned from leveling
+  // (instructions/GAME_SYSTEMS.md has no prior ruling on this; it's a new
+  // system introduced alongside the ship→robot redesign). 20 is
+  // owner-specified for new accounts, not a guess. Pure point-buy: no
+  // resource cost, no respec yet (instructions/OPEN_DECISIONS.md-style
+  // placeholder for everything else about this system).
+  attributePointsAvailable Int @default(20)
+  baseDamage               Int @default(0)
+  baseDefense              Int @default(0)
+  baseHp                   Int @default(0)
+  // Tracked and spendable now; has no effect on combat until evasion is
+  // wired into the formula in a later phase.
+  baseEvasion              Int @default(0)
+
   buildings              PlayerBuilding[]
   items                  ItemInstance[]
   battleReports          BattleReport[]
@@ -100,6 +115,7 @@ model Player {
   pvpAttacks             PvpBattleReport[] @relation("PvpAttacks")
   pvpDefenses            PvpBattleReport[] @relation("PvpDefenses")
   clanMembership         ClanMembership?
+  clanMessages           ClanMessage[]
 
   @@map("players")
 }
@@ -158,6 +174,11 @@ model BuildingType {
   nameKey     String
   maxLevel    Int
   iconAssetId String
+  // Only the Warehouse sets this (owner decision: Warehouse raises personal
+  // inventory capacity — it previously had no coded effect at all). Null/0
+  // for every other building. Mirrors ClanBuildingType.bonusPerLevel's flat
+  // per-level pattern, scoped to the one building that needs it.
+  capacityBonusPerLevel Int?
 
   levelCosts      BuildingLevelCost[]
   playerBuildings PlayerBuilding[]
@@ -181,19 +202,35 @@ model BuildingLevelCost {
   @@map("building_level_costs")
 }
 
+// General inventory (owner decision): the catalog isn't robot-equipment-only
+// — CONSUMABLE items (starting with Energy Packs) have no slot and stack in
+// one ItemInstance row per player via ItemInstance.quantity, instead of one
+// row per physical item like EQUIPMENT does.
+enum ItemCategory {
+  EQUIPMENT
+  CONSUMABLE
+}
+
 model ItemDefinition {
   id              String        @id @default(uuid())
   key             String        @unique
   nameKey         String
   descriptionKey  String
-  slot            EquipmentSlot
+  // Null for CONSUMABLE items — they have no equipment slot.
+  slot            EquipmentSlot?
+  category        ItemCategory  @default(EQUIPMENT)
   // Flexible bag, not fixed columns: exact stat schema is UNDEFINED
-  // (instructions/OPEN_DECISIONS.md: "final slot list"). M1 reads
-  // attack/defense/hp keys from it — see pve/combat.service.ts.
+  // (instructions/OPEN_DECISIONS.md: "final slot list"). EQUIPMENT reads
+  // attack/defense/hp keys from it (see pve/combat.service.ts); CONSUMABLE
+  // reads an `energy` key instead (see inventory/inventory.service.ts).
   baseStats       Json
   maxUpgradeLevel Int
   iconAssetId     String
   isStarterItem   Boolean       @default(false)
+  // Future race-restricted advanced parts (instructions/GAME_SYSTEMS.md:
+  // "Advanced parts may be race-specific") — schema-ready per owner request,
+  // but not built yet: every seeded item leaves this null (universal).
+  race            Race?
 
   itemInstances   ItemInstance[]
   lootDrops       LootDrop[]
@@ -230,6 +267,10 @@ model ItemInstance {
   itemDefinitionId String
   upgradeLevel     Int            @default(0)
   equippedSlot     EquipmentSlot?
+  // Stack size — always 1 for EQUIPMENT (each instance is a distinct physical
+  // item with its own upgrade level); a CONSUMABLE stacks multiple pickups
+  // of the same ItemDefinition into one row instead of one row each.
+  quantity         Int            @default(1)
   acquiredAt       DateTime       @default(now())
 
   player         Player         @relation(fields: [playerId], references: [id])
@@ -504,6 +545,7 @@ model Clan {
 
   members   ClanMembership[]
   buildings ClanBuilding[]
+  messages  ClanMessage[]
 
   @@map("clans")
 }
@@ -587,4 +629,24 @@ model ClanMembership {
   player Player @relation(fields: [playerId], references: [id])
 
   @@map("clan_memberships")
+}
+
+// Clan chat (owner decision: clan-only, not open player-to-player DMs — a
+// clan's membership is a bounded, already-cooperating audience with much
+// lower abuse risk). Plain text, max length and per-player send-rate enforced
+// server-side (game-config.ts's clanChat block). Only the most recent
+// historyLimit messages are ever returned — no pagination/archival system,
+// no deletion job; older rows just aren't queried.
+model ClanMessage {
+  id        String   @id @default(uuid())
+  clanId    String
+  playerId  String
+  text      String
+  createdAt DateTime @default(now())
+
+  clan   Clan   @relation(fields: [clanId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([clanId, createdAt])
+  @@map("clan_messages")
 }

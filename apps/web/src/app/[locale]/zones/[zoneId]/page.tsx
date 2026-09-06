@@ -1,11 +1,12 @@
 'use client';
 
-import type { BattleReportDto, PentiliDto } from '@pentilius/shared';
+import type { BattleReportDto, PentiliDto, PlayerProfileDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
-import { attackPentili, getPentiliInZone } from '@/lib/api-client';
+import { attackPentili, getPentiliInZone, getProfile } from '@/lib/api-client';
+import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface LogLine {
@@ -32,14 +33,17 @@ export default function ZonePentiliPage() {
   const zoneId = params.zoneId;
 
   const [pentili, setPentili] = useState<PentiliDto[] | null>(null);
+  const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const myName = profile?.username ?? t('pve.you');
 
   useEffect(() => {
     getPentiliInZone(zoneId)
       .then(setPentili)
       .catch(() => setError(t('pve.loadError')));
+    getProfile().then(setProfile).catch(() => undefined);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
@@ -50,6 +54,7 @@ export default function ZonePentiliPage() {
     setError(null);
     try {
       const report = await attackPentili(target.id);
+      notifyProfileChanged();
 
       setBattle({
         target,
@@ -72,11 +77,15 @@ export default function ZonePentiliPage() {
 
         setBattle((previous) => {
           if (!previous) return previous;
-          const log: LogLine[] = [
-            ...previous.log,
-            { text: t('pve.roundHit', { name: t('pve.you'), damage: roundData.playerDamage }), kind: 'player' },
-          ];
-          if (roundData.pentiliDamage > 0) {
+          const log: LogLine[] = [...previous.log];
+          if (roundData.pentiliDodged) {
+            log.push({ text: t('pve.roundDodge', { name: t(target.nameKey) }), kind: 'enemy' });
+          } else {
+            log.push({ text: t('pve.roundHit', { name: myName, damage: roundData.playerDamage }), kind: 'player' });
+          }
+          if (roundData.playerDodged) {
+            log.push({ text: t('pve.roundDodge', { name: myName }), kind: 'player' });
+          } else if (roundData.pentiliDamage > 0) {
             log.push({ text: t('pve.roundHit', { name: t(target.nameKey), damage: roundData.pentiliDamage }), kind: 'enemy' });
           }
           const finished = index >= report.rounds.length;
@@ -127,7 +136,7 @@ export default function ZonePentiliPage() {
           )}
 
           <section className="mb-6 grid grid-cols-1 items-center gap-5 md:grid-cols-[1fr_120px_1fr]">
-            <FighterPanel name={t('pve.you')} hp={battle.playerHp} maxHp={battle.report.playerMaxHp} variant="player" />
+            <FighterPanel name={myName} hp={battle.playerHp} maxHp={battle.report.playerMaxHp} variant="player" />
 
             <div className="text-center">
               <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-full border border-accent bg-panelHeader text-lg font-bold text-textMuted">
@@ -202,6 +211,7 @@ export default function ZonePentiliPage() {
 }
 
 function FighterPanel({ name, hp, maxHp, variant }: { name: string; hp: number; maxHp: number; variant: 'player' | 'enemy' }) {
+  const t = useTranslations();
   const percent = maxHp > 0 ? Math.max(0, (hp / maxHp) * 100) : 0;
   return (
     <div className={`rounded-lg border p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
@@ -210,7 +220,7 @@ function FighterPanel({ name, hp, maxHp, variant }: { name: string; hp: number; 
         <div className={`h-10 w-32 ${variant === 'enemy' ? 'bg-danger' : 'bg-accent'} opacity-70`} style={{ clipPath: 'polygon(0 50%, 20% 15%, 80% 15%, 100% 50%, 80% 85%, 20% 85%)' }} />
       </div>
       <div className="mb-1.5 flex justify-between text-[11px] text-textMuted">
-        <span>HP</span>
+        <span>{t('robot.stat.hp')}</span>
         <span>
           {Math.round(hp)} / {maxHp}
         </span>

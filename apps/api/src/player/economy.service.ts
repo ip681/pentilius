@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Player, Prisma, ResearchBonusType } from '@prisma/client';
-import { GAME_BALANCE } from '../config/game-config';
+import { attributePointsForLevel, GAME_BALANCE } from '../config/game-config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClanBonusService } from './clan-bonus.service';
 
@@ -103,6 +103,7 @@ export class EconomyService {
     let xp = player.xp + xpGained;
     let level = player.level;
     let leveledUp = false;
+    let attributePointsGained = 0;
 
     for (;;) {
       const threshold = await tx.levelThreshold.findUnique({ where: { level } });
@@ -112,9 +113,13 @@ export class EconomyService {
       xp -= threshold.xpRequired;
       level += 1;
       leveledUp = true;
+      attributePointsGained += attributePointsForLevel(level);
     }
 
-    player = await tx.player.update({ where: { id: playerId }, data: { xp, level } });
+    player = await tx.player.update({
+      where: { id: playerId },
+      data: { xp, level, attributePointsAvailable: { increment: attributePointsGained } },
+    });
     return { player, leveledUp };
   }
 

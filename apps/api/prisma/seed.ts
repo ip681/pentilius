@@ -61,8 +61,12 @@ async function main() {
         maxLevel: 10,
         iconAssetId: 'buildings.crystal_extractor.icon',
       },
-      { key: 'warehouse', nameKey: 'buildings.warehouse.name', maxLevel: 10, iconAssetId: 'buildings.warehouse.icon' },
-    ].map((data) => prisma.buildingType.upsert({ where: { key: data.key }, update: {}, create: data })),
+      // capacityBonusPerLevel: raises personal inventory capacity — owner
+      // decision, resolving the Warehouse's previous lack of any coded effect.
+      { key: 'warehouse', nameKey: 'buildings.warehouse.name', maxLevel: 10, iconAssetId: 'buildings.warehouse.icon', capacityBonusPerLevel: 3 },
+      // update: data (not {}) — capacityBonusPerLevel must follow this list
+      // when it changes, not freeze at whatever an existing row already has.
+    ].map((data) => prisma.buildingType.upsert({ where: { key: data.key }, update: data, create: data })),
   );
   const [metalMine, crystalExtractor, warehouse] = buildingTypes;
 
@@ -86,24 +90,61 @@ async function main() {
   }
 
   const itemData = [
-    { key: 'weapon_starter_blaster', nameKey: 'items.weapon_starter_blaster.name', descriptionKey: 'items.weapon_starter_blaster.description', slot: 'WEAPON' as const, baseStats: { attack: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.weapon_starter_blaster.icon', isStarterItem: true },
-    { key: 'engine_starter_thruster', nameKey: 'items.engine_starter_thruster.name', descriptionKey: 'items.engine_starter_thruster.description', slot: 'ENGINE' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.engine_starter_thruster.icon', isStarterItem: true },
-    { key: 'hull_starter_plating', nameKey: 'items.hull_starter_plating.name', descriptionKey: 'items.hull_starter_plating.description', slot: 'HULL' as const, baseStats: { hp: 15, defense: 2 }, maxUpgradeLevel: 5, iconAssetId: 'items.hull_starter_plating.icon', isStarterItem: true },
-    { key: 'shield_starter_barrier', nameKey: 'items.shield_starter_barrier.name', descriptionKey: 'items.shield_starter_barrier.description', slot: 'SHIELD' as const, baseStats: { defense: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.shield_starter_barrier.icon', isStarterItem: true },
-    { key: 'reactor_starter_core', nameKey: 'items.reactor_starter_core.name', descriptionKey: 'items.reactor_starter_core.description', slot: 'REACTOR' as const, baseStats: { attack: 2, defense: 2 }, maxUpgradeLevel: 5, iconAssetId: 'items.reactor_starter_core.icon', isStarterItem: true },
-    { key: 'utility_starter_scanner', nameKey: 'items.utility_starter_scanner.name', descriptionKey: 'items.utility_starter_scanner.description', slot: 'UTILITY' as const, baseStats: { attack: 1 }, maxUpgradeLevel: 5, iconAssetId: 'items.utility_starter_scanner.icon', isStarterItem: true },
-    { key: 'weapon_pulse_cannon', nameKey: 'items.weapon_pulse_cannon.name', descriptionKey: 'items.weapon_pulse_cannon.description', slot: 'WEAPON' as const, baseStats: { attack: 12 }, maxUpgradeLevel: 8, iconAssetId: 'items.weapon_pulse_cannon.icon', isStarterItem: false },
-    { key: 'hull_reinforced_plating', nameKey: 'items.hull_reinforced_plating.name', descriptionKey: 'items.hull_reinforced_plating.description', slot: 'HULL' as const, baseStats: { hp: 30, defense: 5 }, maxUpgradeLevel: 8, iconAssetId: 'items.hull_reinforced_plating.icon', isStarterItem: false },
-    { key: 'engine_ion_drive', nameKey: 'items.engine_ion_drive.name', descriptionKey: 'items.engine_ion_drive.description', slot: 'ENGINE' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8, iconAssetId: 'items.engine_ion_drive.icon', isStarterItem: false },
-    { key: 'shield_aegis_barrier', nameKey: 'items.shield_aegis_barrier.name', descriptionKey: 'items.shield_aegis_barrier.description', slot: 'SHIELD' as const, baseStats: { defense: 10 }, maxUpgradeLevel: 8, iconAssetId: 'items.shield_aegis_barrier.icon', isStarterItem: false },
-    { key: 'reactor_fusion_core', nameKey: 'items.reactor_fusion_core.name', descriptionKey: 'items.reactor_fusion_core.description', slot: 'REACTOR' as const, baseStats: { attack: 6, defense: 4 }, maxUpgradeLevel: 8, iconAssetId: 'items.reactor_fusion_core.icon', isStarterItem: false },
-    { key: 'utility_deep_scanner', nameKey: 'items.utility_deep_scanner.name', descriptionKey: 'items.utility_deep_scanner.description', slot: 'UTILITY' as const, baseStats: { attack: 4 }, maxUpgradeLevel: 8, iconAssetId: 'items.utility_deep_scanner.icon', isStarterItem: false },
-    { key: 'weapon_railgun', nameKey: 'items.weapon_railgun.name', descriptionKey: 'items.weapon_railgun.description', slot: 'WEAPON' as const, baseStats: { attack: 20 }, maxUpgradeLevel: 10, iconAssetId: 'items.weapon_railgun.icon', isStarterItem: false },
-    { key: 'hull_titan_plating', nameKey: 'items.hull_titan_plating.name', descriptionKey: 'items.hull_titan_plating.description', slot: 'HULL' as const, baseStats: { hp: 60, defense: 10 }, maxUpgradeLevel: 10, iconAssetId: 'items.hull_titan_plating.icon', isStarterItem: false },
+    // Starter tier — one per slot, granted free to every new robot (Player.isStarterItem).
+    { key: 'head_scanner_mk1', nameKey: 'items.head_scanner_mk1.name', descriptionKey: 'items.head_scanner_mk1.description', slot: 'HEAD' as const, baseStats: { attack: 1 }, maxUpgradeLevel: 5, iconAssetId: 'items.head_scanner_mk1.icon', isStarterItem: true },
+    { key: 'left_arm_blaster_mk1', nameKey: 'items.left_arm_blaster_mk1.name', descriptionKey: 'items.left_arm_blaster_mk1.description', slot: 'LEFT_ARM' as const, baseStats: { attack: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.left_arm_blaster_mk1.icon', isStarterItem: true },
+    { key: 'right_arm_guard_mk1', nameKey: 'items.right_arm_guard_mk1.name', descriptionKey: 'items.right_arm_guard_mk1.description', slot: 'RIGHT_ARM' as const, baseStats: { defense: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.right_arm_guard_mk1.icon', isStarterItem: true },
+    { key: 'armor_plating_mk1', nameKey: 'items.armor_plating_mk1.name', descriptionKey: 'items.armor_plating_mk1.description', slot: 'ARMOR' as const, baseStats: { hp: 15, defense: 2 }, maxUpgradeLevel: 5, iconAssetId: 'items.armor_plating_mk1.icon', isStarterItem: true },
+    { key: 'core_battery_mk1', nameKey: 'items.core_battery_mk1.name', descriptionKey: 'items.core_battery_mk1.description', slot: 'CORE' as const, baseStats: { attack: 2, defense: 2 }, maxUpgradeLevel: 5, iconAssetId: 'items.core_battery_mk1.icon', isStarterItem: true },
+    { key: 'left_leg_actuator_mk1', nameKey: 'items.left_leg_actuator_mk1.name', descriptionKey: 'items.left_leg_actuator_mk1.description', slot: 'LEFT_LEG' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.left_leg_actuator_mk1.icon', isStarterItem: true },
+    { key: 'right_leg_actuator_mk1', nameKey: 'items.right_leg_actuator_mk1.name', descriptionKey: 'items.right_leg_actuator_mk1.description', slot: 'RIGHT_LEG' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5, iconAssetId: 'items.right_leg_actuator_mk1.icon', isStarterItem: true },
+    // Advanced tier — one per slot, found as loot/expedition/boss rewards.
+    { key: 'head_targeting_array', nameKey: 'items.head_targeting_array.name', descriptionKey: 'items.head_targeting_array.description', slot: 'HEAD' as const, baseStats: { attack: 4 }, maxUpgradeLevel: 8, iconAssetId: 'items.head_targeting_array.icon', isStarterItem: false },
+    { key: 'left_arm_pulse_cannon', nameKey: 'items.left_arm_pulse_cannon.name', descriptionKey: 'items.left_arm_pulse_cannon.description', slot: 'LEFT_ARM' as const, baseStats: { attack: 12 }, maxUpgradeLevel: 8, iconAssetId: 'items.left_arm_pulse_cannon.icon', isStarterItem: false },
+    { key: 'right_arm_kinetic_shield', nameKey: 'items.right_arm_kinetic_shield.name', descriptionKey: 'items.right_arm_kinetic_shield.description', slot: 'RIGHT_ARM' as const, baseStats: { defense: 10 }, maxUpgradeLevel: 8, iconAssetId: 'items.right_arm_kinetic_shield.icon', isStarterItem: false },
+    { key: 'armor_reinforced_plating', nameKey: 'items.armor_reinforced_plating.name', descriptionKey: 'items.armor_reinforced_plating.description', slot: 'ARMOR' as const, baseStats: { hp: 30, defense: 5 }, maxUpgradeLevel: 8, iconAssetId: 'items.armor_reinforced_plating.icon', isStarterItem: false },
+    { key: 'core_fusion_battery', nameKey: 'items.core_fusion_battery.name', descriptionKey: 'items.core_fusion_battery.description', slot: 'CORE' as const, baseStats: { attack: 6, defense: 4 }, maxUpgradeLevel: 8, iconAssetId: 'items.core_fusion_battery.icon', isStarterItem: false },
+    { key: 'left_leg_servo_drive', nameKey: 'items.left_leg_servo_drive.name', descriptionKey: 'items.left_leg_servo_drive.description', slot: 'LEFT_LEG' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8, iconAssetId: 'items.left_leg_servo_drive.icon', isStarterItem: false },
+    { key: 'right_leg_servo_drive', nameKey: 'items.right_leg_servo_drive.name', descriptionKey: 'items.right_leg_servo_drive.description', slot: 'RIGHT_LEG' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8, iconAssetId: 'items.right_leg_servo_drive.icon', isStarterItem: false },
+    // Elite tier — flagship drops, one offense/one defense.
+    { key: 'right_arm_railgun', nameKey: 'items.right_arm_railgun.name', descriptionKey: 'items.right_arm_railgun.description', slot: 'RIGHT_ARM' as const, baseStats: { attack: 20 }, maxUpgradeLevel: 10, iconAssetId: 'items.right_arm_railgun.icon', isStarterItem: false },
+    { key: 'armor_titan_plating', nameKey: 'items.armor_titan_plating.name', descriptionKey: 'items.armor_titan_plating.description', slot: 'ARMOR' as const, baseStats: { hp: 60, defense: 10 }, maxUpgradeLevel: 10, iconAssetId: 'items.armor_titan_plating.icon', isStarterItem: false },
+    // Consumables (general inventory, owner decision) — no slot, stack in one
+    // ItemInstance row via quantity. baseStats holds { energy } instead of
+    // combat stats — read by inventory.service.ts's useConsumable().
+    { key: 'energy_pack_small', nameKey: 'items.energy_pack_small.name', descriptionKey: 'items.energy_pack_small.description', slot: null, category: 'CONSUMABLE' as const, baseStats: { energy: 5 }, maxUpgradeLevel: 0, iconAssetId: 'items.energy_pack_small.icon', isStarterItem: false },
+    { key: 'energy_pack_large', nameKey: 'items.energy_pack_large.name', descriptionKey: 'items.energy_pack_large.description', slot: null, category: 'CONSUMABLE' as const, baseStats: { energy: 10 }, maxUpgradeLevel: 0, iconAssetId: 'items.energy_pack_large.icon', isStarterItem: false },
+    // baseStats holds { buildTimeReductionMinutes } — read by inventory.service.ts's
+    // useConsumable(), which requires a target buildingKey and shortens that building's
+    // active construction timer. Minute values are owner-specified placeholders, tunable here.
+    {
+      key: 'construction_speedup_small',
+      nameKey: 'items.construction_speedup_small.name',
+      descriptionKey: 'items.construction_speedup_small.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      baseStats: { buildTimeReductionMinutes: 5 },
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.construction_speedup_small.icon',
+      isStarterItem: false,
+    },
+    {
+      key: 'construction_speedup_large',
+      nameKey: 'items.construction_speedup_large.name',
+      descriptionKey: 'items.construction_speedup_large.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      baseStats: { buildTimeReductionMinutes: 10 },
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.construction_speedup_large.icon',
+      isStarterItem: false,
+    },
   ];
   const itemsByKey: Record<string, Awaited<ReturnType<typeof prisma.itemDefinition.upsert>>> = {};
   for (const data of itemData) {
-    itemsByKey[data.key] = await prisma.itemDefinition.upsert({ where: { key: data.key }, update: {}, create: data });
+    // update: data (not {}) — category/slot/baseStats must follow this list
+    // when it changes, not freeze at whatever an existing row already has.
+    itemsByKey[data.key] = await prisma.itemDefinition.upsert({ where: { key: data.key }, update: data, create: data });
   }
 
   const allPentiliIds = Object.values(pentiliByKey).map((p) => p.id);
@@ -112,33 +153,37 @@ async function main() {
     data: [
       { pentiliId: skitterling.id, resourceType: 'METAL', dropChance: 0.8, minQuantity: 5, maxQuantity: 15 },
       { pentiliId: skitterling.id, resourceType: 'UPGRADE_STONES', dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.energy_pack_small.id, dropChance: 0.12, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: mossback.id, resourceType: 'CRYSTAL', dropChance: 0.5, minQuantity: 3, maxQuantity: 8 },
-      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.weapon_pulse_cannon.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.left_arm_pulse_cannon.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.construction_speedup_small.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: ridgefang.id, resourceType: 'CREDITS', dropChance: 0.6, minQuantity: 10, maxQuantity: 20 },
       { pentiliId: ridgefang.id, resourceType: 'UPGRADE_STONES', dropChance: 0.15, minQuantity: 1, maxQuantity: 2 },
-      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.hull_reinforced_plating.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.armor_reinforced_plating.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: cinderclaw.id, resourceType: 'METAL', dropChance: 0.6, minQuantity: 15, maxQuantity: 30 },
       { pentiliId: cinderclaw.id, resourceType: 'UPGRADE_STONES', dropChance: 0.15, minQuantity: 1, maxQuantity: 2 },
-      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.shield_aegis_barrier.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.right_arm_kinetic_shield.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: duskfang.id, resourceType: 'CRYSTAL', dropChance: 0.55, minQuantity: 15, maxQuantity: 30 },
       { pentiliId: duskfang.id, resourceType: 'CREDITS', dropChance: 0.4, minQuantity: 20, maxQuantity: 40 },
-      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.reactor_fusion_core.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.core_fusion_battery.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.energy_pack_large.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: voidling.id, resourceType: 'CREDITS', dropChance: 0.5, minQuantity: 30, maxQuantity: 60 },
       { pentiliId: voidling.id, resourceType: 'UPGRADE_STONES', dropChance: 0.2, minQuantity: 2, maxQuantity: 3 },
-      { pentiliId: voidling.id, itemDefinitionId: itemsByKey.weapon_railgun.id, dropChance: 0.07, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: voidling.id, itemDefinitionId: itemsByKey.right_arm_railgun.id, dropChance: 0.07, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: glacialwraith.id, resourceType: 'METAL', dropChance: 0.6, minQuantity: 40, maxQuantity: 70 },
       { pentiliId: glacialwraith.id, resourceType: 'CRYSTAL', dropChance: 0.5, minQuantity: 30, maxQuantity: 50 },
-      { pentiliId: glacialwraith.id, itemDefinitionId: itemsByKey.hull_titan_plating.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: glacialwraith.id, itemDefinitionId: itemsByKey.armor_titan_plating.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: glacialwraith.id, itemDefinitionId: itemsByKey.construction_speedup_large.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
 
       { pentiliId: stormcaller.id, resourceType: 'CREDITS', dropChance: 0.5, minQuantity: 50, maxQuantity: 90 },
       { pentiliId: stormcaller.id, resourceType: 'UPGRADE_STONES', dropChance: 0.25, minQuantity: 2, maxQuantity: 4 },
-      { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.utility_deep_scanner.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.head_targeting_array.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
     ],
   });
 
@@ -146,12 +191,14 @@ async function main() {
   // per-hour as duration grows (short = efficient, long = bigger total,
   // better for offline play) — see instructions/OPEN_DECISIONS.md.
   const expeditionTypes = [
-    { key: 'expedition_short', nameKey: 'expeditions.short.name', durationMinutes: 60, metalReward: 60, crystalReward: 20, creditsReward: 10, xpReward: 15, bonusItemDefinitionId: itemsByKey.engine_ion_drive.id, bonusItemChance: 0.03 },
-    { key: 'expedition_medium', nameKey: 'expeditions.medium.name', durationMinutes: 300, metalReward: 250, crystalReward: 90, creditsReward: 50, xpReward: 70, bonusItemDefinitionId: itemsByKey.shield_aegis_barrier.id, bonusItemChance: 0.06 },
-    { key: 'expedition_long', nameKey: 'expeditions.long.name', durationMinutes: 600, metalReward: 450, crystalReward: 160, creditsReward: 100, xpReward: 130, bonusItemDefinitionId: itemsByKey.reactor_fusion_core.id, bonusItemChance: 0.1 },
+    { key: 'expedition_short', nameKey: 'expeditions.short.name', durationMinutes: 60, metalReward: 60, crystalReward: 20, creditsReward: 10, xpReward: 15, bonusItemDefinitionId: itemsByKey.left_leg_servo_drive.id, bonusItemChance: 0.03 },
+    { key: 'expedition_medium', nameKey: 'expeditions.medium.name', durationMinutes: 300, metalReward: 250, crystalReward: 90, creditsReward: 50, xpReward: 70, bonusItemDefinitionId: itemsByKey.right_arm_kinetic_shield.id, bonusItemChance: 0.06 },
+    { key: 'expedition_long', nameKey: 'expeditions.long.name', durationMinutes: 600, metalReward: 450, crystalReward: 160, creditsReward: 100, xpReward: 130, bonusItemDefinitionId: itemsByKey.core_fusion_battery.id, bonusItemChance: 0.1 },
   ];
   for (const data of expeditionTypes) {
-    await prisma.expeditionType.upsert({ where: { key: data.key }, update: {}, create: data });
+    // update: data (not {}) — bonusItemDefinitionId must follow the item catalog
+    // when it changes, not freeze at whatever it pointed to on first seed.
+    await prisma.expeditionType.upsert({ where: { key: data.key }, update: data, create: data });
   }
 
   const levelThresholds = [
@@ -220,12 +267,12 @@ async function main() {
     data: [
       { bossId: ridgebackAlpha.id, resourceType: 'METAL', dropChance: 0.9, minQuantity: 50, maxQuantity: 100 },
       { bossId: ridgebackAlpha.id, resourceType: 'CRYSTAL', dropChance: 0.7, minQuantity: 20, maxQuantity: 40 },
-      { bossId: ridgebackAlpha.id, itemDefinitionId: itemsByKey.weapon_railgun.id, dropChance: 0.15, minQuantity: 1, maxQuantity: 1 },
+      { bossId: ridgebackAlpha.id, itemDefinitionId: itemsByKey.right_arm_railgun.id, dropChance: 0.15, minQuantity: 1, maxQuantity: 1 },
 
       { bossId: frostSovereign.id, resourceType: 'CREDITS', dropChance: 0.9, minQuantity: 100, maxQuantity: 200 },
       { bossId: frostSovereign.id, resourceType: 'UPGRADE_STONES', dropChance: 0.5, minQuantity: 3, maxQuantity: 6 },
-      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.reactor_fusion_core.id, dropChance: 0.2, minQuantity: 1, maxQuantity: 1 },
-      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.hull_titan_plating.id, dropChance: 0.15, minQuantity: 1, maxQuantity: 1 },
+      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.core_fusion_battery.id, dropChance: 0.2, minQuantity: 1, maxQuantity: 1 },
+      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.armor_titan_plating.id, dropChance: 0.15, minQuantity: 1, maxQuantity: 1 },
     ],
   });
 

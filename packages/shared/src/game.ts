@@ -1,4 +1,5 @@
-export type EquipmentSlot = 'WEAPON' | 'ENGINE' | 'HULL' | 'SHIELD' | 'REACTOR' | 'UTILITY';
+export type EquipmentSlot = 'HEAD' | 'LEFT_ARM' | 'RIGHT_ARM' | 'ARMOR' | 'CORE' | 'LEFT_LEG' | 'RIGHT_LEG';
+export type ItemCategory = 'EQUIPMENT' | 'CONSUMABLE';
 export type ResourceType = 'METAL' | 'CRYSTAL' | 'OXYGEN' | 'CREDITS' | 'UPGRADE_STONES';
 export type BattleOutcome = 'WIN' | 'LOSS';
 // Names/lore LOCKED (instructions/PRODUCT_SPEC.md); identity only for now — no stat bonus.
@@ -15,6 +16,8 @@ export interface ResourcesDto {
 export interface EnergyDto {
   current: number;
   max: number;
+  // ISO timestamp of the next point's regeneration, or null when already at max.
+  nextRegenAt: string | null;
 }
 
 export interface PlayerProfileDto {
@@ -62,6 +65,11 @@ export interface BuildingCostDto {
   constructionSeconds: number;
 }
 
+export interface BuildingProductionDto {
+  resourceType: ResourceType;
+  perHour: number;
+}
+
 export interface BuildingStateDto {
   key: string;
   nameKey: string;
@@ -70,6 +78,13 @@ export interface BuildingStateDto {
   maxLevel: number;
   constructionEndsAt: string | null;
   nextLevelCost: BuildingCostDto | null;
+  // null when the building isn't built yet, or (for a resource-producing building) has no coded effect.
+  currentProduction: BuildingProductionDto | null;
+  nextLevelProduction: BuildingProductionDto | null;
+  // Flat personal-inventory slot bonus (currently only the Warehouse sets this). Mutually
+  // exclusive with currentProduction/nextLevelProduction — a building has one effect or the other.
+  currentCapacityBonus: number | null;
+  nextLevelCapacityBonus: number | null;
 }
 
 export interface BaseResponseDto {
@@ -85,20 +100,47 @@ export interface EquippedItemDto {
   upgradeLevel: number;
 }
 
-export interface ShipSlotDto {
+export interface RobotSlotDto {
   slot: EquipmentSlot;
   item: EquippedItemDto | null;
+}
+
+export interface CoreAttributeValues {
+  damage: number;
+  defense: number;
+  hp: number;
+  evasion: number;
+}
+
+export interface RobotAttributesDto {
+  available: number;
+  base: CoreAttributeValues;
+  nextCost: CoreAttributeValues;
+  // Only Evasion can ever be capped — Damage/Defense/HP grow indefinitely by design.
+  evasionAtCap: boolean;
 }
 
 export interface InventoryItemDto {
   id: string;
   itemDefinitionKey: string;
   nameKey: string;
-  slot: EquipmentSlot;
+  descriptionKey: string;
+  category: ItemCategory;
+  // Null for CONSUMABLE items — they have no equipment slot.
+  slot: EquipmentSlot | null;
   iconAssetId: string;
   upgradeLevel: number;
   maxUpgradeLevel: number;
+  // Stack size — always 1 for EQUIPMENT, may be >1 for CONSUMABLE.
+  quantity: number;
   equipped: boolean;
+}
+
+export interface InventoryResponseDto {
+  items: InventoryItemDto[];
+  capacity: number;
+  // Count of unequipped items only — equipped gear doesn't count against capacity.
+  used: number;
 }
 
 export interface ZoneDto {
@@ -136,6 +178,10 @@ export interface CombatRoundDto {
   pentiliDamage: number;
   playerHpAfter: number;
   pentiliHpAfter: number;
+  // true when the player evaded the opponent's swing this round (pentiliDamage forced to 0)
+  playerDodged: boolean;
+  // true when the opponent evaded the player's swing this round (playerDamage forced to 0)
+  pentiliDodged: boolean;
 }
 
 export interface BattleReportDto {
@@ -276,6 +322,7 @@ export interface CombatStatsDto {
   attack: number;
   defense: number;
   hp: number;
+  evasion: number;
 }
 
 export interface PvpScoutDto {
@@ -364,4 +411,12 @@ export interface ClanDetailDto extends ClanSummaryDto {
 
 export interface MyClanResponseDto {
   clan: ClanDetailDto | null;
+}
+
+export interface ClanMessageDto {
+  id: string;
+  playerId: string;
+  username: string;
+  text: string;
+  createdAt: string;
 }

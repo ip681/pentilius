@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
 import { cancelExpedition, claimExpedition, getExpeditions, startExpedition } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
+import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 function formatDurationMinutes(minutes: number): string {
@@ -54,6 +55,7 @@ export default function ExpeditionsPage() {
     setError(null);
     try {
       setResult(await claimExpedition());
+      notifyProfileChanged();
       await load();
     } catch {
       setError(t('expeditions.claimError'));
@@ -65,6 +67,7 @@ export default function ExpeditionsPage() {
     setError(null);
     try {
       setResult(await cancelExpedition());
+      notifyProfileChanged();
       await load();
     } catch {
       setError(t('expeditions.cancelError'));

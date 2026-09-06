@@ -79,22 +79,28 @@ Still **UNDEFINED**:
 - PvP cost;
 - ranking formula.
 
-## Ship equipment
-**LOCKED:** One ship progression concept based on equipped parts/items.
+## Robot equipment
+**LOCKED:** One combat-robot progression concept based on equipped parts/items — no separate robot classes/types, the robot is entirely defined by what's equipped.
 
 Early weak parts may be universal.
 
-Advanced parts may be race-specific.
+Advanced parts may be race-specific. Not built yet — deferred to a later milestone (see `instructions/OPEN_DECISIONS.md`) — but `ItemDefinition.race` exists in the schema so this doesn't require another migration later.
 
-Potential categories:
-- weapon;
-- engine;
-- hull;
-- shield;
-- reactor;
-- utility.
+Slot schema — **LOCKED** (7 anatomical slots):
+- Head;
+- Left Arm;
+- Right Arm;
+- Armor;
+- Core;
+- Left Leg;
+- Right Leg.
 
-Final slot schema is **UNDEFINED**.
+## Core Attributes
+**LOCKED direction:** Alongside equipment, the player allocates personal stat points earned from leveling — Damage, Defense, HP, Evasion. Pure point-buy: no resource cost, no respec (for now).
+
+- Points awarded per level and the cost to raise a stat both grow with a percentage curve (compounding), so higher levels grant proportionally more points, and each successive point in the *same* stat costs progressively more. Cost resets per stat, so spreading points across stats is cheaper than dumping everything into one.
+- Exact starting points, growth rates, and how much each point contributes to combat are **PROVISIONAL** — see `apps/api/src/config/game-config.ts`'s `robotAttributes` block, not hard-coded anywhere else.
+- Evasion is tracked and spendable but has no combat effect yet — critical rate, damage reduction, reflect damage, and defense success rate (see "Item quality and Excellent options" below) are **UNDEFINED** and deferred to a later phase, along with rarity tiers and a "Combat Power" summary score.
 
 ## Item quality and Excellent options
 **LOCKED direction:** Some items have special bonus options.

@@ -29,7 +29,7 @@ Pentilius is a seasonal browser strategy/RPG game for busy working players. The 
 ## First development target
 Build Milestone 1 only:
 
-Authentication → player profile → base/resources → buildings/timers → ship → inventory/equipment → action energy → Pentili PvE → XP/level → land unlocks → loot → item upgrades.
+Authentication → player profile → base/resources → buildings/timers → robot → inventory/equipment → action energy → Pentili PvE → XP/level → land unlocks → loot → item upgrades.
 
 The first version must run locally and be playable end-to-end with seeded data.
 

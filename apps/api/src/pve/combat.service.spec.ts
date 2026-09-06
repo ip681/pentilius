@@ -61,4 +61,24 @@ describe('CombatService', () => {
 
     expect(result.rounds.length).toBeLessThanOrEqual(30);
   });
+
+  it("lets the opponent dodge the player's attack entirely when its evasion is high enough", () => {
+    randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    const result = combat.simulate({ attack: 50, defense: 10, hp: 100 }, { attack: 5, defense: 1, maxHp: 20, evasion: 0.9 });
+
+    expect(result.won).toBe(false);
+    expect(result.damageDealt).toBe(0);
+    expect(result.rounds.every((round) => round.pentiliDodged && round.playerDamage === 0)).toBe(true);
+  });
+
+  it("lets the player dodge the opponent's attack entirely when their evasion is high enough", () => {
+    randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    const result = combat.simulate({ attack: 50, defense: 10, hp: 100, evasion: 0.9 }, makePentili({ maxHp: 1000, attack: 50, defense: 0 }));
+
+    expect(result.won).toBe(true);
+    expect(result.damageTaken).toBe(0);
+    expect(result.rounds.some((round) => round.playerDodged)).toBe(true);
+  });
 });

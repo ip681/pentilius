@@ -38,8 +38,8 @@ export class AuthService {
         data: { email: dto.email, username: dto.username, passwordHash, race: dto.race },
       });
 
-      // Starter kit so a new player can equip a ship right away (instructions/MILESTONES.md
-      // success flow: "equip ship" happens before the first PvE fight).
+      // Starter kit so a new player can equip a robot right away (instructions/MILESTONES.md
+      // success flow: "equip robot" happens before the first PvE fight).
       const starterItems = await tx.itemDefinition.findMany({ where: { isStarterItem: true } });
       if (starterItems.length > 0) {
         await tx.itemInstance.createMany({

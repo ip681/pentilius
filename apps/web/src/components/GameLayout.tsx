@@ -4,6 +4,7 @@ import type { PlayerProfileDto } from '@pentilius/shared';
 import { useEffect, useState } from 'react';
 import { getProfile } from '@/lib/api-client';
 import { clearTokens, isAuthenticated } from '@/lib/auth';
+import { onProfileChanged } from '@/lib/profile-events';
 import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
 import { TopBar } from './TopBar';
@@ -13,11 +14,7 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
 
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      setLoggedIn(false);
-      return;
-    }
+  function loadProfile() {
     getProfile()
       .then((data) => {
         setProfile(data);
@@ -28,7 +25,33 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
         clearTokens();
         setLoggedIn(false);
       });
+  }
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setLoggedIn(false);
+      return;
+    }
+    loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Any page that spends energy (PvE/PvP attacks, etc.) fetches its own copy
+  // of the profile for its own display — this keeps the top StatusBar's
+  // energy bar in sync with those actions without lifting state into a
+  // shared context.
+  useEffect(() => onProfileChanged(loadProfile), []);
+
+  // Re-fetch once, exactly when the next Action Energy point is due, so the
+  // bar/countdown self-corrects without continuous polling.
+  useEffect(() => {
+    if (!profile?.energy.nextRegenAt) return;
+    const delayMs = new Date(profile.energy.nextRegenAt).getTime() - Date.now() + 1000;
+    if (delayMs <= 0) return;
+    const timeout = setTimeout(loadProfile, delayMs);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.energy.nextRegenAt]);
 
   return (
     <div className="min-h-screen bg-ink text-text">

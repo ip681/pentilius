@@ -5,6 +5,7 @@ import { JwtPayload } from '../auth/jwt-payload.interface';
 import { ClansService } from './clans.service';
 import { CreateClanDto } from './dto/create-clan.dto';
 import { DonateDto } from './dto/donate.dto';
+import { SendClanMessageDto } from './dto/send-clan-message.dto';
 import { UpdateClanDto } from './dto/update-clan.dto';
 
 @Controller('clans')
@@ -80,5 +81,15 @@ export class ClansController {
   @Post('members/:playerId/transfer-leadership')
   transferLeadership(@CurrentPlayer() currentPlayer: JwtPayload, @Param('playerId') playerId: string) {
     return this.clansService.transferLeadership(currentPlayer.sub, playerId);
+  }
+
+  @Get(':id/messages')
+  getMessages(@CurrentPlayer() currentPlayer: JwtPayload, @Param('id') id: string) {
+    return this.clansService.getMessages(id, currentPlayer.sub);
+  }
+
+  @Post(':id/messages')
+  sendMessage(@CurrentPlayer() currentPlayer: JwtPayload, @Param('id') id: string, @Body() dto: SendClanMessageDto) {
+    return this.clansService.sendMessage(currentPlayer.sub, id, dto.text);
   }
 }

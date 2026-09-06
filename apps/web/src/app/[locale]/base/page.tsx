@@ -1,12 +1,18 @@
 'use client';
 
-import type { BaseResponseDto, BuildingStateDto } from '@pentilius/shared';
+import type { BaseResponseDto, BuildingStateDto, InventoryItemDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
+import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
-import { getBase, upgradeBuilding } from '@/lib/api-client';
+import { consumeItem, getBase, getInventory, upgradeBuilding } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
+import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
+
+function isConstructionSpeedup(item: InventoryItemDto): boolean {
+  return item.itemDefinitionKey.startsWith('construction_speedup');
+}
 
 function buildingProgress(building: BuildingStateDto): { active: boolean; percent: number; secondsLeft: number } {
   if (!building.constructionEndsAt || !building.nextLevelCost) {
@@ -27,11 +33,14 @@ export default function BasePage() {
   useRequireAuth();
   const t = useTranslations();
   const [data, setData] = useState<BaseResponseDto | null>(null);
+  const [speedupItems, setSpeedupItems] = useState<InventoryItemDto[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     try {
-      setData(await getBase());
+      const [base, inventory] = await Promise.all([getBase(), getInventory()]);
+      setData(base);
+      setSpeedupItems(inventory.items.filter(isConstructionSpeedup));
     } catch {
       setError(t('base.loadError'));
     }
@@ -47,9 +56,19 @@ export default function BasePage() {
   async function handleUpgrade(key: string) {
     try {
       await upgradeBuilding(key);
+      notifyProfileChanged();
       await load();
     } catch {
       setError(t('base.upgradeError'));
+    }
+  }
+
+  async function handleUseSpeedup(itemInstanceId: string, buildingKey: string) {
+    try {
+      await consumeItem(itemInstanceId, buildingKey);
+      await load();
+    } catch {
+      setError(t('base.speedupError'));
     }
   }
 
@@ -80,8 +99,60 @@ export default function BasePage() {
 
                 <div className="p-5">
                   <div className="mb-4 flex h-[90px] items-center justify-center rounded-md border border-panelBorder bg-well">
-                    <div className="h-12 w-16 rounded-sm bg-accent opacity-80" />
+                    <AssetIcon
+                      assetId={building.iconAssetId}
+                      alt={t(building.nameKey)}
+                      className="h-full w-full object-contain p-3"
+                      fallback={<div className="h-12 w-16 rounded-sm bg-accent opacity-80" />}
+                    />
                   </div>
+
+                  {building.currentProduction ||
+                  building.nextLevelProduction ||
+                  building.currentCapacityBonus !== null ||
+                  building.nextLevelCapacityBonus !== null ? (
+                    <div className="mb-4 rounded border border-wellBorder bg-well p-2.5 text-[11px]">
+                      {building.currentProduction ? (
+                        <div className="flex justify-between">
+                          <span className="text-textFaint">{t('base.currentEffect')}</span>
+                          <span>
+                            +{building.currentProduction.perHour} {t(`resource.${building.currentProduction.resourceType}`)}/{t('base.perHour')}
+                          </span>
+                        </div>
+                      ) : building.currentCapacityBonus !== null ? (
+                        <div className="flex justify-between">
+                          <span className="text-textFaint">{t('base.currentEffect')}</span>
+                          <span>
+                            +{building.currentCapacityBonus} {t('base.inventorySlots')}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between text-textFaint">
+                          <span>{t('base.currentEffect')}</span>
+                          <span>{t('base.noEffect')}</span>
+                        </div>
+                      )}
+                      {building.nextLevelProduction ? (
+                        <div className="mt-1 flex justify-between text-positive">
+                          <span className="text-textFaint">{t('base.nextEffect')}</span>
+                          <span>
+                            +{building.nextLevelProduction.perHour} {t(`resource.${building.nextLevelProduction.resourceType}`)}/{t('base.perHour')}
+                          </span>
+                        </div>
+                      ) : (
+                        building.nextLevelCapacityBonus !== null && (
+                          <div className="mt-1 flex justify-between text-positive">
+                            <span className="text-textFaint">{t('base.nextEffect')}</span>
+                            <span>
+                              +{building.nextLevelCapacityBonus} {t('base.inventorySlots')}
+                            </span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mb-4 text-[10px] text-textFaint">{t('base.noEffect')}</p>
+                  )}
 
                   {progress.active ? (
                     <>
@@ -92,6 +163,22 @@ export default function BasePage() {
                       <div className="mb-4 h-[7px] overflow-hidden rounded-full bg-wellBorder">
                         <div className="h-full bg-accent transition-all" style={{ width: `${progress.percent}%` }} />
                       </div>
+                      {speedupItems.length > 0 && (
+                        <div className="mb-4 flex flex-wrap gap-2">
+                          {speedupItems.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              title={t(item.descriptionKey)}
+                              onClick={() => handleUseSpeedup(item.id, building.key)}
+                              className="flex items-center gap-1.5 rounded border border-accent bg-accentBg px-2 py-1 text-[9px] uppercase hover:bg-accentBgHover"
+                            >
+                              <AssetIcon assetId={item.iconAssetId} alt={t(item.nameKey)} className="h-4 w-4 object-contain" fallback={null} />
+                              {t(item.nameKey)} (×{item.quantity})
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </>
                   ) : building.nextLevelCost ? (
                     <div className="mb-4 grid grid-cols-2 gap-2">

@@ -1,8 +1,8 @@
 'use client';
 
-import type { ClanBuildingStateDto, ClanDetailDto, ClanSummaryDto } from '@pentilius/shared';
+import type { ClanBuildingStateDto, ClanDetailDto, ClanMessageDto, ClanSummaryDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ClanLink } from '@/components/ClanLink';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerLink } from '@/components/PlayerLink';
@@ -12,17 +12,20 @@ import {
   demoteClanMember,
   disbandClan,
   donateToClan,
+  getClanMessages,
   getMyClan,
   joinClan,
   kickClanMember,
   leaveClan,
   listClans,
   promoteClanMember,
+  sendClanMessage,
   transferClanLeadership,
   updateClan,
   upgradeClanBuilding,
 } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
+import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 function buildingProgress(building: ClanBuildingStateDto): { active: boolean; percent: number; secondsLeft: number } {
@@ -55,6 +58,10 @@ export default function ClansPage() {
   const [editingClan, setEditingClan] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [messages, setMessages] = useState<ClanMessageDto[] | null>(null);
+  const [chatText, setChatText] = useState('');
+  const [chatError, setChatError] = useState<string | null>(null);
+  const chatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function load() {
     try {
@@ -71,6 +78,32 @@ export default function ClansPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function loadMessages(clanId: string) {
+    try {
+      const msgs = await getClanMessages(clanId);
+      setMessages(msgs);
+    } catch {
+      // Silent — a transient poll miss shouldn't clobber the page's main error banner.
+    }
+  }
+
+  useEffect(() => {
+    if (chatIntervalRef.current) {
+      clearInterval(chatIntervalRef.current);
+      chatIntervalRef.current = null;
+    }
+    if (!myClan) {
+      setMessages(null);
+      return;
+    }
+    loadMessages(myClan.id);
+    chatIntervalRef.current = setInterval(() => loadMessages(myClan.id), 5000);
+    return () => {
+      if (chatIntervalRef.current) clearInterval(chatIntervalRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myClan?.id]);
+
   function errorMessage(err: unknown, fallback: string): string {
     if (err instanceof ApiError) {
       const map: Record<string, string> = {
@@ -80,6 +113,7 @@ export default function ClansPage() {
         CLAN_FULL: t('clans.errorFull'),
         NOT_ENOUGH_RESOURCES: t('clans.errorNotEnoughResources'),
         NOT_ENOUGH_TREASURY: t('clans.errorNotEnoughTreasury'),
+        SENDING_TOO_FAST: t('clans.errorSendingTooFast'),
       };
       if (err.code && map[err.code]) return map[err.code];
     }
@@ -183,6 +217,19 @@ export default function ClansPage() {
     }
   }
 
+  async function handleSendMessage(event: React.FormEvent) {
+    event.preventDefault();
+    if (!myClan || !chatText.trim()) return;
+    setChatError(null);
+    try {
+      await sendClanMessage(myClan.id, chatText.trim());
+      setChatText('');
+      await loadMessages(myClan.id);
+    } catch (err) {
+      setChatError(errorMessage(err, t('clans.chatSendError')));
+    }
+  }
+
   async function handleUpgradeBuilding(key: string) {
     setError(null);
     try {
@@ -205,6 +252,7 @@ export default function ClansPage() {
       setDonateMetal('');
       setDonateCrystal('');
       setDonateCredits('');
+      notifyProfileChanged();
       await load();
     } catch (err) {
       setError(errorMessage(err, t('clans.donateError')));
@@ -519,6 +567,41 @@ export default function ClansPage() {
               ))}
             </tbody>
           </table>
+
+          <div className="mb-4 rounded-md border border-wellBorder bg-well p-4">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-textFaint">{t('clans.chat')}</h3>
+            <div className="mb-2 flex h-[220px] flex-col-reverse overflow-y-auto rounded border border-wellBorder bg-ink p-2.5">
+              <div>
+                {messages && messages.length === 0 && <p className="text-[11px] text-textFaint">{t('clans.chatEmpty')}</p>}
+                {messages?.map((message) => (
+                  <div key={message.id} className="mb-1.5 text-xs">
+                    <span className="text-[9px] text-textFaint">{new Date(message.createdAt).toLocaleTimeString()}</span>{' '}
+                    <PlayerLink playerId={message.playerId} username={message.username} className="font-semibold hover:text-accent" />
+                    {': '}
+                    <span className="text-textMuted">{message.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {chatError && <p className="mb-2 text-[11px] text-danger">{chatError}</p>}
+            <form onSubmit={handleSendMessage} className="flex gap-2">
+              <input
+                type="text"
+                value={chatText}
+                onChange={(e) => setChatText(e.target.value)}
+                maxLength={500}
+                placeholder={t('clans.chatPlaceholder')}
+                className="flex-1 rounded-md border border-wellBorder bg-ink px-3 py-2 text-xs text-text outline-none focus:border-accent"
+              />
+              <button
+                type="submit"
+                disabled={!chatText.trim()}
+                className="rounded-md border border-accent bg-accentBg px-4 py-2 text-[11px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                {t('clans.chatSend')}
+              </button>
+            </form>
+          </div>
 
           <div className="flex gap-2">
             <button

@@ -13,7 +13,7 @@ const GROUPS = [
       { href: '/players', labelKey: 'nav.leaderboard' },
       { href: '/base', labelKey: 'nav.base' },
       { href: '/research', labelKey: 'nav.research' },
-      { href: '/ship', labelKey: 'nav.ship' },
+      { href: '/robot', labelKey: 'nav.robot' },
     ],
   },
   {

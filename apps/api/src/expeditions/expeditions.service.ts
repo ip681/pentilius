@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ActiveExpeditionDto, ExpeditionClaimResultDto, ExpeditionsResponseDto, ExpeditionTypeDto } from '@pentilius/shared';
 import { GAME_BALANCE } from '../config/game-config';
+import { grantItem } from '../inventory/inventory-capacity';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -87,11 +88,13 @@ export class ExpeditionsService {
 
       let bonusItem: ExpeditionClaimResultDto['bonusItem'] = null;
       if (expeditionType.bonusItemDefinition && expeditionType.bonusItemChance && Math.random() < expeditionType.bonusItemChance) {
-        await tx.itemInstance.create({ data: { playerId, itemDefinitionId: expeditionType.bonusItemDefinition.id } });
-        bonusItem = {
-          itemDefinitionKey: expeditionType.bonusItemDefinition.key,
-          itemNameKey: expeditionType.bonusItemDefinition.nameKey,
-        };
+        const granted = await grantItem(playerId, expeditionType.bonusItemDefinition.id, tx);
+        if (granted) {
+          bonusItem = {
+            itemDefinitionKey: expeditionType.bonusItemDefinition.key,
+            itemNameKey: expeditionType.bonusItemDefinition.nameKey,
+          };
+        }
       }
 
       await tx.playerExpedition.update({ where: { id: active.id }, data: { claimedAt: new Date() } });

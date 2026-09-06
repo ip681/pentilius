@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PlayerListEntryDto, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
 import { Race } from '@prisma/client';
+import { GAME_BALANCE } from '../config/game-config';
 import { EconomyService } from './economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -34,6 +35,10 @@ export class PlayerService {
       energy: {
         current: player.actionEnergy,
         max: player.actionEnergyMax,
+        nextRegenAt:
+          player.actionEnergy < player.actionEnergyMax
+            ? new Date(player.energyUpdatedAt.getTime() + GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000).toISOString()
+            : null,
       },
     };
   }

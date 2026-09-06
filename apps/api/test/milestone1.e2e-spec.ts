@@ -52,8 +52,10 @@ describe('Milestone 1 vertical slice (e2e)', () => {
     expect(res.body.resources.upgradeStones).toBe(5);
 
     const inventory = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
-    expect(inventory.body).toHaveLength(6);
-    expect(inventory.body.every((item: { equipped: boolean }) => !item.equipped)).toBe(true);
+    expect(inventory.body.items).toHaveLength(7);
+    expect(inventory.body.items.every((item: { equipped: boolean }) => !item.equipped)).toBe(true);
+    expect(inventory.body.used).toBe(7);
+    expect(inventory.body.capacity).toBe(30);
   });
 
   it('upgrades a building, deducting resources and starting a timer', async () => {
@@ -73,12 +75,12 @@ describe('Milestone 1 vertical slice (e2e)', () => {
 
   it('equips the full starter kit', async () => {
     const inventory = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
-    for (const item of inventory.body) {
-      await request(app.getHttpServer()).post(`/api/v1/ship/equip/${item.id}`).set(auth()).expect(201);
+    for (const item of inventory.body.items) {
+      await request(app.getHttpServer()).post(`/api/v1/robot/equip/${item.id}`).set(auth()).expect(201);
     }
 
-    const ship = await request(app.getHttpServer()).get('/api/v1/ship').set(auth()).expect(200);
-    expect(ship.body.every((slot: { item: unknown }) => slot.item !== null)).toBe(true);
+    const robot = await request(app.getHttpServer()).get('/api/v1/robot').set(auth()).expect(200);
+    expect(robot.body.every((slot: { item: unknown }) => slot.item !== null)).toBe(true);
   });
 
   it('lists zones with the second zone locked below level 3', async () => {
@@ -120,13 +122,14 @@ describe('Milestone 1 vertical slice (e2e)', () => {
 
   it('upgrades an equipped item, spending upgrade stones', async () => {
     const inventory = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
-    const weapon = inventory.body.find((item: { itemDefinitionKey: string }) => item.itemDefinitionKey === 'weapon_starter_blaster');
+    const weapon = inventory.body.items.find((item: { itemDefinitionKey: string }) => item.itemDefinitionKey === 'left_arm_blaster_mk1');
 
     const upgraded = await request(app.getHttpServer())
       .post(`/api/v1/inventory/items/${weapon.id}/upgrade`)
       .set(auth())
       .expect(201);
-    expect(upgraded.body.upgradeLevel).toBe(1);
+    const upgradedWeapon = upgraded.body.items.find((item: { id: string }) => item.id === weapon.id);
+    expect(upgradedWeapon.upgradeLevel).toBe(1);
 
     const profile = await request(app.getHttpServer()).get('/api/v1/player/me').set(auth()).expect(200);
     // Started with 5, +1 from the forced skitterling loot roll in the previous test, -5 for this upgrade.

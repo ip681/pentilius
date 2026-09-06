@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClanBuildingStateDto, ClanDetailDto, ClanSummaryDto, MyClanResponseDto } from '@pentilius/shared';
-import { Clan, ClanBuilding, ClanBuildingLevelCost, ClanBuildingType, ClanMembership, Player, Prisma } from '@prisma/client';
+import { ClanBuildingStateDto, ClanDetailDto, ClanMessageDto, ClanSummaryDto, MyClanResponseDto } from '@pentilius/shared';
+import { Clan, ClanBuilding, ClanBuildingLevelCost, ClanBuildingType, ClanMembership, ClanMessage, Player, Prisma } from '@prisma/client';
+import { GAME_BALANCE } from '../config/game-config';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClanDto } from './dto/create-clan.dto';
@@ -336,6 +337,52 @@ export class ClansService {
     return this.getClan(acting.clanId, actingPlayerId);
   }
 
+  async getMessages(clanId: string, playerId: string): Promise<ClanMessageDto[]> {
+    await this.assertMembership(clanId, playerId);
+
+    const messages = await this.prisma.clanMessage.findMany({
+      where: { clanId },
+      include: { player: true },
+      orderBy: { createdAt: 'desc' },
+      take: GAME_BALANCE.clanChat.historyLimit,
+    });
+    return messages.reverse().map(toMessageDto);
+  }
+
+  async sendMessage(playerId: string, clanId: string, text: string): Promise<ClanMessageDto> {
+    await this.assertMembership(clanId, playerId);
+
+    const trimmed = text.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Message cannot be empty');
+    }
+
+    const lastMessage = await this.prisma.clanMessage.findFirst({
+      where: { playerId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (lastMessage) {
+      const elapsedMs = Date.now() - lastMessage.createdAt.getTime();
+      if (elapsedMs < GAME_BALANCE.clanChat.minSecondsBetweenMessages * 1000) {
+        throw new BadRequestException('SENDING_TOO_FAST');
+      }
+    }
+
+    const created = await this.prisma.clanMessage.create({
+      data: { clanId, playerId, text: trimmed },
+      include: { player: true },
+    });
+    return toMessageDto(created);
+  }
+
+  private async assertMembership(clanId: string, playerId: string): Promise<ClanMembership> {
+    const membership = await this.prisma.clanMembership.findUnique({ where: { playerId } });
+    if (!membership || membership.clanId !== clanId) {
+      throw new ForbiddenException('NOT_A_MEMBER_OF_THIS_CLAN');
+    }
+    return membership;
+  }
+
   private async ensureClanBuildingsExist(clanId: string, tx: Tx): Promise<void> {
     const buildingTypes = await tx.clanBuildingType.findMany();
     for (const buildingType of buildingTypes) {
@@ -431,5 +478,15 @@ function toDetailDto(clan: ClanWithDetails, currentPlayerId: string): ClanDetail
       .slice()
       .sort((a, b) => a.clanBuildingType.key.localeCompare(b.clanBuildingType.key))
       .map(toBuildingStateDto),
+  };
+}
+
+function toMessageDto(message: ClanMessage & { player: Player }): ClanMessageDto {
+  return {
+    id: message.id,
+    playerId: message.playerId,
+    username: message.player.username,
+    text: message.text,
+    createdAt: message.createdAt.toISOString(),
   };
 }

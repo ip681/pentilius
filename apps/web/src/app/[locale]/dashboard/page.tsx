@@ -1,27 +1,27 @@
 'use client';
 
-import type { BaseResponseDto, ShipSlotDto, ZoneDto } from '@pentilius/shared';
+import type { BaseResponseDto, RobotSlotDto, ZoneDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
 import { Link } from '@/i18n/navigation';
-import { getBase, getShip, getZones } from '@/lib/api-client';
+import { getBase, getRobot, getZones } from '@/lib/api-client';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 export default function DashboardPage() {
   useRequireAuth();
   const t = useTranslations();
   const [base, setBase] = useState<BaseResponseDto | null>(null);
-  const [ship, setShip] = useState<ShipSlotDto[] | null>(null);
+  const [robot, setRobot] = useState<RobotSlotDto[] | null>(null);
   const [zones, setZones] = useState<ZoneDto[] | null>(null);
 
   useEffect(() => {
     getBase().then(setBase).catch(() => undefined);
-    getShip().then(setShip).catch(() => undefined);
+    getRobot().then(setRobot).catch(() => undefined);
     getZones().then(setZones).catch(() => undefined);
   }, []);
 
-  const equippedCount = ship?.filter((slot) => slot.item !== null).length ?? 0;
+  const equippedCount = robot?.filter((slot) => slot.item !== null).length ?? 0;
   const unlockedCount = zones?.filter((zone) => zone.unlocked).length ?? 0;
 
   return (
@@ -51,12 +51,12 @@ export default function DashboardPage() {
         </div>
 
         <div className="rounded-lg border border-panelBorder bg-panel p-5">
-          <div className="mb-4 text-[11px] uppercase tracking-wide text-textFaint">{t('dashboard.shipSubtitle')}</div>
-          <h2 className="mb-4 text-sm font-semibold">{t('dashboard.shipTitle')}</h2>
+          <div className="mb-4 text-[11px] uppercase tracking-wide text-textFaint">{t('dashboard.robotSubtitle')}</div>
+          <h2 className="mb-4 text-sm font-semibold">{t('dashboard.robotTitle')}</h2>
           <p className="mb-4 text-xs text-textMuted">
-            {equippedCount} / 6 {t('dashboard.slotsEquipped')}
+            {equippedCount} / 7 {t('dashboard.slotsEquipped')}
           </p>
-          <Link href="/ship" className="text-xs text-text underline">
+          <Link href="/robot" className="text-xs text-text underline">
             {t('dashboard.manage')}
           </Link>
         </div>
