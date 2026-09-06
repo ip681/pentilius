@@ -1,14 +1,17 @@
 'use client';
 
-import type { ClanDetailDto, ClanSummaryDto } from '@pentilius/shared';
+import type { ClanBuildingStateDto, ClanDetailDto, ClanSummaryDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
+import { ClanLink } from '@/components/ClanLink';
 import { GameLayout } from '@/components/GameLayout';
+import { PlayerLink } from '@/components/PlayerLink';
 import {
   ApiError,
   createClan,
   demoteClanMember,
   disbandClan,
+  donateToClan,
   getMyClan,
   joinClan,
   kickClanMember,
@@ -16,8 +19,26 @@ import {
   listClans,
   promoteClanMember,
   transferClanLeadership,
+  updateClan,
+  upgradeClanBuilding,
 } from '@/lib/api-client';
+import { formatDuration } from '@/lib/format-duration';
 import { useRequireAuth } from '@/lib/use-require-auth';
+
+function buildingProgress(building: ClanBuildingStateDto): { active: boolean; percent: number; secondsLeft: number } {
+  if (!building.constructionEndsAt || !building.nextLevelCost) {
+    return { active: false, percent: 0, secondsLeft: 0 };
+  }
+  const endsAt = new Date(building.constructionEndsAt).getTime();
+  const now = Date.now();
+  if (endsAt <= now) {
+    return { active: false, percent: 100, secondsLeft: 0 };
+  }
+  const totalSeconds = building.nextLevelCost.constructionSeconds;
+  const secondsLeft = Math.ceil((endsAt - now) / 1000);
+  const percent = Math.max(0, Math.min(100, ((totalSeconds - secondsLeft) / totalSeconds) * 100));
+  return { active: true, percent, secondsLeft };
+}
 
 export default function ClansPage() {
   useRequireAuth();
@@ -28,6 +49,12 @@ export default function ClansPage() {
   const [name, setName] = useState('');
   const [tag, setTag] = useState('');
   const [description, setDescription] = useState('');
+  const [donateMetal, setDonateMetal] = useState('');
+  const [donateCrystal, setDonateCrystal] = useState('');
+  const [donateCredits, setDonateCredits] = useState('');
+  const [editingClan, setEditingClan] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   async function load() {
     try {
@@ -51,6 +78,8 @@ export default function ClansPage() {
         CLAN_NAME_TAKEN: t('clans.errorNameTaken'),
         CLAN_TAG_TAKEN: t('clans.errorTagTaken'),
         CLAN_FULL: t('clans.errorFull'),
+        NOT_ENOUGH_RESOURCES: t('clans.errorNotEnoughResources'),
+        NOT_ENOUGH_TREASURY: t('clans.errorNotEnoughTreasury'),
       };
       if (err.code && map[err.code]) return map[err.code];
     }
@@ -142,6 +171,46 @@ export default function ClansPage() {
     }
   }
 
+  async function handleUpdateClan(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    try {
+      await updateClan({ name: editName, description: editDescription });
+      setEditingClan(false);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, t('clans.editError')));
+    }
+  }
+
+  async function handleUpgradeBuilding(key: string) {
+    setError(null);
+    try {
+      await upgradeClanBuilding(key);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, t('clans.upgradeError')));
+    }
+  }
+
+  async function handleDonate(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    try {
+      await donateToClan({
+        metal: donateMetal ? Number(donateMetal) : undefined,
+        crystal: donateCrystal ? Number(donateCrystal) : undefined,
+        credits: donateCredits ? Number(donateCredits) : undefined,
+      });
+      setDonateMetal('');
+      setDonateCrystal('');
+      setDonateCredits('');
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, t('clans.donateError')));
+    }
+  }
+
   return (
     <GameLayout>
       <div className="mb-6">
@@ -210,14 +279,16 @@ export default function ClansPage() {
                 <div key={clan.id} className="rounded-lg border border-panelBorder bg-panel p-4">
                   <div className="mb-1 flex items-center justify-between">
                     <span className="text-sm font-semibold">
-                      [{clan.tag}] {clan.name}
+                      <ClanLink clanId={clan.id} tag={clan.tag} name={clan.name} />
                     </span>
                     <span className="text-[10px] uppercase text-textFaint">
                       {clan.memberCount}/{clan.memberCap}
                     </span>
                   </div>
                   {clan.description && <p className="mb-3 text-xs text-textMuted">{clan.description}</p>}
-                  <p className="mb-3 text-[10px] text-textFaint">{t('clans.leader')}: {clan.leaderUsername}</p>
+                  <p className="mb-3 text-[10px] text-textFaint">
+                    {t('clans.leader')}: <PlayerLink playerId={clan.leaderId} username={clan.leaderUsername} />
+                  </p>
                   <button
                     type="button"
                     disabled={clan.memberCount >= clan.memberCap}
@@ -237,19 +308,170 @@ export default function ClansPage() {
         <section className="rounded-lg border border-panelBorder bg-panel p-5">
           <div className="mb-1 flex items-center justify-between">
             <h2 className="text-lg font-semibold">
-              [{myClan.tag}] {myClan.name}
+              <ClanLink clanId={myClan.id} tag={myClan.tag} name={myClan.name} />
             </h2>
             <span className="text-[10px] uppercase text-textFaint">
               {myClan.memberCount}/{myClan.memberCap}
             </span>
           </div>
-          {myClan.description && <p className="mb-4 text-xs text-textMuted">{myClan.description}</p>}
+          {myClan.description && !editingClan && <p className="mb-2 text-xs text-textMuted">{myClan.description}</p>}
+
+          {myClan.myRole === 'LEADER' && !editingClan && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditName(myClan.name);
+                setEditDescription(myClan.description ?? '');
+                setEditingClan(true);
+              }}
+              className="mb-4 text-[10px] uppercase text-textMuted underline hover:text-text"
+            >
+              {t('clans.editClan')}
+            </button>
+          )}
+
+          {editingClan && (
+            <form onSubmit={handleUpdateClan} className="mb-4 flex flex-col gap-3 rounded-md border border-wellBorder bg-well p-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-textFaint">{t('clans.editTitle')}</h3>
+              <label className="flex flex-col gap-1.5 text-xs text-textMuted">
+                {t('clans.name')}
+                <input
+                  type="text"
+                  required
+                  minLength={3}
+                  maxLength={30}
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="rounded-md border border-wellBorder bg-ink px-3 py-2 text-sm text-text outline-none focus:border-accent"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 text-xs text-textMuted">
+                {t('clans.description')}
+                <input
+                  type="text"
+                  maxLength={280}
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="rounded-md border border-wellBorder bg-ink px-3 py-2 text-sm text-text outline-none focus:border-accent"
+                />
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="rounded-md border border-accent bg-accentBg px-4 py-2 text-[11px] uppercase hover:bg-accentBgHover"
+                >
+                  {t('clans.editSave')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingClan(false)}
+                  className="rounded-md border border-wellBorder bg-ink px-4 py-2 text-[11px] uppercase text-textMuted hover:bg-accentBgHover"
+                >
+                  {t('clans.editCancel')}
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div className="mb-4 rounded-md border border-wellBorder bg-well p-4">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-textFaint">{t('clans.treasury')}</h3>
+            <div className="mb-3 flex gap-5 text-sm">
+              <span>{t('resource.METAL')}: <strong>{myClan.treasury.metal.toLocaleString()}</strong></span>
+              <span>{t('resource.CRYSTAL')}: <strong>{myClan.treasury.crystal.toLocaleString()}</strong></span>
+              <span>{t('resource.CREDITS')}: <strong>{myClan.treasury.credits.toLocaleString()}</strong></span>
+            </div>
+            <form onSubmit={handleDonate} className="flex flex-wrap items-end gap-2">
+              <label className="flex w-24 flex-col gap-1 text-[10px] text-textMuted">
+                {t('resource.METAL')}
+                <input
+                  type="number"
+                  min={1}
+                  value={donateMetal}
+                  onChange={(e) => setDonateMetal(e.target.value)}
+                  className="rounded-md border border-wellBorder bg-ink px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
+                />
+              </label>
+              <label className="flex w-24 flex-col gap-1 text-[10px] text-textMuted">
+                {t('resource.CRYSTAL')}
+                <input
+                  type="number"
+                  min={1}
+                  value={donateCrystal}
+                  onChange={(e) => setDonateCrystal(e.target.value)}
+                  className="rounded-md border border-wellBorder bg-ink px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
+                />
+              </label>
+              <label className="flex w-24 flex-col gap-1 text-[10px] text-textMuted">
+                {t('resource.CREDITS')}
+                <input
+                  type="number"
+                  min={1}
+                  value={donateCredits}
+                  onChange={(e) => setDonateCredits(e.target.value)}
+                  className="rounded-md border border-wellBorder bg-ink px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
+                />
+              </label>
+              <button
+                type="submit"
+                className="rounded-md border border-accent bg-accentBg px-4 py-2 text-[11px] uppercase hover:bg-accentBgHover"
+              >
+                {t('clans.donate')}
+              </button>
+            </form>
+          </div>
+
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+            {myClan.buildings.map((building) => {
+              const progress = buildingProgress(building);
+              const canManage = myClan.myRole === 'LEADER' || myClan.myRole === 'OFFICER';
+              return (
+                <div key={building.key} className="rounded-md border border-wellBorder bg-well p-3">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-xs font-semibold">{t(building.nameKey)}</span>
+                    <span className="text-[9px] uppercase text-textFaint">
+                      {t('clans.buildingLevel')} {building.level}/{building.maxLevel}
+                    </span>
+                  </div>
+                  <p className="mb-2 text-[10px] text-textMuted">{t(building.descriptionKey)}</p>
+
+                  {progress.active ? (
+                    <>
+                      <div className="mb-1 flex justify-between text-[9px] text-textMuted">
+                        <span>{t('clans.buildingInProgress')}</span>
+                        <span className="tabular-nums">{formatDuration(progress.secondsLeft)}</span>
+                      </div>
+                      <div className="mb-2 h-[6px] overflow-hidden rounded-full bg-wellBorder">
+                        <div className="h-full bg-accent transition-all" style={{ width: `${progress.percent}%` }} />
+                      </div>
+                    </>
+                  ) : building.nextLevelCost ? (
+                    <p className="mb-2 text-[10px] text-textFaint">
+                      {building.nextLevelCost.metalCost}M / {building.nextLevelCost.crystalCost}C / {building.nextLevelCost.creditsCost}Cr ·{' '}
+                      {formatDuration(building.nextLevelCost.constructionSeconds)}
+                    </p>
+                  ) : (
+                    <p className="mb-2 text-[10px] text-textFaint">{t('clans.buildingMaxLevel')}</p>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={!canManage || progress.active || !building.nextLevelCost}
+                    onClick={() => handleUpgradeBuilding(building.key)}
+                    className="w-full rounded-md border border-accent bg-accentBg py-1.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    {t('clans.upgradeBuilding')}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
 
           <table className="mb-4 w-full text-left text-xs">
             <thead>
               <tr className="text-[10px] uppercase text-textFaint">
                 <th className="pb-2">{t('clans.member')}</th>
                 <th className="pb-2">{t('clans.role')}</th>
+                <th className="pb-2">{t('clans.contributed')}</th>
                 <th className="pb-2 text-right">{t('clans.actions')}</th>
               </tr>
             </thead>
@@ -257,9 +479,15 @@ export default function ClansPage() {
               {myClan.members.map((member) => (
                 <tr key={member.playerId} className="border-t border-wellBorder">
                   <td className="py-2">
-                    {member.username} {member.isCurrentPlayer && <span className="text-textFaint">({t('clans.you')})</span>}
+                    <PlayerLink playerId={member.playerId} username={member.username} />{' '}
+                    {member.isCurrentPlayer && <span className="text-textFaint">({t('clans.you')})</span>}
                   </td>
                   <td className="py-2">{t(`clans.roleLabel.${member.role}`)}</td>
+                  <td className="py-2 text-textMuted">
+                    {member.contributed.metal + member.contributed.crystal + member.contributed.credits === 0
+                      ? '—'
+                      : `${member.contributed.metal}M / ${member.contributed.crystal}C / ${member.contributed.credits}Cr`}
+                  </td>
                   <td className="py-2 text-right">
                     {!member.isCurrentPlayer && myClan.myRole === 'LEADER' && (
                       <div className="flex justify-end gap-1.5">

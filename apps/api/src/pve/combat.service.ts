@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CombatRoundDto } from '@pentilius/shared';
 import { Prisma, ResearchBonusType } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
+import { ClanBonusService } from '../player/clan-bonus.service';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -43,6 +44,7 @@ export class CombatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
+    private readonly clanBonus: ClanBonusService,
   ) {}
 
   async computePlayerStats(playerId: string, tx: Prisma.TransactionClient | PrismaService = this.prisma): Promise<CombatStats> {
@@ -64,14 +66,18 @@ export class CombatService {
       { attack: 0, defense: 0, hp: GAME_BALANCE.combat.basePlayerHp },
     );
 
-    const [attackMultiplier, hpMultiplier] = await Promise.all([
+    const [researchAttackMultiplier, hpMultiplier, clanCombatBonus] = await Promise.all([
       this.economy.getResearchMultiplier(playerId, ResearchBonusType.COMBAT_ATTACK, tx),
       this.economy.getResearchMultiplier(playerId, ResearchBonusType.COMBAT_HP, tx),
+      this.clanBonus.getBonus(playerId, 'COMBAT_BONUS', tx),
     ]);
+    const attackMultiplier = researchAttackMultiplier + clanCombatBonus;
+    // No personal research targets defense yet — only the clan's Clan Forge does.
+    const defenseMultiplier = 1 + clanCombatBonus;
 
     return {
       attack: stats.attack * attackMultiplier,
-      defense: stats.defense,
+      defense: stats.defense * defenseMultiplier,
       hp: stats.hp * hpMultiplier,
     };
   }

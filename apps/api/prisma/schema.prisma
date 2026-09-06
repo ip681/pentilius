@@ -63,6 +63,9 @@ model Player {
   username     String   @unique
   passwordHash String
   race         Race
+  // Free-text self-description shown on the public profile — the player's
+  // own words, distinct from any game-computed stats.
+  bio          String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -466,11 +469,14 @@ model PvpBattleReport {
 // Clans (instructions/GAME_SYSTEMS.md, LOCKED: "Clans are central"). Member
 // cap, roles, clan building list, contribution rules and clan-war rules are
 // all UNDEFINED (instructions/OPEN_DECISIONS.md) — this is an M4 foundation:
-// create/join/leave/roles only. Clan buildings/resources, a member-capacity
-// building, clan-scoped boss hunts and clan-vs-clan systems are deliberately
-// deferred to a later pass, not modeled here yet. Joining is open (owner
-// decision, mirroring the Boss Hunts precedent) rather than invite/request
-// based — no separate invite/request model exists.
+// create/join/leave/roles, plus a shared treasury (donate-only by owner
+// decision — any member may donate; nobody can withdraw, the treasury only
+// funds clan building upgrades). Clan buildings (Member Hall/Clan Forge/Clan
+// Depot) are built on top of the treasury; clan-scoped boss hunts and
+// clan-vs-clan systems are deliberately deferred to a later pass, not
+// modeled here yet. Joining is open (owner decision, mirroring the Boss
+// Hunts precedent) rather than invite/request based — no separate
+// invite/request model exists.
 enum ClanRole {
   LEADER
   OFFICER
@@ -482,13 +488,85 @@ model Clan {
   name        String   @unique
   tag         String   @unique
   description String?
-  // Placeholder — instructions/OPEN_DECISIONS.md: "member cap" is UNDEFINED.
+  // Base cap before any Member Hall bonus — instructions/OPEN_DECISIONS.md:
+  // "member cap" is UNDEFINED. The effective cap (exposed to clients) adds
+  // the clan's Member Hall level × its bonusPerLevel on top of this.
   memberCap   Int      @default(30)
   createdAt   DateTime @default(now())
 
-  members ClanMembership[]
+  // Shared clan resource pool. Oxygen/Upgrade Stones are personal-use
+  // resources (per OPEN_DECISIONS.md, Oxygen has no use yet at all) and are
+  // deliberately excluded — only the three resources already poolable in PvP
+  // (pvp/pvp.service.ts) are treasury-eligible.
+  treasuryMetal   Int @default(0)
+  treasuryCrystal Int @default(0)
+  treasuryCredits Int @default(0)
+
+  members   ClanMembership[]
+  buildings ClanBuilding[]
 
   @@map("clans")
+}
+
+// Clan buildings are funded entirely from the treasury (never a member's own
+// resources) and upgradable only by the leader or an officer — mirrors the
+// personal BuildingType/BuildingLevelCost/PlayerBuilding pattern exactly.
+// Three buildings, all placeholders (instructions/OPEN_DECISIONS.md: "clan
+// building list" is UNDEFINED): Member Hall raises the effective member cap
+// (bonusPerLevel is a flat slot count, not a percentage); Clan Forge adds a
+// combat attack/defense bonus for every member (pve/combat.service.ts); Clan
+// Depot adds a Metal/Crystal production bonus for every member
+// (player/economy.service.ts) — both applied on top of that member's own
+// personal research bonus, read via player/clan-bonus.service.ts.
+enum ClanBuildingBonusType {
+  MEMBER_CAPACITY
+  COMBAT_BONUS
+  PRODUCTION_BONUS
+}
+
+model ClanBuildingType {
+  id             String                @id @default(uuid())
+  key            String                @unique
+  nameKey        String
+  descriptionKey String
+  bonusType      ClanBuildingBonusType
+  bonusPerLevel  Float
+  maxLevel       Int
+  iconAssetId    String
+
+  levelCosts    ClanBuildingLevelCost[]
+  clanBuildings ClanBuilding[]
+
+  @@map("clan_building_types")
+}
+
+model ClanBuildingLevelCost {
+  id                  String @id @default(uuid())
+  clanBuildingTypeId  String
+  level               Int
+  metalCost           Int
+  crystalCost         Int
+  creditsCost         Int
+  constructionSeconds Int
+
+  clanBuildingType ClanBuildingType @relation(fields: [clanBuildingTypeId], references: [id])
+
+  @@unique([clanBuildingTypeId, level])
+  @@map("clan_building_level_costs")
+}
+
+model ClanBuilding {
+  id                 String    @id @default(uuid())
+  clanId             String
+  clanBuildingTypeId String
+  level              Int       @default(0)
+  constructionEndsAt DateTime?
+
+  clan             Clan             @relation(fields: [clanId], references: [id])
+  clanBuildingType ClanBuildingType @relation(fields: [clanBuildingTypeId], references: [id])
+
+  @@unique([clanId, clanBuildingTypeId])
+  @@map("clan_buildings")
 }
 
 model ClanMembership {
@@ -497,6 +575,13 @@ model ClanMembership {
   playerId String   @unique
   role     ClanRole @default(MEMBER)
   joinedAt DateTime @default(now())
+
+  // Lifetime donations by this member while in THIS clan membership —
+  // resets on leaving/rejoining, a placeholder for "contribution rules"
+  // (instructions/OPEN_DECISIONS.md), not a final ranking formula.
+  contributedMetal   Int @default(0)
+  contributedCrystal Int @default(0)
+  contributedCredits Int @default(0)
 
   clan   Clan   @relation(fields: [clanId], references: [id])
   player Player @relation(fields: [playerId], references: [id])

@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { LootResultEntryDto, PvpBattleReportDto, PvpStatusDto, ResourceType } from '@pentilius/shared';
+import { CombatStatsDto, LootResultEntryDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto, ResourceType } from '@pentilius/shared';
 import { Player, Prisma, PvpBattleReport } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
 import { CombatService } from '../pve/combat.service';
@@ -23,6 +23,15 @@ const RESOURCE_FIELD: Record<'METAL' | 'CRYSTAL' | 'CREDITS', 'metal' | 'crystal
  * (instructions/OPEN_DECISIONS.md) — see schema.prisma's comment on
  * PvpBattleReport for the placeholders this M3 foundation uses. Level-5 gate
  * on both attacker and defender is owner-specified, not a placeholder.
+ *
+ * Owner-specified two-step flow: attacking is scout-then-commit, not
+ * blind-random. `scoutOpponent` reveals one random eligible opponent plus
+ * both fighters' combat stats without spending Action Energy or touching
+ * cooldowns, so the player can decide before committing; rerolling (calling
+ * scout again) is free and unlimited. `attackOpponent` then commits against
+ * that specific opponentId, re-validating eligibility at that moment (the
+ * candidate pool can shift between scout and attack) and only then spending
+ * energy and resolving the fight.
  */
 @Injectable()
 export class PvpService {
@@ -41,7 +50,33 @@ export class PvpService {
     };
   }
 
-  async attackRandomOpponent(attackerId: string): Promise<PvpBattleReportDto> {
+  async scoutOpponent(playerId: string): Promise<PvpScoutDto> {
+    const player = await this.economy.settleAll(playerId);
+    if (player.level < GAME_BALANCE.pvp.minLevel) {
+      throw new ForbiddenException('PvP is not unlocked yet');
+    }
+
+    const opponent = await this.pickRandomOpponent(playerId, this.prisma);
+    if (!opponent) {
+      throw new NotFoundException('No opponents available right now');
+    }
+
+    const [myStats, opponentStats] = await Promise.all([
+      this.combat.computePlayerStats(playerId, this.prisma),
+      this.combat.computePlayerStats(opponent.id, this.prisma),
+    ]);
+
+    return {
+      opponentId: opponent.id,
+      opponentUsername: opponent.username,
+      opponentRace: opponent.race,
+      opponentLevel: opponent.level,
+      myStats: roundStats(myStats),
+      opponentStats: roundStats(opponentStats),
+    };
+  }
+
+  async attackOpponent(attackerId: string, opponentId: string): Promise<PvpBattleReportDto> {
     const attacker = await this.economy.settleAll(attackerId);
     if (attacker.level < GAME_BALANCE.pvp.minLevel) {
       throw new ForbiddenException('PvP is not unlocked yet');
@@ -49,12 +84,17 @@ export class PvpService {
     if (attacker.actionEnergy < GAME_BALANCE.pvp.attackCostEnergy) {
       throw new BadRequestException('Not enough Action Energy');
     }
+    if (opponentId === attackerId) {
+      throw new BadRequestException('Cannot attack yourself');
+    }
 
     return this.prisma.$transaction(async (tx) => {
-      const defender = await this.pickRandomOpponent(attackerId, tx);
-      if (!defender) {
-        throw new NotFoundException('No opponents available right now');
+      const eligible = await this.isEligibleOpponent(attackerId, opponentId, tx);
+      if (!eligible) {
+        throw new NotFoundException('This opponent is no longer available');
       }
+
+      const defender = await tx.player.findUniqueOrThrow({ where: { id: opponentId } });
       await this.economy.settleResources(defender.id, tx);
       const settledDefender = await tx.player.findUniqueOrThrow({ where: { id: defender.id } });
 
@@ -155,6 +195,26 @@ export class PvpService {
     }
     return eligible[Math.floor(Math.random() * eligible.length)];
   }
+
+  /** Re-checks the same eligibility rules pickRandomOpponent applies to its pool, for one specific candidate. */
+  private async isEligibleOpponent(attackerId: string, opponentId: string, tx: Tx): Promise<boolean> {
+    const opponent = await tx.player.findUnique({ where: { id: opponentId } });
+    if (!opponent || opponent.level < GAME_BALANCE.pvp.minLevel) {
+      return false;
+    }
+    if (opponent.pvpProtectedUntil && opponent.pvpProtectedUntil > new Date()) {
+      return false;
+    }
+    const cooldownCutoff = new Date(Date.now() - GAME_BALANCE.pvp.attackCooldownMinutes * 60_000);
+    const recentAttack = await tx.pvpBattleReport.findFirst({
+      where: { attackerId, defenderId: opponentId, createdAt: { gte: cooldownCutoff } },
+    });
+    return !recentAttack;
+  }
+}
+
+function roundStats(stats: CombatStatsDto): CombatStatsDto {
+  return { attack: Math.round(stats.attack), defense: Math.round(stats.defense), hp: Math.round(stats.hp) };
 }
 
 function toReportDto(
@@ -167,6 +227,7 @@ function toReportDto(
   return {
     id: report.id,
     role,
+    opponentId: opponent.id,
     opponentUsername: opponent.username,
     opponentRace: opponent.race,
     outcome: report.outcome,

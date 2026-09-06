@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Player, Prisma, ResearchBonusType } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
 import { PrismaService } from '../prisma/prisma.service';
+import { ClanBonusService } from './clan-bonus.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
 
@@ -13,7 +14,10 @@ type Tx = PrismaService | Prisma.TransactionClient;
  */
 @Injectable()
 export class EconomyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clanBonus: ClanBonusService,
+  ) {}
 
   /** Applies accrued building production since the last settlement and returns the up-to-date player. */
   async settleResources(playerId: string, tx: Tx = this.prisma): Promise<Player> {
@@ -28,10 +32,13 @@ export class EconomyService {
       return player;
     }
 
-    const [metalMultiplier, crystalMultiplier] = await Promise.all([
+    const [researchMetalMultiplier, researchCrystalMultiplier, clanProductionBonus] = await Promise.all([
       this.getResearchMultiplier(playerId, ResearchBonusType.METAL_PRODUCTION, tx),
       this.getResearchMultiplier(playerId, ResearchBonusType.CRYSTAL_PRODUCTION, tx),
+      this.clanBonus.getBonus(playerId, 'PRODUCTION_BONUS', tx),
     ]);
+    const metalMultiplier = researchMetalMultiplier + clanProductionBonus;
+    const crystalMultiplier = researchCrystalMultiplier + clanProductionBonus;
 
     const gains: Record<string, number> = { METAL: 0, CRYSTAL: 0, OXYGEN: 0, CREDITS: 0 };
     for (const building of buildings) {

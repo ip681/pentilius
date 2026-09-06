@@ -14,9 +14,13 @@ import type {
   LoginRequest,
   MyClanResponseDto,
   PentiliDto,
+  PlayerListEntryDto,
   PlayerProfileDto,
+  PlayerPublicProfileDto,
   PvpBattleReportDto,
+  PvpScoutDto,
   PvpStatusDto,
+  Race,
   RegisterRequest,
   ResearchResponseDto,
   ResearchStateDto,
@@ -84,6 +88,22 @@ export function login(payload: LoginRequest): Promise<AuthResponse> {
 // Player
 export function getProfile(): Promise<PlayerProfileDto> {
   return request<PlayerProfileDto>('/player/me', { auth: true });
+}
+
+export function getPublicProfile(playerId: string): Promise<PlayerPublicProfileDto> {
+  return request<PlayerPublicProfileDto>(`/player/${playerId}`, { auth: true });
+}
+
+export function updateBio(bio: string): Promise<PlayerPublicProfileDto> {
+  return request<PlayerPublicProfileDto>('/player/me/bio', { method: 'POST', auth: true, body: { bio } });
+}
+
+export function listPlayers(filter: { race?: Race; search?: string } = {}): Promise<PlayerListEntryDto[]> {
+  const params = new URLSearchParams();
+  if (filter.race) params.set('race', filter.race);
+  if (filter.search) params.set('search', filter.search);
+  const query = params.toString();
+  return request<PlayerListEntryDto[]>(`/player${query ? `?${query}` : ''}`, { auth: true });
 }
 
 // Base / buildings
@@ -179,8 +199,12 @@ export function getPvpStatus(): Promise<PvpStatusDto> {
   return request<PvpStatusDto>('/pvp/status', { auth: true });
 }
 
-export function attackRandomOpponent(): Promise<PvpBattleReportDto> {
-  return request<PvpBattleReportDto>('/pvp/attack', { method: 'POST', auth: true });
+export function scoutPvpOpponent(): Promise<PvpScoutDto> {
+  return request<PvpScoutDto>('/pvp/scout', { auth: true });
+}
+
+export function attackPvpOpponent(opponentId: string): Promise<PvpBattleReportDto> {
+  return request<PvpBattleReportDto>('/pvp/attack', { method: 'POST', auth: true, body: { opponentId } });
 }
 
 export function getPvpReports(): Promise<PvpBattleReportDto[]> {
@@ -194,6 +218,14 @@ export function listClans(): Promise<ClanSummaryDto[]> {
 
 export function getMyClan(): Promise<MyClanResponseDto> {
   return request<MyClanResponseDto>('/clans/me', { auth: true });
+}
+
+export function getClan(clanId: string): Promise<ClanDetailDto> {
+  return request<ClanDetailDto>(`/clans/${clanId}`, { auth: true });
+}
+
+export function updateClan(payload: { name?: string; description?: string }): Promise<ClanDetailDto> {
+  return request<ClanDetailDto>('/clans/update', { method: 'POST', auth: true, body: payload });
 }
 
 export function createClan(payload: { name: string; tag: string; description?: string }): Promise<ClanDetailDto> {
@@ -226,4 +258,12 @@ export function demoteClanMember(playerId: string): Promise<void> {
 
 export function transferClanLeadership(playerId: string): Promise<void> {
   return request<void>(`/clans/members/${playerId}/transfer-leadership`, { method: 'POST', auth: true });
+}
+
+export function donateToClan(payload: { metal?: number; crystal?: number; credits?: number }): Promise<ClanDetailDto> {
+  return request<ClanDetailDto>('/clans/donate', { method: 'POST', auth: true, body: payload });
+}
+
+export function upgradeClanBuilding(key: string): Promise<ClanDetailDto> {
+  return request<ClanDetailDto>(`/clans/buildings/${key}/upgrade`, { method: 'POST', auth: true });
 }

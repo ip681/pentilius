@@ -229,6 +229,33 @@ async function main() {
     ],
   });
 
+  // Clan buildings (instructions/GAME_SYSTEMS.md, LOCKED: "Clans are
+  // central"): "clan building list" is UNDEFINED — 3 buildings as a working
+  // M4 foundation, funded entirely from the clan treasury. Member Hall's
+  // bonusPerLevel is a flat extra-slot count, not a percentage.
+  const clanBuildingTypes = await Promise.all(
+    [
+      { key: 'member_hall', nameKey: 'clanBuildings.member_hall.name', descriptionKey: 'clanBuildings.member_hall.description', bonusType: 'MEMBER_CAPACITY' as const, bonusPerLevel: 5, maxLevel: 5, iconAssetId: 'clanBuildings.member_hall.icon' },
+      { key: 'clan_forge', nameKey: 'clanBuildings.clan_forge.name', descriptionKey: 'clanBuildings.clan_forge.description', bonusType: 'COMBAT_BONUS' as const, bonusPerLevel: 0.05, maxLevel: 5, iconAssetId: 'clanBuildings.clan_forge.icon' },
+      { key: 'clan_depot', nameKey: 'clanBuildings.clan_depot.name', descriptionKey: 'clanBuildings.clan_depot.description', bonusType: 'PRODUCTION_BONUS' as const, bonusPerLevel: 0.05, maxLevel: 5, iconAssetId: 'clanBuildings.clan_depot.icon' },
+    ].map((data) => prisma.clanBuildingType.upsert({ where: { key: data.key }, update: {}, create: data })),
+  );
+
+  const clanBuildingLevelCosts = clanBuildingTypes.flatMap((buildingType) => [
+    { clanBuildingTypeId: buildingType.id, level: 1, metalCost: 500, crystalCost: 200, creditsCost: 100, constructionSeconds: 300 },
+    { clanBuildingTypeId: buildingType.id, level: 2, metalCost: 1200, crystalCost: 500, creditsCost: 300, constructionSeconds: 900 },
+    { clanBuildingTypeId: buildingType.id, level: 3, metalCost: 2500, crystalCost: 1000, creditsCost: 700, constructionSeconds: 1800 },
+    { clanBuildingTypeId: buildingType.id, level: 4, metalCost: 4500, crystalCost: 1800, creditsCost: 1300, constructionSeconds: 3600 },
+    { clanBuildingTypeId: buildingType.id, level: 5, metalCost: 7500, crystalCost: 3000, creditsCost: 2200, constructionSeconds: 7200 },
+  ]);
+  for (const cost of clanBuildingLevelCosts) {
+    await prisma.clanBuildingLevelCost.upsert({
+      where: { clanBuildingTypeId_level: { clanBuildingTypeId: cost.clanBuildingTypeId, level: cost.level } },
+      update: {},
+      create: cost,
+    });
+  }
+
   console.log('Seeded Milestone 1-2 static content.');
 }
 

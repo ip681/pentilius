@@ -25,8 +25,35 @@ export interface PlayerProfileDto {
   level: number;
   xp: number;
   xpForNextLevel: number | null;
+  bio: string | null;
   resources: ResourcesDto;
   energy: EnergyDto;
+}
+
+export interface PublicProfileClanDto {
+  id: string;
+  name: string;
+  tag: string;
+  role: ClanRole;
+}
+
+export interface PlayerListEntryDto {
+  id: string;
+  username: string;
+  race: Race;
+  level: number;
+  clanId: string | null;
+  clanTag: string | null;
+}
+
+export interface PlayerPublicProfileDto {
+  id: string;
+  username: string;
+  race: Race;
+  level: number;
+  bio: string | null;
+  createdAt: string;
+  clan: PublicProfileClanDto | null;
 }
 
 export interface BuildingCostDto {
@@ -245,9 +272,25 @@ export interface PvpStatusDto {
   attackCostEnergy: number;
 }
 
+export interface CombatStatsDto {
+  attack: number;
+  defense: number;
+  hp: number;
+}
+
+export interface PvpScoutDto {
+  opponentId: string;
+  opponentUsername: string;
+  opponentRace: Race;
+  opponentLevel: number;
+  myStats: CombatStatsDto;
+  opponentStats: CombatStatsDto;
+}
+
 export interface PvpBattleReportDto {
   id: string;
   role: 'attacker' | 'defender';
+  opponentId: string;
   opponentUsername: string;
   opponentRace: Race;
   outcome: BattleOutcome;
@@ -262,6 +305,12 @@ export interface PvpBattleReportDto {
 
 export type ClanRole = 'LEADER' | 'OFFICER' | 'MEMBER';
 
+export interface ClanTreasuryDto {
+  metal: number;
+  crystal: number;
+  credits: number;
+}
+
 export interface ClanSummaryDto {
   id: string;
   name: string;
@@ -269,7 +318,9 @@ export interface ClanSummaryDto {
   description: string | null;
   memberCount: number;
   memberCap: number;
+  leaderId: string;
   leaderUsername: string;
+  treasury: ClanTreasuryDto;
 }
 
 export interface ClanMemberDto {
@@ -279,12 +330,36 @@ export interface ClanMemberDto {
   role: ClanRole;
   joinedAt: string;
   isCurrentPlayer: boolean;
+  contributed: ClanTreasuryDto;
+}
+
+export type ClanBuildingBonusType = 'MEMBER_CAPACITY' | 'COMBAT_BONUS' | 'PRODUCTION_BONUS';
+
+export interface ClanBuildingCostDto {
+  metalCost: number;
+  crystalCost: number;
+  creditsCost: number;
+  constructionSeconds: number;
+}
+
+export interface ClanBuildingStateDto {
+  key: string;
+  nameKey: string;
+  descriptionKey: string;
+  bonusType: ClanBuildingBonusType;
+  bonusPerLevel: number;
+  iconAssetId: string;
+  level: number;
+  maxLevel: number;
+  constructionEndsAt: string | null;
+  nextLevelCost: ClanBuildingCostDto | null;
 }
 
 export interface ClanDetailDto extends ClanSummaryDto {
   createdAt: string;
   members: ClanMemberDto[];
   myRole: ClanRole | null;
+  buildings: ClanBuildingStateDto[];
 }
 
 export interface MyClanResponseDto {

@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
+import { ClanBonusService } from './clan-bonus.service';
 import { EconomyService } from './economy.service';
 
 describe('EconomyService', () => {
@@ -20,7 +21,11 @@ describe('EconomyService', () => {
     };
 
     const moduleRef = await Test.createTestingModule({
-      providers: [EconomyService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        EconomyService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ClanBonusService, useValue: { getBonus: jest.fn().mockResolvedValue(0) } },
+      ],
     }).compile();
 
     economy = moduleRef.get(EconomyService);

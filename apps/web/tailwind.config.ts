@@ -23,6 +23,9 @@ const config: Config = {
         positive: '#7fc7a0',
         danger: '#a56e6e',
         gold: '#c5a873',
+        // Action Energy bar fill — a distinct cyan so it's never confused with
+        // HP (positive/danger) or the XP bar (gold) at a glance.
+        energy: '#5ec8d8',
       },
     },
   },

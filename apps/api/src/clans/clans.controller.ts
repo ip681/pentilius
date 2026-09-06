@@ -4,6 +4,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/jwt-payload.interface';
 import { ClansService } from './clans.service';
 import { CreateClanDto } from './dto/create-clan.dto';
+import { DonateDto } from './dto/donate.dto';
+import { UpdateClanDto } from './dto/update-clan.dto';
 
 @Controller('clans')
 @UseGuards(JwtAuthGuard)
@@ -43,6 +45,21 @@ export class ClansController {
   @Post('disband')
   disbandClan(@CurrentPlayer() currentPlayer: JwtPayload) {
     return this.clansService.disbandClan(currentPlayer.sub);
+  }
+
+  @Post('update')
+  updateClan(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: UpdateClanDto) {
+    return this.clansService.updateClan(currentPlayer.sub, dto);
+  }
+
+  @Post('donate')
+  donate(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: DonateDto) {
+    return this.clansService.donate(currentPlayer.sub, dto);
+  }
+
+  @Post('buildings/:key/upgrade')
+  upgradeBuilding(@CurrentPlayer() currentPlayer: JwtPayload, @Param('key') key: string) {
+    return this.clansService.upgradeClanBuilding(currentPlayer.sub, key);
   }
 
   @Post('members/:playerId/kick')

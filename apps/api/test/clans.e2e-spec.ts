@@ -55,6 +55,7 @@ describe('Clans (e2e)', () => {
   afterAll(async () => {
     await prisma.clanMembership.deleteMany({ where: { playerId: { in: [playerAId, playerBId, playerCId] } } });
     if (clanId) {
+      await prisma.clanBuilding.deleteMany({ where: { clanId } });
       await prisma.clan.deleteMany({ where: { id: clanId } });
     }
     await prisma.itemInstance.deleteMany({ where: { playerId: { in: [playerAId, playerBId, playerCId] } } });
@@ -99,6 +100,10 @@ describe('Clans (e2e)', () => {
       .expect(400);
   });
 
+  it('rejects donating from a player not in a clan', async () => {
+    await request(app.getHttpServer()).post('/api/v1/clans/donate').set(auth(tokenB)).send({ metal: 10 }).expect(400);
+  });
+
   it('lists the clan for browsing', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/clans').set(auth(tokenB)).expect(200);
     expect(res.body.find((c: { id: string }) => c.id === clanId)).toBeDefined();
@@ -114,6 +119,127 @@ describe('Clans (e2e)', () => {
 
   it('rejects a member trying to kick another member', async () => {
     await request(app.getHttpServer()).post(`/api/v1/clans/members/${playerCId}/kick`).set(auth(tokenB)).expect(403);
+  });
+
+  it('rejects donating with no positive amount', async () => {
+    await request(app.getHttpServer()).post('/api/v1/clans/donate').set(auth(tokenB)).send({}).expect(400);
+  });
+
+  it('rejects donating more than the player has', async () => {
+    await request(app.getHttpServer()).post('/api/v1/clans/donate').set(auth(tokenB)).send({ metal: 999999 }).expect(400);
+  });
+
+  it('lets a member donate to the clan treasury, tracking their contribution', async () => {
+    const before = await request(app.getHttpServer()).get('/api/v1/player/me').set(auth(tokenB)).expect(200);
+
+    const donated = await request(app.getHttpServer())
+      .post('/api/v1/clans/donate')
+      .set(auth(tokenB))
+      .send({ metal: 50, crystal: 10 })
+      .expect(201);
+    expect(donated.body.treasury).toEqual({ metal: 50, crystal: 10, credits: 0 });
+    expect(donated.body.members.find((m: { playerId: string }) => m.playerId === playerBId).contributed).toEqual({
+      metal: 50,
+      crystal: 10,
+      credits: 0,
+    });
+
+    const after = await request(app.getHttpServer()).get('/api/v1/player/me').set(auth(tokenB)).expect(200);
+    expect(after.body.resources.metal).toBe(before.body.resources.metal - 50);
+    expect(after.body.resources.crystal).toBe(before.body.resources.crystal - 10);
+  });
+
+  it('lists the three clan buildings at level 0 with their next-level cost', async () => {
+    const detail = await request(app.getHttpServer()).get('/api/v1/clans/me').set(auth(tokenA)).expect(200);
+    const buildings = detail.body.clan.buildings;
+    expect(buildings).toHaveLength(3);
+    const memberHall = buildings.find((b: { key: string }) => b.key === 'member_hall');
+    expect(memberHall.level).toBe(0);
+    expect(memberHall.bonusType).toBe('MEMBER_CAPACITY');
+    expect(memberHall.nextLevelCost).toEqual({ metalCost: 500, crystalCost: 200, creditsCost: 100, constructionSeconds: 300 });
+  });
+
+  it('rejects a member trying to upgrade a clan building', async () => {
+    await request(app.getHttpServer()).post('/api/v1/clans/buildings/member_hall/upgrade').set(auth(tokenB)).expect(403);
+  });
+
+  it('rejects upgrading when the treasury cannot afford it', async () => {
+    // Treasury only has 50 metal / 10 crystal so far — level 1 needs 500/200/100.
+    await request(app.getHttpServer()).post('/api/v1/clans/buildings/member_hall/upgrade').set(auth(tokenA)).expect(400);
+  });
+
+  it('lets the leader upgrade a clan building once funded, raising the effective member cap on completion', async () => {
+    // A single player's starting resources (500/100/50) can't cover a level-1
+    // building alone (500/200/100) — top up before donating, like a second
+    // contributing member would in practice.
+    await prisma.player.update({ where: { id: playerAId }, data: { metal: 5000, crystal: 5000, credits: 5000 } });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/clans/donate')
+      .set(auth(tokenA))
+      .send({ metal: 500, crystal: 200, credits: 100 })
+      .expect(201);
+
+    const started = await request(app.getHttpServer()).post('/api/v1/clans/buildings/member_hall/upgrade').set(auth(tokenA)).expect(201);
+    const startedHall = started.body.buildings.find((b: { key: string }) => b.key === 'member_hall');
+    expect(startedHall.constructionEndsAt).not.toBeNull();
+    // Treasury had 50/10/0, plus the 500/200/100 just donated, minus the 500/200/100 level-1 cost.
+    expect(started.body.treasury).toEqual({ metal: 50, crystal: 10, credits: 0 });
+    expect(started.body.memberCap).toBe(30); // bonus only applies once the level actually increases
+
+    await request(app.getHttpServer()).post('/api/v1/clans/buildings/member_hall/upgrade').set(auth(tokenA)).expect(400);
+
+    await prisma.clanBuilding.updateMany({
+      where: { clanId, clanBuildingType: { key: 'member_hall' } },
+      data: { constructionEndsAt: new Date(Date.now() - 1000) },
+    });
+
+    const finished = await request(app.getHttpServer()).get('/api/v1/clans/me').set(auth(tokenA)).expect(200);
+    const finishedHall = finished.body.clan.buildings.find((b: { key: string }) => b.key === 'member_hall');
+    expect(finishedHall.level).toBe(1);
+    expect(finishedHall.constructionEndsAt).toBeNull();
+    expect(finished.body.clan.memberCap).toBe(35); // base 30 + level 1 * bonusPerLevel 5
+  });
+
+  it('rejects a non-leader editing the clan', async () => {
+    await request(app.getHttpServer()).post('/api/v1/clans/update').set(auth(tokenB)).send({ description: 'hijacked' }).expect(403);
+  });
+
+  it('lets the leader rename the clan and change its description', async () => {
+    const renamedTo = `Renamed ${suffix}`;
+    const updated = await request(app.getHttpServer())
+      .post('/api/v1/clans/update')
+      .set(auth(tokenA))
+      .send({ name: renamedTo, description: 'Now under new management.' })
+      .expect(201);
+    expect(updated.body.name).toBe(renamedTo);
+    expect(updated.body.description).toBe('Now under new management.');
+
+    const list = await request(app.getHttpServer()).get('/api/v1/clans').set(auth(tokenB)).expect(200);
+    expect(list.body.find((c: { id: string }) => c.id === clanId).name).toBe(renamedTo);
+  });
+
+  it('rejects renaming to a name already taken by another clan', async () => {
+    // A dedicated throwaway player: A/B/C are already clan members by this point in the suite.
+    const regD = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ email: `clan-d-${suffix}@example.com`, username: `cD_${suffix}`, password, race: 'NEXAR' });
+    const tokenD = regD.body.accessToken;
+    const playerDId = regD.body.player.id;
+
+    const other = await request(app.getHttpServer())
+      .post('/api/v1/clans')
+      .set(auth(tokenD))
+      .send({ name: `Someone Else ${suffix}`, tag: 'OTHR' })
+      .expect(201);
+
+    await request(app.getHttpServer()).post('/api/v1/clans/update').set(auth(tokenA)).send({ name: `Someone Else ${suffix}` }).expect(400);
+
+    await prisma.clanMembership.deleteMany({ where: { playerId: playerDId } });
+    await prisma.clanBuilding.deleteMany({ where: { clanId: other.body.id } });
+    await prisma.clan.deleteMany({ where: { id: other.body.id } });
+    await prisma.itemInstance.deleteMany({ where: { playerId: playerDId } });
+    await prisma.player.deleteMany({ where: { id: playerDId } });
   });
 
   it('promotes a member to officer, who can then kick regular members', async () => {

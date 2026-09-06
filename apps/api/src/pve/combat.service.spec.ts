@@ -23,7 +23,8 @@ describe('CombatService', () => {
 
   beforeEach(() => {
     const economy = { getResearchMultiplier: jest.fn().mockResolvedValue(1) };
-    combat = new CombatService(undefined as never, economy as never);
+    const clanBonus = { getBonus: jest.fn().mockResolvedValue(0) };
+    combat = new CombatService(undefined as never, economy as never, clanBonus as never);
   });
 
   afterEach(() => {

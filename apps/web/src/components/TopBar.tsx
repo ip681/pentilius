@@ -3,34 +3,21 @@
 import type { PlayerProfileDto } from '@pentilius/shared';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Link, useRouter } from '@/i18n/navigation';
-import { getProfile } from '@/lib/api-client';
-import { clearTokens, isAuthenticated } from '@/lib/auth';
+import { clearTokens } from '@/lib/auth';
 
-export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
+export function TopBar({
+  profile,
+  loggedIn,
+  onMenuClick,
+}: {
+  profile: PlayerProfileDto | null;
+  loggedIn: boolean;
+  onMenuClick: () => void;
+}) {
   const t = useTranslations();
   const router = useRouter();
-  const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
-  const [loggedIn, setLoggedIn] = useState(false);
-
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      setLoggedIn(false);
-      return;
-    }
-    getProfile()
-      .then((data) => {
-        setProfile(data);
-        setLoggedIn(true);
-      })
-      .catch(() => {
-        // Stored token is missing/expired — treat as logged out rather than showing a dead top bar.
-        clearTokens();
-        setLoggedIn(false);
-      });
-  }, []);
 
   function handleLogout() {
     clearTokens();
@@ -56,26 +43,6 @@ export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
         <Image src="/logo.png" alt="Pentilius" width={160} height={96} className="h-8 w-auto md:h-10" priority />
       </div>
 
-      {profile && (
-        <div className="hidden flex-wrap gap-6 text-xs text-textMuted lg:flex">
-          <span>
-            {t('resource.METAL')} <strong className="ml-1 font-semibold text-text">{profile.resources.metal.toLocaleString()}</strong>
-          </span>
-          <span>
-            {t('resource.CRYSTAL')} <strong className="ml-1 font-semibold text-text">{profile.resources.crystal.toLocaleString()}</strong>
-          </span>
-          <span>
-            {t('resource.OXYGEN')} <strong className="ml-1 font-semibold text-text">{profile.resources.oxygen.toLocaleString()}</strong>
-          </span>
-          <span>
-            {t('resource.CREDITS')} <strong className="ml-1 font-semibold text-text">{profile.resources.credits.toLocaleString()}</strong>
-          </span>
-          <span>
-            {t('resource.UPGRADE_STONES')} <strong className="ml-1 font-semibold text-text">{profile.resources.upgradeStones.toLocaleString()}</strong>
-          </span>
-        </div>
-      )}
-
       {loggedIn && profile ? (
         <div className="flex items-center gap-2 text-xs md:gap-4">
           <div className="hidden items-center gap-1.5 text-positive sm:flex">
@@ -84,10 +51,10 @@ export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
           </div>
           <div className="text-right">
             <div className="font-semibold">
-              {profile.username} <span className="hidden font-normal text-textFaint sm:inline">· {t(`race.${profile.race}.name`)}</span>
-            </div>
-            <div className="hidden text-textFaint sm:block">
-              {t('dashboard.level')} {profile.level} · {t('dashboard.energy')} {profile.energy.current}/{profile.energy.max}
+              <Link href={`/players/${profile.id}`} className="hover:text-accent">
+                {profile.username}
+              </Link>{' '}
+              <span className="hidden font-normal text-textFaint sm:inline">· {t(`race.${profile.race}.name`)}</span>
             </div>
           </div>
           <button

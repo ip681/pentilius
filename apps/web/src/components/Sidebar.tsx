@@ -10,6 +10,7 @@ const GROUPS = [
     items: [
       { href: '/dashboard', labelKey: 'nav.overview' },
       { href: '/clans', labelKey: 'nav.clans' },
+      { href: '/players', labelKey: 'nav.leaderboard' },
       { href: '/base', labelKey: 'nav.base' },
       { href: '/research', labelKey: 'nav.research' },
       { href: '/ship', labelKey: 'nav.ship' },

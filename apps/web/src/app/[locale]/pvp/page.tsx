@@ -1,10 +1,11 @@
 'use client';
 
-import type { PvpBattleReportDto, PvpStatusDto } from '@pentilius/shared';
+import type { CombatStatsDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
-import { ApiError, attackRandomOpponent, getPvpReports, getPvpStatus } from '@/lib/api-client';
+import { PlayerLink } from '@/components/PlayerLink';
+import { ApiError, attackPvpOpponent, getPvpReports, getPvpStatus, scoutPvpOpponent } from '@/lib/api-client';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface LogLine {
@@ -28,15 +29,31 @@ export default function PvpPage() {
   const t = useTranslations();
   const [status, setStatus] = useState<PvpStatusDto | null>(null);
   const [reports, setReports] = useState<PvpBattleReportDto[] | null>(null);
+  const [scout, setScout] = useState<PvpScoutDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  async function loadScout() {
+    try {
+      const scoutRes = await scoutPvpOpponent();
+      setScout(scoutRes);
+    } catch (err) {
+      setScout(null);
+      if (err instanceof ApiError && err.status === 404) {
+        setError(t('pvp.noOpponents'));
+      }
+    }
+  }
 
   async function load() {
     try {
       const [statusRes, reportsRes] = await Promise.all([getPvpStatus(), getPvpReports()]);
       setStatus(statusRes);
       setReports(reportsRes);
+      if (statusRes.unlocked) {
+        await loadScout();
+      }
     } catch {
       setError(t('pvp.loadError'));
     }
@@ -51,9 +68,11 @@ export default function PvpPage() {
   }, []);
 
   async function handleAttack() {
+    if (!scout) return;
     setError(null);
     try {
-      const report = await attackRandomOpponent();
+      const report = await attackPvpOpponent(scout.opponentId);
+      setScout(null);
 
       setBattle({
         report,
@@ -103,7 +122,8 @@ export default function PvpPage() {
       await load();
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        setError(t('pvp.noOpponents'));
+        setError(t('pvp.opponentGone'));
+        await loadScout();
       } else if (err instanceof ApiError && err.status === 400) {
         setError(t('pvp.notEnoughEnergy'));
       } else {
@@ -112,15 +132,25 @@ export default function PvpPage() {
     }
   }
 
-  function reportLine(report: PvpBattleReportDto): string {
-    if (report.role === 'attacker') {
-      return report.outcome === 'WIN'
-        ? t('pvp.outcomeYouWon', { name: report.opponentUsername })
-        : t('pvp.outcomeYouLost', { name: report.opponentUsername });
-    }
-    return report.outcome === 'WIN'
-      ? t('pvp.outcomeDefeatedBy', { name: report.opponentUsername })
-      : t('pvp.outcomeYouDefended', { name: report.opponentUsername });
+  async function handleReroll() {
+    setError(null);
+    await loadScout();
+  }
+
+  function reportLine(report: PvpBattleReportDto) {
+    const key =
+      report.role === 'attacker'
+        ? report.outcome === 'WIN'
+          ? 'pvp.outcomeYouWon'
+          : 'pvp.outcomeYouLost'
+        : report.outcome === 'WIN'
+          ? 'pvp.outcomeDefeatedBy'
+          : 'pvp.outcomeYouDefended';
+
+    return t.rich(key, {
+      name: report.opponentUsername,
+      link: () => <PlayerLink playerId={report.opponentId} username={report.opponentUsername} />,
+    });
   }
 
   return (
@@ -139,15 +169,48 @@ export default function PvpPage() {
       )}
 
       {status?.unlocked && !battle && (
-        <div className="mb-6 text-center">
-          <button
-            type="button"
-            onClick={handleAttack}
-            className="rounded-md border border-accent bg-accentBg px-6 py-2.5 text-xs uppercase hover:bg-accentBgHover"
-          >
-            {t('pvp.attack')}
-          </button>
-          <p className="mt-2 text-[10px] text-textFaint">{t('pvp.attackCost', { amount: status.attackCostEnergy })}</p>
+        <div className="mb-6">
+          {scout ? (
+            <div className="rounded-lg border border-panelBorder bg-panel p-5">
+              <h2 className="mb-4 text-center text-sm font-semibold">{t('pvp.scoutTitle')}</h2>
+              <div className="mb-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+                <StatsCard title={t('pvp.you')} stats={scout.myStats} variant="player" />
+                <StatsCard
+                  title={<PlayerLink playerId={scout.opponentId} username={scout.opponentUsername} className="hover:text-accent" />}
+                  subtitle={`${t(`race.${scout.opponentRace}.name`)} · ${t('pvp.level')} ${scout.opponentLevel}`}
+                  stats={scout.opponentStats}
+                  variant="enemy"
+                />
+              </div>
+              <div className="flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleReroll}
+                  className="rounded-md border border-wellBorder bg-well px-5 py-2.5 text-xs uppercase text-textMuted hover:bg-accentBgHover"
+                >
+                  {t('pvp.reroll')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAttack}
+                  className="rounded-md border border-accent bg-accentBg px-6 py-2.5 text-xs uppercase hover:bg-accentBgHover"
+                >
+                  {t('pvp.attack')}
+                </button>
+              </div>
+              <p className="mt-2 text-center text-[10px] text-textFaint">{t('pvp.attackCost', { amount: status.attackCostEnergy })}</p>
+            </div>
+          ) : (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleReroll}
+                className="rounded-md border border-accent bg-accentBg px-6 py-2.5 text-xs uppercase hover:bg-accentBgHover"
+              >
+                {t('pvp.findOpponent')}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -167,7 +230,10 @@ export default function PvpPage() {
               )}
               <button
                 type="button"
-                onClick={() => setBattle(null)}
+                onClick={() => {
+                  setBattle(null);
+                  loadScout();
+                }}
                 className="mt-4 rounded-md border border-accent bg-accentBg px-5 py-2 text-[11px] uppercase hover:bg-accentBgHover"
               >
                 {t('pvp.attackAgain')}
@@ -187,7 +253,12 @@ export default function PvpPage() {
               </div>
             </div>
 
-            <FighterPanel name={battle.report.opponentUsername} hp={battle.opponentHp} maxHp={battle.report.defenderMaxHp} variant="enemy" />
+            <FighterPanel
+              name={<PlayerLink playerId={battle.report.opponentId} username={battle.report.opponentUsername} className="hover:text-accent" />}
+              hp={battle.opponentHp}
+              maxHp={battle.report.defenderMaxHp}
+              variant="enemy"
+            />
           </section>
 
           <section className="mb-6 rounded-lg border border-panelBorder bg-panel p-4">
@@ -220,7 +291,41 @@ export default function PvpPage() {
   );
 }
 
-function FighterPanel({ name, hp, maxHp, variant }: { name: string; hp: number; maxHp: number; variant: 'player' | 'enemy' }) {
+function StatsCard({
+  title,
+  subtitle,
+  stats,
+  variant,
+}: {
+  title: React.ReactNode;
+  subtitle?: string;
+  stats: CombatStatsDto;
+  variant: 'player' | 'enemy';
+}) {
+  const t = useTranslations();
+  return (
+    <div className={`rounded-md border p-4 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-well`}>
+      <div className="mb-1 text-sm font-semibold">{title}</div>
+      {subtitle && <div className="mb-3 text-[10px] text-textFaint">{subtitle}</div>}
+      <div className="flex flex-col gap-1.5 text-xs">
+        <div className="flex justify-between">
+          <span className="text-textMuted">{t('bosses.attack')}</span>
+          <span>{stats.attack}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-textMuted">{t('bosses.defense')}</span>
+          <span>{stats.defense}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-textMuted">HP</span>
+          <span>{stats.hp}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FighterPanel({ name, hp, maxHp, variant }: { name: React.ReactNode; hp: number; maxHp: number; variant: 'player' | 'enemy' }) {
   const percent = maxHp > 0 ? Math.max(0, (hp / maxHp) * 100) : 0;
   return (
     <div className={`rounded-lg border p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
