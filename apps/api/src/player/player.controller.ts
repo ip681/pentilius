@@ -2,8 +2,10 @@ import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/co
 import { CurrentPlayer } from '../auth/decorators/current-player.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/jwt-payload.interface';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { ListPlayersDto } from './dto/list-players.dto';
 import { UpdateBioDto } from './dto/update-bio.dto';
+import { UpdateLocaleDto } from './dto/update-locale.dto';
 import { PlayerService } from './player.service';
 
 @Controller('player')
@@ -24,6 +26,16 @@ export class PlayerController {
   @Post('me/bio')
   updateBio(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: UpdateBioDto) {
     return this.playerService.updateBio(currentPlayer.sub, dto.bio);
+  }
+
+  @Post('me/password')
+  changePassword(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: ChangePasswordDto) {
+    return this.playerService.changePassword(currentPlayer.sub, dto.currentPassword, dto.newPassword);
+  }
+
+  @Post('me/locale')
+  updateLocale(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: UpdateLocaleDto) {
+    return this.playerService.updatePreferredLocale(currentPlayer.sub, dto.locale);
   }
 
   @Get(':id')

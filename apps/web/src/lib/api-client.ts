@@ -107,6 +107,14 @@ export function updateBio(bio: string): Promise<PlayerPublicProfileDto> {
   return request<PlayerPublicProfileDto>('/player/me/bio', { method: 'POST', auth: true, body: { bio } });
 }
 
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return request<void>('/player/me/password', { method: 'POST', auth: true, body: { currentPassword, newPassword } });
+}
+
+export function updatePreferredLocale(locale: string): Promise<PlayerProfileDto> {
+  return request<PlayerProfileDto>('/player/me/locale', { method: 'POST', auth: true, body: { locale } });
+}
+
 export function listPlayers(filter: { race?: Race; search?: string } = {}): Promise<PlayerListEntryDto[]> {
   const params = new URLSearchParams();
   if (filter.race) params.set('race', filter.race);

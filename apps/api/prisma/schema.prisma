@@ -98,6 +98,11 @@ model Player {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Set only once the player saves a choice in Settings — null means "no
+  // saved preference yet," so the app just leaves them on whatever locale
+  // they're already viewing instead of forcing one.
+  preferredLocale String?
+
   level Int @default(1)
   xp    Int @default(0)
 

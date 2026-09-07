@@ -65,18 +65,20 @@ export default function DashboardPage() {
   const researchedCount = research?.researches.filter((r) => r.level > 0).length ?? 0;
   const unlockedBossCount = bosses?.filter((boss) => boss.unlocked).length ?? 0;
 
+  // Ordered by engagement type rather than onboarding order — same as
+  // NAV_ITEMS (Sidebar/BottomNav), minus Command Center itself.
   const cards: NavCard[] = [
-    {
-      key: 'base',
-      navKey: 'nav.base',
-      href: '/base',
-      subtitle: base ? `${base.buildings.filter((b) => b.level > 0).length}/${base.buildings.length} ${t('dashboard.buildingsBuilt')}` : '…',
-    },
     {
       key: 'robot',
       navKey: 'nav.robot',
       href: '/robot',
       subtitle: `${equippedCount}/7 ${t('dashboard.slotsEquipped')}`,
+    },
+    {
+      key: 'clans',
+      navKey: 'nav.clans',
+      href: '/clans',
+      subtitle: myClan ? (myClan.clan ? `${myClan.clan.name} [${myClan.clan.tag}]` : t('dashboard.noClan')) : '…',
     },
     {
       key: 'zones',
@@ -85,10 +87,10 @@ export default function DashboardPage() {
       subtitle: zones ? `${unlockedZoneCount}/${zones.length} ${t('dashboard.zonesUnlocked')}` : '…',
     },
     {
-      key: 'research',
-      navKey: 'nav.research',
-      href: '/research',
-      subtitle: research ? `${researchedCount}/${research.researches.length} ${t('dashboard.researchLeveled')}` : '…',
+      key: 'pvp',
+      navKey: 'nav.pvp',
+      href: '/pvp',
+      subtitle: pvpStatus ? (pvpStatus.unlocked ? t('dashboard.pvpUnlocked') : t('dashboard.pvpLocked', { level: pvpStatus.minLevel })) : '…',
     },
     {
       key: 'expeditions',
@@ -103,16 +105,16 @@ export default function DashboardPage() {
       subtitle: bosses ? `${unlockedBossCount} ${t('dashboard.bossesAvailable')}` : '…',
     },
     {
-      key: 'pvp',
-      navKey: 'nav.pvp',
-      href: '/pvp',
-      subtitle: pvpStatus ? (pvpStatus.unlocked ? t('dashboard.pvpUnlocked') : t('dashboard.pvpLocked', { level: pvpStatus.minLevel })) : '…',
+      key: 'base',
+      navKey: 'nav.base',
+      href: '/base',
+      subtitle: base ? `${base.buildings.filter((b) => b.level > 0).length}/${base.buildings.length} ${t('dashboard.buildingsBuilt')}` : '…',
     },
     {
-      key: 'clans',
-      navKey: 'nav.clans',
-      href: '/clans',
-      subtitle: myClan ? (myClan.clan ? `${myClan.clan.name} [${myClan.clan.tag}]` : t('dashboard.noClan')) : '…',
+      key: 'research',
+      navKey: 'nav.research',
+      href: '/research',
+      subtitle: research ? `${researchedCount}/${research.researches.length} ${t('dashboard.researchLeveled')}` : '…',
     },
     {
       key: 'players',
@@ -194,26 +196,23 @@ export default function DashboardPage() {
       </div>
 
       <h2 className="mb-3 text-[11px] uppercase tracking-wide text-textFaint">{t('dashboard.quickAccess')}</h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
         {cards.map((card) => (
           <Link
             key={card.key}
             href={card.href}
-            className="group flex flex-col gap-3 rounded-lg border border-panelBorder bg-panel p-5 transition-colors hover:border-accent"
+            className="group flex flex-col items-center rounded-lg border border-panelBorder bg-panel p-4 text-center transition-all hover:-translate-y-0.5 hover:border-accent sm:p-5"
           >
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-wellBorder bg-well">
-                <AssetIcon
-                  assetId={`dashboard.${card.key}.icon`}
-                  alt={t(card.navKey)}
-                  className="h-6 w-6 object-contain"
-                  fallback={<span className="text-sm font-semibold text-textMuted">{t(card.navKey).charAt(0)}</span>}
-                />
-              </div>
-              <h3 className="text-sm font-semibold">{t(card.navKey)}</h3>
+            <div className="mb-3 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-b from-wellBorder/50 to-transparent sm:h-24 sm:w-24">
+              <AssetIcon
+                assetId={`dashboard.${card.key}.icon`}
+                alt={t(card.navKey)}
+                className="h-16 w-16 object-contain sm:h-20 sm:w-20"
+                fallback={<span className="text-2xl font-semibold text-textMuted">{t(card.navKey).charAt(0)}</span>}
+              />
             </div>
-            <p className="min-h-[1.5em] text-xs text-textMuted">{card.subtitle}</p>
-            <span className="mt-auto text-xs font-semibold text-accent group-hover:underline">{t('dashboard.open')} →</span>
+            <h3 className="text-sm font-semibold">{t(card.navKey)}</h3>
+            <p className="mt-1 min-h-[2.5em] text-xs text-textMuted">{card.subtitle}</p>
           </Link>
         ))}
       </div>

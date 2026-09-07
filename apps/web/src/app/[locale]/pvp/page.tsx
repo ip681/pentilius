@@ -1,12 +1,13 @@
 'use client';
 
-import type { PlayerProfileDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto } from '@pentilius/shared';
+import type { MyClanResponseDto, PlayerProfileDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto, Race } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
+import { AssetIcon } from '@/components/AssetIcon';
 import { CombatStatsCard } from '@/components/CombatStatsCard';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerLink } from '@/components/PlayerLink';
-import { ApiError, attackPvpOpponent, getProfile, getPvpReports, getPvpStatus, scoutPvpOpponent } from '@/lib/api-client';
+import { ApiError, attackPvpOpponent, getMyClan, getProfile, getPvpReports, getPvpStatus, scoutPvpOpponent } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
@@ -33,6 +34,7 @@ export default function PvpPage() {
   const [reports, setReports] = useState<PvpBattleReportDto[] | null>(null);
   const [scout, setScout] = useState<PvpScoutDto | null>(null);
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
+  const [myClan, setMyClan] = useState<MyClanResponseDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -52,10 +54,11 @@ export default function PvpPage() {
 
   async function load() {
     try {
-      const [statusRes, reportsRes, profileRes] = await Promise.all([getPvpStatus(), getPvpReports(), getProfile()]);
+      const [statusRes, reportsRes, profileRes, myClanRes] = await Promise.all([getPvpStatus(), getPvpReports(), getProfile(), getMyClan()]);
       setStatus(statusRes);
       setReports(reportsRes);
       setProfile(profileRes);
+      setMyClan(myClanRes);
       if (statusRes.unlocked) {
         await loadScout();
       }
@@ -192,13 +195,44 @@ export default function PvpPage() {
             <div className="rounded-lg border border-panelBorder bg-panel p-5">
               <h2 className="mb-4 text-center text-sm font-semibold">{t('pvp.scoutTitle')}</h2>
               <div className="mb-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                <CombatStatsCard title={myName} stats={scout.myStats} variant="player" />
-                <CombatStatsCard
-                  title={<PlayerLink playerId={scout.opponentId} username={scout.opponentUsername} className="hover:text-accent" />}
-                  subtitle={`${t(`race.${scout.opponentRace}.name`)} · ${t('pvp.level')} ${scout.opponentLevel}`}
-                  stats={scout.opponentStats}
-                  variant="enemy"
-                />
+                <div>
+                  <div className="mb-3 flex h-[140px] items-center justify-center rounded-md border border-panelBorder bg-well">
+                    {profile && (
+                      <AssetIcon
+                        assetId={`races.${profile.race.toLowerCase()}.icon`}
+                        alt={t(`race.${profile.race}.name`)}
+                        className="h-full w-full object-contain p-3"
+                        fallback={<span className="text-sm font-semibold text-textMuted">{t(`race.${profile.race}.name`).charAt(0)}</span>}
+                      />
+                    )}
+                  </div>
+                  <CombatStatsCard
+                    title={myName}
+                    subtitle={
+                      profile
+                        ? `${t(`race.${profile.race}.name`)} · ${t('pvp.level')} ${profile.level} · ${myClan?.clan ? `[${myClan.clan.tag}]` : '-'}`
+                        : undefined
+                    }
+                    stats={scout.myStats}
+                    variant="player"
+                  />
+                </div>
+                <div>
+                  <div className="mb-3 flex h-[140px] items-center justify-center rounded-md border border-panelBorderDanger bg-well">
+                    <AssetIcon
+                      assetId={`races.${scout.opponentRace.toLowerCase()}.icon`}
+                      alt={t(`race.${scout.opponentRace}.name`)}
+                      className="h-full w-full object-contain p-3"
+                      fallback={<span className="text-sm font-semibold text-textMuted">{t(`race.${scout.opponentRace}.name`).charAt(0)}</span>}
+                    />
+                  </div>
+                  <CombatStatsCard
+                    title={<PlayerLink playerId={scout.opponentId} username={scout.opponentUsername} className="hover:text-accent" />}
+                    subtitle={`${t(`race.${scout.opponentRace}.name`)} · ${t('pvp.level')} ${scout.opponentLevel} · ${scout.opponentClanTag ? `[${scout.opponentClanTag}]` : '-'}`}
+                    stats={scout.opponentStats}
+                    variant="enemy"
+                  />
+                </div>
               </div>
               <div className="flex justify-center gap-3">
                 <button
@@ -260,7 +294,7 @@ export default function PvpPage() {
           )}
 
           <section className="mb-6 grid grid-cols-1 items-center gap-5 md:grid-cols-[1fr_120px_1fr]">
-            <FighterPanel name={myName} hp={battle.youHp} maxHp={battle.report.attackerMaxHp} variant="player" />
+            <FighterPanel name={myName} hp={battle.youHp} maxHp={battle.report.attackerMaxHp} variant="player" race={profile?.race} />
 
             <div className="text-center">
               <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-full border border-accent bg-panelHeader text-lg font-bold text-textMuted">
@@ -276,6 +310,7 @@ export default function PvpPage() {
               hp={battle.opponentHp}
               maxHp={battle.report.defenderMaxHp}
               variant="enemy"
+              race={battle.report.opponentRace}
             />
           </section>
 
@@ -309,14 +344,35 @@ export default function PvpPage() {
   );
 }
 
-function FighterPanel({ name, hp, maxHp, variant }: { name: React.ReactNode; hp: number; maxHp: number; variant: 'player' | 'enemy' }) {
+function FighterPanel({
+  name,
+  hp,
+  maxHp,
+  variant,
+  race,
+}: {
+  name: React.ReactNode;
+  hp: number;
+  maxHp: number;
+  variant: 'player' | 'enemy';
+  race?: Race;
+}) {
   const t = useTranslations();
   const percent = maxHp > 0 ? Math.max(0, (hp / maxHp) * 100) : 0;
   return (
     <div className={`rounded-lg border p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
       <div className="mb-4 text-base font-semibold">{name}</div>
-      <div className="mb-4 flex h-[100px] items-center justify-center rounded-md border border-panelBorder bg-well">
-        <div className={`h-10 w-32 ${variant === 'enemy' ? 'bg-danger' : 'bg-accent'} opacity-70`} style={{ clipPath: 'polygon(0 50%, 20% 15%, 80% 15%, 100% 50%, 80% 85%, 20% 85%)' }} />
+      <div className="mb-4 flex h-[220px] items-center justify-center rounded-md border border-panelBorder bg-well">
+        {race ? (
+          <AssetIcon
+            assetId={`races.${race.toLowerCase()}.icon`}
+            alt={t(`race.${race}.name`)}
+            className="h-full w-full object-contain p-3"
+            fallback={<div className={`h-10 w-32 ${variant === 'enemy' ? 'bg-danger' : 'bg-accent'} opacity-70`} style={{ clipPath: 'polygon(0 50%, 20% 15%, 80% 15%, 100% 50%, 80% 85%, 20% 85%)' }} />}
+          />
+        ) : (
+          <div className={`h-10 w-32 ${variant === 'enemy' ? 'bg-danger' : 'bg-accent'} opacity-70`} style={{ clipPath: 'polygon(0 50%, 20% 15%, 80% 15%, 100% 50%, 80% 85%, 20% 85%)' }} />
+        )}
       </div>
       <div className="mb-1.5 flex justify-between text-[11px] text-textMuted">
         <span>{t('robot.stat.hp')}</span>

@@ -7,17 +7,22 @@ const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['minute', 60],
 ];
 
-// Locale-aware "X ago" (e.g. "5 minutes ago" / "преди 5 минути") via the
-// built-in Intl.RelativeTimeFormat — avoids hand-rolling per-locale plural
-// rules for a display-only string.
+// Locale-aware "X minutes"/"X минути" via the built-in Intl.RelativeTimeFormat
+// — avoids hand-rolling per-locale plural rules for a display-only string.
+// The "ago"/"преди" connector word is stripped afterwards (owner preference:
+// just the bare quantity, since the column header already says "last active").
 export function formatRelativeTime(iso: string, locale: string): string {
   const diffSeconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
   const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
 
   for (const [unit, secondsInUnit] of UNITS) {
     if (diffSeconds >= secondsInUnit) {
-      return rtf.format(-Math.floor(diffSeconds / secondsInUnit), unit);
+      return stripAgoWord(rtf.format(-Math.floor(diffSeconds / secondsInUnit), unit));
     }
   }
-  return rtf.format(-diffSeconds, 'second');
+  return stripAgoWord(rtf.format(-diffSeconds, 'second'));
+}
+
+function stripAgoWord(formatted: string): string {
+  return formatted.replace(/^преди\s+/i, '').replace(/\s+ago$/i, '');
 }

@@ -34,6 +34,8 @@ export interface PlayerProfileDto {
   bio: string | null;
   resources: ResourcesDto;
   energy: EnergyDto;
+  // Null until the player saves a choice in Settings.
+  preferredLocale: string | null;
 }
 
 export interface PublicProfileClanDto {
@@ -406,6 +408,7 @@ export interface PvpScoutDto {
   opponentUsername: string;
   opponentRace: Race;
   opponentLevel: number;
+  opponentClanTag: string | null;
   myStats: CombatStatsDto;
   opponentStats: CombatStatsDto;
 }

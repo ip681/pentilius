@@ -1,11 +1,11 @@
 'use client';
 
-import type { ClanBuildingStateDto, ClanDetailDto, ClanMessageDto, ClanSummaryDto } from '@pentilius/shared';
+import type { ClanBuildingStateDto, ClanDetailDto, ClanMemberDto, ClanMessageDto, ClanRole, ClanSummaryDto } from '@pentilius/shared';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
+import { BottomSheet } from '@/components/BottomSheet';
 import { ClanLink } from '@/components/ClanLink';
-import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerLink } from '@/components/PlayerLink';
 import { formatRelativeTime } from '@/lib/format-relative-time';
@@ -30,6 +30,56 @@ import {
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
+
+type ClanAction = 'promote' | 'demote' | 'transfer' | 'kick';
+
+const ACTION_LABEL_KEY: Record<ClanAction, string> = {
+  promote: 'clans.promote',
+  demote: 'clans.demote',
+  transfer: 'clans.transferLeadership',
+  kick: 'clans.kick',
+};
+
+const ACTION_CONFIRM_KEY: Record<ClanAction, string> = {
+  promote: 'clans.confirmPromote',
+  demote: 'clans.confirmDemote',
+  transfer: 'clans.confirmTransfer',
+  kick: 'clans.confirmKick',
+};
+
+const ACTION_IS_DANGER: Record<ClanAction, boolean> = {
+  promote: false,
+  demote: false,
+  transfer: false,
+  kick: true,
+};
+
+function availableActions(member: ClanMemberDto, myRole: ClanRole | null): ClanAction[] {
+  if (member.isCurrentPlayer) return [];
+  if (myRole === 'LEADER') {
+    const actions: ClanAction[] = [];
+    if (member.role === 'MEMBER') actions.push('promote');
+    if (member.role === 'OFFICER') actions.push('demote');
+    actions.push('transfer', 'kick');
+    return actions;
+  }
+  if (myRole === 'OFFICER' && member.role === 'MEMBER') {
+    return ['kick'];
+  }
+  return [];
+}
+
+type ClanOptionAction = 'leave' | 'disband';
+
+const CLAN_OPTION_LABEL_KEY: Record<ClanOptionAction, string> = {
+  leave: 'clans.leave',
+  disband: 'clans.disband',
+};
+
+const CLAN_OPTION_CONFIRM_KEY: Record<ClanOptionAction, string> = {
+  leave: 'clans.confirmLeave',
+  disband: 'clans.confirmDisband',
+};
 
 function buildingProgress(building: ClanBuildingStateDto): { active: boolean; percent: number; secondsLeft: number } {
   if (!building.constructionEndsAt || !building.nextLevelCost) {
@@ -66,6 +116,10 @@ export default function ClansPage() {
   const [chatText, setChatText] = useState('');
   const [chatError, setChatError] = useState<string | null>(null);
   const chatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [actionSheetPlayerId, setActionSheetPlayerId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<ClanAction | null>(null);
+  const [clanOptionsOpen, setClanOptionsOpen] = useState(false);
+  const [pendingClanAction, setPendingClanAction] = useState<ClanOptionAction | null>(null);
 
   async function load() {
     try {
@@ -205,6 +259,28 @@ export default function ClansPage() {
     }
   }
 
+  function closeActionSheet() {
+    setActionSheetPlayerId(null);
+    setPendingAction(null);
+  }
+
+  const ACTION_HANDLER: Record<ClanAction, (playerId: string) => void> = {
+    promote: handlePromote,
+    demote: handleDemote,
+    transfer: handleTransfer,
+    kick: handleKick,
+  };
+
+  function closeClanOptions() {
+    setClanOptionsOpen(false);
+    setPendingClanAction(null);
+  }
+
+  const CLAN_OPTION_HANDLER: Record<ClanOptionAction, () => void> = {
+    leave: handleLeave,
+    disband: handleDisband,
+  };
+
   async function handleUpdateClan(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -258,6 +334,8 @@ export default function ClansPage() {
       setError(errorMessage(err, t('clans.donateError')));
     }
   }
+
+  const actionSheetMember = myClan?.members.find((m) => m.playerId === actionSheetPlayerId) ?? null;
 
   return (
     <GameLayout>
@@ -514,12 +592,12 @@ export default function ClansPage() {
             })}
           </div>
 
-          <table className="mb-4 w-full text-left text-xs">
+          <div className="mb-4 overflow-x-auto">
+          <table className="w-full text-left text-xs">
             <thead>
               <tr className="text-[10px] uppercase text-textFaint">
                 <th className="pb-2">{t('clans.level')}</th>
                 <th className="pb-2">{t('clans.member')}</th>
-                <th className="pb-2">{t('clans.race')}</th>
                 <th className="pb-2">{t('clans.role')}</th>
                 <th className="pb-2 text-right">{t('resource.METAL')}</th>
                 <th className="pb-2 text-right">{t('resource.CRYSTAL')}</th>
@@ -533,18 +611,15 @@ export default function ClansPage() {
                 <tr key={member.playerId} className="border-t border-wellBorder">
                   <td className="py-2 text-textMuted">{member.level}</td>
                   <td className="py-2">
-                    <PlayerLink playerId={member.playerId} username={member.username} />{' '}
-                    {member.isCurrentPlayer && <span className="text-textFaint">({t('clans.you')})</span>}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex items-center gap-1.5 text-textMuted">
+                    <div className="flex items-center gap-1.5">
                       <AssetIcon
                         assetId={`races.${member.race.toLowerCase()}.icon`}
                         alt={t(`race.${member.race}.name`)}
-                        className="h-4 w-4 object-contain"
-                        fallback={<div className="h-4 w-4 rounded-sm bg-accent opacity-60" />}
+                        className="h-4 w-4 shrink-0 object-contain"
+                        fallback={<div className="h-4 w-4 shrink-0 rounded-sm bg-accent opacity-60" />}
                       />
-                      {t(`race.${member.race}.name`)}
+                      <PlayerLink playerId={member.playerId} username={member.username} />
+                      {member.isCurrentPlayer && <span className="text-textFaint">({t('clans.you')})</span>}
                     </div>
                   </td>
                   <td className="py-2">{t(`clans.roleLabel.${member.role}`)}</td>
@@ -559,66 +634,75 @@ export default function ClansPage() {
                     )}
                   </td>
                   <td className="py-2 text-right">
-                    {!member.isCurrentPlayer && myClan.myRole === 'LEADER' && (
-                      <div className="flex justify-end gap-1.5">
-                        {member.role === 'MEMBER' && (
-                          <ConfirmButton
-                            label={t('clans.promote')}
-                            confirmLabel={t('common.confirm')}
-                            cancelLabel={t('common.cancel')}
-                            onConfirm={() => handlePromote(member.playerId)}
-                            className="whitespace-nowrap text-positive underline"
-                            confirmClassName="whitespace-nowrap text-positive underline"
-                            cancelClassName="whitespace-nowrap text-textFaint underline"
-                          />
-                        )}
-                        {member.role === 'OFFICER' && (
-                          <ConfirmButton
-                            label={t('clans.demote')}
-                            confirmLabel={t('common.confirm')}
-                            cancelLabel={t('common.cancel')}
-                            onConfirm={() => handleDemote(member.playerId)}
-                            className="whitespace-nowrap text-textMuted underline"
-                            confirmClassName="whitespace-nowrap text-textMuted underline"
-                            cancelClassName="whitespace-nowrap text-textFaint underline"
-                          />
-                        )}
-                        <ConfirmButton
-                          label={t('clans.transferLeadership')}
-                          confirmLabel={t('common.confirm')}
-                          cancelLabel={t('common.cancel')}
-                          onConfirm={() => handleTransfer(member.playerId)}
-                          className="whitespace-nowrap text-textMuted underline"
-                          confirmClassName="whitespace-nowrap text-textMuted underline"
-                          cancelClassName="whitespace-nowrap text-textFaint underline"
-                        />
-                        <ConfirmButton
-                          label={t('clans.kick')}
-                          confirmLabel={t('common.confirm')}
-                          cancelLabel={t('common.cancel')}
-                          onConfirm={() => handleKick(member.playerId)}
-                          className="whitespace-nowrap text-danger underline"
-                          confirmClassName="whitespace-nowrap text-danger underline"
-                          cancelClassName="whitespace-nowrap text-textFaint underline"
-                        />
-                      </div>
-                    )}
-                    {!member.isCurrentPlayer && myClan.myRole === 'OFFICER' && member.role === 'MEMBER' && (
-                      <ConfirmButton
-                        label={t('clans.kick')}
-                        confirmLabel={t('common.confirm')}
-                        cancelLabel={t('common.cancel')}
-                        onConfirm={() => handleKick(member.playerId)}
-                        className="whitespace-nowrap text-danger underline"
-                        confirmClassName="whitespace-nowrap text-danger underline"
-                        cancelClassName="whitespace-nowrap text-textFaint underline"
-                      />
+                    {availableActions(member, myClan.myRole).length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActionSheetPlayerId(member.playerId);
+                          setPendingAction(null);
+                        }}
+                        className="whitespace-nowrap rounded-md border border-wellBorder bg-well px-3 py-1.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+                      >
+                        {t('clans.action')}
+                      </button>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
+
+          <BottomSheet open={!!actionSheetMember} onClose={closeActionSheet}>
+            {actionSheetMember &&
+              (pendingAction ? (
+                <>
+                  <p className="mb-4 text-sm text-textMuted">{t(ACTION_CONFIRM_KEY[pendingAction])}</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        ACTION_HANDLER[pendingAction](actionSheetMember.playerId);
+                        closeActionSheet();
+                      }}
+                      className={`flex-1 rounded-md border py-2.5 text-xs uppercase hover:bg-accentBgHover ${
+                        ACTION_IS_DANGER[pendingAction] ? 'border-panelBorderDanger bg-well text-danger' : 'border-accent bg-accentBg text-text'
+                      }`}
+                    >
+                      {t('common.confirm')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPendingAction(null)}
+                      className="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-xs uppercase text-textMuted hover:bg-accentBgHover"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="mb-3 text-sm font-semibold">{actionSheetMember.username}</h3>
+                  <div className="flex flex-col gap-2">
+                    {availableActions(actionSheetMember, myClan.myRole).map((action) => (
+                      <button
+                        key={action}
+                        type="button"
+                        onClick={() => setPendingAction(action)}
+                        className={`rounded-md border py-2.5 text-xs uppercase hover:bg-accentBgHover ${
+                          ACTION_IS_DANGER[action] ? 'border-panelBorderDanger bg-well text-danger' : 'border-wellBorder bg-well text-text'
+                        }`}
+                      >
+                        {t(ACTION_LABEL_KEY[action])}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" onClick={closeActionSheet} className="mt-3 w-full text-center text-xs text-textFaint underline">
+                    {t('common.close')}
+                  </button>
+                </>
+              ))}
+          </BottomSheet>
 
           <div className="mb-4 rounded-md border border-wellBorder bg-well p-4">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-textFaint">{t('clans.chat')}</h3>
@@ -655,32 +739,59 @@ export default function ClansPage() {
             </form>
           </div>
 
-          <div className="flex gap-2">
-            <ConfirmButton
-              label={t('clans.leave')}
-              confirmLabel={t('common.confirm')}
-              cancelLabel={t('common.cancel')}
-              message={t('clans.confirmLeave')}
-              onConfirm={handleLeave}
-              className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[11px] uppercase text-danger hover:bg-accentBgHover"
-              confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[11px] uppercase text-danger hover:bg-accentBgHover"
-              cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[11px] uppercase text-textMuted hover:bg-accentBgHover"
-              wrapperClassName="flex-1"
-            />
-            {myClan.myRole === 'LEADER' && (
-              <ConfirmButton
-                label={t('clans.disband')}
-                confirmLabel={t('common.confirm')}
-                cancelLabel={t('common.cancel')}
-                message={t('clans.confirmDisband')}
-                onConfirm={handleDisband}
-                className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[11px] uppercase text-danger hover:bg-accentBgHover"
-                confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[11px] uppercase text-danger hover:bg-accentBgHover"
-                cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[11px] uppercase text-textMuted hover:bg-accentBgHover"
-                wrapperClassName="flex-1"
-              />
+          <button
+            type="button"
+            onClick={() => setClanOptionsOpen(true)}
+            className="rounded-md border border-wellBorder bg-well px-4 py-2 text-[11px] uppercase text-textMuted hover:bg-accentBgHover"
+          >
+            {t('clans.options')}
+          </button>
+
+          <BottomSheet open={clanOptionsOpen} onClose={closeClanOptions}>
+            {pendingClanAction ? (
+              <>
+                <p className="mb-4 text-sm text-textMuted">{t(CLAN_OPTION_CONFIRM_KEY[pendingClanAction])}</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      CLAN_OPTION_HANDLER[pendingClanAction]();
+                      closeClanOptions();
+                    }}
+                    className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-xs uppercase text-danger hover:bg-accentBgHover"
+                  >
+                    {t('common.confirm')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingClanAction(null)}
+                    className="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-xs uppercase text-textMuted hover:bg-accentBgHover"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="mb-3 text-sm font-semibold">{t('clans.options')}</h3>
+                <div className="flex flex-col gap-2">
+                  {(myClan.myRole === 'LEADER' ? (['leave', 'disband'] as const) : (['leave'] as const)).map((action) => (
+                    <button
+                      key={action}
+                      type="button"
+                      onClick={() => setPendingClanAction(action)}
+                      className="rounded-md border border-panelBorderDanger bg-well py-2.5 text-xs uppercase text-danger hover:bg-accentBgHover"
+                    >
+                      {t(CLAN_OPTION_LABEL_KEY[action])}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={closeClanOptions} className="mt-3 w-full text-center text-xs text-textFaint underline">
+                  {t('common.close')}
+                </button>
+              </>
             )}
-          </div>
+          </BottomSheet>
         </section>
       )}
     </GameLayout>

@@ -1,9 +1,10 @@
 'use client';
 
-import type { CombatStatsDto, EquipmentSlot, InventoryItemDto, PlayerProfileDto, RobotAttributesDto, RobotSlotDto } from '@pentilius/shared';
+import type { CombatStatsDto, EquipmentSlot, EquippedItemDto, InventoryItemDto, PlayerProfileDto, RobotAttributesDto, RobotSlotDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
+import { BottomSheet } from '@/components/BottomSheet';
 import { CombatStatsCard } from '@/components/CombatStatsCard';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
@@ -26,18 +27,56 @@ import { useRequireAuth } from '@/lib/use-require-auth';
 
 const SLOTS: EquipmentSlot[] = ['HEAD', 'LEFT_ARM', 'RIGHT_ARM', 'ARMOR', 'CORE', 'LEFT_LEG', 'RIGHT_LEG'];
 
-const SLOT_POSITION: Record<EquipmentSlot, string> = {
-  HEAD: 'left-1/2 top-[2%] -translate-x-1/2',
-  LEFT_ARM: 'left-[2%] top-[26%]',
-  RIGHT_ARM: 'right-[2%] top-[26%]',
-  ARMOR: 'left-1/2 top-[42%] -translate-x-1/2',
-  CORE: 'left-1/2 top-[58%] -translate-x-1/2',
-  LEFT_LEG: 'left-[10%] bottom-[3%]',
-  RIGHT_LEG: 'right-[10%] bottom-[3%]',
-};
-
 const ATTRIBUTE_STATS = ['damage', 'defense', 'hp', 'evasion'] as const;
 type AttributeStat = (typeof ATTRIBUTE_STATS)[number];
+
+function itemForSlot(slots: RobotSlotDto[] | null, slot: EquipmentSlot): EquippedItemDto | null {
+  return slots?.find((s) => s.slot === slot)?.item ?? null;
+}
+
+function SlotBadge({ slot, item, onSelect }: { slot: EquipmentSlot; item: EquippedItemDto | null; onSelect: (itemInstanceId: string) => void }) {
+  const t = useTranslations();
+
+  if (!item) {
+    return (
+      <div
+        title={t(`equipmentSlot.${slot}`)}
+        className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-accent bg-well text-sm text-textFaint sm:h-20 sm:w-20"
+      >
+        +
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      title={t(item.nameKey)}
+      onClick={() => onSelect(item.itemInstanceId)}
+      className="relative flex h-14 w-14 items-center justify-center rounded-md border border-textFaint bg-well hover:border-accent sm:h-20 sm:w-20"
+    >
+      <AssetIcon
+        assetId={item.iconAssetId}
+        alt={t(item.nameKey)}
+        className="h-full w-full rounded-md object-contain p-1"
+        fallback={<span className="text-xs font-semibold text-textMuted">{t(item.nameKey).charAt(0)}</span>}
+      />
+      {item.upgradeLevel > 0 && (
+        <span className="absolute -bottom-1 -right-1 rounded-full bg-accent px-1 text-[7px] font-semibold text-text">+{item.upgradeLevel}</span>
+      )}
+    </button>
+  );
+}
+
+function SlotRow({ slot, item, onSelect }: { slot: EquipmentSlot; item: EquippedItemDto | null; onSelect: (itemInstanceId: string) => void }) {
+  const t = useTranslations();
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <SlotBadge slot={slot} item={item} onSelect={onSelect} />
+      <span className="text-center text-[8px] uppercase tracking-wide text-textFaint">{t(`equipmentSlot.${slot}`)}</span>
+    </div>
+  );
+}
 
 // Its effect targets a specific building's construction timer, so it can only be used from the Base screen.
 function isBuildingTargetedConsumable(item: InventoryItemDto): boolean {
@@ -170,9 +209,9 @@ export default function RobotPage() {
 
       {error && <p className="mb-4 text-red-400">{error}</p>}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr_310px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr]">
         {/* INVENTORY */}
-        <section className="overflow-hidden rounded-lg border border-panelBorder bg-panel">
+        <section className="overflow-hidden rounded-lg border border-panelBorder bg-panel lg:flex lg:flex-col">
           <div className="flex items-center justify-between border-b border-panelBorder bg-panelHeader px-4 py-3">
             <strong className="text-xs">{t('robot.inventory')}</strong>
             <span className="text-[9px] uppercase text-textFaint tabular-nums">
@@ -180,7 +219,7 @@ export default function RobotPage() {
             </span>
           </div>
 
-          <div className="p-3">
+          <div className="p-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <div className="mb-3 flex flex-wrap gap-1">
               <button
                 type="button"
@@ -208,7 +247,7 @@ export default function RobotPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-5 gap-1.5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-0.5">
               {visibleItems.map((item) => (
                 <button
                   key={item.id}
@@ -248,67 +287,67 @@ export default function RobotPage() {
           </div>
         </section>
 
-        {/* ROBOT */}
-        <section className="rounded-lg border border-panelBorder bg-panel p-5">
-          <div className="mb-3 text-center">
-            <h2 className="text-base font-semibold">{t('robot.frame')}</h2>
+        {/* Nested so Equipment and Stats stretch to match each other's height
+            on desktop — that height (via the outer grid's default stretch)
+            is what Inventory matches too, scrolling internally if its item
+            grid would otherwise need more room than that. */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[460px_1fr]">
+          {/* ROBOT */}
+          <section className="rounded-lg border border-panelBorder bg-panel p-5">
+          <div className="mb-4 text-center">
+            <h2 className="text-base font-semibold">{t('robot.equipment')}</h2>
           </div>
 
-          <div className="relative flex h-[420px] items-center justify-center rounded-md border border-panelBorder bg-well">
-            <div className="relative h-[300px] w-[170px] opacity-60">
-              <div className="absolute left-1/2 top-0 h-[46px] w-[62px] -translate-x-1/2 bg-accent" style={{ clipPath: 'polygon(15% 0, 85% 0, 100% 40%, 85% 100%, 15% 100%, 0 40%)' }} />
-              <div className="absolute left-1/2 top-[52px] h-[100px] w-[100px] -translate-x-1/2 bg-accent" style={{ clipPath: 'polygon(20% 0, 80% 0, 100% 24%, 88% 100%, 12% 100%, 0 24%)' }} />
-              <div className="absolute left-0 top-[62px] h-[120px] w-[34px] bg-accent" style={{ clipPath: 'polygon(30% 0, 100% 8%, 85% 78%, 55% 100%, 10% 92%, 0 20%)' }} />
-              <div className="absolute right-0 top-[62px] h-[120px] w-[34px] bg-accent" style={{ clipPath: 'polygon(0 8%, 70% 0, 100% 20%, 90% 92%, 45% 100%, 15% 78%)' }} />
-              <div className="absolute left-[24px] top-[150px] h-[140px] w-[44px] bg-accent" style={{ clipPath: 'polygon(12% 0, 90% 0, 100% 78%, 70% 100%, 5% 100%, 0 30%)' }} />
-              <div className="absolute right-[24px] top-[150px] h-[140px] w-[44px] bg-accent" style={{ clipPath: 'polygon(10% 0, 88% 0, 100% 30%, 95% 100%, 30% 100%, 0 78%)' }} />
+          <div className="mx-auto max-w-[420px] rounded-md border border-panelBorder bg-well p-6">
+            <div className="flex justify-center gap-4">
+              <div className="h-14 w-14 sm:h-20 sm:w-20" aria-hidden="true" />
+              <SlotRow slot="HEAD" item={itemForSlot(slots, 'HEAD')} onSelect={setSelectedId} />
+              <SlotRow slot="CORE" item={itemForSlot(slots, 'CORE')} onSelect={setSelectedId} />
             </div>
 
-            {slots?.map((slotEntry) => (
-              <button
-                key={slotEntry.slot}
-                type="button"
-                onClick={() => slotEntry.item && setSelectedId(slotEntry.item.itemInstanceId)}
-                className={`absolute w-[120px] min-h-[65px] rounded-md border border-dashed p-2 text-left ${SLOT_POSITION[slotEntry.slot]} ${
-                  slotEntry.item ? 'border-textFaint' : 'border-accent'
-                }`}
-              >
-                <div className="mb-1 text-[8px] uppercase tracking-wide text-textMuted">{t(`equipmentSlot.${slotEntry.slot}`)}</div>
-                {slotEntry.item ? (
-                  <div className="text-[9px] font-semibold">{t(slotEntry.item.nameKey)}</div>
-                ) : (
-                  <div className="text-[8px] text-textFaint">{t('robot.empty')}</div>
-                )}
-              </button>
-            ))}
+            <div className="mt-6 flex justify-center gap-4">
+              <SlotRow slot="LEFT_ARM" item={itemForSlot(slots, 'LEFT_ARM')} onSelect={setSelectedId} />
+              <SlotRow slot="ARMOR" item={itemForSlot(slots, 'ARMOR')} onSelect={setSelectedId} />
+              <SlotRow slot="RIGHT_ARM" item={itemForSlot(slots, 'RIGHT_ARM')} onSelect={setSelectedId} />
+            </div>
+
+            <div className="mt-6 flex justify-center gap-4">
+              <SlotRow slot="LEFT_LEG" item={itemForSlot(slots, 'LEFT_LEG')} onSelect={setSelectedId} />
+              <SlotRow slot="RIGHT_LEG" item={itemForSlot(slots, 'RIGHT_LEG')} onSelect={setSelectedId} />
+            </div>
           </div>
 
           {combatStats && (
             <div className="mt-4">
-              <CombatStatsCard title={profile?.username ?? t('robot.frame')} stats={combatStats} variant="player" />
+              <CombatStatsCard title={t('robot.combatStats')} stats={combatStats} variant="player" />
             </div>
           )}
+        </section>
 
+        {/* STATS */}
+        <section className="rounded-lg border border-panelBorder bg-panel p-5">
           {attributes && (
-            <div className="mt-4 rounded-md border border-wellBorder bg-well p-4">
+            <>
               <div className="mb-3 flex items-center justify-between">
-                <strong className="text-xs">{t('robot.attributes')}</strong>
+                <h2 className="text-base font-semibold">{t('robot.attributes')}</h2>
                 <span className="text-[9px] uppercase text-textFaint">
                   {t('robot.attributePoints')}: <span className="text-text">{attributes.available}</span>
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="flex flex-col gap-2">
                 {ATTRIBUTE_STATS.map((stat) => {
                   const atCap = stat === 'evasion' && attributes.evasionAtCap;
                   return (
-                    <div key={stat} className="rounded-md border border-wellBorder bg-ink p-2.5 text-center">
-                      <div className="text-[9px] uppercase text-textFaint">{t(`robot.stat.${stat}`)}</div>
-                      <div className="my-1 text-base font-semibold">{attributes.base[stat]}</div>
+                    <div key={stat} className="flex items-center justify-between gap-3 rounded-md border border-wellBorder bg-well p-2.5">
+                      <div>
+                        <div className="text-[9px] uppercase text-textFaint">{t(`robot.stat.${stat}`)}</div>
+                        <div className="text-base font-semibold">{attributes.base[stat]}</div>
+                      </div>
                       <button
                         type="button"
                         disabled={atCap || attributes.available < attributes.nextCost[stat]}
                         onClick={() => handleAllocate(stat)}
-                        className="w-full rounded border border-accent bg-accentBg py-1 text-[10px] hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                        className="shrink-0 rounded border border-accent bg-accentBg px-3 py-1.5 text-[10px] hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                       >
                         {atCap ? t('robot.attributeMax') : `+1 (${attributes.nextCost[stat]})`}
                       </button>
@@ -317,97 +356,96 @@ export default function RobotPage() {
                 })}
               </div>
               <p className="mt-2 text-[9px] text-textFaint">{t('robot.attributeNote')}</p>
-            </div>
+            </>
           )}
         </section>
+        </div>
+      </div>
 
-        {/* DETAILS */}
-        <section className="overflow-hidden rounded-lg border border-panelBorder bg-panel">
-          <div className="flex items-center justify-between border-b border-panelBorder bg-panelHeader px-4 py-3">
-            <strong className="text-xs">{t('robot.details')}</strong>
-            <span className="text-[9px] uppercase text-textFaint">
-              {selected ? (selected.slot ? t(`equipmentSlot.${selected.slot}`) : t('robot.consumables')) : t('robot.notSelected')}
-            </span>
-          </div>
+      <BottomSheet open={!!selected} onClose={() => setSelectedId(null)}>
+        {selected && (
+          <>
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-[9px] uppercase text-textFaint">
+                {selected.slot ? t(`equipmentSlot.${selected.slot}`) : t('robot.consumables')}
+              </span>
+              <button type="button" onClick={() => setSelectedId(null)} aria-label={t('common.close')} className="text-textFaint hover:text-text">
+                ✕
+              </button>
+            </div>
 
-          <div className="p-4">
-            {selected && (
-              <div className="mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-md border border-wellBorder bg-well">
-                <AssetIcon
-                  assetId={selected.iconAssetId}
-                  alt={t(selected.nameKey)}
-                  className="h-full w-full object-contain p-2"
-                  fallback={<span className="text-xl font-semibold text-textMuted">{t(selected.nameKey).charAt(0)}</span>}
-                />
-              </div>
-            )}
+            <div className="mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-md border border-wellBorder bg-well">
+              <AssetIcon
+                assetId={selected.iconAssetId}
+                alt={t(selected.nameKey)}
+                className="h-full w-full object-contain p-2"
+                fallback={<span className="text-xl font-semibold text-textMuted">{t(selected.nameKey).charAt(0)}</span>}
+              />
+            </div>
+
             <div className="rounded-md border border-wellBorder bg-well p-4">
-              {selected ? (
-                selected.category === 'CONSUMABLE' ? (
-                  <>
-                    <h3 className="mb-1 text-sm font-semibold">{t(selected.nameKey)}</h3>
-                    <p className="mb-2 text-[10px] text-textMuted">{t(selected.descriptionKey)}</p>
-                    <p className="text-[10px] text-textFaint">
-                      {t('robot.quantity')}: {selected.quantity}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="mb-1 text-sm font-semibold">{t(selected.nameKey)}</h3>
-                    <p className="text-[10px] text-textMuted">
-                      {t('robot.upgradeLevel')}: {selected.upgradeLevel}/{selected.maxUpgradeLevel}
-                    </p>
-                    {(selected.currentStats?.attack !== undefined || selected.currentStats?.defense !== undefined || selected.currentStats?.hp !== undefined) && (
-                      <div className="mt-2 rounded border border-wellBorder bg-ink p-2.5">
-                        {(['attack', 'defense', 'hp'] as const).map((key) => {
-                          const current = selected.currentStats?.[key];
-                          if (current === undefined) return null;
-                          const next = selected.nextLevelStats?.[key];
-                          return (
-                            <div key={key} className="mb-1 flex justify-between text-[10px] last:mb-0">
-                              <span className="text-textFaint">{t(`robot.stat.${key === 'attack' ? 'damage' : key}`)}</span>
-                              <span>
-                                {current}
-                                {next !== undefined && <span className="ml-1 text-positive">→ {next}</span>}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {selected.upgradeCost && (
-                      <p className={`mt-2 text-[10px] ${canAffordUpgrade ? 'text-textFaint' : 'text-danger'}`}>
-                        {t('robot.upgradeCost')}: {t(`items.${selected.upgradeCost.itemDefinitionKey}.name`)} × {selected.upgradeCost.quantity} (
-                        {t('robot.owned')}: {ownedUpgradeMaterial})
-                      </p>
-                    )}
-                    {selected.race && (
-                      <p className={`mt-1 text-[10px] ${selected.race === profile?.race ? 'text-positive' : 'text-danger'}`}>
-                        {t('robot.raceLocked', { race: t(`race.${selected.race}.name`) })}
-                      </p>
-                    )}
-                    {selected.rolledOptions.length > 0 && (
-                      <ul className="mt-2 flex flex-col gap-0.5">
-                        {selected.rolledOptions.map((option) => (
-                          <li key={option} className="text-[10px] text-positive">
-                            {t(`itemOption.${option}`)}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {selected.sellValue && (
-                      <p className="mt-2 text-[10px] text-textFaint">
-                        {t('robot.sellValue')}: {selected.sellValue.metal} {t('resource.METAL')}, {selected.sellValue.crystal} {t('resource.CRYSTAL')}
-                      </p>
-                    )}
-                  </>
-                )
+              {selected.category === 'CONSUMABLE' ? (
+                <>
+                  <h3 className="mb-1 text-sm font-semibold">{t(selected.nameKey)}</h3>
+                  <p className="mb-2 text-[10px] text-textMuted">{t(selected.descriptionKey)}</p>
+                  <p className="text-[10px] text-textFaint">
+                    {t('robot.quantity')}: {selected.quantity}
+                  </p>
+                </>
               ) : (
-                <p className="text-[10px] text-textMuted">{t('robot.selectPrompt')}</p>
+                <>
+                  <h3 className="mb-1 text-sm font-semibold">{t(selected.nameKey)}</h3>
+                  <p className="text-[10px] text-textMuted">
+                    {t('robot.upgradeLevel')}: {selected.upgradeLevel}/{selected.maxUpgradeLevel}
+                  </p>
+                  {(selected.currentStats?.attack !== undefined || selected.currentStats?.defense !== undefined || selected.currentStats?.hp !== undefined) && (
+                    <div className="mt-2 rounded border border-wellBorder bg-ink p-2.5">
+                      {(['attack', 'defense', 'hp'] as const).map((key) => {
+                        const current = selected.currentStats?.[key];
+                        if (current === undefined) return null;
+                        const next = selected.nextLevelStats?.[key];
+                        return (
+                          <div key={key} className="mb-1 flex justify-between text-[10px] last:mb-0">
+                            <span className="text-textFaint">{t(`robot.stat.${key === 'attack' ? 'damage' : key}`)}</span>
+                            <span>
+                              {current}
+                              {next !== undefined && <span className="ml-1 text-positive">→ {next}</span>}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {selected.upgradeCost && (
+                    <p className={`mt-2 text-[10px] ${canAffordUpgrade ? 'text-textFaint' : 'text-danger'}`}>
+                      {t('robot.upgradeCost')}: {t(`items.${selected.upgradeCost.itemDefinitionKey}.name`)} × {selected.upgradeCost.quantity} (
+                      {t('robot.owned')}: {ownedUpgradeMaterial})
+                    </p>
+                  )}
+                  {selected.race && (
+                    <p className={`mt-1 text-[10px] ${selected.race === profile?.race ? 'text-positive' : 'text-danger'}`}>
+                      {t('robot.raceLocked', { race: t(`race.${selected.race}.name`) })}
+                    </p>
+                  )}
+                  {selected.rolledOptions.length > 0 && (
+                    <ul className="mt-2 flex flex-col gap-0.5">
+                      {selected.rolledOptions.map((option) => (
+                        <li key={option} className="text-[10px] text-positive">
+                          {t(`itemOption.${option}`)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {selected.sellValue && (
+                    <p className="mt-2 text-[10px] text-textFaint">
+                      {t('robot.sellValue')}: {selected.sellValue.metal} {t('resource.METAL')}, {selected.sellValue.crystal} {t('resource.CRYSTAL')}
+                    </p>
+                  )}
+                </>
               )}
             </div>
 
-            {selected?.category === 'CONSUMABLE' ? (
+            {selected.category === 'CONSUMABLE' ? (
               isBuildingTargetedConsumable(selected) ? (
                 <p className="mt-3 text-[10px] text-textFaint">{t('robot.useOnBase')}</p>
               ) : (
@@ -424,7 +462,7 @@ export default function RobotPage() {
                 <div className="mt-3 flex gap-2">
                   <button
                     type="button"
-                    disabled={!selected || selected.equipped || (!!selected.race && selected.race !== profile?.race)}
+                    disabled={selected.equipped || (!!selected.race && selected.race !== profile?.race)}
                     onClick={handleEquip}
                     className="flex-1 rounded-md border border-accent bg-accentBg py-2.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                   >
@@ -432,7 +470,7 @@ export default function RobotPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={!selected || !selected.equipped}
+                    disabled={!selected.equipped}
                     onClick={handleUnequip}
                     className="flex-1 rounded-md border border-accent bg-accentBg py-2.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                   >
@@ -442,7 +480,7 @@ export default function RobotPage() {
 
                 <button
                   type="button"
-                  disabled={!selected || selected.upgradeLevel >= selected.maxUpgradeLevel || !canAffordUpgrade}
+                  disabled={selected.upgradeLevel >= selected.maxUpgradeLevel || !canAffordUpgrade}
                   onClick={handleUpgrade}
                   className="mt-2 w-full rounded-md border border-accent bg-accentBg py-2.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                 >
@@ -451,17 +489,17 @@ export default function RobotPage() {
 
                 <div className="mt-2">
                   <ConfirmButton
-                    key={selected?.id}
+                    key={selected.id}
                     label={t('robot.sell')}
                     confirmLabel={t('common.confirm')}
                     cancelLabel={t('common.cancel')}
                     message={
-                      selected?.sellValue
+                      selected.sellValue
                         ? t('robot.sellConfirm', { metal: selected.sellValue.metal, crystal: selected.sellValue.crystal })
                         : undefined
                     }
                     onConfirm={handleSell}
-                    disabled={!selected || selected.equipped}
+                    disabled={selected.equipped}
                     className="w-full rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                     confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover"
                     cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
@@ -469,9 +507,9 @@ export default function RobotPage() {
                 </div>
               </>
             )}
-          </div>
-        </section>
-      </div>
+          </>
+        )}
+      </BottomSheet>
     </GameLayout>
   );
 }

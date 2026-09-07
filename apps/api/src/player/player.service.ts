@@ -1,9 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PlayerListEntryDto, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
 import { Race } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 import { GAME_BALANCE } from '../config/game-config';
 import { EconomyService } from './economy.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+const SALT_ROUNDS = 10;
 
 @Injectable()
 export class PlayerService {
@@ -38,7 +41,24 @@ export class PlayerService {
             ? new Date(player.energyUpdatedAt.getTime() + GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000).toISOString()
             : null,
       },
+      preferredLocale: player.preferredLocale,
     };
+  }
+
+  async changePassword(playerId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const player = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+    const matches = await bcrypt.compare(currentPassword, player.passwordHash);
+    if (!matches) {
+      throw new BadRequestException('INCORRECT_CURRENT_PASSWORD');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await this.prisma.player.update({ where: { id: playerId }, data: { passwordHash } });
+  }
+
+  async updatePreferredLocale(playerId: string, locale: string): Promise<PlayerProfileDto> {
+    await this.prisma.player.update({ where: { id: playerId }, data: { preferredLocale: locale } });
+    return this.getProfile(playerId);
   }
 
   /** Public profile — never includes email, resources, or anything else private to the account owner. */

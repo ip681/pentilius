@@ -2,7 +2,8 @@
   "common": {
     "appName": "Pentilius",
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "auth": {
     "login": "Log in",
@@ -43,15 +44,10 @@
     "expeditions": "Expeditions",
     "reports": "Battle Reports"
   },
-  "sidebar": {
-    "command": "Command",
-    "operations": "Operations"
-  },
   "topbar": {
-    "online": "Online",
     "loggedOut": "Not logged in",
-    "logout": "Log out",
-    "menu": "Menu"
+    "settings": "Settings",
+    "logout": "Log out"
   },
   "resource": {
     "METAL": "Metal",
@@ -87,7 +83,6 @@
     "noClan": "Not in a clan",
     "playersSubtitle": "See how you rank",
     "reportsSubtitle": "Your combat history",
-    "open": "Open",
     "activeOperations": "Active Operations",
     "noActiveOperations": "Nothing is running right now — start a build, research or expedition to make use of your time.",
     "quickAccess": "Quick Access"
@@ -112,19 +107,16 @@
     "inventorySlots": "Inventory Slots"
   },
   "robot": {
-    "title": "Robot Equipment",
+    "title": "Robot",
     "subtitle": "Configure the parts installed on your combat robot.",
     "inventory": "Inventory",
     "items": "Items",
     "all": "All",
-    "frame": "Your Robot",
-    "details": "Item Details",
-    "notSelected": "Not selected",
-    "selectPrompt": "Choose an item from your inventory to inspect its properties.",
+    "equipment": "Equipment",
+    "combatStats": "Combat Stats",
     "upgradeLevel": "Upgrade level",
     "upgradeCost": "Upgrade cost",
     "owned": "owned",
-    "empty": "Empty slot",
     "equip": "Equip",
     "unequip": "Unequip",
     "equippedBadge": "Equipped",
@@ -287,6 +279,22 @@
     "noBio": "This player hasn't written anything yet.",
     "viewClan": "View clan"
   },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your account.",
+    "passwordSection": "Password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "passwordMismatch": "New passwords don't match.",
+    "passwordSaved": "Password updated.",
+    "incorrectCurrentPassword": "Current password is incorrect.",
+    "passwordError": "Could not update your password.",
+    "languageSection": "Language",
+    "languageSaved": "Language saved.",
+    "languageError": "Could not save your language.",
+    "save": "Save"
+  },
   "clans": {
     "title": "Clan",
     "subtitle": "Team up with players of all five races.",
@@ -307,7 +315,6 @@
     "join": "Join",
     "level": "Level",
     "member": "Member",
-    "race": "Race",
     "role": "Role",
     "contributed": "Contributed",
     "lastActive": "Last active",
@@ -332,6 +339,12 @@
     "disband": "Disband Clan",
     "confirmLeave": "Leave this clan?",
     "confirmDisband": "Disband the clan permanently? This cannot be undone.",
+    "confirmKick": "Remove this member from the clan?",
+    "confirmTransfer": "Hand over leadership to this member? You will become an officer.",
+    "confirmPromote": "Promote this member to Officer?",
+    "confirmDemote": "Demote this member to regular Member?",
+    "action": "Action",
+    "options": "Options",
     "loadError": "Could not load clan data.",
     "createError": "Could not found the clan.",
     "joinError": "Could not join this clan.",

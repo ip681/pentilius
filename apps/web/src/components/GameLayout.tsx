@@ -1,18 +1,23 @@
 'use client';
 
 import type { PlayerProfileDto } from '@pentilius/shared';
+import { useLocale } from 'next-intl';
 import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from '@/i18n/navigation';
 import { getProfile } from '@/lib/api-client';
 import { clearTokens, isAuthenticated } from '@/lib/auth';
 import { onProfileChanged } from '@/lib/profile-events';
+import { BottomNav } from './BottomNav';
 import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
 import { TopBar } from './TopBar';
 
 export function GameLayout({ children }: { children: React.ReactNode }) {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
+  const locale = useLocale();
+  const pathname = usePathname();
+  const router = useRouter();
 
   function loadProfile() {
     getProfile()
@@ -53,14 +58,25 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.energy.nextRegenAt]);
 
+  // "Always opens in that language until changed" (Settings) — every load
+  // lands on the saved preference, not just right after login. A no-op once
+  // the URL locale already matches, so this can't loop.
+  useEffect(() => {
+    if (profile?.preferredLocale && profile.preferredLocale !== locale) {
+      router.replace(pathname, { locale: profile.preferredLocale });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.preferredLocale, locale]);
+
   return (
     <div className="min-h-screen bg-ink text-text">
-      <TopBar profile={profile} loggedIn={loggedIn} onMenuClick={() => setMenuOpen((open) => !open)} />
+      <TopBar profile={profile} loggedIn={loggedIn} />
       {loggedIn && profile && <StatusBar profile={profile} />}
       <div className="flex min-h-[calc(100vh-4rem)]">
-        <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
-        <main className="w-full max-w-[1500px] flex-1 p-4 md:p-7">{children}</main>
+        <Sidebar />
+        <main className="w-full max-w-[1500px] flex-1 px-4 pb-20 pt-4 md:p-7">{children}</main>
       </div>
+      {loggedIn && <BottomNav />}
     </div>
   );
 }

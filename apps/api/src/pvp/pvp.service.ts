@@ -61,9 +61,10 @@ export class PvpService {
       throw new NotFoundException('No opponents available right now');
     }
 
-    const [myStats, opponentStats] = await Promise.all([
+    const [myStats, opponentStats, opponentMembership] = await Promise.all([
       this.combat.computePlayerStats(playerId, this.prisma),
       this.combat.computePlayerStats(opponent.id, this.prisma),
+      this.prisma.clanMembership.findUnique({ where: { playerId: opponent.id }, include: { clan: true } }),
     ]);
 
     return {
@@ -71,6 +72,7 @@ export class PvpService {
       opponentUsername: opponent.username,
       opponentRace: opponent.race,
       opponentLevel: opponent.level,
+      opponentClanTag: opponentMembership?.clan.tag ?? null,
       myStats: toStatsDto(myStats),
       opponentStats: toStatsDto(opponentStats),
     };
