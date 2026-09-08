@@ -162,6 +162,10 @@ model Zone {
   nameKey     String
   order       Int
   unlockLevel Int
+  // Landscape thumbnail shown on the /zones list (owner decision) — unlike
+  // item/race/Pentili icons (square, transparent), this is a full landscape
+  // scene, no transparency needed. See apps/web/public/assets/zones/.
+  iconAssetId String
 
   pentili       Pentili[]
   battleReports BattleReport[]
@@ -272,6 +276,15 @@ model ItemDefinition {
   // Upgrade-material CONSUMABLEs (see seed.ts) to say which set's gear they
   // upgrade — null only for consumables that aren't upgrade materials.
   tier            ItemTier?
+
+  // System Shop (owner decision, not in GAME_SYSTEMS.md's Trading/auction, which
+  // stays the separate future player-to-player mechanic). 0 means "not required for
+  // this item" — mirrors ExpeditionType's metalReward/crystalReward/creditsReward
+  // non-null-with-zero-meaning-none pattern. Real per-item prices are UNDEFINED;
+  // see instructions/OPEN_DECISIONS.md.
+  shopPriceMetal   Int @default(0)
+  shopPriceCrystal Int @default(0)
+  shopPriceCredits Int @default(0)
 
   itemInstances   ItemInstance[]
   lootDrops       LootDrop[]

@@ -14,4 +14,5 @@ export const NAV_ITEMS: { href: string; labelKey: string; iconKey: string }[] = 
   { href: '/research', labelKey: 'nav.research', iconKey: 'research' },
   { href: '/players', labelKey: 'nav.leaderboard', iconKey: 'players' },
   { href: '/reports', labelKey: 'nav.reports', iconKey: 'reports' },
+  { href: '/shop', labelKey: 'nav.shop', iconKey: 'shop' },
 ];

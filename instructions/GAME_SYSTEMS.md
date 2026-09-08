@@ -87,7 +87,12 @@ Still **UNDEFINED**:
 - **Ascendant** — advanced tier, introduced in the second zone.
 - **Coreforged** — elite tier, introduced in the third zone and continuing into the fourth zone and both bosses.
 
-Coreforged items are race-locked, but at the *dropped instance* level, not the item type: "Coreforged Head Scanner" is one definition for every player, but each time one drops it is stamped with one of the 5 races at random, and only a player of that race can equip that specific copy. Early (Pioneer/Ascendant) parts remain universal. `ItemDefinition.race` also exists in the schema, reserved for a possible future fixed-race item *type* — unrelated to and unused by the instance-stamping above.
+Race-locking is stamped at the *dropped/granted instance* level, not the item type: "Coreforged Head Scanner" is one definition for every player, but each instance (whether looted or bought in the Shop) independently rolls whether it's locked to one of the 5 races, and only a player of that race can equip that specific copy. Owner-specified odds per tier:
+- **Pioneer** — always universal (100%), never locked.
+- **Ascendant** — a 6-way equal split: 1/6 stays universal, the other 5/6 splits evenly across the 5 races (1/6 each).
+- **Coreforged** — always locked to one of the 5 races (never universal).
+
+`ItemDefinition.race` also exists in the schema, reserved for a possible future fixed-race item *type* — unrelated to and unused by the instance-stamping above.
 
 Slot schema — **LOCKED** (7 anatomical slots):
 - Head;

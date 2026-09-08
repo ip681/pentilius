@@ -1,6 +1,6 @@
 'use client';
 
-import type { CombatStatsDto, EquipmentSlot, EquippedItemDto, InventoryItemDto, PlayerProfileDto, RobotAttributesDto, RobotSlotDto } from '@pentilius/shared';
+import type { BoxOpenResultDto, CombatStatsDto, EquipmentSlot, EquippedItemDto, InventoryItemDto, PlayerProfileDto, RobotAttributesDto, RobotSlotDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
@@ -18,6 +18,8 @@ import {
   getRobot,
   getRobotAttributes,
   getRobotCombatStats,
+  openBox,
+  recycleItem,
   sellItem,
   unequipSlot,
   upgradeItem,
@@ -83,6 +85,11 @@ function isBuildingTargetedConsumable(item: InventoryItemDto): boolean {
   return item.itemDefinitionKey.startsWith('construction_speedup');
 }
 
+// A loot box (owner decision) — opened for a guaranteed Rare/Epic item of its tier, never "used" like a plain consumable.
+function isBox(item: InventoryItemDto): boolean {
+  return item.itemDefinitionKey.endsWith('_box');
+}
+
 export default function RobotPage() {
   useRequireAuth();
   const t = useTranslations();
@@ -96,6 +103,7 @@ export default function RobotPage() {
   const [filter, setFilter] = useState<EquipmentSlot | 'ALL' | 'CONSUMABLE'>('ALL');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [boxResult, setBoxResult] = useState<BoxOpenResultDto | null>(null);
 
   async function load() {
     try {
@@ -166,6 +174,20 @@ export default function RobotPage() {
     }
   }
 
+  async function handleOpenBox() {
+    if (!selected) return;
+    setError(null);
+    try {
+      const result = await openBox(selected.id);
+      setBoxResult(result);
+      setSelectedId(null);
+      notifyProfileChanged();
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError && err.code === 'INVENTORY_FULL' ? t('robot.inventoryFull') : t('robot.openError'));
+    }
+  }
+
   async function handleUpgrade() {
     if (!selected) return;
     try {
@@ -181,6 +203,18 @@ export default function RobotPage() {
     if (!selected) return;
     try {
       await sellItem(selected.id);
+      notifyProfileChanged();
+      setSelectedId(null);
+      await load();
+    } catch {
+      setError(t('robot.actionError'));
+    }
+  }
+
+  async function handleRecycle() {
+    if (!selected) return;
+    try {
+      await recycleItem(selected.id);
       notifyProfileChanged();
       setSelectedId(null);
       await load();
@@ -208,6 +242,31 @@ export default function RobotPage() {
       </div>
 
       {error && <p className="mb-4 text-red-400">{error}</p>}
+
+      {boxResult && (
+        <div className="mb-6 flex items-center gap-4 rounded-lg border border-panelBorder bg-panel p-5">
+          <div className="h-14 w-14 shrink-0">
+            <AssetIcon
+              assetId={boxResult.iconAssetId}
+              alt={t(boxResult.nameKey)}
+              className="h-full w-full object-contain"
+              fallback={<span className="text-lg font-semibold text-textMuted">{t(boxResult.nameKey).charAt(0)}</span>}
+            />
+          </div>
+          <div>
+            <div className="mb-1 text-[11px] uppercase tracking-wide text-textFaint">{t('robot.boxOpenedTitle')}</div>
+            <p className="text-sm font-semibold">
+              {t(boxResult.nameKey)} · <span className={boxResult.quality === 'EPIC' ? 'text-epic' : 'text-positive'}>{t(`itemQuality.${boxResult.quality}`)}</span>
+            </p>
+            {boxResult.rolledOptions.length > 0 && (
+              <p className={`mt-1 text-[11px] ${boxResult.quality === 'EPIC' ? 'text-epic' : 'text-positive'}`}>
+                {boxResult.rolledOptions.map((option) => t(`itemOption.${option}`)).join(', ')}
+              </p>
+            )}
+            {boxResult.race && <p className="mt-1 text-[10px] text-textFaint">{t('robot.raceLocked', { race: t(`race.${boxResult.race}.name`) })}</p>}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr]">
         {/* INVENTORY */}
@@ -255,7 +314,13 @@ export default function RobotPage() {
                   title={t(item.nameKey)}
                   onClick={() => setSelectedId(item.id)}
                   className={`relative flex aspect-square items-center justify-center rounded-md border ${
-                    selectedId === item.id ? 'border-textFaint' : item.equipped ? 'border-accent' : item.quality === 'RARE' ? 'border-positive' : 'border-wellBorder'
+                    selectedId === item.id
+                      ? 'border-textFaint'
+                      : item.quality === 'EPIC'
+                        ? 'border-epic'
+                        : item.quality === 'RARE'
+                          ? 'border-positive'
+                          : 'border-wellBorder'
                   } bg-well`}
                 >
                   <AssetIcon
@@ -264,6 +329,7 @@ export default function RobotPage() {
                     className="h-full w-full object-contain p-1"
                     fallback={<span className="text-sm font-semibold text-textMuted">{t(item.nameKey).charAt(0)}</span>}
                   />
+                  {item.quality === 'EPIC' && <span className="absolute left-0.5 top-0.5 text-[7px] font-semibold uppercase text-epic">{t('itemQuality.EPIC')}</span>}
                   {item.quality === 'RARE' && <span className="absolute left-0.5 top-0.5 text-[7px] font-semibold uppercase text-positive">{t('itemQuality.RARE')}</span>}
                   {item.equipped && (
                     <span className="absolute bottom-0.5 left-0.5 rounded bg-[#1e40af] px-1 py-0.5 text-[7px] font-semibold uppercase leading-none text-text">
@@ -275,7 +341,7 @@ export default function RobotPage() {
                       <span className="absolute bottom-0.5 right-1 text-[8px] font-semibold text-accent">+{item.upgradeLevel}</span>
                     )
                   ) : (
-                    <span className="absolute bottom-0.5 right-1 text-[8px] font-semibold text-accent">×{item.quantity}</span>
+                    <span className="absolute bottom-0.5 right-1 text-[8px] font-semibold text-text">×{item.quantity}</span>
                   )}
                 </button>
               ))}
@@ -441,12 +507,29 @@ export default function RobotPage() {
                       {t('robot.sellValue')}: {selected.sellValue.metal} {t('resource.METAL')}, {selected.sellValue.crystal} {t('resource.CRYSTAL')}
                     </p>
                   )}
+                  {selected.recycleValue && (
+                    <p className="mt-1 text-[10px] text-textFaint">
+                      {t('robot.recycleProgress', {
+                        name: t(`items.${selected.recycleValue.fragmentItemDefinitionKey}.name`),
+                        owned: selected.recycleValue.ownedFragments,
+                        required: selected.recycleValue.fragmentsPerStone,
+                      })}
+                    </p>
+                  )}
                 </>
               )}
             </div>
 
             {selected.category === 'CONSUMABLE' ? (
-              isBuildingTargetedConsumable(selected) ? (
+              isBox(selected) ? (
+                <button
+                  type="button"
+                  onClick={handleOpenBox}
+                  className="mt-3 w-full rounded-md border border-accent bg-accentBg py-2.5 text-[10px] uppercase hover:bg-accentBgHover"
+                >
+                  {t('robot.open')}
+                </button>
+              ) : isBuildingTargetedConsumable(selected) ? (
                 <p className="mt-3 text-[10px] text-textFaint">{t('robot.useOnBase')}</p>
               ) : (
                 <button
@@ -487,9 +570,9 @@ export default function RobotPage() {
                   {t('robot.upgrade')}
                 </button>
 
-                <div className="mt-2">
+                <div className="mt-2 flex gap-2">
                   <ConfirmButton
-                    key={selected.id}
+                    key={`sell-${selected.id}`}
                     label={t('robot.sell')}
                     confirmLabel={t('common.confirm')}
                     cancelLabel={t('common.cancel')}
@@ -500,9 +583,27 @@ export default function RobotPage() {
                     }
                     onConfirm={handleSell}
                     disabled={selected.equipped}
-                    className="w-full rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                    className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                     confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover"
                     cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+                    wrapperClassName="flex-1"
+                  />
+                  <ConfirmButton
+                    key={`recycle-${selected.id}`}
+                    label={t('robot.recycle')}
+                    confirmLabel={t('common.confirm')}
+                    cancelLabel={t('common.cancel')}
+                    message={
+                      selected.recycleValue
+                        ? t('robot.recycleConfirm', { name: t(`items.${selected.recycleValue.fragmentItemDefinitionKey}.name`) })
+                        : undefined
+                    }
+                    onConfirm={handleRecycle}
+                    disabled={selected.equipped}
+                    className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                    confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover"
+                    cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+                    wrapperClassName="flex-1"
                   />
                 </div>
               </>

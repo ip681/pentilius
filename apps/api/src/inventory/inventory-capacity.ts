@@ -1,4 +1,4 @@
-import { Prisma, Race } from '@prisma/client';
+import { ItemQuality, ItemTier, Prisma, Race } from '@prisma/client';
 import { GAME_BALANCE, getOptionPool } from '../config/game-config';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -34,11 +34,31 @@ export function getUsedInventorySlots(playerId: string, tx: Tx): Promise<number>
  *
  * Returns whether the item was actually granted (false = silently dropped,
  * the same win's resources/XP are unaffected — see pve/boss/expeditions).
+ *
+ * `overrides.quality` lets a non-loot grant path force a specific quality
+ * instead of the RARE roll below — the Shop forces NORMAL (never Rare/Epic),
+ * a loot box forces RARE or EPIC (never Normal) — see inventory.service.ts's
+ * openBox(). Every other caller passes nothing and keeps today's random
+ * behavior unchanged. Race-locking has no override: it always follows
+ * rollRace()'s tier rule below, for loot, Shop purchases and box contents alike
+ * (owner decision).
  */
-export async function grantItem(playerId: string, itemDefinitionId: string, tx: Tx): Promise<boolean> {
+export async function grantItem(
+  playerId: string,
+  itemDefinitionId: string,
+  tx: Tx,
+  overrides: { quality?: ItemQuality } = {},
+): Promise<boolean> {
   const itemDefinition = await tx.itemDefinition.findUniqueOrThrow({ where: { id: itemDefinitionId } });
 
   if (itemDefinition.category === 'CONSUMABLE') {
+    // Serializes concurrent grants of the same stack (e.g. rapid repeat Shop
+    // purchases, or two loot rolls landing in the same instant) so they can't
+    // race past the existence check below and each create their own row
+    // instead of stacking onto one. Transaction-scoped — released automatically
+    // on commit/rollback, no manual unlock needed.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${playerId}), hashtext(${itemDefinitionId}))`;
+
     const existing = await tx.itemInstance.findFirst({ where: { playerId, itemDefinitionId, equippedSlot: null } });
     if (existing) {
       await tx.itemInstance.update({ where: { id: existing.id }, data: { quantity: { increment: 1 } } });
@@ -51,22 +71,49 @@ export async function grantItem(playerId: string, itemDefinitionId: string, tx: 
     return false;
   }
 
-  // Coreforged drops are the same ItemDefinition for everyone, but each dropped
-  // instance is stamped with a random race and can only be equipped by that race
-  // (instructions/GAME_SYSTEMS.md) — distinct from the separate, unused ItemDefinition.race.
-  // category check matters: the Coreforged Upgrade material also has tier COREFORGED
-  // but is a CONSUMABLE — it must never get a (meaningless) race stamp.
-  const race = itemDefinition.category === 'EQUIPMENT' && itemDefinition.tier === 'COREFORGED' ? ALL_RACES[Math.floor(Math.random() * ALL_RACES.length)] : null;
+  const race = itemDefinition.category === 'EQUIPMENT' ? rollRace(itemDefinition.tier) : null;
 
-  const rare = itemDefinition.category === 'EQUIPMENT' && Math.random() < GAME_BALANCE.rarity.rareChance;
-  const rolledOptions = rare && itemDefinition.slot ? [pickOption(getOptionPool(itemDefinition.slot))] : [];
+  const quality = overrides.quality ?? (itemDefinition.category === 'EQUIPMENT' && Math.random() < GAME_BALANCE.rarity.rareChance ? 'RARE' : 'NORMAL');
+  const rolledOptions =
+    itemDefinition.slot && (quality === 'RARE' || quality === 'EPIC')
+      ? pickOptions(getOptionPool(itemDefinition.slot), quality === 'EPIC' ? 2 : 1)
+      : [];
 
   await tx.itemInstance.create({
-    data: { playerId, itemDefinitionId, race, quality: rare ? 'RARE' : 'NORMAL', rolledOptions },
+    data: { playerId, itemDefinitionId, race, quality, rolledOptions },
   });
   return true;
 }
 
-function pickOption<T>(pool: T[]): T {
-  return pool[Math.floor(Math.random() * pool.length)];
+/**
+ * Race-locking (instructions/GAME_SYSTEMS.md): stamped per dropped/granted
+ * *instance*, not the ItemDefinition — distinct from the separate, unused
+ * ItemDefinition.race. PIONEER always stays universal (null). COREFORGED is
+ * always locked to one of the 5 races. ASCENDANT is a 6-way equal split
+ * (owner-specified): 1/6 stays universal, the other 5/6 splits evenly across
+ * the 5 races (1/6 each) — see game-config.ts's GAME_BALANCE.raceLock.
+ */
+function rollRace(tier: ItemTier | null): Race | null {
+  if (tier === 'COREFORGED') {
+    return ALL_RACES[Math.floor(Math.random() * ALL_RACES.length)];
+  }
+  if (tier === 'ASCENDANT') {
+    return Math.random() < GAME_BALANCE.raceLock.ascendantUniversalChance ? null : ALL_RACES[Math.floor(Math.random() * ALL_RACES.length)];
+  }
+  return null;
+}
+
+/**
+ * Samples `count` distinct entries from `pool` without replacement (capped at
+ * the pool's own size) — one Math.random() call per pick, same as the old
+ * single-option pickOption() did for count=1.
+ */
+function pickOptions<T>(pool: T[], count: number): T[] {
+  const remaining = [...pool];
+  const picked: T[] = [];
+  for (let i = 0; i < Math.min(count, pool.length); i++) {
+    const index = Math.floor(Math.random() * remaining.length);
+    picked.push(remaining.splice(index, 1)[0]);
+  }
+  return picked;
 }

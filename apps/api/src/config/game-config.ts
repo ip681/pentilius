@@ -37,6 +37,15 @@ export const GAME_BALANCE = {
     baseCrystalByTier: { PIONEER: 5, ASCENDANT: 15, COREFORGED: 35 } as Record<ItemTier, number>,
     qualityMultiplier: { NORMAL: 1, RARE: 1.5, EPIC: 2 } as Record<ItemQuality, number>,
   },
+  itemRecycle: {
+    // Owner-specified: recycling an item always yields 1 tier-matched fragment
+    // (seed.ts's pioneer_fragment/ascendant_fragment/coreforged_fragment),
+    // regardless of quality/upgradeLevel — the alternative to itemSell above.
+    // Reaching fragmentsPerStone auto-converts into that tier's own upgrade
+    // stone (see inventory.service.ts's recycleItem), no separate combine step.
+    fragmentsPerItem: 1,
+    fragmentsPerStone: 20,
+  },
   combat: {
     // Combat formula is UNDEFINED — placeholder linear model:
     // stat = sum(equipped baseStats) * (1 + upgradeLevel * bonusPerUpgradeLevel).
@@ -76,6 +85,21 @@ export const GAME_BALANCE = {
     // instead of NORMAL. EPIC (2 options) isn't rollable through grantItem yet
     // — reserved for a future boss box/cache mechanic, see OPEN_DECISIONS.md.
     rareChance: 0.05,
+  },
+  boxOpen: {
+    // Owner-specified: opening a loot box always yields RARE or EPIC, never
+    // NORMAL — distinct from rarity.rareChance (the 5% chance on ordinary
+    // loot/Shop grants). See inventory.service.ts's openBox().
+    epicChance: 0.1,
+  },
+  raceLock: {
+    // Owner-specified (instructions/GAME_SYSTEMS.md): a newly granted
+    // ASCENDANT item has 6 equally likely outcomes — universal, or locked to
+    // one of the 5 races — so a 1/6 chance of staying universal (the other
+    // 5/6 split evenly across the 5 races, 1/6 each). PIONEER always stays
+    // universal; COREFORGED is always locked to one of the 5 races (never
+    // universal) — both are fixed rules, not configurable percentages.
+    ascendantUniversalChance: 1 / 6,
   },
   robotAttributes: {
     // "Core Attributes" point-buy system (instructions/GAME_SYSTEMS.md has no

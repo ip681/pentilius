@@ -15,22 +15,22 @@ async function main() {
     prisma.zone.upsert({
       where: { key: 'zone_verdant_flats' },
       update: {},
-      create: { key: 'zone_verdant_flats', nameKey: 'zones.verdant_flats.name', order: 1, unlockLevel: 1 },
+      create: { key: 'zone_verdant_flats', nameKey: 'zones.verdant_flats.name', order: 1, unlockLevel: 1, iconAssetId: 'zones.verdant_flats.icon' },
     }),
     prisma.zone.upsert({
       where: { key: 'zone_ashen_ridge' },
       update: {},
-      create: { key: 'zone_ashen_ridge', nameKey: 'zones.ashen_ridge.name', order: 2, unlockLevel: 3 },
+      create: { key: 'zone_ashen_ridge', nameKey: 'zones.ashen_ridge.name', order: 2, unlockLevel: 3, iconAssetId: 'zones.ashen_ridge.icon' },
     }),
     prisma.zone.upsert({
       where: { key: 'zone_crimson_wastes' },
       update: {},
-      create: { key: 'zone_crimson_wastes', nameKey: 'zones.crimson_wastes.name', order: 3, unlockLevel: 6 },
+      create: { key: 'zone_crimson_wastes', nameKey: 'zones.crimson_wastes.name', order: 3, unlockLevel: 6, iconAssetId: 'zones.crimson_wastes.icon' },
     }),
     prisma.zone.upsert({
       where: { key: 'zone_frostbound_reach' },
       update: {},
-      create: { key: 'zone_frostbound_reach', nameKey: 'zones.frostbound_reach.name', order: 4, unlockLevel: 9 },
+      create: { key: 'zone_frostbound_reach', nameKey: 'zones.frostbound_reach.name', order: 4, unlockLevel: 9, iconAssetId: 'zones.frostbound_reach.icon' },
     }),
   ]);
 
@@ -213,12 +213,106 @@ async function main() {
       iconAssetId: 'items.coreforged_upgrade.icon',
       isStarterItem: false,
     },
+    // Recycling materials (owner decision) — an alternative to selling an
+    // EQUIPMENT item for Metal/Crystal. Recycling grants one of these per tier
+    // instead; 20 of them auto-convert into the tier's own upgrade material
+    // above. See inventory.service.ts's recycleItem().
+    {
+      key: 'pioneer_fragment',
+      nameKey: 'items.pioneer_fragment.name',
+      descriptionKey: 'items.pioneer_fragment.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      tier: 'PIONEER' as const,
+      baseStats: {},
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.pioneer_fragment.icon',
+      isStarterItem: false,
+    },
+    {
+      key: 'ascendant_fragment',
+      nameKey: 'items.ascendant_fragment.name',
+      descriptionKey: 'items.ascendant_fragment.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      tier: 'ASCENDANT' as const,
+      baseStats: {},
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.ascendant_fragment.icon',
+      isStarterItem: false,
+    },
+    {
+      key: 'coreforged_fragment',
+      nameKey: 'items.coreforged_fragment.name',
+      descriptionKey: 'items.coreforged_fragment.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      tier: 'COREFORGED' as const,
+      baseStats: {},
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.coreforged_fragment.icon',
+      isStarterItem: false,
+    },
+    // Loot boxes (owner decision) — stackable, opened via inventory.service.ts's
+    // openBox() for a guaranteed RARE/EPIC item of the matching tier
+    // (GAME_BALANCE.boxOpen). Not droppable yet — Shop-only for now, since every
+    // ItemDefinition is automatically listed there.
+    {
+      key: 'pioneer_box',
+      nameKey: 'items.pioneer_box.name',
+      descriptionKey: 'items.pioneer_box.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      tier: 'PIONEER' as const,
+      baseStats: {},
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.pioneer_box.icon',
+      isStarterItem: false,
+    },
+    {
+      key: 'ascendant_box',
+      nameKey: 'items.ascendant_box.name',
+      descriptionKey: 'items.ascendant_box.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      tier: 'ASCENDANT' as const,
+      baseStats: {},
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.ascendant_box.icon',
+      isStarterItem: false,
+    },
+    {
+      key: 'coreforged_box',
+      nameKey: 'items.coreforged_box.name',
+      descriptionKey: 'items.coreforged_box.description',
+      slot: null,
+      category: 'CONSUMABLE' as const,
+      tier: 'COREFORGED' as const,
+      baseStats: {},
+      maxUpgradeLevel: 0,
+      iconAssetId: 'items.coreforged_box.icon',
+      isStarterItem: false,
+    },
+  ];
+  // System Shop (owner decision, testing-phase only) — cycles through every
+  // non-empty combination of the 3 currencies at 1 unit each, so the Shop UI
+  // can be exercised against every price-display case before real per-item
+  // prices are set. See instructions/OPEN_DECISIONS.md.
+  const SHOP_PRICE_COMBOS = [
+    { shopPriceMetal: 1, shopPriceCrystal: 0, shopPriceCredits: 0 },
+    { shopPriceMetal: 0, shopPriceCrystal: 1, shopPriceCredits: 0 },
+    { shopPriceMetal: 0, shopPriceCrystal: 0, shopPriceCredits: 1 },
+    { shopPriceMetal: 1, shopPriceCrystal: 1, shopPriceCredits: 0 },
+    { shopPriceMetal: 1, shopPriceCrystal: 0, shopPriceCredits: 1 },
+    { shopPriceMetal: 0, shopPriceCrystal: 1, shopPriceCredits: 1 },
+    { shopPriceMetal: 1, shopPriceCrystal: 1, shopPriceCredits: 1 },
   ];
   const itemsByKey: Record<string, Awaited<ReturnType<typeof prisma.itemDefinition.upsert>>> = {};
-  for (const data of itemData) {
+  for (const [index, data] of itemData.entries()) {
     // update: data (not {}) — category/slot/baseStats must follow this list
     // when it changes, not freeze at whatever an existing row already has.
-    itemsByKey[data.key] = await prisma.itemDefinition.upsert({ where: { key: data.key }, update: data, create: data });
+    const priced = { ...data, ...SHOP_PRICE_COMBOS[index % SHOP_PRICE_COMBOS.length] };
+    itemsByKey[data.key] = await prisma.itemDefinition.upsert({ where: { key: data.key }, update: priced, create: priced });
   }
 
   const allPentiliIds = Object.values(pentiliByKey).map((p) => p.id);

@@ -4,16 +4,26 @@ import type { MyClanResponseDto, PlayerProfileDto, PvpBattleReportDto, PvpScoutD
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
+import { BattleDivider } from '@/components/BattleDivider';
 import { CombatStatsCard } from '@/components/CombatStatsCard';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerLink } from '@/components/PlayerLink';
+import { Link } from '@/i18n/navigation';
 import { ApiError, attackPvpOpponent, getMyClan, getProfile, getPvpReports, getPvpStatus, scoutPvpOpponent } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface LogLine {
-  text: string;
+  text: React.ReactNode;
   kind: 'player' | 'enemy' | 'system';
+}
+
+/** The reward summary appended in bold to the final combat-log line on a win — PvP has no XP, only stolen resources/items. */
+function rewardSummary(t: ReturnType<typeof useTranslations>, report: PvpBattleReportDto): string | null {
+  if (report.lootSummary.length === 0) return null;
+  return report.lootSummary
+    .map((loot) => (loot.type === 'resource' ? `+${loot.quantity} ${t(`resource.${loot.resourceType}`)}` : `${t(loot.itemNameKey!)} ×${loot.quantity}`))
+    .join(' · ');
 }
 
 interface BattleState {
@@ -124,8 +134,16 @@ export default function PvpPage() {
           }
           const finished = index >= report.rounds.length;
           if (finished) {
+            const outcomeText = report.outcome === 'WIN' ? t('pvp.victoryLog') : t('pvp.defeatLog');
+            const reward = report.outcome === 'WIN' ? rewardSummary(t, report) : null;
             log.push({
-              text: report.outcome === 'WIN' ? t('pvp.victoryLog') : t('pvp.defeatLog'),
+              text: reward ? (
+                <>
+                  {outcomeText} <strong className="font-semibold">{reward}</strong>
+                </>
+              ) : (
+                outcomeText
+              ),
               kind: report.outcome === 'WIN' ? 'player' : 'enemy',
             });
           }
@@ -194,45 +212,26 @@ export default function PvpPage() {
           {scout ? (
             <div className="rounded-lg border border-panelBorder bg-panel p-5">
               <h2 className="mb-4 text-center text-sm font-semibold">{t('pvp.scoutTitle')}</h2>
-              <div className="mb-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                <div>
-                  <div className="mb-3 flex h-[140px] items-center justify-center rounded-md border border-panelBorder bg-well">
-                    {profile && (
-                      <AssetIcon
-                        assetId={`races.${profile.race.toLowerCase()}.icon`}
-                        alt={t(`race.${profile.race}.name`)}
-                        className="h-full w-full object-contain p-3"
-                        fallback={<span className="text-sm font-semibold text-textMuted">{t(`race.${profile.race}.name`).charAt(0)}</span>}
-                      />
-                    )}
-                  </div>
+              <div className="mb-5 grid grid-cols-[1fr_auto_1fr] items-stretch gap-1.5 sm:gap-5">
+                {profile && (
                   <CombatStatsCard
                     title={myName}
-                    subtitle={
-                      profile
-                        ? `${t(`race.${profile.race}.name`)} · ${t('pvp.level')} ${profile.level} · ${myClan?.clan ? `[${myClan.clan.tag}]` : '-'}`
-                        : undefined
-                    }
+                    subtitle={`${t(`race.${profile.race}.name`)} · ${t('pvp.level')} ${profile.level} · ${myClan?.clan ? `[${myClan.clan.tag}]` : '-'}`}
                     stats={scout.myStats}
                     variant="player"
+                    icon={{ assetId: `races.${profile.race.toLowerCase()}.icon`, alt: t(`race.${profile.race}.name`) }}
+                    showItemBonuses={false}
                   />
-                </div>
-                <div>
-                  <div className="mb-3 flex h-[140px] items-center justify-center rounded-md border border-panelBorderDanger bg-well">
-                    <AssetIcon
-                      assetId={`races.${scout.opponentRace.toLowerCase()}.icon`}
-                      alt={t(`race.${scout.opponentRace}.name`)}
-                      className="h-full w-full object-contain p-3"
-                      fallback={<span className="text-sm font-semibold text-textMuted">{t(`race.${scout.opponentRace}.name`).charAt(0)}</span>}
-                    />
-                  </div>
-                  <CombatStatsCard
-                    title={<PlayerLink playerId={scout.opponentId} username={scout.opponentUsername} className="hover:text-accent" />}
-                    subtitle={`${t(`race.${scout.opponentRace}.name`)} · ${t('pvp.level')} ${scout.opponentLevel} · ${scout.opponentClanTag ? `[${scout.opponentClanTag}]` : '-'}`}
-                    stats={scout.opponentStats}
-                    variant="enemy"
-                  />
-                </div>
+                )}
+                <BattleDivider />
+                <CombatStatsCard
+                  title={<PlayerLink playerId={scout.opponentId} username={scout.opponentUsername} className="hover:text-accent" />}
+                  subtitle={`${t(`race.${scout.opponentRace}.name`)} · ${t('pvp.level')} ${scout.opponentLevel} · ${scout.opponentClanTag ? `[${scout.opponentClanTag}]` : '-'}`}
+                  stats={scout.opponentStats}
+                  variant="enemy"
+                  icon={{ assetId: `races.${scout.opponentRace.toLowerCase()}.icon`, alt: t(`race.${scout.opponentRace}.name`) }}
+                  showItemBonuses={false}
+                />
               </div>
               <div className="flex justify-center gap-3">
                 <button
@@ -268,42 +267,10 @@ export default function PvpPage() {
 
       {battle && (
         <>
-          {battle.finished && (
-            <div className="mb-6 rounded-lg border border-panelBorder bg-panel p-5 text-center">
-              <div className="mb-1 text-xl font-semibold">{battle.report.outcome === 'WIN' ? t('pvp.victory') : t('pvp.defeat')}</div>
-              {battle.report.lootSummary.length > 0 && (
-                <p className="text-xs text-textMuted">
-                  {battle.report.lootSummary.map((loot, index) => (
-                    <span key={index}>
-                      {index > 0 && ' · '}+{loot.quantity} {t(`resource.${loot.resourceType}`)}
-                    </span>
-                  ))}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setBattle(null);
-                  loadScout();
-                }}
-                className="mt-4 rounded-md border border-accent bg-accentBg px-5 py-2 text-[11px] uppercase hover:bg-accentBgHover"
-              >
-                {t('pvp.attackAgain')}
-              </button>
-            </div>
-          )}
-
-          <section className="mb-6 grid grid-cols-1 items-center gap-5 md:grid-cols-[1fr_120px_1fr]">
+          <section className="mb-6 grid grid-cols-[1fr_auto_1fr] items-stretch gap-1.5 sm:gap-5">
             <FighterPanel name={myName} hp={battle.youHp} maxHp={battle.report.attackerMaxHp} variant="player" race={profile?.race} />
 
-            <div className="text-center">
-              <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-full border border-accent bg-panelHeader text-lg font-bold text-textMuted">
-                {t('pve.vs')}
-              </div>
-              <div className="mt-3 text-[10px] uppercase tracking-widest text-textFaint">
-                {t('pve.round')} {battle.round}
-              </div>
-            </div>
+            <BattleDivider round={battle.round} />
 
             <FighterPanel
               name={<PlayerLink playerId={battle.report.opponentId} username={battle.report.opponentUsername} className="hover:text-accent" />}
@@ -323,6 +290,18 @@ export default function PvpPage() {
                 </div>
               ))}
             </div>
+            {battle.finished && (
+              <button
+                type="button"
+                onClick={() => {
+                  setBattle(null);
+                  loadScout();
+                }}
+                className="mt-4 w-full rounded-md border border-accent bg-accentBg py-2.5 text-[11px] uppercase hover:bg-accentBgHover"
+              >
+                {t('pvp.attackAgain')}
+              </button>
+            )}
           </section>
         </>
       )}
@@ -331,13 +310,16 @@ export default function PvpPage() {
         <section>
           <h2 className="mb-3 text-sm font-semibold">{t('pvp.reportsTitle')}</h2>
           <ul className="flex flex-col gap-3">
-            {reports.map((report) => (
+            {reports.slice(0, 5).map((report) => (
               <li key={report.id} className="rounded-lg border border-panelBorder bg-panel p-4 text-sm">
                 <p className="font-medium">{reportLine(report)}</p>
                 <p className="text-textMuted">{new Date(report.createdAt).toLocaleString()}</p>
               </li>
             ))}
           </ul>
+          <Link href="/reports" className="mt-3 inline-block text-xs text-accent hover:underline">
+            {t('nav.reports')} →
+          </Link>
         </section>
       )}
     </GameLayout>
@@ -359,28 +341,29 @@ function FighterPanel({
 }) {
   const t = useTranslations();
   const percent = maxHp > 0 ? Math.max(0, (hp / maxHp) * 100) : 0;
+  const fallbackLetter = <span className="text-base font-semibold text-textMuted sm:text-2xl">?</span>;
   return (
-    <div className={`rounded-lg border p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
-      <div className="mb-4 text-base font-semibold">{name}</div>
-      <div className="mb-4 flex h-[220px] items-center justify-center rounded-md border border-panelBorder bg-well">
+    <div className={`min-w-0 rounded-lg border p-2 sm:p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
+      <div className="mb-2 truncate text-[11px] font-semibold sm:mb-4 sm:text-base">{name}</div>
+      <div className="mb-2 flex h-14 items-center justify-center rounded-full bg-gradient-to-b from-wellBorder/50 to-transparent sm:mb-4 sm:h-[100px]">
         {race ? (
           <AssetIcon
             assetId={`races.${race.toLowerCase()}.icon`}
             alt={t(`race.${race}.name`)}
-            className="h-full w-full object-contain p-3"
-            fallback={<div className={`h-10 w-32 ${variant === 'enemy' ? 'bg-danger' : 'bg-accent'} opacity-70`} style={{ clipPath: 'polygon(0 50%, 20% 15%, 80% 15%, 100% 50%, 80% 85%, 20% 85%)' }} />}
+            className="h-full w-auto object-contain"
+            fallback={<span className="text-base font-semibold text-textMuted sm:text-2xl">{t(`race.${race}.name`).charAt(0)}</span>}
           />
         ) : (
-          <div className={`h-10 w-32 ${variant === 'enemy' ? 'bg-danger' : 'bg-accent'} opacity-70`} style={{ clipPath: 'polygon(0 50%, 20% 15%, 80% 15%, 100% 50%, 80% 85%, 20% 85%)' }} />
+          fallbackLetter
         )}
       </div>
-      <div className="mb-1.5 flex justify-between text-[11px] text-textMuted">
+      <div className="mb-1 flex justify-between text-[9px] text-textMuted sm:mb-1.5 sm:text-[11px]">
         <span>{t('robot.stat.hp')}</span>
         <span>
           {Math.round(hp)} / {maxHp}
         </span>
       </div>
-      <div className="h-[9px] overflow-hidden rounded-full bg-wellBorder">
+      <div className="h-[7px] overflow-hidden rounded-full bg-wellBorder sm:h-[9px]">
         <div className={`h-full transition-all duration-500 ${variant === 'enemy' ? 'bg-danger' : 'bg-positive'}`} style={{ width: `${percent}%` }} />
       </div>
     </div>

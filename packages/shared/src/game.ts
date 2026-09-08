@@ -141,6 +141,54 @@ export interface SellValueDto {
   crystal: number;
 }
 
+export interface RecycleValueDto {
+  fragmentItemDefinitionKey: string;
+  ownedFragments: number;
+  fragmentsPerStone: number;
+}
+
+export interface BoxOpenResultDto {
+  nameKey: string;
+  iconAssetId: string;
+  quality: ItemQuality;
+  rolledOptions: ItemOption[];
+  race: Race | null;
+}
+
+export interface RaceLockInfoDto {
+  // Chance the granted instance is locked to the buyer's own specific race —
+  // the same figure for every race, since all 5 are equally likely.
+  ownRaceChance: number;
+  // Chance the granted instance is universal (unlocked). 0 for COREFORGED,
+  // which is never universal.
+  universalChance: number;
+}
+
+export interface ShopItemDto {
+  itemDefinitionKey: string;
+  nameKey: string;
+  descriptionKey: string;
+  category: ItemCategory;
+  slot: EquipmentSlot | null;
+  tier: ItemTier | null;
+  iconAssetId: string;
+  priceMetal: number;
+  priceCrystal: number;
+  priceCredits: number;
+  // Null for CONSUMABLE items. Base stats at upgrade level 0 — a freshly
+  // bought item always starts unupgraded, so this is just the item's raw
+  // baseStats (mirrors inventory.service.ts's computeItemStats at level 0).
+  baseStats: ItemStatsDto | null;
+  // Null for CONSUMABLE items and for PIONEER (always universal, no lock
+  // risk). Populated for ASCENDANT/COREFORGED so the buyer can see the odds
+  // before committing — see inventory-capacity.ts's rollRace().
+  raceLockInfo: RaceLockInfoDto | null;
+}
+
+export interface ShopResponseDto {
+  items: ShopItemDto[];
+}
+
 export interface InventoryItemDto {
   id: string;
   itemDefinitionKey: string;
@@ -172,6 +220,8 @@ export interface InventoryItemDto {
   // Null for CONSUMABLE items. Always populated for EQUIPMENT regardless of
   // upgrade level (unlike upgradeCost, which nulls out at maxUpgradeLevel).
   sellValue: SellValueDto | null;
+  // Null for CONSUMABLE items. Always populated for EQUIPMENT, mirroring sellValue.
+  recycleValue: RecycleValueDto | null;
 }
 
 export interface InventoryResponseDto {
@@ -181,6 +231,11 @@ export interface InventoryResponseDto {
   used: number;
 }
 
+export interface ZonePentiliPreviewDto {
+  nameKey: string;
+  iconAssetId: string;
+}
+
 export interface ZoneDto {
   id: string;
   key: string;
@@ -188,6 +243,17 @@ export interface ZoneDto {
   order: number;
   unlockLevel: number;
   unlocked: boolean;
+  iconAssetId: string;
+  pentiliPreview: ZonePentiliPreviewDto[];
+}
+
+export interface PentiliLootDropDto {
+  type: 'resource' | 'item';
+  resourceType?: ResourceType;
+  itemNameKey?: string;
+  dropChance: number;
+  minQuantity: number;
+  maxQuantity: number;
 }
 
 export interface PentiliDto {
@@ -200,6 +266,7 @@ export interface PentiliDto {
   defense: number;
   xpReward: number;
   iconAssetId: string;
+  lootDrops: PentiliLootDropDto[];
 }
 
 export interface LootResultEntryDto {

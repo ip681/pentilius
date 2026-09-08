@@ -1,17 +1,36 @@
 'use client';
 
-import type { BattleReportDto, PentiliDto, PlayerProfileDto } from '@pentilius/shared';
+import type { BattleReportDto, PentiliDto, PentiliLootDropDto, PlayerProfileDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { AssetIcon } from '@/components/AssetIcon';
+import { BattleDivider } from '@/components/BattleDivider';
 import { GameLayout } from '@/components/GameLayout';
 import { attackPentili, getPentiliInZone, getProfile } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface LogLine {
-  text: string;
+  text: React.ReactNode;
   kind: 'player' | 'enemy' | 'system';
+}
+
+/** The reward summary appended in bold to the final combat-log line on a win — XP, level-up, and any loot. */
+function rewardSummary(t: ReturnType<typeof useTranslations>, report: BattleReportDto): string {
+  const parts = [`${t('pve.xpGained')}: ${report.xpGained}`];
+  if (report.leveledUp) parts.push(t('pve.leveledUp', { level: report.playerLevel }));
+  for (const loot of report.lootSummary) {
+    parts.push(loot.type === 'resource' ? `+${loot.quantity} ${t(`resource.${loot.resourceType}`)}` : `${t(loot.itemNameKey!)} ×${loot.quantity}`);
+  }
+  return parts.join(' · ');
+}
+
+/** One loot-table entry, formatted as e.g. "Metal ×5-15 (80%)" or "Pioneer Head Scanner ×1 (8%)". */
+function lootLine(t: ReturnType<typeof useTranslations>, drop: PentiliLootDropDto): string {
+  const name = drop.type === 'resource' ? t(`resource.${drop.resourceType}`) : t(drop.itemNameKey!);
+  const quantity = drop.minQuantity === drop.maxQuantity ? `${drop.minQuantity}` : `${drop.minQuantity}-${drop.maxQuantity}`;
+  return `${name} ×${quantity} (${Math.round(drop.dropChance * 100)}%)`;
 }
 
 interface BattleState {
@@ -98,8 +117,16 @@ export default function ZonePentiliPage() {
           }
           const finished = index >= report.rounds.length;
           if (finished) {
+            const outcomeText = report.outcome === 'WIN' ? t('pve.victoryLog') : t('pve.defeatLog');
             log.push({
-              text: report.outcome === 'WIN' ? t('pve.victoryLog') : t('pve.defeatLog'),
+              text:
+                report.outcome === 'WIN' ? (
+                  <>
+                    {outcomeText} <strong className="font-semibold">{rewardSummary(t, report)}</strong>
+                  </>
+                ) : (
+                  outcomeText
+                ),
               kind: report.outcome === 'WIN' ? 'player' : 'enemy',
             });
           }
@@ -129,65 +156,34 @@ export default function ZonePentiliPage() {
 
       {battle && (
         <>
-          {battle.finished && (
-            <div className="mb-6 rounded-lg border border-panelBorder bg-panel p-5 text-center">
-              <div className="mb-1 text-xl font-semibold">
-                {battle.report.outcome === 'WIN' ? t('pve.victory') : t('pve.defeat')}
-              </div>
-              {battle.report.outcome === 'WIN' && (
-                <p className="text-xs text-textMuted">
-                  {t('pve.xpGained')}: {battle.report.xpGained}
-                  {battle.report.leveledUp && ` · ${t('pve.leveledUp', { level: battle.report.playerLevel })}`}
-                </p>
-              )}
-            </div>
-          )}
+          <section className="mb-6 grid grid-cols-[1fr_auto_1fr] items-stretch gap-1.5 sm:gap-5">
+            <FighterPanel
+              name={myName}
+              hp={battle.playerHp}
+              maxHp={battle.report.playerMaxHp}
+              variant="player"
+              iconAssetId={profile?.race ? `races.${profile.race.toLowerCase()}.icon` : undefined}
+            />
 
-          <section className="mb-6 grid grid-cols-1 items-center gap-5 md:grid-cols-[1fr_120px_1fr]">
-            <FighterPanel name={myName} hp={battle.playerHp} maxHp={battle.report.playerMaxHp} variant="player" />
-
-            <div className="text-center">
-              <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-full border border-accent bg-panelHeader text-lg font-bold text-textMuted">
-                {t('pve.vs')}
-              </div>
-              <div className="mt-3 text-[10px] uppercase tracking-widest text-textFaint">
-                {t('pve.round')} {battle.round}
-              </div>
-            </div>
+            <BattleDivider round={battle.round} />
 
             <FighterPanel
               name={t(battle.target.nameKey)}
               hp={battle.pentiliHp}
               maxHp={battle.report.pentiliMaxHp}
               variant="enemy"
+              iconAssetId={battle.target.iconAssetId}
             />
           </section>
 
-          <section className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-[1.5fr_1fr]">
-            <div className="rounded-lg border border-panelBorder bg-panel p-4">
-              <h2 className="mb-3 text-sm font-semibold">{t('pve.combatLog')}</h2>
-              <div className="h-[190px] overflow-y-auto rounded border border-wellBorder bg-ink p-2.5 font-mono text-[11px] leading-relaxed">
-                {battle.log.map((line, index) => (
-                  <div key={index} className={line.kind === 'player' ? 'text-positive' : line.kind === 'enemy' ? 'text-danger' : 'text-textMuted'}>
-                    {line.text}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-panelBorder bg-panel p-4">
-              <h2 className="mb-3 text-sm font-semibold">{t('pve.rewards')}</h2>
-              {battle.finished && battle.report.outcome === 'WIN' && battle.report.lootSummary.length > 0 ? (
-                <ul className="text-xs text-textMuted">
-                  {battle.report.lootSummary.map((loot, index) => (
-                    <li key={index}>
-                      {loot.type === 'resource' ? t(`resource.${loot.resourceType}`) : t(loot.itemNameKey!)} x{loot.quantity}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-textFaint">{t('pve.noRewardsYet')}</p>
-              )}
+          <section className="mb-6 rounded-lg border border-panelBorder bg-panel p-4">
+            <h2 className="mb-3 text-sm font-semibold">{t('pve.combatLog')}</h2>
+            <div className="h-[190px] overflow-y-auto rounded border border-wellBorder bg-ink p-2.5 font-mono text-[11px] leading-relaxed">
+              {battle.log.map((line, index) => (
+                <div key={index} className={line.kind === 'player' ? 'text-positive' : line.kind === 'enemy' ? 'text-danger' : 'text-textMuted'}>
+                  {line.text}
+                </div>
+              ))}
             </div>
           </section>
         </>
@@ -196,12 +192,29 @@ export default function ZonePentiliPage() {
       {pentili && (
         <ul className="flex flex-col gap-3">
           {pentili.map((entry) => (
-            <li key={entry.id} className="flex items-center justify-between rounded-lg border border-panelBorder bg-panel p-4">
-              <div>
-                <p className="font-medium">
-                  {t(entry.nameKey)} (Lv. {entry.level})
-                </p>
-                <p className="text-xs text-textMuted">HP {entry.maxHp} · ATK {entry.attack} · DEF {entry.defense}</p>
+            <li key={entry.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-panelBorder bg-panel p-4">
+              <div className="flex items-center gap-4">
+                <AssetIcon
+                  assetId={entry.iconAssetId}
+                  alt={t(entry.nameKey)}
+                  className="h-16 w-auto shrink-0 object-contain"
+                  fallback={
+                    <span className="flex h-16 w-16 shrink-0 items-center justify-center text-sm font-semibold text-textMuted">
+                      {t(entry.nameKey).charAt(0)}
+                    </span>
+                  }
+                />
+                <div>
+                  <p className="font-medium">
+                    {t(entry.nameKey)} (Lv. {entry.level})
+                  </p>
+                  <p className="text-xs text-textMuted">HP {entry.maxHp} · ATK {entry.attack} · DEF {entry.defense}</p>
+                  {entry.lootDrops.length > 0 && (
+                    <p className="mt-1 text-[10px] text-textFaint">
+                      {t('pve.drops')}: {entry.lootDrops.map((drop) => lootLine(t, drop)).join(' · ')}
+                    </p>
+                  )}
+                </div>
               </div>
               <button
                 type="button"
@@ -218,22 +231,43 @@ export default function ZonePentiliPage() {
   );
 }
 
-function FighterPanel({ name, hp, maxHp, variant }: { name: string; hp: number; maxHp: number; variant: 'player' | 'enemy' }) {
+function FighterPanel({
+  name,
+  hp,
+  maxHp,
+  variant,
+  iconAssetId,
+}: {
+  name: string;
+  hp: number;
+  maxHp: number;
+  variant: 'player' | 'enemy';
+  iconAssetId?: string;
+}) {
   const t = useTranslations();
   const percent = maxHp > 0 ? Math.max(0, (hp / maxHp) * 100) : 0;
   return (
-    <div className={`rounded-lg border p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
-      <div className="mb-4 text-base font-semibold">{name}</div>
-      <div className="mb-4 flex h-[100px] items-center justify-center rounded-md border border-panelBorder bg-well">
-        <div className={`h-10 w-32 ${variant === 'enemy' ? 'bg-danger' : 'bg-accent'} opacity-70`} style={{ clipPath: 'polygon(0 50%, 20% 15%, 80% 15%, 100% 50%, 80% 85%, 20% 85%)' }} />
+    <div className={`min-w-0 rounded-lg border p-2 sm:p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
+      <div className="mb-2 truncate text-[11px] font-semibold sm:mb-4 sm:text-base">{name}</div>
+      <div className="mb-2 flex h-14 items-center justify-center rounded-full bg-gradient-to-b from-wellBorder/50 to-transparent sm:mb-4 sm:h-[100px]">
+        {iconAssetId ? (
+          <AssetIcon
+            assetId={iconAssetId}
+            alt={name}
+            className="h-full w-auto object-contain"
+            fallback={<span className="text-base font-semibold text-textMuted sm:text-2xl">{name.charAt(0)}</span>}
+          />
+        ) : (
+          <span className="text-base font-semibold text-textMuted sm:text-2xl">{name.charAt(0)}</span>
+        )}
       </div>
-      <div className="mb-1.5 flex justify-between text-[11px] text-textMuted">
+      <div className="mb-1 flex justify-between text-[9px] text-textMuted sm:mb-1.5 sm:text-[11px]">
         <span>{t('robot.stat.hp')}</span>
         <span>
           {Math.round(hp)} / {maxHp}
         </span>
       </div>
-      <div className="h-[9px] overflow-hidden rounded-full bg-wellBorder">
+      <div className="h-[7px] overflow-hidden rounded-full bg-wellBorder sm:h-[9px]">
         <div className={`h-full transition-all duration-500 ${variant === 'enemy' ? 'bg-danger' : 'bg-positive'}`} style={{ width: `${percent}%` }} />
       </div>
     </div>

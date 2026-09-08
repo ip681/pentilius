@@ -5,6 +5,7 @@ import type {
   BattleReportDto,
   BossDto,
   BossEncounterResultDto,
+  BoxOpenResultDto,
   BuildingStateDto,
   ClanDetailDto,
   ClanMessageDto,
@@ -30,6 +31,7 @@ import type {
   ResearchStateDto,
   RobotAttributesDto,
   RobotSlotDto,
+  ShopResponseDto,
   ZoneDto,
 } from '@pentilius/shared';
 import { getAccessToken } from './auth';
@@ -172,6 +174,23 @@ export function consumeItem(itemInstanceId: string, buildingKey?: string): Promi
 
 export function sellItem(itemInstanceId: string): Promise<InventoryResponseDto> {
   return request<InventoryResponseDto>(`/inventory/items/${itemInstanceId}/sell`, { method: 'POST', auth: true });
+}
+
+export function recycleItem(itemInstanceId: string): Promise<InventoryResponseDto> {
+  return request<InventoryResponseDto>(`/inventory/items/${itemInstanceId}/recycle`, { method: 'POST', auth: true });
+}
+
+export function openBox(itemInstanceId: string): Promise<BoxOpenResultDto> {
+  return request<BoxOpenResultDto>(`/inventory/items/${itemInstanceId}/open`, { method: 'POST', auth: true });
+}
+
+// Shop
+export function getShop(): Promise<ShopResponseDto> {
+  return request<ShopResponseDto>('/shop', { auth: true });
+}
+
+export function buyItem(itemDefinitionKey: string): Promise<void> {
+  return request<void>(`/shop/${itemDefinitionKey}/buy`, { method: 'POST', auth: true });
 }
 
 // Zones / Pentili

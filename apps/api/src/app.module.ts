@@ -14,6 +14,7 @@ import { PvpModule } from './pvp/pvp.module';
 import { ReportsModule } from './reports/reports.module';
 import { ResearchModule } from './research/research.module';
 import { RobotModule } from './robot/robot.module';
+import { ShopModule } from './shop/shop.module';
 import { ZonesModule } from './zones/zones.module';
 
 @Module({
@@ -33,6 +34,7 @@ import { ZonesModule } from './zones/zones.module';
     PvpModule,
     ClansModule,
     ReportsModule,
+    ShopModule,
   ],
 })
 export class AppModule {}

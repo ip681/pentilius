@@ -29,4 +29,14 @@ export class InventoryController {
   sellItem(@CurrentPlayer() currentPlayer: JwtPayload, @Param('id') id: string) {
     return this.inventoryService.sellItem(currentPlayer.sub, id);
   }
+
+  @Post('items/:id/recycle')
+  recycleItem(@CurrentPlayer() currentPlayer: JwtPayload, @Param('id') id: string) {
+    return this.inventoryService.recycleItem(currentPlayer.sub, id);
+  }
+
+  @Post('items/:id/open')
+  openBox(@CurrentPlayer() currentPlayer: JwtPayload, @Param('id') id: string) {
+    return this.inventoryService.openBox(currentPlayer.sub, id);
+  }
 }
