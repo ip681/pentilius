@@ -3,8 +3,10 @@
 import type { ExpeditionClaimResultDto, ExpeditionsResponseDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
+import { AssetIcon } from '@/components/AssetIcon';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
+import { ResourceIcon } from '@/components/ResourceIcon';
 import { cancelExpedition, claimExpedition, getExpeditions, startExpedition } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
@@ -90,13 +92,30 @@ export default function ExpeditionsPage() {
       {result && (
         <div className="mb-6 rounded-lg border border-panelBorder bg-panel p-5">
           <div className="mb-2 font-medium">{t('expeditions.claimedTitle')}</div>
-          <p className="text-xs text-textMuted">
-            +{result.rewards.metal} {t('resource.METAL')} · +{result.rewards.crystal} {t('resource.CRYSTAL')} · +
-            {result.rewards.credits} {t('resource.CREDITS')} · +{result.rewards.xp} {t('pve.xpGained')}
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-textMuted">
+            <span className="flex items-center gap-1">
+              +{result.rewards.metal} <ResourceIcon type="METAL" className="h-4 w-4" />
+            </span>
+            ·
+            <span className="flex items-center gap-1">
+              +{result.rewards.crystal} <ResourceIcon type="CRYSTAL" className="h-4 w-4" />
+            </span>
+            ·
+            <span className="flex items-center gap-1">
+              +{result.rewards.credits} <ResourceIcon type="CREDITS" className="h-4 w-4" />
+            </span>
+            · +{result.rewards.xp} {t('pve.xpGained')}
           </p>
           {result.bonusItem && (
-            <p className="mt-1 text-xs text-positive">
-              {t('expeditions.bonusItemFound')}: {t(result.bonusItem.itemNameKey)}
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-positive">
+              <span>{t('expeditions.bonusItemFound')}:</span>
+              <AssetIcon
+                assetId={result.bonusItem.itemIconAssetId}
+                alt={t(result.bonusItem.itemNameKey)}
+                className="h-4 w-4 object-contain"
+                fallback={<span className="text-[9px] font-semibold">{t(result.bonusItem.itemNameKey).charAt(0)}</span>}
+              />
+              {t(result.bonusItem.itemNameKey)}
             </p>
           )}
           {result.leveledUp && <p className="mt-1 text-xs font-medium">{t('pve.leveledUp', { level: result.playerLevel })}</p>}
@@ -143,13 +162,20 @@ export default function ExpeditionsPage() {
               <h2 className="mb-4 text-base font-semibold">{t(type.nameKey)}</h2>
 
               <div className="mb-4 flex flex-col gap-1 text-xs text-textMuted">
-                <span>+{type.rewards.metal} {t('resource.METAL')}</span>
-                <span>+{type.rewards.crystal} {t('resource.CRYSTAL')}</span>
-                <span>+{type.rewards.credits} {t('resource.CREDITS')}</span>
+                <span className="flex items-center gap-1.5">+{type.rewards.metal} <ResourceIcon type="METAL" className="h-4 w-4" /></span>
+                <span className="flex items-center gap-1.5">+{type.rewards.crystal} <ResourceIcon type="CRYSTAL" className="h-4 w-4" /></span>
+                <span className="flex items-center gap-1.5">+{type.rewards.credits} <ResourceIcon type="CREDITS" className="h-4 w-4" /></span>
                 <span>+{type.rewards.xp} {t('pve.xpGained')}</span>
                 {type.bonusItemNameKey && (
-                  <span className="text-textFaint">
-                    {t('expeditions.bonusChance', { percent: Math.round((type.bonusItemChance ?? 0) * 100) })}: {t(type.bonusItemNameKey)}
+                  <span className="flex items-center gap-1.5 text-textFaint">
+                    <span>{t('expeditions.bonusChance', { percent: Math.round((type.bonusItemChance ?? 0) * 100) })}:</span>
+                    <AssetIcon
+                      assetId={type.bonusItemIconAssetId ?? ''}
+                      alt={t(type.bonusItemNameKey)}
+                      className="h-4 w-4 object-contain"
+                      fallback={<span className="text-[9px] font-semibold">{t(type.bonusItemNameKey).charAt(0)}</span>}
+                    />
+                    {t(type.bonusItemNameKey)}
                   </span>
                 )}
               </div>

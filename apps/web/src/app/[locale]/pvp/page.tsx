@@ -7,6 +7,7 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { BattleDivider } from '@/components/BattleDivider';
 import { CombatStatsCard } from '@/components/CombatStatsCard';
 import { GameLayout } from '@/components/GameLayout';
+import { LootEntry } from '@/components/LootEntry';
 import { PlayerLink } from '@/components/PlayerLink';
 import { Link } from '@/i18n/navigation';
 import { ApiError, attackPvpOpponent, getMyClan, getProfile, getPvpReports, getPvpStatus, scoutPvpOpponent } from '@/lib/api-client';
@@ -19,11 +20,15 @@ interface LogLine {
 }
 
 /** The reward summary appended in bold to the final combat-log line on a win — PvP has no XP, only stolen resources/items. */
-function rewardSummary(t: ReturnType<typeof useTranslations>, report: PvpBattleReportDto): string | null {
+function RewardSummary({ report }: { report: PvpBattleReportDto }) {
   if (report.lootSummary.length === 0) return null;
-  return report.lootSummary
-    .map((loot) => (loot.type === 'resource' ? `+${loot.quantity} ${t(`resource.${loot.resourceType}`)}` : `${t(loot.itemNameKey!)} ×${loot.quantity}`))
-    .join(' · ');
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      {report.lootSummary.map((loot, index) => (
+        <LootEntry key={index} loot={loot} />
+      ))}
+    </span>
+  );
 }
 
 interface BattleState {
@@ -135,11 +140,14 @@ export default function PvpPage() {
           const finished = index >= report.rounds.length;
           if (finished) {
             const outcomeText = report.outcome === 'WIN' ? t('pvp.victoryLog') : t('pvp.defeatLog');
-            const reward = report.outcome === 'WIN' ? rewardSummary(t, report) : null;
+            const hasReward = report.outcome === 'WIN' && report.lootSummary.length > 0;
             log.push({
-              text: reward ? (
+              text: hasReward ? (
                 <>
-                  {outcomeText} <strong className="font-semibold">{reward}</strong>
+                  {outcomeText}{' '}
+                  <strong className="font-semibold">
+                    <RewardSummary report={report} />
+                  </strong>
                 </>
               ) : (
                 outcomeText

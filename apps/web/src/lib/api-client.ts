@@ -1,6 +1,7 @@
 import type {
   ActiveExpeditionDto,
   AuthResponse,
+  AuthTokens,
   BaseResponseDto,
   BattleReportDto,
   BossDto,
@@ -34,7 +35,7 @@ import type {
   ShopResponseDto,
   ZoneDto,
 } from '@pentilius/shared';
-import { getAccessToken } from './auth';
+import { clearTokens, getAccessToken, getRefreshToken, storeTokens } from './auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api/v1';
 
@@ -51,7 +52,43 @@ export class ApiError extends Error {
   }
 }
 
-async function request<TResponse>(path: string, options: { method?: string; body?: unknown; auth?: boolean } = {}): Promise<TResponse> {
+// Access tokens expire after 15 minutes (see apps/api/src/config/configuration.ts);
+// the 7-day refresh token exists precisely to renew them without forcing a
+// fresh login. Concurrent 401s share one in-flight refresh instead of each
+// firing their own.
+let refreshPromise: Promise<string | null> | null = null;
+
+function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return Promise.resolve(null);
+
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          clearTokens();
+          return null;
+        }
+        const tokens = (await response.json()) as AuthTokens;
+        storeTokens(tokens);
+        return tokens.accessToken;
+      })
+      .catch(() => {
+        clearTokens();
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+async function request<TResponse>(path: string, options: { method?: string; body?: unknown; auth?: boolean } = {}, isRetry = false): Promise<TResponse> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (options.auth) {
     const token = getAccessToken();
@@ -65,6 +102,17 @@ async function request<TResponse>(path: string, options: { method?: string; body
   });
 
   if (!response.ok) {
+    // A 401 on an authenticated call almost always just means the short-lived access
+    // token expired mid-session — silently swap it via the refresh token and retry
+    // once before surfacing an error (and, in turn, before any caller treats this as
+    // a real logout).
+    if (response.status === 401 && options.auth && !isRetry) {
+      const newAccessToken = await refreshAccessToken();
+      if (newAccessToken) {
+        return request<TResponse>(path, options, true);
+      }
+    }
+
     const code = await response
       .clone()
       .json()

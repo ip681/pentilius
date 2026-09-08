@@ -8,6 +8,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { ClanLink } from '@/components/ClanLink';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerLink } from '@/components/PlayerLink';
+import { ResourceIcon } from '@/components/ResourceIcon';
 import { formatRelativeTime } from '@/lib/format-relative-time';
 import {
   ApiError,
@@ -80,6 +81,15 @@ const CLAN_OPTION_CONFIRM_KEY: Record<ClanOptionAction, string> = {
   leave: 'clans.confirmLeave',
   disband: 'clans.confirmDisband',
 };
+
+/** Current bonus at this building's level, and next level's if it isn't already maxed — e.g. "+10 → +12" or "+25% → +30%". */
+function bonusLabel(building: ClanBuildingStateDto): string {
+  const format = (value: number) => (building.bonusType === 'MEMBER_CAPACITY' ? `+${Math.round(value)}` : `+${Math.round(value * 100)}%`);
+  const current = format(building.level * building.bonusPerLevel);
+  if (!building.nextLevelCost) return current;
+  const next = format((building.level + 1) * building.bonusPerLevel);
+  return `${current} → ${next}`;
+}
 
 function buildingProgress(building: ClanBuildingStateDto): { active: boolean; percent: number; secondsLeft: number } {
   if (!building.constructionEndsAt || !building.nextLevelCost) {
@@ -500,15 +510,23 @@ export default function ClansPage() {
           )}
 
           <div className="mb-4 rounded-md border border-wellBorder bg-well p-4">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-textFaint">{t('clans.treasury')}</h3>
+            <div className="mb-2 flex items-center gap-2">
+              <AssetIcon
+                assetId="clans.treasury.icon"
+                alt={t('clans.treasury')}
+                className="h-6 w-6 object-contain"
+                fallback={<span className="text-xs font-semibold text-textMuted">{t('clans.treasury').charAt(0)}</span>}
+              />
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-textFaint">{t('clans.treasury')}</h3>
+            </div>
             <div className="mb-3 flex gap-5 text-sm">
-              <span>{t('resource.METAL')}: <strong>{myClan.treasury.metal.toLocaleString()}</strong></span>
-              <span>{t('resource.CRYSTAL')}: <strong>{myClan.treasury.crystal.toLocaleString()}</strong></span>
-              <span>{t('resource.CREDITS')}: <strong>{myClan.treasury.credits.toLocaleString()}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="METAL" /><strong>{myClan.treasury.metal.toLocaleString()}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="CRYSTAL" /><strong>{myClan.treasury.crystal.toLocaleString()}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="CREDITS" /><strong>{myClan.treasury.credits.toLocaleString()}</strong></span>
             </div>
             <form onSubmit={handleDonate} className="flex flex-wrap items-end gap-2">
               <label className="flex w-24 flex-col gap-1 text-[10px] text-textMuted">
-                {t('resource.METAL')}
+                <span className="flex items-center gap-1"><ResourceIcon type="METAL" className="h-3.5 w-3.5" />{t('resource.METAL')}</span>
                 <input
                   type="number"
                   min={1}
@@ -518,7 +536,7 @@ export default function ClansPage() {
                 />
               </label>
               <label className="flex w-24 flex-col gap-1 text-[10px] text-textMuted">
-                {t('resource.CRYSTAL')}
+                <span className="flex items-center gap-1"><ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />{t('resource.CRYSTAL')}</span>
                 <input
                   type="number"
                   min={1}
@@ -528,7 +546,7 @@ export default function ClansPage() {
                 />
               </label>
               <label className="flex w-24 flex-col gap-1 text-[10px] text-textMuted">
-                {t('resource.CREDITS')}
+                <span className="flex items-center gap-1"><ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />{t('resource.CREDITS')}</span>
                 <input
                   type="number"
                   min={1}
@@ -553,12 +571,21 @@ export default function ClansPage() {
               return (
                 <div key={building.key} className="rounded-md border border-wellBorder bg-well p-3">
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs font-semibold">{t(building.nameKey)}</span>
+                    <span className="flex items-center gap-2 text-xs font-semibold">
+                      <AssetIcon
+                        assetId={`clanBuildings.${building.key}.icon`}
+                        alt={t(building.nameKey)}
+                        className="h-6 w-6 object-contain"
+                        fallback={<span className="text-xs font-semibold text-textMuted">{t(building.nameKey).charAt(0)}</span>}
+                      />
+                      {t(building.nameKey)}
+                    </span>
                     <span className="text-[9px] uppercase text-textFaint">
                       {t('clans.buildingLevel')} {building.level}/{building.maxLevel}
                     </span>
                   </div>
-                  <p className="mb-2 text-[10px] text-textMuted">{t(building.descriptionKey)}</p>
+                  <p className="mb-1 text-[10px] text-textMuted">{t(building.descriptionKey)}</p>
+                  <p className="mb-2 text-[10px] text-accent">{bonusLabel(building)}</p>
 
                   {progress.active ? (
                     <>
@@ -571,9 +598,20 @@ export default function ClansPage() {
                       </div>
                     </>
                   ) : building.nextLevelCost ? (
-                    <p className="mb-2 text-[10px] text-textFaint">
-                      {building.nextLevelCost.metalCost}M / {building.nextLevelCost.crystalCost}C / {building.nextLevelCost.creditsCost}Cr ·{' '}
-                      {formatDuration(building.nextLevelCost.constructionSeconds)}
+                    <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
+                      <span className="flex items-center gap-1">
+                        <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
+                        {building.nextLevelCost.metalCost}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
+                        {building.nextLevelCost.crystalCost}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
+                        {building.nextLevelCost.creditsCost}
+                      </span>
+                      <span>· {formatDuration(building.nextLevelCost.constructionSeconds)}</span>
                     </p>
                   ) : (
                     <p className="mb-2 text-[10px] text-textFaint">{t('clans.buildingMaxLevel')}</p>
@@ -599,9 +637,15 @@ export default function ClansPage() {
                 <th className="pb-2">{t('clans.level')}</th>
                 <th className="pb-2">{t('clans.member')}</th>
                 <th className="pb-2">{t('clans.role')}</th>
-                <th className="pb-2 text-right">{t('resource.METAL')}</th>
-                <th className="pb-2 text-right">{t('resource.CRYSTAL')}</th>
-                <th className="pb-2 text-right">{t('resource.CREDITS')}</th>
+                <th className="pb-2 text-right" title={t('resource.METAL')}>
+                  <ResourceIcon type="METAL" className="ml-auto h-4 w-4" />
+                </th>
+                <th className="pb-2 text-right" title={t('resource.CRYSTAL')}>
+                  <ResourceIcon type="CRYSTAL" className="ml-auto h-4 w-4" />
+                </th>
+                <th className="pb-2 text-right" title={t('resource.CREDITS')}>
+                  <ResourceIcon type="CREDITS" className="ml-auto h-4 w-4" />
+                </th>
                 <th className="pb-2 text-right">{t('clans.lastActive')}</th>
                 <th className="pb-2 text-right">{t('clans.actions')}</th>
               </tr>

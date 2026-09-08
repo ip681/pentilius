@@ -73,6 +73,7 @@ export class PveService {
                 type: 'item',
                 itemDefinitionKey: itemDefinition.key,
                 itemNameKey: itemDefinition.nameKey,
+                itemIconAssetId: itemDefinition.iconAssetId,
                 quantity: granted,
               });
             }

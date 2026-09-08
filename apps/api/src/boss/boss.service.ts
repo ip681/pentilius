@@ -168,7 +168,13 @@ export class BossService {
               }
             }
             if (granted > 0) {
-              lootSummary.push({ type: 'item', itemDefinitionKey: itemDefinition.key, itemNameKey: itemDefinition.nameKey, quantity: granted });
+              lootSummary.push({
+                type: 'item',
+                itemDefinitionKey: itemDefinition.key,
+                itemNameKey: itemDefinition.nameKey,
+                itemIconAssetId: itemDefinition.iconAssetId,
+                quantity: granted,
+              });
             }
           }
         }

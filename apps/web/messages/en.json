@@ -393,7 +393,7 @@
   "clanBuildings": {
     "member_hall": { "name": "Member Hall", "description": "Raises the clan's maximum member count." },
     "clan_forge": { "name": "Clan Forge", "description": "Grants every member a combat attack and defense bonus." },
-    "clan_depot": { "name": "Clan Depot", "description": "Grants every member a Metal and Crystal production bonus." }
+    "clan_depot": { "name": "Clan Production", "description": "Grants every member a Metal and Crystal production bonus." }
   },
   "pvp": {
     "title": "PvP Combat",

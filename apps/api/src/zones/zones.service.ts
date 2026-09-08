@@ -53,6 +53,7 @@ export class ZonesService {
         type: (drop.itemDefinitionId ? 'item' : 'resource') as 'resource' | 'item',
         resourceType: drop.resourceType ?? undefined,
         itemNameKey: drop.itemDefinition?.nameKey,
+        itemIconAssetId: drop.itemDefinition?.iconAssetId,
         dropChance: drop.dropChance,
         minQuantity: drop.minQuantity,
         maxQuantity: drop.maxQuantity,

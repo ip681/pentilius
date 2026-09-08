@@ -24,6 +24,20 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale}>
+      <head>
+        {/* Preload the handful of icons that appear on every logged-in page
+            (TopBar/StatusBar) so they're already cached before first paint —
+            avoids the pop-in flicker on navigation. */}
+        <link rel="preload" as="image" href="/assets/interface/energy.png" />
+        <link rel="preload" as="image" href="/assets/interface/experience.png" />
+        <link rel="preload" as="image" href="/assets/interface/settings.png" />
+        <link rel="preload" as="image" href="/assets/interface/exit.png" />
+        <link rel="preload" as="image" href="/assets/races/luxari.png" />
+        <link rel="preload" as="image" href="/assets/races/vorlun.png" />
+        <link rel="preload" as="image" href="/assets/races/zaryth.png" />
+        <link rel="preload" as="image" href="/assets/races/thalion.png" />
+        <link rel="preload" as="image" href="/assets/races/nexar.png" />
+      </head>
       <body>
         <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
       </body>

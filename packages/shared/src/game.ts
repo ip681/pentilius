@@ -251,6 +251,7 @@ export interface PentiliLootDropDto {
   type: 'resource' | 'item';
   resourceType?: ResourceType;
   itemNameKey?: string;
+  itemIconAssetId?: string;
   dropChance: number;
   minQuantity: number;
   maxQuantity: number;
@@ -274,6 +275,7 @@ export interface LootResultEntryDto {
   resourceType?: ResourceType;
   itemDefinitionKey?: string;
   itemNameKey?: string;
+  itemIconAssetId?: string;
   quantity: number;
 }
 
@@ -347,6 +349,7 @@ export interface ExpeditionTypeDto {
   durationMinutes: number;
   rewards: ExpeditionRewardsDto;
   bonusItemNameKey: string | null;
+  bonusItemIconAssetId: string | null;
   bonusItemChance: number | null;
 }
 
@@ -365,7 +368,7 @@ export interface ExpeditionsResponseDto {
 
 export interface ExpeditionClaimResultDto {
   rewards: ExpeditionRewardsDto;
-  bonusItem: { itemDefinitionKey: string; itemNameKey: string } | null;
+  bonusItem: { itemDefinitionKey: string; itemNameKey: string; itemIconAssetId: string } | null;
   leveledUp: boolean;
   playerLevel: number;
 }

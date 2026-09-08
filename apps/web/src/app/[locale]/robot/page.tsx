@@ -8,6 +8,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { CombatStatsCard } from '@/components/CombatStatsCard';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
+import { ResourceIcon } from '@/components/ResourceIcon';
 import {
   allocateAttribute,
   ApiError,
@@ -503,8 +504,14 @@ export default function RobotPage() {
                     </ul>
                   )}
                   {selected.sellValue && (
-                    <p className="mt-2 text-[10px] text-textFaint">
-                      {t('robot.sellValue')}: {selected.sellValue.metal} {t('resource.METAL')}, {selected.sellValue.crystal} {t('resource.CRYSTAL')}
+                    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
+                      <span>{t('robot.sellValue')}:</span>
+                      <span className="flex items-center gap-1">
+                        {selected.sellValue.metal} <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="flex items-center gap-1">
+                        {selected.sellValue.crystal} <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
+                      </span>
                     </p>
                   )}
                   {selected.recycleValue && (

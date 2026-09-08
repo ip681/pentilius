@@ -1,11 +1,12 @@
 'use client';
 
-import type { EquipmentSlot, ItemTier, ShopItemDto, ShopResponseDto } from '@pentilius/shared';
+import type { EquipmentSlot, ItemTier, ResourceType, ShopItemDto, ShopResponseDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
+import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, buyItem, getShop } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -65,6 +66,14 @@ export default function ShopPage() {
     if (item.priceCrystal > 0) parts.push(`${item.priceCrystal} ${t('resource.CRYSTAL')}`);
     if (item.priceCredits > 0) parts.push(`${item.priceCredits} ${t('resource.CREDITS')}`);
     return parts.join(', ');
+  }
+
+  function priceParts(item: ShopItemDto): { type: ResourceType; amount: number }[] {
+    const parts: { type: ResourceType; amount: number }[] = [];
+    if (item.priceMetal > 0) parts.push({ type: 'METAL', amount: item.priceMetal });
+    if (item.priceCrystal > 0) parts.push({ type: 'CRYSTAL', amount: item.priceCrystal });
+    if (item.priceCredits > 0) parts.push({ type: 'CREDITS', amount: item.priceCredits });
+    return parts;
   }
 
   const visibleItems = useMemo(() => {
@@ -172,7 +181,13 @@ export default function ShopPage() {
                 </div>
               )}
 
-              <p className="mb-4 text-center text-[11px] text-textMuted">{priceLabel(item)}</p>
+              <p className="mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-textMuted">
+                {priceParts(item).map((part) => (
+                  <span key={part.type} className="flex items-center gap-1">
+                    {part.amount} <ResourceIcon type={part.type} className="h-3.5 w-3.5" />
+                  </span>
+                ))}
+              </p>
             </div>
 
             <ConfirmButton

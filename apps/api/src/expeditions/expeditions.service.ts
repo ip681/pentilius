@@ -93,6 +93,7 @@ export class ExpeditionsService {
           bonusItem = {
             itemDefinitionKey: expeditionType.bonusItemDefinition.key,
             itemNameKey: expeditionType.bonusItemDefinition.nameKey,
+            itemIconAssetId: expeditionType.bonusItemDefinition.iconAssetId,
           };
         }
       }
@@ -162,7 +163,7 @@ function toExpeditionTypeDto(type: {
   creditsReward: number;
   xpReward: number;
   bonusItemChance: number | null;
-  bonusItemDefinition: { nameKey: string } | null;
+  bonusItemDefinition: { nameKey: string; iconAssetId: string } | null;
 }): ExpeditionTypeDto {
   return {
     key: type.key,
@@ -170,6 +171,7 @@ function toExpeditionTypeDto(type: {
     durationMinutes: type.durationMinutes,
     rewards: { metal: type.metalReward, crystal: type.crystalReward, credits: type.creditsReward, xp: type.xpReward },
     bonusItemNameKey: type.bonusItemDefinition?.nameKey ?? null,
+    bonusItemIconAssetId: type.bonusItemDefinition?.iconAssetId ?? null,
     bonusItemChance: type.bonusItemChance,
   };
 }

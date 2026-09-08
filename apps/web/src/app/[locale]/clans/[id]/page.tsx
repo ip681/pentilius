@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerLink } from '@/components/PlayerLink';
+import { ResourceIcon } from '@/components/ResourceIcon';
 import { Link } from '@/i18n/navigation';
 import { getClan } from '@/lib/api-client';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -48,9 +49,9 @@ export default function ClanDetailPage() {
           <div className="mb-4 rounded-md border border-wellBorder bg-well p-4">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-textFaint">{t('clans.treasury')}</h3>
             <div className="flex gap-5 text-sm">
-              <span>{t('resource.METAL')}: <strong>{clan.treasury.metal.toLocaleString()}</strong></span>
-              <span>{t('resource.CRYSTAL')}: <strong>{clan.treasury.crystal.toLocaleString()}</strong></span>
-              <span>{t('resource.CREDITS')}: <strong>{clan.treasury.credits.toLocaleString()}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="METAL" /><strong>{clan.treasury.metal.toLocaleString()}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="CRYSTAL" /><strong>{clan.treasury.crystal.toLocaleString()}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="CREDITS" /><strong>{clan.treasury.credits.toLocaleString()}</strong></span>
             </div>
           </div>
 

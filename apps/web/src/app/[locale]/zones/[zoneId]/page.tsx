@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { BattleDivider } from '@/components/BattleDivider';
 import { GameLayout } from '@/components/GameLayout';
+import { LootEntry } from '@/components/LootEntry';
+import { ResourceIcon } from '@/components/ResourceIcon';
 import { attackPentili, getPentiliInZone, getProfile } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -16,21 +18,48 @@ interface LogLine {
   kind: 'player' | 'enemy' | 'system';
 }
 
-/** The reward summary appended in bold to the final combat-log line on a win — XP, level-up, and any loot. */
-function rewardSummary(t: ReturnType<typeof useTranslations>, report: BattleReportDto): string {
-  const parts = [`${t('pve.xpGained')}: ${report.xpGained}`];
-  if (report.leveledUp) parts.push(t('pve.leveledUp', { level: report.playerLevel }));
-  for (const loot of report.lootSummary) {
-    parts.push(loot.type === 'resource' ? `+${loot.quantity} ${t(`resource.${loot.resourceType}`)}` : `${t(loot.itemNameKey!)} ×${loot.quantity}`);
-  }
-  return parts.join(' · ');
+/** The reward summary appended in bold to the final combat-log line on a win — XP, level-up, and any loot (icons for resources, icon+name for items). */
+function RewardSummary({ report }: { report: BattleReportDto }) {
+  const t = useTranslations();
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span>
+        {t('pve.xpGained')}: {report.xpGained}
+      </span>
+      {report.leveledUp && <span>{t('pve.leveledUp', { level: report.playerLevel })}</span>}
+      {report.lootSummary.map((loot, index) => (
+        <LootEntry key={index} loot={loot} />
+      ))}
+    </span>
+  );
 }
 
-/** One loot-table entry, formatted as e.g. "Metal ×5-15 (80%)" or "Pioneer Head Scanner ×1 (8%)". */
-function lootLine(t: ReturnType<typeof useTranslations>, drop: PentiliLootDropDto): string {
-  const name = drop.type === 'resource' ? t(`resource.${drop.resourceType}`) : t(drop.itemNameKey!);
+/** One Pentili loot-table entry — resource icon + drop chance, or item icon + name + drop chance. */
+function DropEntry({ drop }: { drop: PentiliLootDropDto }) {
+  const t = useTranslations();
   const quantity = drop.minQuantity === drop.maxQuantity ? `${drop.minQuantity}` : `${drop.minQuantity}-${drop.maxQuantity}`;
-  return `${name} ×${quantity} (${Math.round(drop.dropChance * 100)}%)`;
+  const percent = Math.round(drop.dropChance * 100);
+
+  if (drop.type === 'resource') {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <ResourceIcon type={drop.resourceType!} className="h-3.5 w-3.5" /> ×{quantity} ({percent}%)
+      </span>
+    );
+  }
+
+  const name = t(drop.itemNameKey!);
+  return (
+    <span className="inline-flex items-center gap-1">
+      <AssetIcon
+        assetId={drop.itemIconAssetId ?? ''}
+        alt={name}
+        className="h-3.5 w-3.5 object-contain"
+        fallback={<span className="text-[8px] font-semibold text-textMuted">{name.charAt(0)}</span>}
+      />
+      {name} ×{quantity} ({percent}%)
+    </span>
+  );
 }
 
 interface BattleState {
@@ -122,7 +151,10 @@ export default function ZonePentiliPage() {
               text:
                 report.outcome === 'WIN' ? (
                   <>
-                    {outcomeText} <strong className="font-semibold">{rewardSummary(t, report)}</strong>
+                    {outcomeText}{' '}
+                    <strong className="font-semibold">
+                      <RewardSummary report={report} />
+                    </strong>
                   </>
                 ) : (
                   outcomeText
@@ -210,8 +242,11 @@ export default function ZonePentiliPage() {
                   </p>
                   <p className="text-xs text-textMuted">HP {entry.maxHp} · ATK {entry.attack} · DEF {entry.defense}</p>
                   {entry.lootDrops.length > 0 && (
-                    <p className="mt-1 text-[10px] text-textFaint">
-                      {t('pve.drops')}: {entry.lootDrops.map((drop) => lootLine(t, drop)).join(' · ')}
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
+                      <span>{t('pve.drops')}:</span>
+                      {entry.lootDrops.map((drop, index) => (
+                        <DropEntry key={index} drop={drop} />
+                      ))}
                     </p>
                   )}
                 </div>

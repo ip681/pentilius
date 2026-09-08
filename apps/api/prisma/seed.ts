@@ -74,12 +74,36 @@ async function main() {
     { buildingTypeId: metalMine.id, level: 1, metalCost: 0, crystalCost: 50, constructionSeconds: 60, producesResourceType: 'METAL' as const, producesPerHour: 100 },
     { buildingTypeId: metalMine.id, level: 2, metalCost: 0, crystalCost: 120, constructionSeconds: 180, producesResourceType: 'METAL' as const, producesPerHour: 220 },
     { buildingTypeId: metalMine.id, level: 3, metalCost: 0, crystalCost: 250, constructionSeconds: 420, producesResourceType: 'METAL' as const, producesPerHour: 400 },
+    // Levels 4-10 (maxLevel is already 10 on the BuildingType) — continues the
+    // same placeholder curve as levels 1-3 (see instructions/OPEN_DECISIONS.md's
+    // "Construction costs/times, building production rates").
+    { buildingTypeId: metalMine.id, level: 4, metalCost: 0, crystalCost: 480, constructionSeconds: 900, producesResourceType: 'METAL' as const, producesPerHour: 700 },
+    { buildingTypeId: metalMine.id, level: 5, metalCost: 0, crystalCost: 900, constructionSeconds: 1800, producesResourceType: 'METAL' as const, producesPerHour: 1200 },
+    { buildingTypeId: metalMine.id, level: 6, metalCost: 0, crystalCost: 1700, constructionSeconds: 3600, producesResourceType: 'METAL' as const, producesPerHour: 2000 },
+    { buildingTypeId: metalMine.id, level: 7, metalCost: 0, crystalCost: 3200, constructionSeconds: 7200, producesResourceType: 'METAL' as const, producesPerHour: 3400 },
+    { buildingTypeId: metalMine.id, level: 8, metalCost: 0, crystalCost: 6000, constructionSeconds: 14400, producesResourceType: 'METAL' as const, producesPerHour: 5600 },
+    { buildingTypeId: metalMine.id, level: 9, metalCost: 0, crystalCost: 11000, constructionSeconds: 28800, producesResourceType: 'METAL' as const, producesPerHour: 9200 },
+    { buildingTypeId: metalMine.id, level: 10, metalCost: 0, crystalCost: 20000, constructionSeconds: 57600, producesResourceType: 'METAL' as const, producesPerHour: 15000 },
     { buildingTypeId: crystalExtractor.id, level: 1, metalCost: 80, crystalCost: 0, constructionSeconds: 90, producesResourceType: 'CRYSTAL' as const, producesPerHour: 60 },
     { buildingTypeId: crystalExtractor.id, level: 2, metalCost: 180, crystalCost: 0, constructionSeconds: 240, producesResourceType: 'CRYSTAL' as const, producesPerHour: 130 },
     { buildingTypeId: crystalExtractor.id, level: 3, metalCost: 350, crystalCost: 0, constructionSeconds: 480, producesResourceType: 'CRYSTAL' as const, producesPerHour: 240 },
+    { buildingTypeId: crystalExtractor.id, level: 4, metalCost: 650, crystalCost: 0, constructionSeconds: 960, producesResourceType: 'CRYSTAL' as const, producesPerHour: 420 },
+    { buildingTypeId: crystalExtractor.id, level: 5, metalCost: 1200, crystalCost: 0, constructionSeconds: 1920, producesResourceType: 'CRYSTAL' as const, producesPerHour: 720 },
+    { buildingTypeId: crystalExtractor.id, level: 6, metalCost: 2200, crystalCost: 0, constructionSeconds: 3840, producesResourceType: 'CRYSTAL' as const, producesPerHour: 1200 },
+    { buildingTypeId: crystalExtractor.id, level: 7, metalCost: 4000, crystalCost: 0, constructionSeconds: 7680, producesResourceType: 'CRYSTAL' as const, producesPerHour: 2000 },
+    { buildingTypeId: crystalExtractor.id, level: 8, metalCost: 7200, crystalCost: 0, constructionSeconds: 15360, producesResourceType: 'CRYSTAL' as const, producesPerHour: 3300 },
+    { buildingTypeId: crystalExtractor.id, level: 9, metalCost: 13000, crystalCost: 0, constructionSeconds: 30720, producesResourceType: 'CRYSTAL' as const, producesPerHour: 5400 },
+    { buildingTypeId: crystalExtractor.id, level: 10, metalCost: 23000, crystalCost: 0, constructionSeconds: 61440, producesResourceType: 'CRYSTAL' as const, producesPerHour: 8800 },
     { buildingTypeId: warehouse.id, level: 1, metalCost: 60, crystalCost: 20, constructionSeconds: 60 },
     { buildingTypeId: warehouse.id, level: 2, metalCost: 150, crystalCost: 60, constructionSeconds: 200 },
     { buildingTypeId: warehouse.id, level: 3, metalCost: 300, crystalCost: 120, constructionSeconds: 400 },
+    { buildingTypeId: warehouse.id, level: 4, metalCost: 550, crystalCost: 220, constructionSeconds: 750 },
+    { buildingTypeId: warehouse.id, level: 5, metalCost: 1000, crystalCost: 400, constructionSeconds: 1500 },
+    { buildingTypeId: warehouse.id, level: 6, metalCost: 1800, crystalCost: 720, constructionSeconds: 3000 },
+    { buildingTypeId: warehouse.id, level: 7, metalCost: 3200, crystalCost: 1300, constructionSeconds: 6000 },
+    { buildingTypeId: warehouse.id, level: 8, metalCost: 5800, crystalCost: 2300, constructionSeconds: 12000 },
+    { buildingTypeId: warehouse.id, level: 9, metalCost: 10000, crystalCost: 4100, constructionSeconds: 24000 },
+    { buildingTypeId: warehouse.id, level: 10, metalCost: 18000, crystalCost: 7300, constructionSeconds: 48000 },
   ];
   for (const cost of levelCosts) {
     await prisma.buildingLevelCost.upsert({
@@ -467,13 +491,17 @@ async function main() {
   // Clan buildings (instructions/GAME_SYSTEMS.md, LOCKED: "Clans are
   // central"): "clan building list" is UNDEFINED — 3 buildings as a working
   // M4 foundation, funded entirely from the clan treasury. Member Hall's
-  // bonusPerLevel is a flat extra-slot count, not a percentage.
+  // bonusPerLevel is a flat extra-slot count, not a percentage. Owner-specified:
+  // all 3 buildings develop up to level 10; Member Hall grants +2 slots/level
+  // (was +5/level up to level 5).
   const clanBuildingTypes = await Promise.all(
     [
-      { key: 'member_hall', nameKey: 'clanBuildings.member_hall.name', descriptionKey: 'clanBuildings.member_hall.description', bonusType: 'MEMBER_CAPACITY' as const, bonusPerLevel: 5, maxLevel: 5, iconAssetId: 'clanBuildings.member_hall.icon' },
-      { key: 'clan_forge', nameKey: 'clanBuildings.clan_forge.name', descriptionKey: 'clanBuildings.clan_forge.description', bonusType: 'COMBAT_BONUS' as const, bonusPerLevel: 0.05, maxLevel: 5, iconAssetId: 'clanBuildings.clan_forge.icon' },
-      { key: 'clan_depot', nameKey: 'clanBuildings.clan_depot.name', descriptionKey: 'clanBuildings.clan_depot.description', bonusType: 'PRODUCTION_BONUS' as const, bonusPerLevel: 0.05, maxLevel: 5, iconAssetId: 'clanBuildings.clan_depot.icon' },
-    ].map((data) => prisma.clanBuildingType.upsert({ where: { key: data.key }, update: {}, create: data })),
+      { key: 'member_hall', nameKey: 'clanBuildings.member_hall.name', descriptionKey: 'clanBuildings.member_hall.description', bonusType: 'MEMBER_CAPACITY' as const, bonusPerLevel: 2, maxLevel: 10, iconAssetId: 'clanBuildings.member_hall.icon' },
+      { key: 'clan_forge', nameKey: 'clanBuildings.clan_forge.name', descriptionKey: 'clanBuildings.clan_forge.description', bonusType: 'COMBAT_BONUS' as const, bonusPerLevel: 0.05, maxLevel: 10, iconAssetId: 'clanBuildings.clan_forge.icon' },
+      { key: 'clan_depot', nameKey: 'clanBuildings.clan_depot.name', descriptionKey: 'clanBuildings.clan_depot.description', bonusType: 'PRODUCTION_BONUS' as const, bonusPerLevel: 0.05, maxLevel: 10, iconAssetId: 'clanBuildings.clan_depot.icon' },
+      // update: data (not {}) — bonusType/bonusPerLevel/maxLevel must follow
+      // this list when it changes, not freeze at whatever an existing row has.
+    ].map((data) => prisma.clanBuildingType.upsert({ where: { key: data.key }, update: data, create: data })),
   );
 
   const clanBuildingLevelCosts = clanBuildingTypes.flatMap((buildingType) => [
@@ -482,11 +510,18 @@ async function main() {
     { clanBuildingTypeId: buildingType.id, level: 3, metalCost: 2500, crystalCost: 1000, creditsCost: 700, constructionSeconds: 1800 },
     { clanBuildingTypeId: buildingType.id, level: 4, metalCost: 4500, crystalCost: 1800, creditsCost: 1300, constructionSeconds: 3600 },
     { clanBuildingTypeId: buildingType.id, level: 5, metalCost: 7500, crystalCost: 3000, creditsCost: 2200, constructionSeconds: 7200 },
+    // Levels 6-10 (owner-specified extension to level 10) continue the same
+    // placeholder growth curve as 1-5 — see instructions/OPEN_DECISIONS.md.
+    { clanBuildingTypeId: buildingType.id, level: 6, metalCost: 12500, crystalCost: 5000, creditsCost: 3800, constructionSeconds: 14400 },
+    { clanBuildingTypeId: buildingType.id, level: 7, metalCost: 20000, crystalCost: 8000, creditsCost: 6200, constructionSeconds: 28800 },
+    { clanBuildingTypeId: buildingType.id, level: 8, metalCost: 32000, crystalCost: 13000, creditsCost: 10000, constructionSeconds: 57600 },
+    { clanBuildingTypeId: buildingType.id, level: 9, metalCost: 50000, crystalCost: 20000, creditsCost: 16000, constructionSeconds: 115200 },
+    { clanBuildingTypeId: buildingType.id, level: 10, metalCost: 78000, crystalCost: 31000, creditsCost: 25000, constructionSeconds: 230400 },
   ]);
   for (const cost of clanBuildingLevelCosts) {
     await prisma.clanBuildingLevelCost.upsert({
       where: { clanBuildingTypeId_level: { clanBuildingTypeId: cost.clanBuildingTypeId, level: cost.level } },
-      update: {},
+      update: cost,
       create: cost,
     });
   }

@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
+import { ResourceIcon } from '@/components/ResourceIcon';
 import { consumeItem, getBase, getInventory, upgradeBuilding } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
@@ -184,11 +185,13 @@ export default function BasePage() {
                     <div className="mb-4 grid grid-cols-2 gap-2">
                       <div className="rounded border border-wellBorder bg-well p-2.5">
                         <div className="mb-1 text-[8px] uppercase text-textFaint">{t('base.nextLevelCost')}</div>
-                        <div className="text-sm">
-                          {building.nextLevelCost.metalCost} {t('resource.METAL')}
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <ResourceIcon type="METAL" className="h-4 w-4" />
+                          {building.nextLevelCost.metalCost}
                         </div>
-                        <div className="text-sm">
-                          {building.nextLevelCost.crystalCost} {t('resource.CRYSTAL')}
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <ResourceIcon type="CRYSTAL" className="h-4 w-4" />
+                          {building.nextLevelCost.crystalCost}
                         </div>
                       </div>
                       <div className="rounded border border-wellBorder bg-well p-2.5">

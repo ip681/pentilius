@@ -592,10 +592,12 @@ model Clan {
   name        String   @unique
   tag         String   @unique
   description String?
-  // Base cap before any Member Hall bonus — instructions/OPEN_DECISIONS.md:
-  // "member cap" is UNDEFINED. The effective cap (exposed to clients) adds
-  // the clan's Member Hall level × its bonusPerLevel on top of this.
-  memberCap   Int      @default(30)
+  // Base cap before any Member Hall bonus (owner-specified: 10). The
+  // effective cap (exposed to clients) adds the clan's Member Hall level ×
+  // its bonusPerLevel (2 slots/level, up to level 10) on top of this. Only
+  // affects newly created clans — existing clans keep whatever base they
+  // were created with.
+  memberCap   Int      @default(10)
   createdAt   DateTime @default(now())
 
   // Shared clan resource pool. Oxygen/Upgrade Stones are personal-use

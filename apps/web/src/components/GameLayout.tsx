@@ -2,14 +2,14 @@
 
 import type { PlayerProfileDto } from '@pentilius/shared';
 import { useLocale } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import { getProfile } from '@/lib/api-client';
 import { clearTokens, isAuthenticated } from '@/lib/auth';
 import { onProfileChanged } from '@/lib/profile-events';
+import { getCachedProfile, setCachedProfile } from '@/lib/profile-cache';
 import { BottomNav } from './BottomNav';
 import { Sidebar } from './Sidebar';
-import { StatusBar } from './StatusBar';
 import { TopBar } from './TopBar';
 
 export function GameLayout({ children }: { children: React.ReactNode }) {
@@ -24,6 +24,7 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
       .then((data) => {
         setProfile(data);
         setLoggedIn(true);
+        setCachedProfile(data);
       })
       .catch(() => {
         // Stored token is missing/expired — treat as logged out rather than showing dead chrome.
@@ -31,6 +32,19 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
         setLoggedIn(false);
       });
   }
+
+  // Shows the last-known profile immediately, before the network round-trip
+  // below resolves — runs before paint so there's no visible flash between
+  // "no profile" and "cached profile". The real fetch overwrites it moments
+  // later; this is purely cosmetic, never treated as authoritative data.
+  useLayoutEffect(() => {
+    if (!isAuthenticated()) return;
+    const cached = getCachedProfile();
+    if (cached) {
+      setProfile(cached);
+      setLoggedIn(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -42,9 +56,8 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Any page that spends energy (PvE/PvP attacks, etc.) fetches its own copy
-  // of the profile for its own display — this keeps the top StatusBar's
-  // energy bar in sync with those actions without lifting state into a
-  // shared context.
+  // of the profile for its own display — this keeps the TopBar's energy bar
+  // in sync with those actions without lifting state into a shared context.
   useEffect(() => onProfileChanged(loadProfile), []);
 
   // Re-fetch once, exactly when the next Action Energy point is due, so the
@@ -71,7 +84,6 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-ink text-text">
       <TopBar profile={profile} loggedIn={loggedIn} />
-      {loggedIn && profile && <StatusBar profile={profile} />}
       <div className="flex min-h-[calc(100vh-4rem)]">
         <Sidebar />
         <main className="w-full max-w-[1500px] flex-1 px-4 pb-20 pt-4 md:p-7">{children}</main>

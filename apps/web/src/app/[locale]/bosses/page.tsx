@@ -4,6 +4,7 @@ import type { BossDto, BossEncounterResultDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
+import { LootEntry } from '@/components/LootEntry';
 import { getBosses, joinBossEncounter, resolveBossEncounter } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
@@ -279,7 +280,7 @@ export default function BossesPage() {
                                     </li>
                                     {mine.lootSummary.map((loot, index) => (
                                       <li key={index}>
-                                        {loot.type === 'resource' ? t(`resource.${loot.resourceType}`) : t(loot.itemNameKey!)} x{loot.quantity}
+                                        <LootEntry loot={loot} />
                                       </li>
                                     ))}
                                   </ul>

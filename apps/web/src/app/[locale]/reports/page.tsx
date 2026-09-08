@@ -4,6 +4,7 @@ import type { CombatReportDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
+import { LootEntry } from '@/components/LootEntry';
 import { PlayerLink } from '@/components/PlayerLink';
 import { getCombatReports } from '@/lib/api-client';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -69,7 +70,7 @@ export default function ReportsPage() {
                       )}
                       {report.lootSummary.map((loot, index) => (
                         <li key={index}>
-                          {loot.type === 'resource' ? t(`resource.${loot.resourceType}`) : t(loot.itemNameKey!)} x{loot.quantity}
+                          <LootEntry loot={loot} />
                         </li>
                       ))}
                     </ul>

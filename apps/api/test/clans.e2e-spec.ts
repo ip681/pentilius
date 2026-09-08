@@ -185,7 +185,7 @@ describe('Clans (e2e)', () => {
     expect(startedHall.constructionEndsAt).not.toBeNull();
     // Treasury had 50/10/0, plus the 500/200/100 just donated, minus the 500/200/100 level-1 cost.
     expect(started.body.treasury).toEqual({ metal: 50, crystal: 10, credits: 0 });
-    expect(started.body.memberCap).toBe(30); // bonus only applies once the level actually increases
+    expect(started.body.memberCap).toBe(10); // bonus only applies once the level actually increases
 
     await request(app.getHttpServer()).post('/api/v1/clans/buildings/member_hall/upgrade').set(auth(tokenA)).expect(400);
 
@@ -198,7 +198,7 @@ describe('Clans (e2e)', () => {
     const finishedHall = finished.body.clan.buildings.find((b: { key: string }) => b.key === 'member_hall');
     expect(finishedHall.level).toBe(1);
     expect(finishedHall.constructionEndsAt).toBeNull();
-    expect(finished.body.clan.memberCap).toBe(35); // base 30 + level 1 * bonusPerLevel 5
+    expect(finished.body.clan.memberCap).toBe(12); // base 10 + level 1 * bonusPerLevel 2
   });
 
   it('rejects a non-leader editing the clan', async () => {

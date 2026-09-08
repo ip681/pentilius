@@ -23,6 +23,8 @@ export function AssetIcon({
     return <>{fallback}</>;
   }
 
-  // eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer is disabled project-wide (no sharp); see apps/web/next.config.mjs.
-  return <img src={assetUrl(assetId)} alt={alt} className={className} onError={() => setFailed(true)} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer is disabled project-wide (no sharp); see apps/web/next.config.mjs.
+    <img src={assetUrl(assetId)} alt={alt} className={className} onError={() => setFailed(true)} />
+  );
 }

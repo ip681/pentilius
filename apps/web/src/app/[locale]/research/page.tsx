@@ -4,6 +4,7 @@ import type { ResearchResponseDto, ResearchStateDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
+import { ResourceIcon } from '@/components/ResourceIcon';
 import { getResearches, startResearch } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
@@ -98,15 +99,18 @@ export default function ResearchPage() {
                     <div className="mb-4 grid grid-cols-2 gap-2">
                       <div className="rounded border border-wellBorder bg-well p-2.5">
                         <div className="mb-1 text-[8px] uppercase text-textFaint">{t('research.nextLevelCost')}</div>
-                        <div className="text-sm">
-                          {research.nextLevelCost.metalCost} {t('resource.METAL')}
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <ResourceIcon type="METAL" className="h-4 w-4" />
+                          {research.nextLevelCost.metalCost}
                         </div>
-                        <div className="text-sm">
-                          {research.nextLevelCost.crystalCost} {t('resource.CRYSTAL')}
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <ResourceIcon type="CRYSTAL" className="h-4 w-4" />
+                          {research.nextLevelCost.crystalCost}
                         </div>
                         {research.nextLevelCost.creditsCost > 0 && (
-                          <div className="text-sm">
-                            {research.nextLevelCost.creditsCost} {t('resource.CREDITS')}
+                          <div className="flex items-center gap-1.5 text-sm">
+                            <ResourceIcon type="CREDITS" className="h-4 w-4" />
+                            {research.nextLevelCost.creditsCost}
                           </div>
                         )}
                       </div>
