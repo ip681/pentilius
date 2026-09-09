@@ -130,11 +130,13 @@ model Player {
 
   // "Core Attributes" — personal stat points earned from leveling
   // (instructions/GAME_SYSTEMS.md has no prior ruling on this; it's a new
-  // system introduced alongside the ship→robot redesign). 20 is
-  // owner-specified for new accounts, not a guess. Pure point-buy: no
-  // resource cost, no respec yet (instructions/OPEN_DECISIONS.md-style
+  // system introduced alongside the ship→robot redesign). Owner decision
+  // (2026-09-09): new accounts start with 0 unspent points — no starting
+  // freebie — and earn points only by leveling (GAME_BALANCE.robotAttributes.
+  // basePointsPerLevel, currently a flat 3/level). Previously defaulted to 20.
+  // Pure point-buy: no resource cost, no respec yet (instructions/OPEN_DECISIONS.md-style
   // placeholder for everything else about this system).
-  attributePointsAvailable Int @default(20)
+  attributePointsAvailable Int @default(0)
   baseDamage               Int @default(0)
   baseDefense              Int @default(0)
   baseHp                   Int @default(0)
@@ -347,7 +349,6 @@ model ItemDefinition {
   baseStats       Json
   maxUpgradeLevel Int
   iconAssetId     String
-  isStarterItem   Boolean       @default(false)
   // Reserved for a possible future fixed-race item TYPE (a definition that is
   // always restricted to one race) — distinct from and unrelated to
   // ItemInstance.race below, which is how Coreforged race-locking actually

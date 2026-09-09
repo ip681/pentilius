@@ -10,9 +10,6 @@ describe('AuthService', () => {
   let authService: AuthService;
   let prisma: {
     player: { findUnique: jest.Mock; create: jest.Mock };
-    itemDefinition: { findMany: jest.Mock };
-    itemInstance: { createMany: jest.Mock };
-    $transaction: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -21,13 +18,6 @@ describe('AuthService', () => {
         findUnique: jest.fn(),
         create: jest.fn(),
       },
-      itemDefinition: {
-        findMany: jest.fn().mockResolvedValue([]),
-      },
-      itemInstance: {
-        createMany: jest.fn(),
-      },
-      $transaction: jest.fn().mockImplementation((callback: (tx: unknown) => unknown) => callback(prisma)),
     };
 
     const moduleRef = await Test.createTestingModule({

@@ -53,7 +53,13 @@ export default function PvpPage() {
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const logRef = useRef<HTMLDivElement>(null);
   const myName = profile?.username ?? t('pvp.you');
+
+  // Keep the combat log scrolled to the newest line as rounds animate in.
+  useEffect(() => {
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+  }, [battle?.log]);
 
   async function loadScout() {
     try {
@@ -312,7 +318,7 @@ export default function PvpPage() {
 
           <section className="mb-6 rounded-lg border border-panelBorder bg-panel p-4">
             <h2 className="mb-3 text-sm font-semibold">{t('pve.combatLog')}</h2>
-            <div className="h-[190px] overflow-y-auto rounded border border-wellBorder bg-ink p-2.5 font-mono text-[11px] leading-relaxed">
+            <div ref={logRef} className="h-[190px] overflow-y-auto rounded border border-wellBorder bg-ink p-2.5 font-mono text-[11px] leading-relaxed">
               {battle.log.map((line, index) => (
                 <div key={index} className={line.kind === 'player' ? 'text-positive' : line.kind === 'enemy' ? 'text-danger' : 'text-textMuted'}>
                   {line.text}

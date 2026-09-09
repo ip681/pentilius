@@ -50,8 +50,9 @@ describe('PvP (e2e)', () => {
     // playerC stays at level 1 to verify the level-5 gate on both sides.
     await prisma.player.updateMany({ where: { id: { in: [playerAId, playerBId] } }, data: { level: 6 } });
 
-    // Gear playerA with top-tier equipment; playerB stays with its unequipped
-    // starter kit, so the fight resolves as a clean, deterministic win.
+    // Gear playerA with top-tier equipment; playerB stays completely
+    // unequipped (bare innate combat stats only), so the fight resolves as a
+    // clean, deterministic win.
     await equipTopTierLoadout(prisma, playerAId);
 
     // PvP matchmaking is global by design — any other level-5+ player (demo

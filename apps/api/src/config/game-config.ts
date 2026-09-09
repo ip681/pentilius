@@ -53,6 +53,14 @@ export const GAME_BALANCE = {
     // Robots without hp-boosting gear equipped would otherwise start combat
     // with ~0 HP; this floor is a placeholder, not a real robot-frame rule.
     basePlayerHp: 100,
+    // Owner decision (2026-09-09): a small innate Attack/Defense floor, same
+    // idea as basePlayerHp above but sized so a brand-new, unequipped robot
+    // (no starter kit, no attribute points — see Player.attributePointsAvailable
+    // and auth.service.ts's register()) can beat the single weakest Pentili
+    // (zone_verdant_flats' pentili_skitterling: 4 attack/1 defense/20 hp) but
+    // loses to the next-weakest (pentili_mossback: 6 attack/3 defense/35 hp).
+    baseAttack: 3,
+    baseDefense: 2,
     // Damage variance per round and a hard round cap so combat always
     // terminates even if both sides' stats are near-identical.
     damageVariance: 0.1,
@@ -105,8 +113,11 @@ export const GAME_BALANCE = {
     // "Core Attributes" point-buy system (instructions/GAME_SYSTEMS.md has no
     // prior ruling — new system, owner-specified curves, all tunable here).
     // New accounts start with this many unspent points — matches
-    // Player.attributePointsAvailable's DB default; keep both in sync.
-    startingPoints: 20,
+    // Player.attributePointsAvailable's DB default; keep both in sync. Owner
+    // decision (2026-09-09): no starting freebie — was 20, now 0. Combat
+    // viability for a brand-new robot instead comes from GAME_BALANCE.combat's
+    // baseAttack/baseDefense/basePlayerHp floor; points are earned by leveling.
+    startingPoints: 0,
     // points(level) = round(basePointsPerLevel * (1 + pointsGrowthRate)^(level-1))
     // Owner decision (2026-09-09): flat, no compounding growth — every level
     // grants the same 3 points, no matter how high. Was 0.15 growth/level.

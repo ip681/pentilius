@@ -45,7 +45,14 @@ Implement:
 Success condition:
 A new player can start locally and experience:
 
-`base → collect/develop → equip robot → spend energy → fight Pentili → receive XP/loot → level up → unlock land → improve equipment`
+`base → collect/develop → spend energy → fight Pentili bare-handed → receive XP/loot → equip robot → level up → unlock land → improve equipment`
+
+Owner decision (2026-09-09): registration no longer grants a starter kit or
+starting attribute points — a fresh robot fights its first Pentili on innate
+combat stats alone (`GAME_BALANCE.combat.baseAttack`/`baseDefense`/
+`basePlayerHp`), strong enough to beat only the single weakest Pentili in the
+first land. "Equip robot" now happens after that first win (using its loot)
+or via the Shop, not before — this flow was previously the reverse.
 
 ## Milestone 2 — PvE depth
 Planned:

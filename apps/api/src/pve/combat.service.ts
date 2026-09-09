@@ -102,7 +102,16 @@ export class CombatService {
         }
         return next;
       },
-      { attack: 0, defense: 0, hp: GAME_BALANCE.combat.basePlayerHp, increaseDamage: 0, increaseMaxHp: 0, criticalDamageBonus: 0, damageDecrease: 0, damageReflect: 0 },
+      {
+        attack: GAME_BALANCE.combat.baseAttack,
+        defense: GAME_BALANCE.combat.baseDefense,
+        hp: GAME_BALANCE.combat.basePlayerHp,
+        increaseDamage: 0,
+        increaseMaxHp: 0,
+        criticalDamageBonus: 0,
+        damageDecrease: 0,
+        damageReflect: 0,
+      },
     );
 
     // Core Attribute points (instructions/GAME_SYSTEMS.md has no prior ruling —

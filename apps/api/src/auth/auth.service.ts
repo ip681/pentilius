@@ -35,21 +35,14 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
-    const player = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.player.create({
-        data: { email: dto.email, username: dto.username, passwordHash, race: dto.race },
-      });
-
-      // Starter kit so a new player can equip a robot right away (instructions/MILESTONES.md
-      // success flow: "equip robot" happens before the first PvE fight).
-      const starterItems = await tx.itemDefinition.findMany({ where: { isStarterItem: true } });
-      if (starterItems.length > 0) {
-        await tx.itemInstance.createMany({
-          data: starterItems.map((item) => ({ playerId: created.id, itemDefinitionId: item.id })),
-        });
-      }
-
-      return created;
+    // No starter kit and no starting attribute points (owner decision,
+    // 2026-09-09) — a fresh robot fights bare-handed on GAME_BALANCE.combat's
+    // baseAttack/baseDefense/basePlayerHp floor alone, strong enough to beat
+    // only the single weakest Pentili. Equipment comes later, from that first
+    // win's loot or the Shop (instructions/MILESTONES.md's flow was updated
+    // to match: fight first, then equip).
+    const player = await this.prisma.player.create({
+      data: { email: dto.email, username: dto.username, passwordHash, race: dto.race },
     });
 
     return this.buildAuthResponse(player.id, player.email, player.username, player.race, player.createdAt);

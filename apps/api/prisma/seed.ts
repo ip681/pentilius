@@ -134,31 +134,33 @@ async function main() {
   // each tier. Coreforged's Armor numbers intentionally land on the old
   // elite armor_titan_plating values as a sanity check on the 2x/2x curve.
   const equipmentData = [
-    // Pioneer — starter tier, granted free to every new robot (Player.isStarterItem).
-    { key: 'pioneer_head_scanner', slot: 'HEAD' as const, tier: 'PIONEER' as const, baseStats: { attack: 1 }, maxUpgradeLevel: 5, isStarterItem: true },
-    { key: 'pioneer_left_arm_blaster', slot: 'LEFT_ARM' as const, tier: 'PIONEER' as const, baseStats: { attack: 5 }, maxUpgradeLevel: 5, isStarterItem: true },
-    { key: 'pioneer_right_arm_guard', slot: 'RIGHT_ARM' as const, tier: 'PIONEER' as const, baseStats: { defense: 5 }, maxUpgradeLevel: 5, isStarterItem: true },
-    { key: 'pioneer_armor_plating', slot: 'ARMOR' as const, tier: 'PIONEER' as const, baseStats: { hp: 15, defense: 2 }, maxUpgradeLevel: 5, isStarterItem: true },
-    { key: 'pioneer_core_battery', slot: 'CORE' as const, tier: 'PIONEER' as const, baseStats: { attack: 2, defense: 2 }, maxUpgradeLevel: 5, isStarterItem: true },
-    { key: 'pioneer_left_leg_actuator', slot: 'LEFT_LEG' as const, tier: 'PIONEER' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5, isStarterItem: true },
-    { key: 'pioneer_right_leg_actuator', slot: 'RIGHT_LEG' as const, tier: 'PIONEER' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5, isStarterItem: true },
+    // Pioneer — starter tier (instructions/GAME_SYSTEMS.md). No longer granted
+    // free at registration (owner decision, 2026-09-09) — reached via this
+    // zone's own PvE loot or the Shop instead; see auth.service.ts's register().
+    { key: 'pioneer_head_scanner', slot: 'HEAD' as const, tier: 'PIONEER' as const, baseStats: { attack: 1 }, maxUpgradeLevel: 5 },
+    { key: 'pioneer_left_arm_blaster', slot: 'LEFT_ARM' as const, tier: 'PIONEER' as const, baseStats: { attack: 5 }, maxUpgradeLevel: 5 },
+    { key: 'pioneer_right_arm_guard', slot: 'RIGHT_ARM' as const, tier: 'PIONEER' as const, baseStats: { defense: 5 }, maxUpgradeLevel: 5 },
+    { key: 'pioneer_armor_plating', slot: 'ARMOR' as const, tier: 'PIONEER' as const, baseStats: { hp: 15, defense: 2 }, maxUpgradeLevel: 5 },
+    { key: 'pioneer_core_battery', slot: 'CORE' as const, tier: 'PIONEER' as const, baseStats: { attack: 2, defense: 2 }, maxUpgradeLevel: 5 },
+    { key: 'pioneer_left_leg_actuator', slot: 'LEFT_LEG' as const, tier: 'PIONEER' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5 },
+    { key: 'pioneer_right_leg_actuator', slot: 'RIGHT_LEG' as const, tier: 'PIONEER' as const, baseStats: { hp: 5 }, maxUpgradeLevel: 5 },
     // Ascendant — advanced tier, 2x Pioneer.
-    { key: 'ascendant_head_scanner', slot: 'HEAD' as const, tier: 'ASCENDANT' as const, baseStats: { attack: 4 }, maxUpgradeLevel: 8, isStarterItem: false },
-    { key: 'ascendant_left_arm_blaster', slot: 'LEFT_ARM' as const, tier: 'ASCENDANT' as const, baseStats: { attack: 12 }, maxUpgradeLevel: 8, isStarterItem: false },
-    { key: 'ascendant_right_arm_guard', slot: 'RIGHT_ARM' as const, tier: 'ASCENDANT' as const, baseStats: { defense: 10 }, maxUpgradeLevel: 8, isStarterItem: false },
-    { key: 'ascendant_armor_plating', slot: 'ARMOR' as const, tier: 'ASCENDANT' as const, baseStats: { hp: 30, defense: 5 }, maxUpgradeLevel: 8, isStarterItem: false },
-    { key: 'ascendant_core_battery', slot: 'CORE' as const, tier: 'ASCENDANT' as const, baseStats: { attack: 6, defense: 4 }, maxUpgradeLevel: 8, isStarterItem: false },
-    { key: 'ascendant_left_leg_actuator', slot: 'LEFT_LEG' as const, tier: 'ASCENDANT' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8, isStarterItem: false },
-    { key: 'ascendant_right_leg_actuator', slot: 'RIGHT_LEG' as const, tier: 'ASCENDANT' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8, isStarterItem: false },
+    { key: 'ascendant_head_scanner', slot: 'HEAD' as const, tier: 'ASCENDANT' as const, baseStats: { attack: 4 }, maxUpgradeLevel: 8 },
+    { key: 'ascendant_left_arm_blaster', slot: 'LEFT_ARM' as const, tier: 'ASCENDANT' as const, baseStats: { attack: 12 }, maxUpgradeLevel: 8 },
+    { key: 'ascendant_right_arm_guard', slot: 'RIGHT_ARM' as const, tier: 'ASCENDANT' as const, baseStats: { defense: 10 }, maxUpgradeLevel: 8 },
+    { key: 'ascendant_armor_plating', slot: 'ARMOR' as const, tier: 'ASCENDANT' as const, baseStats: { hp: 30, defense: 5 }, maxUpgradeLevel: 8 },
+    { key: 'ascendant_core_battery', slot: 'CORE' as const, tier: 'ASCENDANT' as const, baseStats: { attack: 6, defense: 4 }, maxUpgradeLevel: 8 },
+    { key: 'ascendant_left_leg_actuator', slot: 'LEFT_LEG' as const, tier: 'ASCENDANT' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8 },
+    { key: 'ascendant_right_leg_actuator', slot: 'RIGHT_LEG' as const, tier: 'ASCENDANT' as const, baseStats: { hp: 20 }, maxUpgradeLevel: 8 },
     // Coreforged — elite tier, 2x Ascendant. Race-locked per dropped instance
     // (ItemInstance.race), rolled by inventory-capacity.ts's grantItem — not here.
-    { key: 'coreforged_head_scanner', slot: 'HEAD' as const, tier: 'COREFORGED' as const, baseStats: { attack: 8 }, maxUpgradeLevel: 10, isStarterItem: false },
-    { key: 'coreforged_left_arm_blaster', slot: 'LEFT_ARM' as const, tier: 'COREFORGED' as const, baseStats: { attack: 24 }, maxUpgradeLevel: 10, isStarterItem: false },
-    { key: 'coreforged_right_arm_guard', slot: 'RIGHT_ARM' as const, tier: 'COREFORGED' as const, baseStats: { defense: 20 }, maxUpgradeLevel: 10, isStarterItem: false },
-    { key: 'coreforged_armor_plating', slot: 'ARMOR' as const, tier: 'COREFORGED' as const, baseStats: { hp: 60, defense: 10 }, maxUpgradeLevel: 10, isStarterItem: false },
-    { key: 'coreforged_core_battery', slot: 'CORE' as const, tier: 'COREFORGED' as const, baseStats: { attack: 12, defense: 8 }, maxUpgradeLevel: 10, isStarterItem: false },
-    { key: 'coreforged_left_leg_actuator', slot: 'LEFT_LEG' as const, tier: 'COREFORGED' as const, baseStats: { hp: 40 }, maxUpgradeLevel: 10, isStarterItem: false },
-    { key: 'coreforged_right_leg_actuator', slot: 'RIGHT_LEG' as const, tier: 'COREFORGED' as const, baseStats: { hp: 40 }, maxUpgradeLevel: 10, isStarterItem: false },
+    { key: 'coreforged_head_scanner', slot: 'HEAD' as const, tier: 'COREFORGED' as const, baseStats: { attack: 8 }, maxUpgradeLevel: 10 },
+    { key: 'coreforged_left_arm_blaster', slot: 'LEFT_ARM' as const, tier: 'COREFORGED' as const, baseStats: { attack: 24 }, maxUpgradeLevel: 10 },
+    { key: 'coreforged_right_arm_guard', slot: 'RIGHT_ARM' as const, tier: 'COREFORGED' as const, baseStats: { defense: 20 }, maxUpgradeLevel: 10 },
+    { key: 'coreforged_armor_plating', slot: 'ARMOR' as const, tier: 'COREFORGED' as const, baseStats: { hp: 60, defense: 10 }, maxUpgradeLevel: 10 },
+    { key: 'coreforged_core_battery', slot: 'CORE' as const, tier: 'COREFORGED' as const, baseStats: { attack: 12, defense: 8 }, maxUpgradeLevel: 10 },
+    { key: 'coreforged_left_leg_actuator', slot: 'LEFT_LEG' as const, tier: 'COREFORGED' as const, baseStats: { hp: 40 }, maxUpgradeLevel: 10 },
+    { key: 'coreforged_right_leg_actuator', slot: 'RIGHT_LEG' as const, tier: 'COREFORGED' as const, baseStats: { hp: 40 }, maxUpgradeLevel: 10 },
   ].map((item) => ({
     ...item,
     nameKey: `items.${item.key}.name`,
@@ -171,8 +173,8 @@ async function main() {
     // Consumables (general inventory, owner decision) — no slot, stack in one
     // ItemInstance row via quantity. baseStats holds { energy } instead of
     // combat stats — read by inventory.service.ts's useConsumable().
-    { key: 'energy_pack_small', nameKey: 'items.energy_pack_small.name', descriptionKey: 'items.energy_pack_small.description', slot: null, category: 'CONSUMABLE' as const, baseStats: { energy: 5 }, maxUpgradeLevel: 0, iconAssetId: 'items.energy_pack_small.icon', isStarterItem: false },
-    { key: 'energy_pack_large', nameKey: 'items.energy_pack_large.name', descriptionKey: 'items.energy_pack_large.description', slot: null, category: 'CONSUMABLE' as const, baseStats: { energy: 10 }, maxUpgradeLevel: 0, iconAssetId: 'items.energy_pack_large.icon', isStarterItem: false },
+    { key: 'energy_pack_small', nameKey: 'items.energy_pack_small.name', descriptionKey: 'items.energy_pack_small.description', slot: null, category: 'CONSUMABLE' as const, baseStats: { energy: 5 }, maxUpgradeLevel: 0, iconAssetId: 'items.energy_pack_small.icon' },
+    { key: 'energy_pack_large', nameKey: 'items.energy_pack_large.name', descriptionKey: 'items.energy_pack_large.description', slot: null, category: 'CONSUMABLE' as const, baseStats: { energy: 10 }, maxUpgradeLevel: 0, iconAssetId: 'items.energy_pack_large.icon' },
     // baseStats holds { buildTimeReductionMinutes } — read by inventory.service.ts's
     // useConsumable(), which requires a target buildingKey and shortens that building's
     // active construction timer. Minute values are owner-specified placeholders, tunable here.
@@ -184,9 +186,7 @@ async function main() {
       category: 'CONSUMABLE' as const,
       baseStats: { buildTimeReductionMinutes: 5 },
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.construction_speedup_small.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.construction_speedup_small.icon',    },
     {
       key: 'construction_speedup_large',
       nameKey: 'items.construction_speedup_large.name',
@@ -195,9 +195,7 @@ async function main() {
       category: 'CONSUMABLE' as const,
       baseStats: { buildTimeReductionMinutes: 10 },
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.construction_speedup_large.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.construction_speedup_large.icon',    },
     // Tier-specific upgrade materials (owner decision) — replace the old
     // generic Upgrade Stones resource. Spent by inventory.service.ts's
     // upgradeItem(), keyed off the item being upgraded's own tier.
@@ -210,9 +208,7 @@ async function main() {
       tier: 'PIONEER' as const,
       baseStats: {},
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.pioneer_upgrade.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.pioneer_upgrade.icon',    },
     {
       key: 'ascendant_upgrade',
       nameKey: 'items.ascendant_upgrade.name',
@@ -222,9 +218,7 @@ async function main() {
       tier: 'ASCENDANT' as const,
       baseStats: {},
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.ascendant_upgrade.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.ascendant_upgrade.icon',    },
     {
       key: 'coreforged_upgrade',
       nameKey: 'items.coreforged_upgrade.name',
@@ -234,9 +228,7 @@ async function main() {
       tier: 'COREFORGED' as const,
       baseStats: {},
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.coreforged_upgrade.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.coreforged_upgrade.icon',    },
     // Recycling materials (owner decision) — an alternative to selling an
     // EQUIPMENT item for Metal/Crystal. Recycling grants one of these per tier
     // instead; 20 of them auto-convert into the tier's own upgrade material
@@ -250,9 +242,7 @@ async function main() {
       tier: 'PIONEER' as const,
       baseStats: {},
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.pioneer_fragment.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.pioneer_fragment.icon',    },
     {
       key: 'ascendant_fragment',
       nameKey: 'items.ascendant_fragment.name',
@@ -262,9 +252,7 @@ async function main() {
       tier: 'ASCENDANT' as const,
       baseStats: {},
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.ascendant_fragment.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.ascendant_fragment.icon',    },
     {
       key: 'coreforged_fragment',
       nameKey: 'items.coreforged_fragment.name',
@@ -274,9 +262,7 @@ async function main() {
       tier: 'COREFORGED' as const,
       baseStats: {},
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.coreforged_fragment.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.coreforged_fragment.icon',    },
     // Loot boxes (owner decision) — stackable, opened via inventory.service.ts's
     // openBox() for a guaranteed RARE/EPIC item of the matching tier
     // (GAME_BALANCE.boxOpen). Not droppable yet — Shop-only for now, since every
@@ -290,9 +276,7 @@ async function main() {
       tier: 'PIONEER' as const,
       baseStats: {},
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.pioneer_box.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.pioneer_box.icon',    },
     {
       key: 'ascendant_box',
       nameKey: 'items.ascendant_box.name',
@@ -302,9 +286,7 @@ async function main() {
       tier: 'ASCENDANT' as const,
       baseStats: {},
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.ascendant_box.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.ascendant_box.icon',    },
     {
       key: 'coreforged_box',
       nameKey: 'items.coreforged_box.name',
@@ -314,9 +296,7 @@ async function main() {
       tier: 'COREFORGED' as const,
       baseStats: {},
       maxUpgradeLevel: 0,
-      iconAssetId: 'items.coreforged_box.icon',
-      isStarterItem: false,
-    },
+      iconAssetId: 'items.coreforged_box.icon',    },
   ];
   // System Shop (owner decision, testing-phase only) — cycles through every
   // non-empty combination of the 3 currencies at 1 unit each, so the Shop UI

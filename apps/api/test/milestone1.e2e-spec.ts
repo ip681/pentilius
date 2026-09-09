@@ -45,16 +45,24 @@ describe('Milestone 1 vertical slice (e2e)', () => {
     return { Authorization: `Bearer ${accessToken}` };
   }
 
-  it('grants starting resources and a full starter kit on registration', async () => {
+  it('grants starting resources and an empty inventory, with just enough innate combat stats to fight bare-handed', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/player/me').set(auth()).expect(200);
     expect(res.body.level).toBe(1);
     expect(res.body.resources.metal).toBe(500);
 
     const inventory = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
-    expect(inventory.body.items).toHaveLength(7);
-    expect(inventory.body.items.every((item: { equipped: boolean }) => !item.equipped)).toBe(true);
-    expect(inventory.body.used).toBe(7);
+    expect(inventory.body.items).toHaveLength(0);
+    expect(inventory.body.used).toBe(0);
     expect(inventory.body.capacity).toBe(30);
+
+    // No starter kit, no starting attribute points (owner decision, 2026-09-09)
+    // — combat viability comes purely from GAME_BALANCE.combat's baseAttack/
+    // baseDefense/basePlayerHp floor.
+    const combatStats = await request(app.getHttpServer()).get('/api/v1/robot/combat-stats').set(auth()).expect(200);
+    expect(combatStats.body.attack).toBe(3);
+    expect(combatStats.body.defense).toBe(2);
+    expect(combatStats.body.hp).toBe(100);
+    expect(combatStats.body.evasion).toBe(0);
   });
 
   it('upgrades a building, deducting resources and starting a timer', async () => {
@@ -70,16 +78,6 @@ describe('Milestone 1 vertical slice (e2e)', () => {
 
     const after = await request(app.getHttpServer()).get('/api/v1/base').set(auth()).expect(200);
     expect(after.body.resources.crystal).toBe(50); // started with 100, level 1 costs 50 crystal
-  });
-
-  it('equips the full starter kit', async () => {
-    const inventory = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
-    for (const item of inventory.body.items) {
-      await request(app.getHttpServer()).post(`/api/v1/robot/equip/${item.id}`).set(auth()).expect(201);
-    }
-
-    const robot = await request(app.getHttpServer()).get('/api/v1/robot').set(auth()).expect(200);
-    expect(robot.body.every((slot: { item: unknown }) => slot.item !== null)).toBe(true);
   });
 
   it('lists zones with the second zone locked below level 3', async () => {
@@ -117,6 +115,19 @@ describe('Milestone 1 vertical slice (e2e)', () => {
     const reports = await request(app.getHttpServer()).get('/api/v1/pve/reports').set(auth()).expect(200);
     expect(reports.body).toHaveLength(1);
     expect(reports.body[0].outcome).toBe('WIN');
+  });
+
+  it('equips the equipment looted from that win (no starter kit to fall back on)', async () => {
+    const inventory = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
+    const equipment = (inventory.body.items as { id: string; category: string }[]).filter((item) => item.category === 'EQUIPMENT');
+    expect(equipment.length).toBeGreaterThan(0);
+    for (const item of equipment) {
+      await request(app.getHttpServer()).post(`/api/v1/robot/equip/${item.id}`).set(auth()).expect(201);
+    }
+
+    const robot = await request(app.getHttpServer()).get('/api/v1/robot').set(auth()).expect(200);
+    const filledSlots = (robot.body as { slot: string; item: unknown }[]).filter((slot) => slot.item !== null).length;
+    expect(filledSlots).toBe(equipment.length);
   });
 
   it("upgrades an equipped item, spending its tier's upgrade material", async () => {

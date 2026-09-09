@@ -39,20 +39,24 @@ describe('Robot Core Attributes (e2e)', () => {
     return { Authorization: `Bearer ${accessToken}` };
   }
 
-  it('starts a new account with 20 unspent points and every base attribute at 0', async () => {
+  it('starts a new account with 0 unspent points (no starting freebie, owner decision 2026-09-09) and every base attribute at 0', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/robot/attributes').set(auth()).expect(200);
-    expect(res.body.available).toBe(20);
+    expect(res.body.available).toBe(0);
     expect(res.body.base).toEqual({ damage: 0, defense: 0, hp: 0, evasion: 0 });
     expect(res.body.evasionAtCap).toBe(false);
   });
 
   it('allocates a point at the flat cost-per-rank price', async () => {
+    // No starting points anymore — grant exactly one to allocate, same way
+    // the evasion-cap test below seeds points directly for its own scenario.
+    await prisma.player.update({ where: { id: playerId }, data: { attributePointsAvailable: 1 } });
+
     const first = await request(app.getHttpServer())
       .post('/api/v1/robot/attributes/allocate')
       .set(auth())
       .send({ stat: 'damage' })
       .expect(201);
-    expect(first.body.available).toBe(19);
+    expect(first.body.available).toBe(0);
     expect(first.body.base.damage).toBe(1);
   });
 

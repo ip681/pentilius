@@ -41,9 +41,18 @@ describe('General inventory (e2e)', () => {
   }
 
   it('counts equipped items against inventory capacity the same as unequipped ones', async () => {
+    // No starter kit (owner decision, 2026-09-09) — grant a small set of
+    // equipment directly, one per distinct slot, to exercise the same
+    // equip/capacity behavior this test is actually about.
+    const definitions = await Promise.all(
+      ['pioneer_head_scanner', 'pioneer_left_arm_blaster', 'pioneer_right_arm_guard'].map((key) =>
+        prisma.itemDefinition.findUniqueOrThrow({ where: { key } }),
+      ),
+    );
+    await prisma.itemInstance.createMany({ data: definitions.map((d) => ({ playerId, itemDefinitionId: d.id })) });
+
     const res = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
-    // The 7-slot starter kit isn't equipped yet at this point in the suite.
-    expect(res.body.used).toBe(7);
+    expect(res.body.used).toBe(3);
     expect(res.body.capacity).toBe(30);
 
     const items = res.body.items as { id: string }[];
@@ -54,7 +63,7 @@ describe('General inventory (e2e)', () => {
     const afterEquip = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
     // Equipping doesn't free up a slot — an equipped item stays visible in the
     // grid (marked "Equipped"), so it still occupies capacity like anything else.
-    expect(afterEquip.body.used).toBe(7);
+    expect(afterEquip.body.used).toBe(3);
     expect((afterEquip.body.items as { equipped: boolean }[]).every((item) => item.equipped)).toBe(true);
   });
 
@@ -89,7 +98,8 @@ describe('General inventory (e2e)', () => {
   it('skips a loot item drop once the inventory is at capacity, without blocking the resource/XP reward', async () => {
     const junk = await prisma.itemDefinition.findUniqueOrThrow({ where: { key: 'ascendant_left_arm_blaster' } });
     // Fill the bag to exactly capacity — the player already owns the (now
-    // equipped) starter kit, which counts too, so top up only the remainder.
+    // equipped) items granted by the earlier test in this suite, which count
+    // too, so top up only the remainder.
     const before = await request(app.getHttpServer()).get('/api/v1/inventory').set(auth()).expect(200);
     const remainingSlots = before.body.capacity - before.body.used;
     await prisma.itemInstance.createMany({

@@ -80,10 +80,10 @@ Still **UNDEFINED**:
 - ranking formula.
 
 ## Robot equipment
-**LOCKED:** One combat-robot progression concept based on equipped parts/items — no separate robot classes/types, the robot is entirely defined by what's equipped.
+**LOCKED:** One combat-robot progression concept based on equipped parts/items — no separate robot classes/types, the robot is entirely defined by what's equipped. Owner decision (2026-09-09): a small universal innate Attack/Defense floor was added on top of this (`GAME_BALANCE.combat.baseAttack`/`baseDefense`, alongside the pre-existing `basePlayerHp` floor) so an unequipped robot isn't literally helpless — every player gets the exact same flat amount regardless of race/build, so this doesn't reintroduce class-like differentiation.
 
 **LOCKED direction:** Equipment is organized into 3 named sets, one item per anatomical slot per set, each roughly doubling the previous set's base stats:
-- **Pioneer** — starter tier, granted free at registration, also loots in the first zone.
+- **Pioneer** — starter tier. Owner decision (2026-09-09): no longer granted free at registration — reached via this zone's own PvE loot or the Shop instead, using the innate combat floor above to win that first fight.
 - **Ascendant** — advanced tier, introduced in the second zone.
 - **Coreforged** — elite tier, introduced in the third zone and continuing into the fourth zone and both bosses.
 
@@ -104,7 +104,7 @@ Slot schema — **LOCKED** (7 anatomical slots):
 - Right Leg.
 
 ## Core Attributes
-**LOCKED direction:** Alongside equipment, the player allocates personal stat points earned from leveling — Damage, Defense, HP, Evasion. Pure point-buy: no resource cost, no respec (for now).
+**LOCKED direction:** Alongside equipment, the player allocates personal stat points earned from leveling — Damage, Defense, HP, Evasion. Pure point-buy: no resource cost, no respec (for now). Owner decision (2026-09-09): no starting point grant at registration — a new account has 0 unspent points; every point comes from leveling.
 
 - Points awarded per level and the cost to raise a stat both grow with a percentage curve (compounding), so higher levels grant proportionally more points, and each successive point in the *same* stat costs progressively more. Cost resets per stat, so spreading points across stats is cheaper than dumping everything into one.
 - Exact starting points, growth rates, and how much each point contributes to combat are **PROVISIONAL** — see `apps/api/src/config/game-config.ts`'s `robotAttributes` block, not hard-coded anywhere else.
