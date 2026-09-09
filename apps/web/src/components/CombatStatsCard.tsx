@@ -32,10 +32,10 @@ export function CombatStatsCard({
 }) {
   const t = useTranslations();
   return (
-    <div className={`rounded-md border p-4 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-well`}>
+    <div className={`min-w-0 rounded-md border p-4 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-well`}>
       {avatarFrame ? (
-        <div className="mb-3 flex justify-center">
-          <PlayerAvatarFrame avatarKey={avatarFrame.avatarKey} frameKey={avatarFrame.frameKey} className="h-[140px] w-[140px]" />
+        <div className="mb-3 flex h-14 items-center justify-center sm:h-[140px]">
+          <PlayerAvatarFrame avatarKey={avatarFrame.avatarKey} frameKey={avatarFrame.frameKey} className="h-full w-full" />
         </div>
       ) : (
         icon && (
@@ -49,8 +49,8 @@ export function CombatStatsCard({
           </div>
         )
       )}
-      <div className="mb-1 text-sm font-semibold">{title}</div>
-      {subtitle && <div className="mb-3 text-[10px] text-textFaint">{subtitle}</div>}
+      <div className="mb-1 truncate text-sm font-semibold">{title}</div>
+      {subtitle && <div className="mb-3 truncate text-[10px] text-textFaint">{subtitle}</div>}
       <div className="flex flex-col gap-1.5 text-xs">
         <div className="flex justify-between">
           <span className="text-textMuted">{t('bosses.attack')}</span>

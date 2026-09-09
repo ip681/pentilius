@@ -102,6 +102,8 @@
     "noClan": "Not in a clan",
     "playersSubtitle": "See how you rank",
     "reportsSubtitle": "Your combat history",
+    "friendsSubtitle": "Connect with other players",
+    "marketSubtitle": "Buy and sell equipment",
     "activeOperations": "Active Operations",
     "noActiveOperations": "Nothing is running right now — start a build, research or expedition to make use of your time.",
     "quickAccess": "Quick Access"

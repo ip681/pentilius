@@ -81,6 +81,12 @@ export default function DashboardPage() {
       subtitle: myClan ? (myClan.clan ? `${myClan.clan.name} [${myClan.clan.tag}]` : t('dashboard.noClan')) : '…',
     },
     {
+      key: 'friends',
+      navKey: 'nav.friends',
+      href: '/friends',
+      subtitle: t('dashboard.friendsSubtitle'),
+    },
+    {
       key: 'zones',
       navKey: 'nav.zones',
       href: '/zones',
@@ -127,6 +133,12 @@ export default function DashboardPage() {
       navKey: 'nav.reports',
       href: '/reports',
       subtitle: t('dashboard.reportsSubtitle'),
+    },
+    {
+      key: 'market',
+      navKey: 'nav.market',
+      href: '/market',
+      subtitle: t('dashboard.marketSubtitle'),
     },
   ];
 
