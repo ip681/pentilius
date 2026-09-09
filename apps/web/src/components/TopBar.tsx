@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { AssetIcon } from '@/components/AssetIcon';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import { StatBar } from '@/components/StatBar';
 import { Link, useRouter } from '@/i18n/navigation';
@@ -46,10 +47,20 @@ export function TopBar({
   return (
     <header className="sticky top-0 z-50 border-b border-panelBorder bg-inkRaised">
       <div className="flex h-16 items-center justify-between gap-3 px-3 md:px-7">
-        <div className="flex shrink-0 items-center gap-3">
-          <Link href="/dashboard">
+        <div className="flex min-w-0 items-center gap-2 md:gap-3">
+          <Link href="/dashboard" className="shrink-0">
             <Image src="/logo.png" alt="Pentilius" width={160} height={96} className="h-14 w-auto" priority />
           </Link>
+          {loggedIn && profile && (
+            // Identity cluster right after the logo (owner decision, 2026-09-09) —
+            // was previously in the right-side account cluster. min-w-0 + truncate
+            // on the username is what keeps a long name from ever squeezing the
+            // logo, same protection the mobile row already relies on elsewhere.
+            <Link href={`/players/${profile.id}`} className="flex min-w-0 items-center gap-2 hover:opacity-80">
+              <PlayerAvatarFrame avatarKey={profile.selectedAvatarKey} frameKey={profile.selectedFrameKey} className="h-10 w-10 shrink-0 md:h-11 md:w-11" />
+              <span className="min-w-0 truncate text-xs font-semibold sm:text-sm">{profile.username}</span>
+            </Link>
+          )}
         </div>
 
         {loggedIn && profile && (
@@ -65,7 +76,7 @@ export function TopBar({
               hideLabelText
               current={profile.energy.current}
               max={profile.energy.max}
-              colorClass="bg-energy"
+              colorClass="bg-gold"
               countdownTarget={profile.energy.nextRegenAt}
             />
             <StatBar
@@ -73,26 +84,13 @@ export function TopBar({
               icon="interface.experience.icon"
               current={profile.xp}
               max={profile.xpForNextLevel}
-              colorClass="bg-gold"
+              colorClass="bg-energy"
             />
           </div>
         )}
 
         {loggedIn && profile ? (
-          <div className="flex min-w-0 shrink items-center gap-1.5 text-xs md:shrink-0 md:gap-4">
-            <div className="min-w-0 text-right">
-              <div className="flex items-center justify-end gap-1.5 font-semibold">
-                <AssetIcon
-                  assetId={`races.${profile.race.toLowerCase()}.icon`}
-                  alt={t(`race.${profile.race}.name`)}
-                  className="h-4 w-4 shrink-0 object-contain"
-                  fallback={<span className="text-[9px] font-normal text-textFaint">{t(`race.${profile.race}.name`).charAt(0)}</span>}
-                />
-                <Link href={`/players/${profile.id}`} className="max-w-[72px] truncate hover:text-accent sm:max-w-none">
-                  {profile.username}
-                </Link>
-              </div>
-            </div>
+          <div className="flex shrink-0 items-center gap-1.5 text-xs md:gap-3">
             <Link
               href="/settings"
               title={t('topbar.settings')}
@@ -145,7 +143,7 @@ export function TopBar({
               hideLabelText
               current={profile.energy.current}
               max={profile.energy.max}
-              colorClass="bg-energy"
+              colorClass="bg-gold"
               countdownTarget={profile.energy.nextRegenAt}
             />
             <StatBar
@@ -153,7 +151,7 @@ export function TopBar({
               icon="interface.experience.icon"
               current={profile.xp}
               max={profile.xpForNextLevel}
-              colorClass="bg-gold"
+              colorClass="bg-energy"
             />
           </div>
           <ResourcesRow profile={profile} className="flex items-center justify-center gap-4 text-[11px]" iconClassName="h-3 w-3" />

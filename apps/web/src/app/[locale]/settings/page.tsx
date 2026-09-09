@@ -1,10 +1,13 @@
 'use client';
 
+import type { CosmeticsCatalogDto } from '@pentilius/shared';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
+import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
+import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { usePathname, useRouter } from '@/i18n/navigation';
-import { ApiError, changePassword, getProfile, updatePreferredLocale } from '@/lib/api-client';
+import { ApiError, changePassword, getCosmeticsCatalog, getProfile, updateAvatar, updateFrame, updatePreferredLocale } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
@@ -25,12 +28,50 @@ export default function SettingsPage() {
   const [languageError, setLanguageError] = useState<string | null>(null);
   const [languageSuccess, setLanguageSuccess] = useState(false);
 
+  const [cosmetics, setCosmetics] = useState<CosmeticsCatalogDto | null>(null);
+  const [selectedAvatarKey, setSelectedAvatarKey] = useState<string | null>(null);
+  const [selectedFrameKey, setSelectedFrameKey] = useState<string | null>(null);
+  const [cosmeticsError, setCosmeticsError] = useState<string | null>(null);
+
   useEffect(() => {
     getProfile()
-      .then((data) => setSelectedLocale(data.preferredLocale ?? locale))
+      .then((data) => {
+        setSelectedLocale(data.preferredLocale ?? locale);
+        setSelectedAvatarKey(data.selectedAvatarKey);
+        setSelectedFrameKey(data.selectedFrameKey);
+      })
+      .catch(() => undefined);
+    getCosmeticsCatalog()
+      .then(setCosmetics)
       .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleSelectAvatar(key: string) {
+    setCosmeticsError(null);
+    const previous = selectedAvatarKey;
+    setSelectedAvatarKey(key);
+    try {
+      await updateAvatar(key);
+      notifyProfileChanged();
+    } catch {
+      setSelectedAvatarKey(previous);
+      setCosmeticsError(t('settings.cosmeticsError'));
+    }
+  }
+
+  async function handleSelectFrame(key: string) {
+    setCosmeticsError(null);
+    const previous = selectedFrameKey;
+    setSelectedFrameKey(key);
+    try {
+      await updateFrame(key);
+      notifyProfileChanged();
+    } catch {
+      setSelectedFrameKey(previous);
+      setCosmeticsError(t('settings.cosmeticsError'));
+    }
+  }
 
   async function handleChangePassword(event: React.FormEvent) {
     event.preventDefault();
@@ -141,6 +182,58 @@ export default function SettingsPage() {
               {t('settings.save')}
             </button>
           </form>
+        </section>
+
+        <section className="rounded-lg border border-panelBorder bg-panel p-5">
+          <h2 className="mb-3 text-sm font-semibold">{t('settings.cosmeticsSection')}</h2>
+          <div className="mb-4 flex justify-center">
+            <PlayerAvatarFrame avatarKey={selectedAvatarKey} frameKey={selectedFrameKey} className="h-24 w-24" />
+          </div>
+
+          <div className="mb-1 text-[10px] uppercase tracking-wide text-textFaint">{t('settings.avatar')}</div>
+          <div className="mb-4 grid grid-cols-6 gap-2">
+            {cosmetics?.avatars.map((avatar) => (
+              <button
+                key={avatar.key}
+                type="button"
+                title={t(avatar.nameKey)}
+                onClick={() => handleSelectAvatar(avatar.key)}
+                className={`flex aspect-square items-center justify-center rounded-full border-2 bg-well ${
+                  selectedAvatarKey === avatar.key ? 'border-accent' : 'border-wellBorder'
+                }`}
+              >
+                <AssetIcon
+                  assetId={avatar.iconAssetId}
+                  alt={t(avatar.nameKey)}
+                  className="h-full w-full rounded-full object-contain p-1"
+                  fallback={<span className="text-[9px] font-semibold text-textMuted">{avatar.key.replace(/\D/g, '')}</span>}
+                />
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-1 text-[10px] uppercase tracking-wide text-textFaint">{t('settings.frame')}</div>
+          <div className="grid grid-cols-6 gap-2">
+            {cosmetics?.frames.map((frame) => (
+              <button
+                key={frame.key}
+                type="button"
+                title={t(frame.nameKey)}
+                onClick={() => handleSelectFrame(frame.key)}
+                className={`flex aspect-square items-center justify-center rounded-full border-2 bg-well ${
+                  selectedFrameKey === frame.key ? 'border-accent' : 'border-wellBorder'
+                }`}
+              >
+                <AssetIcon
+                  assetId={frame.iconAssetId}
+                  alt={t(frame.nameKey)}
+                  className="h-full w-full rounded-full object-contain p-1"
+                  fallback={<span className="text-[9px] font-semibold text-textMuted">{frame.key.replace(/\D/g, '')}</span>}
+                />
+              </button>
+            ))}
+          </div>
+          {cosmeticsError && <p className="mt-3 text-xs text-danger">{cosmeticsError}</p>}
         </section>
       </div>
     </GameLayout>

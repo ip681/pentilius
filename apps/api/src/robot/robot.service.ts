@@ -70,6 +70,9 @@ export class RobotService {
     if (!item.itemDefinition.slot) {
       throw new BadRequestException('This item cannot be equipped');
     }
+    if (item.listedForSale) {
+      throw new BadRequestException('ITEM_LISTED');
+    }
     if (item.race) {
       const player = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
       if (item.race !== player.race) {

@@ -2,12 +2,13 @@
 
 import type { BoxOpenResultDto, CombatStatsDto, EquipmentSlot, EquippedItemDto, InventoryItemDto, PlayerProfileDto, Race, RobotAttributesDto, RobotSlotDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { CombatStatsCard } from '@/components/CombatStatsCard';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
+import { EquipmentTooltipDetails, ItemHoverTooltip, useItemHoverTooltip } from '@/components/ItemHoverTooltip';
 import { NextLevelValue } from '@/components/NextLevelValue';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import {
@@ -27,21 +28,10 @@ import {
   upgradeItem,
 } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { RACE_BG_CLASS } from '@/lib/race-colors';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 const SLOTS: EquipmentSlot[] = ['HEAD', 'LEFT_ARM', 'RIGHT_ARM', 'ARMOR', 'CORE', 'LEFT_LEG', 'RIGHT_LEG'];
-
-// A race-locked item's inventory square gets a tint of its race's brand color
-// (instructions/PRODUCT_SPEC.md) instead of the plain well background — still
-// darker than the full brand color, but strong enough to actually read at a
-// glance against the icon and dark theme.
-const RACE_BG_CLASS: Record<Race, string> = {
-  LUXARI: 'bg-raceLuxari/20',
-  VORLUN: 'bg-raceVorlun/20',
-  ZARYTH: 'bg-raceZaryth/20',
-  THALION: 'bg-raceThalion/20',
-  NEXAR: 'bg-raceNexar/20',
-};
 
 const ATTRIBUTE_STATS = ['damage', 'defense', 'hp', 'evasion'] as const;
 type AttributeStat = (typeof ATTRIBUTE_STATS)[number];
@@ -50,88 +40,6 @@ function itemForSlot(slots: RobotSlotDto[] | null, slot: EquipmentSlot): Equippe
   return slots?.find((s) => s.slot === slot)?.item ?? null;
 }
 
-const TOOLTIP_WIDTH = 224;
-
-// `position: fixed` (viewport-relative) rather than an absolutely-positioned
-// child, so the tooltip can't be clipped by the inventory grid's own
-// overflow-y-auto scroll container — it escapes that ancestor entirely.
-// Flips above the item when there isn't enough room below the viewport edge.
-function tooltipPositionStyle(rect: DOMRect): CSSProperties {
-  const gap = 8;
-  const left = Math.min(Math.max(gap, rect.left), window.innerWidth - TOOLTIP_WIDTH - gap);
-  const spaceBelow = window.innerHeight - rect.bottom;
-  if (spaceBelow < 140) {
-    return { left, bottom: window.innerHeight - rect.top + gap };
-  }
-  return { left, top: rect.bottom + gap };
-}
-
-// Desktop-only hover preview (mouse enter/leave never meaningfully fires on
-// touch) — the native `title` tooltip it replaces only ever showed the name
-// and can't be styled or hold real content. `children` lets callers show
-// either a plain description or the equipped-item's full stat breakdown.
-function ItemHoverTooltip({ rect, name, children }: { rect: DOMRect; name: string; children: ReactNode }) {
-  return (
-    <div
-      className="pointer-events-none fixed z-50 rounded-md border border-panelBorder bg-panel p-2.5 text-[11px] shadow-lg"
-      style={{ width: TOOLTIP_WIDTH, ...tooltipPositionStyle(rect) }}
-    >
-      <p className="mb-1 font-semibold text-text">{name}</p>
-      {children}
-    </div>
-  );
-}
-
-// Full stat/race/options breakdown for an equipment item's hover tooltip —
-// any item with a slot (EQUIPMENT), equipped or not — same information as
-// the click-through details panel below, minus its action rows
-// (upgrade/sell/recycle), which don't belong in a hover preview.
-function EquipmentTooltipDetails({ item, playerRace }: { item: InventoryItemDto; playerRace: Race | undefined }) {
-  const t = useTranslations();
-  const hasStats = item.currentStats?.attack !== undefined || item.currentStats?.defense !== undefined || item.currentStats?.hp !== undefined;
-
-  return (
-    <>
-      <p className="mb-1.5 text-textMuted">
-        {t('robot.upgradeLevel')}: {item.upgradeLevel}/{item.maxUpgradeLevel}
-      </p>
-      {hasStats && (
-        <div className="mb-1.5 rounded border border-wellBorder bg-ink p-2">
-          {(['attack', 'defense', 'hp'] as const).map((key) => {
-            const value = item.currentStats?.[key];
-            if (value === undefined) return null;
-            return (
-              <div key={key} className="flex justify-between text-textFaint">
-                <span>{t(`robot.stat.${key === 'attack' ? 'damage' : key}`)}</span>
-                <span className="text-text">{value}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {item.race && (
-        <p className={`mb-1.5 flex items-center gap-1.5 ${item.race === playerRace ? 'text-positive' : 'text-danger'}`}>
-          <AssetIcon
-            assetId={`races.${item.race.toLowerCase()}.icon`}
-            alt={t(`race.${item.race}.name`)}
-            className="h-3.5 w-3.5 shrink-0 object-contain"
-            fallback={<span className="text-[8px] font-semibold">{t(`race.${item.race}.name`).charAt(0)}</span>}
-          />
-          {t('robot.raceLocked', { race: t(`race.${item.race}.name`) })}
-        </p>
-      )}
-      {item.rolledOptions.length > 0 && (
-        <ul className="flex flex-col gap-0.5">
-          {item.rolledOptions.map((option) => (
-            <li key={option} className="text-positive">
-              {t(`itemOption.${option}`)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
-  );
-}
 
 function SlotBadge({
   slot,
@@ -150,7 +58,7 @@ function SlotBadge({
   onSelect: (itemInstanceId: string) => void;
 }) {
   const t = useTranslations();
-  const [hoverRect, setHoverRect] = useState<DOMRect | null>(null);
+  const tooltip = useItemHoverTooltip();
 
   if (!item) {
     return (
@@ -168,8 +76,8 @@ function SlotBadge({
       <button
         type="button"
         onClick={() => onSelect(item.itemInstanceId)}
-        onMouseEnter={(e) => setHoverRect(e.currentTarget.getBoundingClientRect())}
-        onMouseLeave={() => setHoverRect(null)}
+        onMouseEnter={tooltip.show}
+        onMouseLeave={tooltip.hide}
         className={`relative flex h-14 w-14 items-center justify-center rounded-md border-2 hover:border-accent sm:h-20 sm:w-20 ${
           item.quality === 'EPIC' ? 'border-epic' : item.quality === 'RARE' ? 'border-positive' : 'border-textFaint'
         } ${item.race ? RACE_BG_CLASS[item.race] : 'bg-well'}`}
@@ -184,8 +92,8 @@ function SlotBadge({
           <span className="absolute -bottom-1 -right-1 rounded-full bg-accent px-1 text-[7px] font-semibold text-text">+{item.upgradeLevel}</span>
         )}
       </button>
-      {hoverRect && (
-        <ItemHoverTooltip rect={hoverRect} name={t(item.nameKey)}>
+      {tooltip.rect && (
+        <ItemHoverTooltip rect={tooltip.rect} name={t(item.nameKey)}>
           {fullItem ? <EquipmentTooltipDetails item={fullItem} playerRace={playerRace} /> : <p className="text-textMuted">{t(item.descriptionKey)}</p>}
         </ItemHoverTooltip>
       )}
@@ -240,6 +148,19 @@ export default function RobotPage() {
   const [hoveredItem, setHoveredItem] = useState<{ item: InventoryItemDto; rect: DOMRect } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [boxResult, setBoxResult] = useState<BoxOpenResultDto | null>(null);
+
+  // Dismiss the inventory grid's hover tooltip on the next scroll or
+  // tap-elsewhere — see ItemHoverTooltip.tsx's useItemHoverTooltip for why.
+  useEffect(() => {
+    if (!hoveredItem) return;
+    const dismiss = () => setHoveredItem(null);
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('touchstart', dismiss, true);
+    return () => {
+      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('touchstart', dismiss, true);
+    };
+  }, [hoveredItem]);
 
   async function load() {
     try {
@@ -490,6 +411,11 @@ export default function RobotPage() {
                       {t('robot.equippedBadge')}
                     </span>
                   )}
+                  {item.listedForSale && (
+                    <span className="absolute bottom-0.5 left-0.5 rounded bg-gold px-1 py-0.5 text-[7px] font-semibold uppercase leading-none text-ink">
+                      {t('robot.listedBadge')}
+                    </span>
+                  )}
                   {item.slot ? (
                     item.upgradeLevel > 0 && (
                       <span className="absolute bottom-0.5 right-1 text-[8px] font-semibold text-accent">+{item.upgradeLevel}</span>
@@ -719,7 +645,7 @@ export default function RobotPage() {
                 <div className="mt-3 flex gap-2">
                   <button
                     type="button"
-                    disabled={selected.equipped || (!!selected.race && selected.race !== profile?.race)}
+                    disabled={selected.equipped || selected.listedForSale || (!!selected.race && selected.race !== profile?.race)}
                     onClick={handleEquip}
                     className="flex-1 rounded-md border border-accent bg-accentBg py-2.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                   >
@@ -737,7 +663,7 @@ export default function RobotPage() {
 
                 <button
                   type="button"
-                  disabled={selected.upgradeLevel >= selected.maxUpgradeLevel || !canAffordUpgrade}
+                  disabled={selected.upgradeLevel >= selected.maxUpgradeLevel || !canAffordUpgrade || selected.listedForSale}
                   onClick={handleUpgrade}
                   className="mt-2 w-full rounded-md border border-accent bg-accentBg py-2.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                 >
@@ -756,7 +682,7 @@ export default function RobotPage() {
                         : undefined
                     }
                     onConfirm={handleSell}
-                    disabled={selected.equipped}
+                    disabled={selected.equipped || selected.listedForSale}
                     className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                     confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover"
                     cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
@@ -773,7 +699,7 @@ export default function RobotPage() {
                         : undefined
                     }
                     onConfirm={handleRecycle}
-                    disabled={selected.equipped}
+                    disabled={selected.equipped || selected.listedForSale}
                     className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                     confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-[10px] uppercase text-danger hover:bg-accentBgHover"
                     cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"

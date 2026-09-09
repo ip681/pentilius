@@ -1,13 +1,24 @@
 'use client';
 
-import type { PlayerPublicProfileDto } from '@pentilius/shared';
+import type { FriendshipStatusDto, PlayerPublicProfileDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
+import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { Link } from '@/i18n/navigation';
-import { getProfile, getPublicProfile, updateBio } from '@/lib/api-client';
+import {
+  acceptFriendRequest,
+  declineFriendRequest,
+  getFriendshipStatus,
+  getProfile,
+  getPublicProfile,
+  removeFriend,
+  sendFriendRequest,
+  updateBio,
+} from '@/lib/api-client';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 export default function PlayerProfilePage() {
@@ -21,6 +32,8 @@ export default function PlayerProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [bioDraft, setBioDraft] = useState('');
   const [editing, setEditing] = useState(false);
+  const [friendship, setFriendship] = useState<FriendshipStatusDto | null>(null);
+  const [friendActionError, setFriendActionError] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -28,6 +41,9 @@ export default function PlayerProfilePage() {
       setProfile(publicProfile);
       setIsOwn(me.id === playerId);
       setBioDraft(publicProfile.bio ?? '');
+      if (me.id !== playerId) {
+        setFriendship(await getFriendshipStatus(playerId));
+      }
     } catch {
       setError(t('profile.loadError'));
     }
@@ -37,6 +53,46 @@ export default function PlayerProfilePage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId]);
+
+  async function handleSendFriendRequest() {
+    setFriendActionError(null);
+    try {
+      await sendFriendRequest(playerId);
+      await load();
+    } catch {
+      setFriendActionError(t('profile.friendActionError'));
+    }
+  }
+
+  async function handleAcceptFriendRequest(requestId: string) {
+    setFriendActionError(null);
+    try {
+      await acceptFriendRequest(requestId);
+      await load();
+    } catch {
+      setFriendActionError(t('profile.friendActionError'));
+    }
+  }
+
+  async function handleDeclineOrCancelRequest(requestId: string) {
+    setFriendActionError(null);
+    try {
+      await declineFriendRequest(requestId);
+      await load();
+    } catch {
+      setFriendActionError(t('profile.friendActionError'));
+    }
+  }
+
+  async function handleRemoveFriend() {
+    setFriendActionError(null);
+    try {
+      await removeFriend(playerId);
+      await load();
+    } catch {
+      setFriendActionError(t('profile.friendActionError'));
+    }
+  }
 
   async function handleSaveBio(event: React.FormEvent) {
     event.preventDefault();
@@ -61,7 +117,10 @@ export default function PlayerProfilePage() {
       {profile && (
         <section className="max-w-xl rounded-lg border border-panelBorder bg-panel p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">{profile.username}</h2>
+            <div className="flex items-center gap-3">
+              <PlayerAvatarFrame avatarKey={profile.selectedAvatarKey} frameKey={profile.selectedFrameKey} className="h-14 w-14 shrink-0" />
+              <h2 className="text-xl font-semibold">{profile.username}</h2>
+            </div>
             <span className="text-xs text-textFaint">{t('dashboard.level')} {profile.level}</span>
           </div>
 
@@ -86,6 +145,70 @@ export default function PlayerProfilePage() {
             </span>
             <span>{t('profile.memberSince')}: {new Date(profile.createdAt).toLocaleDateString()}</span>
           </div>
+
+          {!isOwn && friendship && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              {friendship.status === 'NONE' && (
+                <button
+                  type="button"
+                  onClick={handleSendFriendRequest}
+                  className="rounded-md border border-accent bg-accentBg px-4 py-1.5 text-[11px] uppercase hover:bg-accentBgHover"
+                >
+                  {t('profile.addFriend')}
+                </button>
+              )}
+              {friendship.status === 'PENDING_SENT' && friendship.requestId && (
+                <>
+                  <span className="text-xs text-textFaint">{t('profile.friendRequestSent')}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDeclineOrCancelRequest(friendship.requestId!)}
+                    className="rounded-md border border-wellBorder px-4 py-1.5 text-[11px] uppercase text-textMuted hover:text-text"
+                  >
+                    {t('profile.cancelFriendRequest')}
+                  </button>
+                </>
+              )}
+              {friendship.status === 'PENDING_RECEIVED' && friendship.requestId && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleAcceptFriendRequest(friendship.requestId!)}
+                    className="rounded-md border border-accent bg-accentBg px-4 py-1.5 text-[11px] uppercase hover:bg-accentBgHover"
+                  >
+                    {t('profile.acceptFriendRequest')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeclineOrCancelRequest(friendship.requestId!)}
+                    className="rounded-md border border-wellBorder px-4 py-1.5 text-[11px] uppercase text-textMuted hover:text-text"
+                  >
+                    {t('profile.declineFriendRequest')}
+                  </button>
+                </>
+              )}
+              {friendship.status === 'FRIENDS' && (
+                <>
+                  <Link
+                    href={`/friends/${playerId}`}
+                    className="rounded-md border border-accent bg-accentBg px-4 py-1.5 text-[11px] uppercase hover:bg-accentBgHover"
+                  >
+                    {t('profile.sendMessage')}
+                  </Link>
+                  <ConfirmButton
+                    label={t('profile.removeFriend')}
+                    confirmLabel={t('common.confirm')}
+                    cancelLabel={t('common.cancel')}
+                    onConfirm={handleRemoveFriend}
+                    className="rounded-md border border-wellBorder px-4 py-1.5 text-[11px] uppercase text-textMuted hover:text-danger"
+                    confirmClassName="rounded-md border border-panelBorderDanger bg-well px-4 py-1.5 text-[11px] uppercase text-danger hover:bg-accentBgHover"
+                    cancelClassName="rounded-md border border-wellBorder px-4 py-1.5 text-[11px] uppercase text-textMuted hover:text-text"
+                  />
+                </>
+              )}
+            </div>
+          )}
+          {friendActionError && <p className="mb-4 text-xs text-danger">{friendActionError}</p>}
 
           <div className="rounded-md border border-wellBorder bg-well p-4">
             <div className="mb-2 flex items-center justify-between">

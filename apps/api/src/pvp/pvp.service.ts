@@ -73,6 +73,8 @@ export class PvpService {
       opponentRace: opponent.race,
       opponentLevel: opponent.level,
       opponentClanTag: opponentMembership?.clan.tag ?? null,
+      opponentSelectedAvatarKey: opponent.selectedAvatarKey,
+      opponentSelectedFrameKey: opponent.selectedFrameKey,
       myStats: toStatsDto(myStats),
       opponentStats: toStatsDto(opponentStats),
     };
@@ -230,6 +232,8 @@ function toReportDto(
     opponentId: opponent.id,
     opponentUsername: opponent.username,
     opponentRace: opponent.race,
+    opponentSelectedAvatarKey: opponent.selectedAvatarKey,
+    opponentSelectedFrameKey: opponent.selectedFrameKey,
     outcome: report.outcome,
     rounds,
     attackerMaxHp: report.attackerMaxHp,

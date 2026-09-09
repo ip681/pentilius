@@ -1,13 +1,13 @@
 'use client';
 
-import type { MyClanResponseDto, PlayerProfileDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto, Race } from '@pentilius/shared';
+import type { MyClanResponseDto, PlayerProfileDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
-import { AssetIcon } from '@/components/AssetIcon';
 import { BattleDivider } from '@/components/BattleDivider';
 import { CombatStatsCard } from '@/components/CombatStatsCard';
 import { GameLayout } from '@/components/GameLayout';
 import { LootEntry } from '@/components/LootEntry';
+import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { PlayerLink } from '@/components/PlayerLink';
 import { Link } from '@/i18n/navigation';
 import { ApiError, attackPvpOpponent, getMyClan, getProfile, getPvpReports, getPvpStatus, scoutPvpOpponent } from '@/lib/api-client';
@@ -89,6 +89,17 @@ export default function PvpPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-fetch once, exactly when the next Action Energy point is due, so the
+  // Attack button's disabled state self-corrects without continuous polling
+  // (same pattern as GameLayout's TopBar energy bar).
+  useEffect(() => {
+    if (!profile?.energy.nextRegenAt) return;
+    const delayMs = new Date(profile.energy.nextRegenAt).getTime() - Date.now() + 1000;
+    if (delayMs <= 0) return;
+    const timeout = setTimeout(() => getProfile().then(setProfile).catch(() => undefined), delayMs);
+    return () => clearTimeout(timeout);
+  }, [profile?.energy.nextRegenAt]);
 
   async function handleAttack() {
     if (!scout) return;
@@ -227,7 +238,7 @@ export default function PvpPage() {
                     subtitle={`${t(`race.${profile.race}.name`)} · ${t('pvp.level')} ${profile.level} · ${myClan?.clan ? `[${myClan.clan.tag}]` : '-'}`}
                     stats={scout.myStats}
                     variant="player"
-                    icon={{ assetId: `races.${profile.race.toLowerCase()}.icon`, alt: t(`race.${profile.race}.name`) }}
+                    avatarFrame={{ avatarKey: profile.selectedAvatarKey, frameKey: profile.selectedFrameKey }}
                     showItemBonuses={false}
                   />
                 )}
@@ -237,7 +248,7 @@ export default function PvpPage() {
                   subtitle={`${t(`race.${scout.opponentRace}.name`)} · ${t('pvp.level')} ${scout.opponentLevel} · ${scout.opponentClanTag ? `[${scout.opponentClanTag}]` : '-'}`}
                   stats={scout.opponentStats}
                   variant="enemy"
-                  icon={{ assetId: `races.${scout.opponentRace.toLowerCase()}.icon`, alt: t(`race.${scout.opponentRace}.name`) }}
+                  avatarFrame={{ avatarKey: scout.opponentSelectedAvatarKey, frameKey: scout.opponentSelectedFrameKey }}
                   showItemBonuses={false}
                 />
               </div>
@@ -252,7 +263,9 @@ export default function PvpPage() {
                 <button
                   type="button"
                   onClick={handleAttack}
-                  className="rounded-md border border-accent bg-accentBg px-6 py-2.5 text-xs uppercase hover:bg-accentBgHover"
+                  disabled={(profile?.energy.current ?? 0) < 1}
+                  title={(profile?.energy.current ?? 0) < 1 ? t('pvp.notEnoughEnergy') : undefined}
+                  className="rounded-md border border-accent bg-accentBg px-6 py-2.5 text-xs uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-accentBg"
                 >
                   {t('pvp.attack')}
                 </button>
@@ -276,7 +289,14 @@ export default function PvpPage() {
       {battle && (
         <>
           <section className="mb-6 grid grid-cols-[1fr_auto_1fr] items-stretch gap-1.5 sm:gap-5">
-            <FighterPanel name={myName} hp={battle.youHp} maxHp={battle.report.attackerMaxHp} variant="player" race={profile?.race} />
+            <FighterPanel
+              name={myName}
+              hp={battle.youHp}
+              maxHp={battle.report.attackerMaxHp}
+              variant="player"
+              avatarKey={profile?.selectedAvatarKey}
+              frameKey={profile?.selectedFrameKey}
+            />
 
             <BattleDivider round={battle.round} />
 
@@ -285,7 +305,8 @@ export default function PvpPage() {
               hp={battle.opponentHp}
               maxHp={battle.report.defenderMaxHp}
               variant="enemy"
-              race={battle.report.opponentRace}
+              avatarKey={battle.report.opponentSelectedAvatarKey}
+              frameKey={battle.report.opponentSelectedFrameKey}
             />
           </section>
 
@@ -339,31 +360,23 @@ function FighterPanel({
   hp,
   maxHp,
   variant,
-  race,
+  avatarKey,
+  frameKey,
 }: {
   name: React.ReactNode;
   hp: number;
   maxHp: number;
   variant: 'player' | 'enemy';
-  race?: Race;
+  avatarKey?: string;
+  frameKey?: string;
 }) {
   const t = useTranslations();
   const percent = maxHp > 0 ? Math.max(0, (hp / maxHp) * 100) : 0;
-  const fallbackLetter = <span className="text-base font-semibold text-textMuted sm:text-2xl">?</span>;
   return (
     <div className={`min-w-0 rounded-lg border p-2 sm:p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
       <div className="mb-2 truncate text-[11px] font-semibold sm:mb-4 sm:text-base">{name}</div>
-      <div className="mb-2 flex h-14 items-center justify-center rounded-full bg-gradient-to-b from-wellBorder/50 to-transparent sm:mb-4 sm:h-[100px]">
-        {race ? (
-          <AssetIcon
-            assetId={`races.${race.toLowerCase()}.icon`}
-            alt={t(`race.${race}.name`)}
-            className="h-full w-auto object-contain"
-            fallback={<span className="text-base font-semibold text-textMuted sm:text-2xl">{t(`race.${race}.name`).charAt(0)}</span>}
-          />
-        ) : (
-          fallbackLetter
-        )}
+      <div className="mb-2 flex h-14 items-center justify-center sm:mb-4 sm:h-[100px]">
+        <PlayerAvatarFrame avatarKey={avatarKey ?? null} frameKey={frameKey ?? null} className="h-full w-full" />
       </div>
       <div className="mb-1 flex justify-between text-[9px] text-textMuted sm:mb-1.5 sm:text-[11px]">
         <span>{t('robot.stat.hp')}</span>

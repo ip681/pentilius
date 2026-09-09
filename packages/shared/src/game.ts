@@ -36,6 +36,29 @@ export interface PlayerProfileDto {
   energy: EnergyDto;
   // Null until the player saves a choice in Settings.
   preferredLocale: string | null;
+  // Cosmetic profile picture (owner decision, 2026-09-09) — defaults to
+  // "avatar1"/"frame1" for every account, freely replaceable in Settings.
+  // Keys, not asset ids: the frontend builds "avatars.<key>.icon" /
+  // "frames.<key>.icon" itself, same convention as race.
+  selectedAvatarKey: string;
+  selectedFrameKey: string;
+}
+
+export interface AvatarDto {
+  key: string;
+  nameKey: string;
+  iconAssetId: string;
+}
+
+export interface FrameDto {
+  key: string;
+  nameKey: string;
+  iconAssetId: string;
+}
+
+export interface CosmeticsCatalogDto {
+  avatars: AvatarDto[];
+  frames: FrameDto[];
 }
 
 export interface PublicProfileClanDto {
@@ -62,6 +85,8 @@ export interface PlayerPublicProfileDto {
   bio: string | null;
   createdAt: string;
   clan: PublicProfileClanDto | null;
+  selectedAvatarKey: string;
+  selectedFrameKey: string;
 }
 
 export interface BuildingCostDto {
@@ -226,6 +251,10 @@ export interface InventoryItemDto {
   sellValue: SellValueDto | null;
   // Null for CONSUMABLE items. Always populated for EQUIPMENT, mirroring sellValue.
   recycleValue: RecycleValueDto | null;
+  // True while an ACTIVE Market listing exists for this instance — equip/
+  // sell/recycle/upgrade all block on this, and the UI should show a
+  // "Listed" state instead of the usual actions.
+  listedForSale: boolean;
 }
 
 export interface InventoryResponseDto {
@@ -483,6 +512,8 @@ export interface PvpScoutDto {
   opponentRace: Race;
   opponentLevel: number;
   opponentClanTag: string | null;
+  opponentSelectedAvatarKey: string;
+  opponentSelectedFrameKey: string;
   myStats: CombatStatsDto;
   opponentStats: CombatStatsDto;
 }
@@ -493,6 +524,8 @@ export interface PvpBattleReportDto {
   opponentId: string;
   opponentUsername: string;
   opponentRace: Race;
+  opponentSelectedAvatarKey: string;
+  opponentSelectedFrameKey: string;
   outcome: BattleOutcome;
   rounds: CombatRoundDto[];
   attackerMaxHp: number;
@@ -576,5 +609,80 @@ export interface ClanMessageDto {
   playerId: string;
   username: string;
   text: string;
+  createdAt: string;
+}
+
+// Friends list (owner decision, 2026-09-09) — step one toward friends-only
+// messaging later; no messaging DTOs yet.
+export type FriendshipStatusValue = 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'FRIENDS';
+
+export interface FriendshipStatusDto {
+  status: FriendshipStatusValue;
+  // Set when status is PENDING_SENT/PENDING_RECEIVED, so a profile page can
+  // accept/decline/cancel directly without a separate lookup.
+  requestId: string | null;
+}
+
+export interface FriendDto {
+  id: string;
+  username: string;
+  race: Race;
+  level: number;
+}
+
+export interface FriendRequestDto {
+  id: string;
+  playerId: string;
+  username: string;
+  race: Race;
+  level: number;
+  createdAt: string;
+}
+
+export interface FriendRequestsDto {
+  incoming: FriendRequestDto[];
+  outgoing: FriendRequestDto[];
+}
+
+// 1:1 friends-only messaging (owner decision, 2026-09-10). `senderId` is
+// enough to tell which side authored it — both participants are already
+// known from the conversation being fetched (the viewer and the friend).
+export interface DirectMessageDto {
+  id: string;
+  senderId: string;
+  text: string;
+  createdAt: string;
+}
+
+// Player-to-player market (owner decision, 2026-09-10) — instructions/GAME_SYSTEMS.md's
+// LOCKED "Trading and auction" direction. Equipment only for now; no listing
+// fee; listings never expire on their own.
+export interface MarketPriceDto {
+  metal: number;
+  crystal: number;
+  credits: number;
+}
+
+export interface MarketListingDto {
+  id: string;
+  sellerId: string;
+  sellerUsername: string;
+  itemInstanceId: string;
+  itemDefinitionKey: string;
+  nameKey: string;
+  iconAssetId: string;
+  tier: ItemTier;
+  quality: ItemQuality;
+  upgradeLevel: number;
+  maxUpgradeLevel: number;
+  currentStats: ItemStatsDto | null;
+  slot: EquipmentSlot;
+  rolledOptions: ItemOption[];
+  race: Race | null;
+  price: MarketPriceDto;
+  // Visibility restriction (owner decision, 2026-09-10) — both false means
+  // public. Both true means visible to clanmates OR friends (union).
+  visibleToClanOnly: boolean;
+  visibleToFriendsOnly: boolean;
   createdAt: string;
 }

@@ -8,6 +8,7 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { BattleDivider } from '@/components/BattleDivider';
 import { GameLayout } from '@/components/GameLayout';
 import { LootEntry } from '@/components/LootEntry';
+import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import { attackPentili, getPentiliInZone, getProfile } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
@@ -97,6 +98,17 @@ export default function ZonePentiliPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoneId]);
+
+  // Re-fetch once, exactly when the next Action Energy point is due, so the
+  // Attack button's disabled state self-corrects without continuous polling
+  // (same pattern as GameLayout's TopBar energy bar).
+  useEffect(() => {
+    if (!profile?.energy.nextRegenAt) return;
+    const delayMs = new Date(profile.energy.nextRegenAt).getTime() - Date.now() + 1000;
+    if (delayMs <= 0) return;
+    const timeout = setTimeout(() => getProfile().then(setProfile).catch(() => undefined), delayMs);
+    return () => clearTimeout(timeout);
+  }, [profile?.energy.nextRegenAt]);
 
   async function handleAttack(target: PentiliDto) {
     setError(null);
@@ -194,7 +206,8 @@ export default function ZonePentiliPage() {
               hp={battle.playerHp}
               maxHp={battle.report.playerMaxHp}
               variant="player"
-              iconAssetId={profile?.race ? `races.${profile.race.toLowerCase()}.icon` : undefined}
+              avatarKey={profile?.selectedAvatarKey}
+              frameKey={profile?.selectedFrameKey}
             />
 
             <BattleDivider round={battle.round} />
@@ -254,7 +267,9 @@ export default function ZonePentiliPage() {
               <button
                 type="button"
                 onClick={() => handleAttack(entry)}
-                className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover"
+                disabled={(profile?.energy.current ?? 0) < 1}
+                title={(profile?.energy.current ?? 0) < 1 ? t('pve.notEnoughEnergy') : undefined}
+                className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-accentBg"
               >
                 {t('pve.attack')}
               </button>
@@ -272,28 +287,40 @@ function FighterPanel({
   maxHp,
   variant,
   iconAssetId,
+  avatarKey,
+  frameKey,
 }: {
   name: string;
   hp: number;
   maxHp: number;
   variant: 'player' | 'enemy';
+  // Pentili side: a plain icon. Player side: their chosen avatar/frame (owner
+  // decision, 2026-09-09) — takes precedence when given.
   iconAssetId?: string;
+  avatarKey?: string;
+  frameKey?: string;
 }) {
   const t = useTranslations();
   const percent = maxHp > 0 ? Math.max(0, (hp / maxHp) * 100) : 0;
   return (
     <div className={`min-w-0 rounded-lg border p-2 sm:p-5 ${variant === 'enemy' ? 'border-panelBorderDanger' : 'border-panelBorder'} bg-panel`}>
       <div className="mb-2 truncate text-[11px] font-semibold sm:mb-4 sm:text-base">{name}</div>
-      <div className="mb-2 flex h-14 items-center justify-center rounded-full bg-gradient-to-b from-wellBorder/50 to-transparent sm:mb-4 sm:h-[100px]">
-        {iconAssetId ? (
-          <AssetIcon
-            assetId={iconAssetId}
-            alt={name}
-            className="h-full w-auto object-contain"
-            fallback={<span className="text-base font-semibold text-textMuted sm:text-2xl">{name.charAt(0)}</span>}
-          />
+      <div className="mb-2 flex h-14 items-center justify-center sm:mb-4 sm:h-[100px]">
+        {avatarKey || frameKey ? (
+          <PlayerAvatarFrame avatarKey={avatarKey ?? null} frameKey={frameKey ?? null} className="h-full w-full" />
         ) : (
-          <span className="text-base font-semibold text-textMuted sm:text-2xl">{name.charAt(0)}</span>
+          <div className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-b from-wellBorder/50 to-transparent">
+            {iconAssetId ? (
+              <AssetIcon
+                assetId={iconAssetId}
+                alt={name}
+                className="h-full w-auto object-contain"
+                fallback={<span className="text-base font-semibold text-textMuted sm:text-2xl">{name.charAt(0)}</span>}
+              />
+            ) : (
+              <span className="text-base font-semibold text-textMuted sm:text-2xl">{name.charAt(0)}</span>
+            )}
+          </div>
         )}
       </div>
       <div className="mb-1 flex justify-between text-[9px] text-textMuted sm:mb-1.5 sm:text-[11px]">

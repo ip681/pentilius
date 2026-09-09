@@ -526,6 +526,22 @@ async function main() {
     });
   }
 
+  // Selectable profile-picture cosmetics (owner decision, 2026-09-09) — all 6
+  // of each are free to pick for now; some may require unlocking later, not
+  // built yet. See apps/web/public/assets/avatars/ and .../frames/.
+  await Promise.all(
+    [1, 2, 3, 4, 5, 6].map((n) => {
+      const data = { key: `avatar${n}`, nameKey: `avatars.avatar${n}.name`, iconAssetId: `avatars.avatar${n}.icon` };
+      return prisma.avatarDefinition.upsert({ where: { key: data.key }, update: data, create: data });
+    }),
+  );
+  await Promise.all(
+    [1, 2, 3, 4, 5, 6].map((n) => {
+      const data = { key: `frame${n}`, nameKey: `frames.frame${n}.name`, iconAssetId: `frames.frame${n}.icon` };
+      return prisma.frameDefinition.upsert({ where: { key: data.key }, update: data, create: data });
+    }),
+  );
+
   console.log('Seeded Milestone 1-2 static content.');
 }
 

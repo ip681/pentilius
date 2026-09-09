@@ -142,6 +142,16 @@ model Player {
   // wired into the formula in a later phase.
   baseEvasion              Int @default(0)
 
+  // Cosmetic profile picture — shown above everything on the Robot page and
+  // on the public profile. Loose key references (not a relation) — validated
+  // against AvatarDefinition/FrameDefinition.key at write time, same style as
+  // other key-based references in this schema. Defaults to avatar1/frame1
+  // (owner decision, 2026-09-09) rather than nothing — still just a starting
+  // pick, freely replaceable in Settings. All 6 initial avatars/frames are
+  // free to pick for now — some may require unlocking later, not built yet.
+  selectedAvatarKey String @default("avatar1")
+  selectedFrameKey  String @default("frame1")
+
   buildings              PlayerBuilding[]
   items                  ItemInstance[]
   battleReports          BattleReport[]
@@ -152,8 +162,79 @@ model Player {
   pvpDefenses            PvpBattleReport[] @relation("PvpDefenses")
   clanMembership         ClanMembership?
   clanMessages           ClanMessage[]
+  friendRequestsSent     Friendship[] @relation("FriendRequestsSent")
+  friendRequestsReceived Friendship[] @relation("FriendRequestsReceived")
+  directMessagesSent     DirectMessage[] @relation("DirectMessagesSent")
+  directMessagesReceived DirectMessage[] @relation("DirectMessagesReceived")
+  marketListingsSold     MarketListing[] @relation("MarketListingsSold")
+  marketListingsBought   MarketListing[] @relation("MarketListingsBought")
 
   @@map("players")
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+}
+
+// Friends list (owner decision, 2026-09-09) — step one toward friends-only
+// messaging later; deliberately no messaging model yet. One row per pair,
+// direction-agnostic once ACCEPTED — @@unique only blocks an exact duplicate
+// resend in the same direction, so the service layer must also check the
+// reverse direction before creating a new request.
+model Friendship {
+  id          String           @id @default(uuid())
+  requesterId String
+  addresseeId String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
+  requester Player @relation("FriendRequestsSent", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee Player @relation("FriendRequestsReceived", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@map("friendships")
+}
+
+// 1:1 messaging, friends-only (owner decision, 2026-09-10) — mutual consent
+// via Friendship is what makes this safe from the unwanted-message problem
+// that ruled out an open chat earlier. Same limits as ClanMessage
+// (GAME_BALANCE.directMessages, kept as its own tunable block even though the
+// values currently match), plain text only, no formatting/attachments/edit/delete.
+model DirectMessage {
+  id          String   @id @default(uuid())
+  senderId    String
+  recipientId String
+  text        String
+  createdAt   DateTime @default(now())
+
+  sender    Player @relation("DirectMessagesSent", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient Player @relation("DirectMessagesReceived", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@map("direct_messages")
+}
+
+// Selectable profile-picture cosmetics (owner decision, 2026-09-09) — a
+// player picks one of each, shown layered (avatar under frame, both drawn on
+// the same fixed canvas so they align without per-image scaling — see
+// apps/web/public/assets/avatars/ and .../frames/). Referenced from Player by
+// key, not id — see Player.selectedAvatarKey/selectedFrameKey.
+model AvatarDefinition {
+  id          String @id @default(uuid())
+  key         String @unique
+  nameKey     String
+  iconAssetId String
+
+  @@map("avatar_definitions")
+}
+
+model FrameDefinition {
+  id          String @id @default(uuid())
+  key         String @unique
+  nameKey     String
+  iconAssetId String
+
+  @@map("frame_definitions")
 }
 
 model Zone {
@@ -335,11 +416,58 @@ model ItemInstance {
   // separate, unused ItemDefinition.race above.
   race             Race?
   acquiredAt       DateTime       @default(now())
+  // Set while an ACTIVE MarketListing exists for this instance — equip/sell/
+  // recycle/upgrade all check this so a listed item can't be touched out from
+  // under a pending sale. Not a relation/unique constraint on purpose: it's
+  // one flag to check everywhere else, not a second source of truth to join.
+  listedForSale    Boolean        @default(false)
 
-  player         Player         @relation(fields: [playerId], references: [id])
-  itemDefinition ItemDefinition @relation(fields: [itemDefinitionId], references: [id])
+  player         Player          @relation(fields: [playerId], references: [id])
+  itemDefinition ItemDefinition  @relation(fields: [itemDefinitionId], references: [id])
+  marketListings MarketListing[]
 
   @@map("item_instances")
+}
+
+enum MarketListingStatus {
+  ACTIVE
+  SOLD
+  CANCELLED
+}
+
+// Player-to-player market (owner decision, 2026-09-10) — the LOCKED "Trading
+// and auction" direction from instructions/GAME_SYSTEMS.md, finally built.
+// Owner-specified: no listing fee, listings never expire (only removed by
+// sale or cancellation), max concurrent ACTIVE listings per player is
+// GAME_BALANCE.market.maxActiveListingsPerPlayer. Equipment only for now
+// (quantity always 1, no stack-splitting) — consumables may follow later.
+// The only anti-self-trading guard right now is buyerId !== sellerId,
+// enforced in the service — IP/device heuristics were discussed and
+// deliberately deferred.
+model MarketListing {
+  id             String              @id @default(uuid())
+  sellerId       String
+  itemInstanceId String
+  priceMetal     Int                 @default(0)
+  priceCrystal   Int                 @default(0)
+  priceCredits   Int                 @default(0)
+  status         MarketListingStatus @default(ACTIVE)
+  createdAt      DateTime            @default(now())
+  resolvedAt     DateTime?
+  buyerId        String?
+  // Visibility restriction (owner decision, 2026-09-10) — both false (default)
+  // means public, same as before. When either is set, the listing is hidden
+  // entirely from everyone else's browse view, not just unbuyable. Checking
+  // BOTH means visible to clanmates OR friends (union), not an intersection.
+  // Membership/friendship is checked live at browse time, not snapshotted.
+  visibleToClanOnly    Boolean @default(false)
+  visibleToFriendsOnly Boolean @default(false)
+
+  seller       Player       @relation("MarketListingsSold", fields: [sellerId], references: [id], onDelete: Cascade)
+  buyer        Player?      @relation("MarketListingsBought", fields: [buyerId], references: [id], onDelete: SetNull)
+  itemInstance ItemInstance @relation(fields: [itemInstanceId], references: [id], onDelete: Cascade)
+
+  @@map("market_listings")
 }
 
 model BattleReport {

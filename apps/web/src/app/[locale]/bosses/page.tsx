@@ -1,11 +1,11 @@
 'use client';
 
-import type { BossDto, BossEncounterResultDto } from '@pentilius/shared';
+import type { BossDto, BossEncounterResultDto, PlayerProfileDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
 import { LootEntry } from '@/components/LootEntry';
-import { getBosses, joinBossEncounter, resolveBossEncounter } from '@/lib/api-client';
+import { getBosses, getProfile, joinBossEncounter, resolveBossEncounter } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -32,13 +32,16 @@ export default function BossesPage() {
   useRequireAuth();
   const t = useTranslations();
   const [data, setData] = useState<BossDto[] | null>(null);
+  const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function load() {
     try {
-      setData(await getBosses());
+      const [bosses, profileRes] = await Promise.all([getBosses(), getProfile()]);
+      setData(bosses);
+      setProfile(profileRes);
     } catch {
       setError(t('bosses.loadError'));
     }
@@ -294,8 +297,9 @@ export default function BossesPage() {
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          disabled={isOpen && isParticipant}
+                          disabled={(isOpen && isParticipant) || (profile?.energy.current ?? 0) < 1}
                           onClick={() => handleJoin(boss.key)}
+                          title={!isParticipant && (profile?.energy.current ?? 0) < 1 ? t('bosses.notEnoughEnergy') : undefined}
                           className="flex-1 rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                         >
                           {isOpen && isParticipant ? t('bosses.joined') : t('bosses.join')}

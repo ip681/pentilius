@@ -6,7 +6,9 @@ import { BossModule } from './boss/boss.module';
 import { ClansModule } from './clans/clans.module';
 import configuration from './config/configuration';
 import { ExpeditionsModule } from './expeditions/expeditions.module';
+import { FriendsModule } from './friends/friends.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { MarketModule } from './market/market.module';
 import { PlayerModule } from './player/player.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PveModule } from './pve/pve.module';
@@ -35,6 +37,8 @@ import { ZonesModule } from './zones/zones.module';
     ClansModule,
     ReportsModule,
     ShopModule,
+    FriendsModule,
+    MarketModule,
   ],
 })
 export class AppModule {}

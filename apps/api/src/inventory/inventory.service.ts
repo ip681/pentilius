@@ -64,6 +64,9 @@ export class InventoryService {
       if (item.itemDefinition.category !== 'EQUIPMENT') {
         throw new BadRequestException('ITEM_NOT_EQUIPMENT');
       }
+      if (item.listedForSale) {
+        throw new BadRequestException('ITEM_LISTED');
+      }
       if (item.upgradeLevel >= item.itemDefinition.maxUpgradeLevel) {
         throw new BadRequestException('Item is already at max upgrade level');
       }
@@ -110,6 +113,9 @@ export class InventoryService {
       if (item.equippedSlot !== null) {
         throw new BadRequestException('ITEM_EQUIPPED');
       }
+      if (item.listedForSale) {
+        throw new BadRequestException('ITEM_LISTED');
+      }
 
       const { metal, crystal } = computeSellValue(item.itemDefinition.tier!, item.quality);
       await tx.player.update({ where: { id: playerId }, data: { metal: { increment: metal }, crystal: { increment: crystal } } });
@@ -136,6 +142,9 @@ export class InventoryService {
       }
       if (item.equippedSlot !== null) {
         throw new BadRequestException('ITEM_EQUIPPED');
+      }
+      if (item.listedForSale) {
+        throw new BadRequestException('ITEM_LISTED');
       }
 
       const tier = item.itemDefinition.tier!;
@@ -307,11 +316,12 @@ function toInventoryItemDto(
     upgradeCost: isEquipment && !atMaxLevel && item.itemDefinition.tier ? computeUpgradeCost(item.itemDefinition.tier, item.upgradeLevel) : null,
     sellValue: isEquipment && item.itemDefinition.tier ? computeSellValue(item.itemDefinition.tier, item.quality) : null,
     recycleValue: isEquipment && item.itemDefinition.tier ? computeRecycleValue(item.itemDefinition.tier, ownedFragmentsByTier) : null,
+    listedForSale: item.listedForSale,
   };
 }
 
 /** This item's own effective attack/defense/hp contribution at the given upgrade level. */
-function computeItemStats(baseStats: { attack?: number; defense?: number; hp?: number }, upgradeLevel: number): ItemStatsDto {
+export function computeItemStats(baseStats: { attack?: number; defense?: number; hp?: number }, upgradeLevel: number): ItemStatsDto {
   const multiplier = 1 + upgradeLevel * GAME_BALANCE.combat.bonusPerUpgradeLevel;
   const stats: ItemStatsDto = {};
   if (baseStats.attack) stats.attack = roundToOneDecimal(baseStats.attack * multiplier);

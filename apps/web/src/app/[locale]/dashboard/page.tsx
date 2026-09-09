@@ -163,12 +163,9 @@ export default function DashboardPage() {
 
   return (
     <GameLayout>
-      <div className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{t('dashboard.title')}</h1>
-          <p className="text-xs text-textMuted">{t('dashboard.subtitle')}</p>
-        </div>
-        <div className="text-xs uppercase tracking-wide text-positive">● {t('dashboard.status')}</div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">{t('dashboard.title')}</h1>
+        <p className="text-xs text-textMuted">{t('dashboard.subtitle')}</p>
       </div>
 
       <div className="mb-6">

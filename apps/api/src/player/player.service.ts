@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PlayerListEntryDto, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
+import { CosmeticsCatalogDto, PlayerListEntryDto, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
 import { Race } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { GAME_BALANCE } from '../config/game-config';
@@ -42,7 +42,35 @@ export class PlayerService {
             : null,
       },
       preferredLocale: player.preferredLocale,
+      selectedAvatarKey: player.selectedAvatarKey,
+      selectedFrameKey: player.selectedFrameKey,
     };
+  }
+
+  async getCosmeticsCatalog(): Promise<CosmeticsCatalogDto> {
+    const [avatars, frames] = await Promise.all([this.prisma.avatarDefinition.findMany(), this.prisma.frameDefinition.findMany()]);
+    return {
+      avatars: avatars.map((a) => ({ key: a.key, nameKey: a.nameKey, iconAssetId: a.iconAssetId })),
+      frames: frames.map((f) => ({ key: f.key, nameKey: f.nameKey, iconAssetId: f.iconAssetId })),
+    };
+  }
+
+  async updateAvatar(playerId: string, avatarKey: string): Promise<PlayerProfileDto> {
+    const exists = await this.prisma.avatarDefinition.findUnique({ where: { key: avatarKey } });
+    if (!exists) {
+      throw new BadRequestException('UNKNOWN_AVATAR');
+    }
+    await this.prisma.player.update({ where: { id: playerId }, data: { selectedAvatarKey: avatarKey } });
+    return this.getProfile(playerId);
+  }
+
+  async updateFrame(playerId: string, frameKey: string): Promise<PlayerProfileDto> {
+    const exists = await this.prisma.frameDefinition.findUnique({ where: { key: frameKey } });
+    if (!exists) {
+      throw new BadRequestException('UNKNOWN_FRAME');
+    }
+    await this.prisma.player.update({ where: { id: playerId }, data: { selectedFrameKey: frameKey } });
+    return this.getProfile(playerId);
   }
 
   async changePassword(playerId: string, currentPassword: string, newPassword: string): Promise<void> {
@@ -81,6 +109,8 @@ export class PlayerService {
       clan: player.clanMembership
         ? { id: player.clanMembership.clan.id, name: player.clanMembership.clan.name, tag: player.clanMembership.clan.tag, role: player.clanMembership.role }
         : null,
+      selectedAvatarKey: player.selectedAvatarKey,
+      selectedFrameKey: player.selectedFrameKey,
     };
   }
 

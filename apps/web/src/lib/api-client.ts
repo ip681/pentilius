@@ -13,10 +13,16 @@ import type {
   ClanSummaryDto,
   CombatReportDto,
   CombatStatsDto,
+  CosmeticsCatalogDto,
+  DirectMessageDto,
   ExpeditionClaimResultDto,
   ExpeditionsResponseDto,
+  FriendDto,
+  FriendRequestsDto,
+  FriendshipStatusDto,
   InventoryResponseDto,
   LoginRequest,
+  MarketListingDto,
   MyClanResponseDto,
   PentiliDto,
   PlayerListEntryDto,
@@ -165,12 +171,61 @@ export function updatePreferredLocale(locale: string): Promise<PlayerProfileDto>
   return request<PlayerProfileDto>('/player/me/locale', { method: 'POST', auth: true, body: { locale } });
 }
 
+export function getCosmeticsCatalog(): Promise<CosmeticsCatalogDto> {
+  return request<CosmeticsCatalogDto>('/player/cosmetics', { auth: true });
+}
+
+export function updateAvatar(avatarKey: string): Promise<PlayerProfileDto> {
+  return request<PlayerProfileDto>('/player/me/avatar', { method: 'POST', auth: true, body: { avatarKey } });
+}
+
+export function updateFrame(frameKey: string): Promise<PlayerProfileDto> {
+  return request<PlayerProfileDto>('/player/me/frame', { method: 'POST', auth: true, body: { frameKey } });
+}
+
 export function listPlayers(filter: { race?: Race; search?: string } = {}): Promise<PlayerListEntryDto[]> {
   const params = new URLSearchParams();
   if (filter.race) params.set('race', filter.race);
   if (filter.search) params.set('search', filter.search);
   const query = params.toString();
   return request<PlayerListEntryDto[]>(`/player${query ? `?${query}` : ''}`, { auth: true });
+}
+
+// Friends
+export function getFriends(): Promise<FriendDto[]> {
+  return request<FriendDto[]>('/friends', { auth: true });
+}
+
+export function getFriendRequests(): Promise<FriendRequestsDto> {
+  return request<FriendRequestsDto>('/friends/requests', { auth: true });
+}
+
+export function getFriendshipStatus(playerId: string): Promise<FriendshipStatusDto> {
+  return request<FriendshipStatusDto>(`/friends/status/${playerId}`, { auth: true });
+}
+
+export function sendFriendRequest(playerId: string): Promise<void> {
+  return request<void>('/friends/request', { method: 'POST', auth: true, body: { playerId } });
+}
+
+export function acceptFriendRequest(requestId: string): Promise<void> {
+  return request<void>(`/friends/accept/${requestId}`, { method: 'POST', auth: true });
+}
+
+export function declineFriendRequest(requestId: string): Promise<void> {
+  return request<void>(`/friends/decline/${requestId}`, { method: 'POST', auth: true });
+}
+
+export function removeFriend(playerId: string): Promise<void> {
+  return request<void>(`/friends/remove/${playerId}`, { method: 'POST', auth: true });
+}
+
+export function getConversation(friendId: string): Promise<DirectMessageDto[]> {
+  return request<DirectMessageDto[]>(`/friends/messages/${friendId}`, { auth: true });
+}
+
+export function sendDirectMessage(friendId: string, text: string): Promise<DirectMessageDto> {
+  return request<DirectMessageDto>(`/friends/messages/${friendId}`, { method: 'POST', auth: true, body: { text } });
 }
 
 // Base / buildings
@@ -239,6 +294,31 @@ export function getShop(): Promise<ShopResponseDto> {
 
 export function buyItem(itemDefinitionKey: string): Promise<void> {
   return request<void>(`/shop/${itemDefinitionKey}/buy`, { method: 'POST', auth: true });
+}
+
+// Market
+export function getMarketListings(): Promise<MarketListingDto[]> {
+  return request<MarketListingDto[]>('/market', { auth: true });
+}
+
+export function getMyMarketListings(): Promise<MarketListingDto[]> {
+  return request<MarketListingDto[]>('/market/mine', { auth: true });
+}
+
+export function createMarketListing(
+  itemInstanceId: string,
+  price: { priceMetal: number; priceCrystal: number; priceCredits: number },
+  visibility: { visibleToClanOnly: boolean; visibleToFriendsOnly: boolean },
+): Promise<MarketListingDto> {
+  return request<MarketListingDto>('/market/listings', { method: 'POST', auth: true, body: { itemInstanceId, ...price, ...visibility } });
+}
+
+export function cancelMarketListing(listingId: string): Promise<void> {
+  return request<void>(`/market/listings/${listingId}/cancel`, { method: 'POST', auth: true });
+}
+
+export function buyMarketListing(listingId: string): Promise<void> {
+  return request<void>(`/market/listings/${listingId}/buy`, { method: 'POST', auth: true });
 }
 
 // Zones / Pentili

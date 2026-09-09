@@ -97,6 +97,39 @@ every one can be retuned without touching application code:
 - boss timers
 - contribution calculation
 
+## Notifications
+`instructions/GAME_SYSTEMS.md`'s Notifications section is LOCKED only for the
+Action Energy case ("notify when fully regenerated") and explicitly leaves
+"other notifications may be added later" open. These are that "later,"
+discussed but deferred (2026-09-10):
+- Friends chat: a dot next to a friend's name in the conversation list when
+  they have an unread message, and the list sorted by most recent
+  conversation activity instead of a fixed order. Needs a real read/unread
+  tracking mechanism first — there's currently no concept of a message being
+  "read" at all (no schema for it yet).
+- Two separate small badges on the "Friends" nav button (Sidebar/BottomNav/
+  Command Center Quick Access) — one for pending incoming friend requests
+  (already cheap to count, no new schema needed), one for unread messages
+  (needs the same read-tracking mechanism above). Deliberately two distinct
+  indicators, not one combined count, since they're different notification
+  types.
+- A Command Center notification when there's a pending friend request or
+  unread message — exact presentation still undecided: a small dismissable
+  banner near the top of the page (where the old "systems operating
+  normally" line used to be) vs. just badging the existing "Friends" Quick
+  Access tile. Whichever is chosen should reuse the same underlying counts as
+  the nav badges above, not a separate calculation.
+- A notification when someone buys one of your Market listings — not
+  designed at all yet (banner? nav badge? something else?).
+
+## Daily tasks/events
+`instructions/GAME_SYSTEMS.md` has this as LOCKED direction (tasks exist, may
+unlock sequentially, repeated-action milestones may grant rewards, timed
+events use participation windows rather than one exact login time) but no
+specifics exist yet. Owner wants to think this through properly later
+(2026-09-10) — the actual task list, unlock sequencing, exact reward values,
+and how a "daily" reset lines up against server time are all still open.
+
 ## Seasons/Core
 - season length
 - Core unlock condition

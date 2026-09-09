@@ -179,6 +179,21 @@ export const GAME_BALANCE = {
     minSecondsBetweenMessages: 2,
     historyLimit: 200,
   },
+  directMessages: {
+    // Owner decision (2026-09-10): friends-only 1:1 messaging, same limits as
+    // clanChat for now — kept as its own block (not reused from clanChat) so
+    // the two can be tuned independently later.
+    maxMessageLength: 500,
+    minSecondsBetweenMessages: 2,
+    historyLimit: 200,
+  },
+  market: {
+    // Owner decisions (2026-09-10): no listing fee, listings never expire
+    // (only removed by sale or cancellation), max concurrent ACTIVE listings
+    // per player is a flat 5 for now — revisit once real usage data exists.
+    // Equipment only for now (see MarketListing's schema comment).
+    maxActiveListingsPerPlayer: 5,
+  },
 } as const;
 
 /** Attribute points awarded for reaching the given level (see GAME_BALANCE.robotAttributes). */
