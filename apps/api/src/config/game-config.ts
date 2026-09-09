@@ -108,21 +108,28 @@ export const GAME_BALANCE = {
     // Player.attributePointsAvailable's DB default; keep both in sync.
     startingPoints: 20,
     // points(level) = round(basePointsPerLevel * (1 + pointsGrowthRate)^(level-1))
+    // Owner decision (2026-09-09): flat, no compounding growth — every level
+    // grants the same 3 points, no matter how high. Was 0.15 growth/level.
     basePointsPerLevel: 3,
-    pointsGrowthRate: 0.15,
+    pointsGrowthRate: 0,
     // cost(rank) = round(baseAttributeCost * (1 + attributeCostGrowthRate)^rank)
-    // — cost resets per stat, so spreading points across stats is cheaper
-    // than dumping everything into one (an accepted side-effect, not a bug).
+    // Owner decision (2026-09-09): flat cost too — every point costs 1,
+    // forever, regardless of how many are already in that stat. Was 0.2
+    // growth/rank, which made spreading points across stats cheaper than
+    // stacking one — that soft-cap is intentionally gone now. If this proves
+    // too easy, the planned fix is a full attribute respec (not reintroducing
+    // growth silently), see instructions/OPEN_DECISIONS.md.
     baseAttributeCost: 1,
-    attributeCostGrowthRate: 0.2,
+    attributeCostGrowthRate: 0,
     // How much each spent point contributes to the real combat stat.
     damagePointValue: 2,
     defensePointValue: 1,
     hpPointValue: 5,
     // Evasion: personal chance to fully dodge an incoming attack (0 damage
     // that round) — self-contained, not compared against any opponent stat.
-    // Owner-specified: 0.5% per point, hard-capped at 20% (rank 40). The
-    // exponential attributeCostGrowthRate above is a natural soft-cap on top.
+    // Owner-specified: 0.5% per point, hard-capped at 20% (rank 40) — this
+    // hard cap is unaffected by the cost-growth removal above, still the
+    // only ceiling on evasion now that cost no longer soft-caps it.
     evasionPointValue: 0.5,
     maxEvasionPercent: 20,
   },

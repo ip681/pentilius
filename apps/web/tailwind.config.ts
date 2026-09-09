@@ -29,6 +29,14 @@ const config: Config = {
         // Action Energy bar fill — a distinct cyan so it's never confused with
         // HP (positive/danger) or the XP bar (gold) at a glance.
         energy: '#5ec8d8',
+        // Per-race brand colors (instructions/PRODUCT_SPEC.md's 5 races), matched
+        // to each race's icon art — used at low opacity as an inventory slot's
+        // background tint for a race-locked item, never at full strength.
+        raceLuxari: '#3d8bff',
+        raceVorlun: '#4caf50',
+        raceZaryth: '#9b5de5',
+        raceThalion: '#d4af37',
+        raceNexar: '#c0392b',
       },
     },
   },

@@ -101,8 +101,12 @@ export interface EquippedItemDto {
   itemInstanceId: string;
   itemDefinitionKey: string;
   nameKey: string;
+  descriptionKey: string;
   iconAssetId: string;
   upgradeLevel: number;
+  quality: ItemQuality;
+  // Set only for a race-locked instance (see InventoryItemDto.race) — null for universal items.
+  race: Race | null;
 }
 
 export interface RobotSlotDto {

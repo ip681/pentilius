@@ -117,7 +117,7 @@ describe('EconomyService', () => {
       expect(prisma.player.update.mock.calls[0][0].data.attributePointsAvailable.increment).toBe(0);
     });
 
-    it('awards Core Attribute points for every level gained, using the growth curve', async () => {
+    it('awards Core Attribute points for every level gained', async () => {
       prisma.player.findUniqueOrThrow.mockResolvedValue({ id: 'p1', xp: 10, level: 1 });
       prisma.levelThreshold.findUnique.mockImplementation(({ where }: { where: { level: number } }) => {
         const thresholds: Record<number, number> = { 1: 20, 2: 30 };
@@ -127,8 +127,9 @@ describe('EconomyService', () => {
 
       await economy.applyXp('p1', 45);
 
-      // Reaching level 2 awards round(3*1.15^1)=3, reaching level 3 awards round(3*1.15^2)=4.
-      expect(prisma.player.update.mock.calls[0][0].data.attributePointsAvailable.increment).toBe(7);
+      // Flat basePointsPerLevel (no compounding growth, owner decision 2026-09-09):
+      // reaching level 2 and level 3 each award 3, for 6 total.
+      expect(prisma.player.update.mock.calls[0][0].data.attributePointsAvailable.increment).toBe(6);
     });
   });
 });

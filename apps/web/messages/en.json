@@ -3,7 +3,8 @@
     "appName": "Pentilius",
     "confirm": "Confirm",
     "cancel": "Cancel",
-    "close": "Close"
+    "close": "Close",
+    "atNextLevel": "{value} at next level"
   },
   "auth": {
     "login": "Log in",

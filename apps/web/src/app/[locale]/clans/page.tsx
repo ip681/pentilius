@@ -7,8 +7,10 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { ClanLink } from '@/components/ClanLink';
 import { GameLayout } from '@/components/GameLayout';
+import { NextLevelValue } from '@/components/NextLevelValue';
 import { PlayerLink } from '@/components/PlayerLink';
 import { ResourceIcon } from '@/components/ResourceIcon';
+import { formatDateTime } from '@/lib/format-datetime';
 import { formatRelativeTime } from '@/lib/format-relative-time';
 import {
   ApiError,
@@ -82,13 +84,12 @@ const CLAN_OPTION_CONFIRM_KEY: Record<ClanOptionAction, string> = {
   disband: 'clans.confirmDisband',
 };
 
-/** Current bonus at this building's level, and next level's if it isn't already maxed — e.g. "+10 → +12" or "+25% → +30%". */
-function bonusLabel(building: ClanBuildingStateDto): string {
+/** Current bonus at this building's level, and next level's if it isn't already maxed — e.g. "+10 (+12 at next level)". */
+function bonusLabel(building: ClanBuildingStateDto): { current: string; next: string | null } {
   const format = (value: number) => (building.bonusType === 'MEMBER_CAPACITY' ? `+${Math.round(value)}` : `+${Math.round(value * 100)}%`);
   const current = format(building.level * building.bonusPerLevel);
-  if (!building.nextLevelCost) return current;
-  const next = format((building.level + 1) * building.bonusPerLevel);
-  return `${current} → ${next}`;
+  if (!building.nextLevelCost) return { current, next: null };
+  return { current, next: format((building.level + 1) * building.bonusPerLevel) };
 }
 
 function buildingProgress(building: ClanBuildingStateDto): { active: boolean; percent: number; secondsLeft: number } {
@@ -568,6 +569,7 @@ export default function ClansPage() {
             {myClan.buildings.map((building) => {
               const progress = buildingProgress(building);
               const canManage = myClan.myRole === 'LEADER' || myClan.myRole === 'OFFICER';
+              const bonus = bonusLabel(building);
               return (
                 <div key={building.key} className="rounded-md border border-wellBorder bg-well p-3">
                   <div className="mb-1 flex items-center justify-between">
@@ -585,7 +587,9 @@ export default function ClansPage() {
                     </span>
                   </div>
                   <p className="mb-1 text-[10px] text-textMuted">{t(building.descriptionKey)}</p>
-                  <p className="mb-2 text-[10px] text-accent">{bonusLabel(building)}</p>
+                  <p className="mb-2 text-[10px] text-accent">
+                    <NextLevelValue current={bonus.current} next={bonus.next} />
+                  </p>
 
                   {progress.active ? (
                     <>
@@ -755,7 +759,7 @@ export default function ClansPage() {
                 {messages && messages.length === 0 && <p className="text-[11px] text-textFaint">{t('clans.chatEmpty')}</p>}
                 {messages?.map((message) => (
                   <div key={message.id} className="mb-1.5 text-xs">
-                    <span className="text-[9px] text-textFaint">{new Date(message.createdAt).toLocaleTimeString()}</span>{' '}
+                    <span className="text-[9px] text-textFaint">{formatDateTime(message.createdAt)}</span>{' '}
                     <PlayerLink playerId={message.playerId} username={message.username} className="font-semibold hover:text-accent" />
                     {': '}
                     <span className="text-textMuted">{message.text}</span>

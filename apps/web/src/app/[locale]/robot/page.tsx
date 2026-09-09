@@ -1,13 +1,14 @@
 'use client';
 
-import type { BoxOpenResultDto, CombatStatsDto, EquipmentSlot, EquippedItemDto, InventoryItemDto, PlayerProfileDto, RobotAttributesDto, RobotSlotDto } from '@pentilius/shared';
+import type { BoxOpenResultDto, CombatStatsDto, EquipmentSlot, EquippedItemDto, InventoryItemDto, PlayerProfileDto, Race, RobotAttributesDto, RobotSlotDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { CombatStatsCard } from '@/components/CombatStatsCard';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
+import { NextLevelValue } from '@/components/NextLevelValue';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import {
   allocateAttribute,
@@ -30,6 +31,18 @@ import { useRequireAuth } from '@/lib/use-require-auth';
 
 const SLOTS: EquipmentSlot[] = ['HEAD', 'LEFT_ARM', 'RIGHT_ARM', 'ARMOR', 'CORE', 'LEFT_LEG', 'RIGHT_LEG'];
 
+// A race-locked item's inventory square gets a tint of its race's brand color
+// (instructions/PRODUCT_SPEC.md) instead of the plain well background — still
+// darker than the full brand color, but strong enough to actually read at a
+// glance against the icon and dark theme.
+const RACE_BG_CLASS: Record<Race, string> = {
+  LUXARI: 'bg-raceLuxari/20',
+  VORLUN: 'bg-raceVorlun/20',
+  ZARYTH: 'bg-raceZaryth/20',
+  THALION: 'bg-raceThalion/20',
+  NEXAR: 'bg-raceNexar/20',
+};
+
 const ATTRIBUTE_STATS = ['damage', 'defense', 'hp', 'evasion'] as const;
 type AttributeStat = (typeof ATTRIBUTE_STATS)[number];
 
@@ -37,8 +50,107 @@ function itemForSlot(slots: RobotSlotDto[] | null, slot: EquipmentSlot): Equippe
   return slots?.find((s) => s.slot === slot)?.item ?? null;
 }
 
-function SlotBadge({ slot, item, onSelect }: { slot: EquipmentSlot; item: EquippedItemDto | null; onSelect: (itemInstanceId: string) => void }) {
+const TOOLTIP_WIDTH = 224;
+
+// `position: fixed` (viewport-relative) rather than an absolutely-positioned
+// child, so the tooltip can't be clipped by the inventory grid's own
+// overflow-y-auto scroll container — it escapes that ancestor entirely.
+// Flips above the item when there isn't enough room below the viewport edge.
+function tooltipPositionStyle(rect: DOMRect): CSSProperties {
+  const gap = 8;
+  const left = Math.min(Math.max(gap, rect.left), window.innerWidth - TOOLTIP_WIDTH - gap);
+  const spaceBelow = window.innerHeight - rect.bottom;
+  if (spaceBelow < 140) {
+    return { left, bottom: window.innerHeight - rect.top + gap };
+  }
+  return { left, top: rect.bottom + gap };
+}
+
+// Desktop-only hover preview (mouse enter/leave never meaningfully fires on
+// touch) — the native `title` tooltip it replaces only ever showed the name
+// and can't be styled or hold real content. `children` lets callers show
+// either a plain description or the equipped-item's full stat breakdown.
+function ItemHoverTooltip({ rect, name, children }: { rect: DOMRect; name: string; children: ReactNode }) {
+  return (
+    <div
+      className="pointer-events-none fixed z-50 rounded-md border border-panelBorder bg-panel p-2.5 text-[11px] shadow-lg"
+      style={{ width: TOOLTIP_WIDTH, ...tooltipPositionStyle(rect) }}
+    >
+      <p className="mb-1 font-semibold text-text">{name}</p>
+      {children}
+    </div>
+  );
+}
+
+// Full stat/race/options breakdown for an equipment item's hover tooltip —
+// any item with a slot (EQUIPMENT), equipped or not — same information as
+// the click-through details panel below, minus its action rows
+// (upgrade/sell/recycle), which don't belong in a hover preview.
+function EquipmentTooltipDetails({ item, playerRace }: { item: InventoryItemDto; playerRace: Race | undefined }) {
   const t = useTranslations();
+  const hasStats = item.currentStats?.attack !== undefined || item.currentStats?.defense !== undefined || item.currentStats?.hp !== undefined;
+
+  return (
+    <>
+      <p className="mb-1.5 text-textMuted">
+        {t('robot.upgradeLevel')}: {item.upgradeLevel}/{item.maxUpgradeLevel}
+      </p>
+      {hasStats && (
+        <div className="mb-1.5 rounded border border-wellBorder bg-ink p-2">
+          {(['attack', 'defense', 'hp'] as const).map((key) => {
+            const value = item.currentStats?.[key];
+            if (value === undefined) return null;
+            return (
+              <div key={key} className="flex justify-between text-textFaint">
+                <span>{t(`robot.stat.${key === 'attack' ? 'damage' : key}`)}</span>
+                <span className="text-text">{value}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {item.race && (
+        <p className={`mb-1.5 flex items-center gap-1.5 ${item.race === playerRace ? 'text-positive' : 'text-danger'}`}>
+          <AssetIcon
+            assetId={`races.${item.race.toLowerCase()}.icon`}
+            alt={t(`race.${item.race}.name`)}
+            className="h-3.5 w-3.5 shrink-0 object-contain"
+            fallback={<span className="text-[8px] font-semibold">{t(`race.${item.race}.name`).charAt(0)}</span>}
+          />
+          {t('robot.raceLocked', { race: t(`race.${item.race}.name`) })}
+        </p>
+      )}
+      {item.rolledOptions.length > 0 && (
+        <ul className="flex flex-col gap-0.5">
+          {item.rolledOptions.map((option) => (
+            <li key={option} className="text-positive">
+              {t(`itemOption.${option}`)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function SlotBadge({
+  slot,
+  item,
+  fullItem,
+  playerRace,
+  onSelect,
+}: {
+  slot: EquipmentSlot;
+  item: EquippedItemDto | null;
+  // The same instance as looked up from the full inventory list — carries
+  // stats/race/options that the stripped-down EquippedItemDto doesn't, purely
+  // for the richer hover tooltip below.
+  fullItem: InventoryItemDto | null;
+  playerRace: Race | undefined;
+  onSelect: (itemInstanceId: string) => void;
+}) {
+  const t = useTranslations();
+  const [hoverRect, setHoverRect] = useState<DOMRect | null>(null);
 
   if (!item) {
     return (
@@ -52,30 +164,52 @@ function SlotBadge({ slot, item, onSelect }: { slot: EquipmentSlot; item: Equipp
   }
 
   return (
-    <button
-      type="button"
-      title={t(item.nameKey)}
-      onClick={() => onSelect(item.itemInstanceId)}
-      className="relative flex h-14 w-14 items-center justify-center rounded-md border border-textFaint bg-well hover:border-accent sm:h-20 sm:w-20"
-    >
-      <AssetIcon
-        assetId={item.iconAssetId}
-        alt={t(item.nameKey)}
-        className="h-full w-full rounded-md object-contain p-1"
-        fallback={<span className="text-xs font-semibold text-textMuted">{t(item.nameKey).charAt(0)}</span>}
-      />
-      {item.upgradeLevel > 0 && (
-        <span className="absolute -bottom-1 -right-1 rounded-full bg-accent px-1 text-[7px] font-semibold text-text">+{item.upgradeLevel}</span>
+    <>
+      <button
+        type="button"
+        onClick={() => onSelect(item.itemInstanceId)}
+        onMouseEnter={(e) => setHoverRect(e.currentTarget.getBoundingClientRect())}
+        onMouseLeave={() => setHoverRect(null)}
+        className={`relative flex h-14 w-14 items-center justify-center rounded-md border-2 hover:border-accent sm:h-20 sm:w-20 ${
+          item.quality === 'EPIC' ? 'border-epic' : item.quality === 'RARE' ? 'border-positive' : 'border-textFaint'
+        } ${item.race ? RACE_BG_CLASS[item.race] : 'bg-well'}`}
+      >
+        <AssetIcon
+          assetId={item.iconAssetId}
+          alt={t(item.nameKey)}
+          className="h-full w-full rounded-md object-contain p-1"
+          fallback={<span className="text-xs font-semibold text-textMuted">{t(item.nameKey).charAt(0)}</span>}
+        />
+        {item.upgradeLevel > 0 && (
+          <span className="absolute -bottom-1 -right-1 rounded-full bg-accent px-1 text-[7px] font-semibold text-text">+{item.upgradeLevel}</span>
+        )}
+      </button>
+      {hoverRect && (
+        <ItemHoverTooltip rect={hoverRect} name={t(item.nameKey)}>
+          {fullItem ? <EquipmentTooltipDetails item={fullItem} playerRace={playerRace} /> : <p className="text-textMuted">{t(item.descriptionKey)}</p>}
+        </ItemHoverTooltip>
       )}
-    </button>
+    </>
   );
 }
 
-function SlotRow({ slot, item, onSelect }: { slot: EquipmentSlot; item: EquippedItemDto | null; onSelect: (itemInstanceId: string) => void }) {
+function SlotRow({
+  slot,
+  item,
+  fullItem,
+  playerRace,
+  onSelect,
+}: {
+  slot: EquipmentSlot;
+  item: EquippedItemDto | null;
+  fullItem: InventoryItemDto | null;
+  playerRace: Race | undefined;
+  onSelect: (itemInstanceId: string) => void;
+}) {
   const t = useTranslations();
   return (
     <div className="flex flex-col items-center gap-1">
-      <SlotBadge slot={slot} item={item} onSelect={onSelect} />
+      <SlotBadge slot={slot} item={item} fullItem={fullItem} playerRace={playerRace} onSelect={onSelect} />
       <span className="text-center text-[8px] uppercase tracking-wide text-textFaint">{t(`equipmentSlot.${slot}`)}</span>
     </div>
   );
@@ -103,6 +237,7 @@ export default function RobotPage() {
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [filter, setFilter] = useState<EquipmentSlot | 'ALL' | 'CONSUMABLE'>('ALL');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<{ item: InventoryItemDto; rect: DOMRect } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [boxResult, setBoxResult] = useState<BoxOpenResultDto | null>(null);
 
@@ -133,6 +268,13 @@ export default function RobotPage() {
   }, []);
 
   const selected = items?.find((item) => item.id === selectedId) ?? null;
+  // Equipped items are also part of the full inventory list (marked `equipped: true`),
+  // so the richer InventoryItemDto for a slot's item is just a lookup by id — no
+  // separate backend data needed for the equipment hover tooltip's stat breakdown.
+  function fullItemForSlot(slot: EquipmentSlot): InventoryItemDto | null {
+    const equipped = itemForSlot(slots, slot);
+    return equipped ? (items?.find((i) => i.id === equipped.itemInstanceId) ?? null) : null;
+  }
   const ownedUpgradeMaterial = selected?.upgradeCost
     ? (items?.find((i) => i.itemDefinitionKey === selected.upgradeCost!.itemDefinitionKey)?.quantity ?? 0)
     : 0;
@@ -264,7 +406,17 @@ export default function RobotPage() {
                 {boxResult.rolledOptions.map((option) => t(`itemOption.${option}`)).join(', ')}
               </p>
             )}
-            {boxResult.race && <p className="mt-1 text-[10px] text-textFaint">{t('robot.raceLocked', { race: t(`race.${boxResult.race}.name`) })}</p>}
+            {boxResult.race && (
+              <p className="mt-1 flex items-center gap-1.5 text-[10px] text-textFaint">
+                <AssetIcon
+                  assetId={`races.${boxResult.race.toLowerCase()}.icon`}
+                  alt={t(`race.${boxResult.race}.name`)}
+                  className="h-3.5 w-3.5 shrink-0 object-contain"
+                  fallback={<span className="text-[8px] font-semibold">{t(`race.${boxResult.race}.name`).charAt(0)}</span>}
+                />
+                {t('robot.raceLocked', { race: t(`race.${boxResult.race}.name`) })}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -312,8 +464,9 @@ export default function RobotPage() {
                 <button
                   key={item.id}
                   type="button"
-                  title={t(item.nameKey)}
                   onClick={() => setSelectedId(item.id)}
+                  onMouseEnter={(e) => setHoveredItem({ item, rect: e.currentTarget.getBoundingClientRect() })}
+                  onMouseLeave={() => setHoveredItem(null)}
                   className={`relative flex aspect-square items-center justify-center rounded-md border ${
                     selectedId === item.id
                       ? 'border-textFaint'
@@ -322,7 +475,7 @@ export default function RobotPage() {
                         : item.quality === 'RARE'
                           ? 'border-positive'
                           : 'border-wellBorder'
-                  } bg-well`}
+                  } ${item.race ? RACE_BG_CLASS[item.race] : 'bg-well'}`}
                 >
                   <AssetIcon
                     assetId={item.iconAssetId}
@@ -352,6 +505,15 @@ export default function RobotPage() {
                 ))}
             </div>
           </div>
+          {hoveredItem && (
+            <ItemHoverTooltip rect={hoveredItem.rect} name={t(hoveredItem.item.nameKey)}>
+              {hoveredItem.item.slot ? (
+                <EquipmentTooltipDetails item={hoveredItem.item} playerRace={profile?.race} />
+              ) : (
+                <p className="text-textMuted">{t(hoveredItem.item.descriptionKey)}</p>
+              )}
+            </ItemHoverTooltip>
+          )}
         </section>
 
         {/* Nested so Equipment and Stats stretch to match each other's height
@@ -368,19 +530,19 @@ export default function RobotPage() {
           <div className="mx-auto max-w-[420px] rounded-md border border-panelBorder bg-well p-6">
             <div className="flex justify-center gap-4">
               <div className="h-14 w-14 sm:h-20 sm:w-20" aria-hidden="true" />
-              <SlotRow slot="HEAD" item={itemForSlot(slots, 'HEAD')} onSelect={setSelectedId} />
-              <SlotRow slot="CORE" item={itemForSlot(slots, 'CORE')} onSelect={setSelectedId} />
+              <SlotRow slot="HEAD" item={itemForSlot(slots, 'HEAD')} fullItem={fullItemForSlot('HEAD')} playerRace={profile?.race} onSelect={setSelectedId} />
+              <SlotRow slot="CORE" item={itemForSlot(slots, 'CORE')} fullItem={fullItemForSlot('CORE')} playerRace={profile?.race} onSelect={setSelectedId} />
             </div>
 
             <div className="mt-6 flex justify-center gap-4">
-              <SlotRow slot="LEFT_ARM" item={itemForSlot(slots, 'LEFT_ARM')} onSelect={setSelectedId} />
-              <SlotRow slot="ARMOR" item={itemForSlot(slots, 'ARMOR')} onSelect={setSelectedId} />
-              <SlotRow slot="RIGHT_ARM" item={itemForSlot(slots, 'RIGHT_ARM')} onSelect={setSelectedId} />
+              <SlotRow slot="LEFT_ARM" item={itemForSlot(slots, 'LEFT_ARM')} fullItem={fullItemForSlot('LEFT_ARM')} playerRace={profile?.race} onSelect={setSelectedId} />
+              <SlotRow slot="ARMOR" item={itemForSlot(slots, 'ARMOR')} fullItem={fullItemForSlot('ARMOR')} playerRace={profile?.race} onSelect={setSelectedId} />
+              <SlotRow slot="RIGHT_ARM" item={itemForSlot(slots, 'RIGHT_ARM')} fullItem={fullItemForSlot('RIGHT_ARM')} playerRace={profile?.race} onSelect={setSelectedId} />
             </div>
 
             <div className="mt-6 flex justify-center gap-4">
-              <SlotRow slot="LEFT_LEG" item={itemForSlot(slots, 'LEFT_LEG')} onSelect={setSelectedId} />
-              <SlotRow slot="RIGHT_LEG" item={itemForSlot(slots, 'RIGHT_LEG')} onSelect={setSelectedId} />
+              <SlotRow slot="LEFT_LEG" item={itemForSlot(slots, 'LEFT_LEG')} fullItem={fullItemForSlot('LEFT_LEG')} playerRace={profile?.race} onSelect={setSelectedId} />
+              <SlotRow slot="RIGHT_LEG" item={itemForSlot(slots, 'RIGHT_LEG')} fullItem={fullItemForSlot('RIGHT_LEG')} playerRace={profile?.race} onSelect={setSelectedId} />
             </div>
           </div>
 
@@ -475,8 +637,7 @@ export default function RobotPage() {
                           <div key={key} className="mb-1 flex justify-between text-[10px] last:mb-0">
                             <span className="text-textFaint">{t(`robot.stat.${key === 'attack' ? 'damage' : key}`)}</span>
                             <span>
-                              {current}
-                              {next !== undefined && <span className="ml-1 text-positive">→ {next}</span>}
+                              <NextLevelValue current={String(current)} next={next !== undefined ? String(next) : null} />
                             </span>
                           </div>
                         );
@@ -490,7 +651,13 @@ export default function RobotPage() {
                     </p>
                   )}
                   {selected.race && (
-                    <p className={`mt-1 text-[10px] ${selected.race === profile?.race ? 'text-positive' : 'text-danger'}`}>
+                    <p className={`mt-1 flex items-center gap-1.5 text-[10px] ${selected.race === profile?.race ? 'text-positive' : 'text-danger'}`}>
+                      <AssetIcon
+                        assetId={`races.${selected.race.toLowerCase()}.icon`}
+                        alt={t(`race.${selected.race}.name`)}
+                        className="h-3.5 w-3.5 shrink-0 object-contain"
+                        fallback={<span className="text-[8px] font-semibold">{t(`race.${selected.race}.name`).charAt(0)}</span>}
+                      />
                       {t('robot.raceLocked', { race: t(`race.${selected.race}.name`) })}
                     </p>
                   )}

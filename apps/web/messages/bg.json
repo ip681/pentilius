@@ -3,7 +3,8 @@
     "appName": "Pentilius",
     "confirm": "Потвърди",
     "cancel": "Отказ",
-    "close": "Затвори"
+    "close": "Затвори",
+    "atNextLevel": "{value} на следващо ниво"
   },
   "auth": {
     "login": "Вход",

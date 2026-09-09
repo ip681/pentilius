@@ -45,8 +45,11 @@ export class RobotService {
               itemInstanceId: item.id,
               itemDefinitionKey: item.itemDefinition.key,
               nameKey: item.itemDefinition.nameKey,
+              descriptionKey: item.itemDefinition.descriptionKey,
               iconAssetId: item.itemDefinition.iconAssetId,
               upgradeLevel: item.upgradeLevel,
+              quality: item.quality,
+              race: item.race,
             }
           : null,
       };

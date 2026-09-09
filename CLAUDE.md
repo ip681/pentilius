@@ -7,6 +7,7 @@ See @instructions/I18N.md for internationalization requirements.
 See @instructions/ASSETS.md for visual asset strategy.
 See @instructions/MILESTONES.md for development roadmap.
 See @instructions/OPEN_DECISIONS.md for undecided design questions.
+See @instructions/OPERATIONS.md for deployment/server maintenance and pre-launch checklist items.
 
 
 ## Purpose

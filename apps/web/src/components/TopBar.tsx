@@ -48,7 +48,7 @@ export function TopBar({
       <div className="flex h-16 items-center justify-between gap-3 px-3 md:px-7">
         <div className="flex shrink-0 items-center gap-3">
           <Link href="/dashboard">
-            <Image src="/logo.png" alt="Pentilius" width={160} height={96} className="h-10 w-auto md:h-14" priority />
+            <Image src="/logo.png" alt="Pentilius" width={160} height={96} className="h-14 w-auto" priority />
           </Link>
         </div>
 
@@ -96,7 +96,7 @@ export function TopBar({
             <Link
               href="/settings"
               title={t('topbar.settings')}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-accent bg-accentBg hover:bg-accentBgHover sm:h-8 sm:w-8"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:opacity-70 sm:h-8 sm:w-8"
             >
               <AssetIcon
                 assetId="interface.settings.icon"
@@ -110,7 +110,7 @@ export function TopBar({
               type="button"
               onClick={handleLogout}
               title={t('topbar.logout')}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-accent bg-accentBg hover:bg-accentBgHover sm:h-8 sm:w-8"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:opacity-70 sm:h-8 sm:w-8"
             >
               <AssetIcon
                 assetId="interface.exit.icon"

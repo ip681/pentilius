@@ -46,7 +46,7 @@ describe('Robot Core Attributes (e2e)', () => {
     expect(res.body.evasionAtCap).toBe(false);
   });
 
-  it('allocates a point, following the exploding cost-per-rank curve', async () => {
+  it('allocates a point at the flat cost-per-rank price', async () => {
     const first = await request(app.getHttpServer())
       .post('/api/v1/robot/attributes/allocate')
       .set(auth())
@@ -62,7 +62,7 @@ describe('Robot Core Attributes (e2e)', () => {
 
   it('rejects allocating Evasion once it reaches the configured cap', async () => {
     // Seed baseEvasion straight to the cap (rank 40 = 20% / 0.5%-per-point) rather
-    // than spending the (exponentially expensive) points 40 times over.
+    // than spending the points 40 times over.
     await prisma.player.update({ where: { id: playerId }, data: { baseEvasion: 40, attributePointsAvailable: 1000 } });
 
     const attributes = await request(app.getHttpServer()).get('/api/v1/robot/attributes').set(auth()).expect(200);
