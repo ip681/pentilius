@@ -41,6 +41,23 @@ enum BattleOutcome {
   LOSS
 }
 
+enum ClanWarStatus {
+  ACTIVE
+  RESOLVED
+}
+
+// How a ClanWar ended (owner decision, 2026-09-10): CONQUEST when a clan's
+// warPool hits 0 before the deadline (decisive, bigger reward); DECISION
+// when the 3-day deadline passes first and the clan with more remaining pool
+// wins (still a real win, smaller reward — deliberately not a draw, so
+// there's always a reason to keep fighting until the deadline); DRAW only on
+// a true tie (e.g. nobody attacked at all, both pools still full/equal).
+enum ClanWarOutcome {
+  CONQUEST
+  DECISION
+  DRAW
+}
+
 // Names and lore are LOCKED (instructions/PRODUCT_SPEC.md). Chosen once at
 // registration; identity only for now — no stat bonus is tied to race yet
 // (instructions/OPEN_DECISIONS.md).
@@ -128,6 +145,11 @@ model Player {
   // shape; this is the placeholder mechanism. Null when not protected.
   pvpProtectedUntil DateTime?
 
+  // Same idea as pvpProtectedUntil above, but for clan-war duels specifically
+  // (GAME_BALANCE.clanWar.targetProtectionMinutes) — kept as its own field so
+  // the two systems' protection windows can be tuned independently.
+  clanWarProtectedUntil DateTime?
+
   // "Core Attributes" — personal stat points earned from leveling
   // (instructions/GAME_SYSTEMS.md has no prior ruling on this; it's a new
   // system introduced alongside the ship→robot redesign). Owner decision
@@ -162,6 +184,8 @@ model Player {
   bossEncounterEntries   BossEncounterParticipant[]
   pvpAttacks             PvpBattleReport[] @relation("PvpAttacks")
   pvpDefenses            PvpBattleReport[] @relation("PvpDefenses")
+  clanWarAttacksSent     ClanWarAttack[] @relation("ClanWarAttacksAsAttacker")
+  clanWarAttacksReceived ClanWarAttack[] @relation("ClanWarAttacksAsDefender")
   clanMembership         ClanMembership?
   clanMessages           ClanMessage[]
   friendRequestsSent     Friendship[] @relation("FriendRequestsSent")
@@ -709,7 +733,10 @@ model PvpBattleReport {
 // clan-vs-clan systems are deliberately deferred to a later pass, not
 // modeled here yet. Joining is open (owner decision, mirroring the Boss
 // Hunts precedent) rather than invite/request based — no separate
-// invite/request model exists.
+// invite/request model exists. A leader/officer can still narrow who's
+// eligible via automatic join requirements (Clan.joinMinLevel/etc. below,
+// owner decision 2026-09-10) — that's a self-service eligibility filter
+// applied at join time, not a manual approval step.
 enum ClanRole {
   LEADER
   OFFICER
@@ -737,9 +764,28 @@ model Clan {
   treasuryCrystal Int @default(0)
   treasuryCredits Int @default(0)
 
+  // Join requirements (owner decision, 2026-09-10) — set by the leader or an
+  // officer (clans.service.ts's updateJoinRequirements), checked automatically
+  // at join time. Joining is still open/unmoderated (no invite/request model,
+  // see the enum comment above) — this only adds an automatic eligibility
+  // filter on top of that, not an approval step. All default to "no
+  // restriction" (0, or an empty allowedRaces array) so existing clans are
+  // unaffected until a leader/officer opts in. The 4 attribute minimums check
+  // the player's raw Core Attribute points (Player.baseDamage/baseDefense/
+  // baseHp/baseEvasion) — equipment is deliberately excluded, same reasoning
+  // as ClanWar's pool snapshot: gear is swappable at will, points are not.
+  joinMinLevel    Int    @default(0)
+  joinMinDamage   Int    @default(0)
+  joinMinDefense  Int    @default(0)
+  joinMinHp       Int    @default(0)
+  joinMinEvasion  Int    @default(0)
+  joinAllowedRaces Race[] @default([])
+
   members   ClanMembership[]
   buildings ClanBuilding[]
   messages  ClanMessage[]
+  warsAsAttacker ClanWar[] @relation("ClanWarsAsAttacker")
+  warsAsDefender ClanWar[] @relation("ClanWarsAsDefender")
 
   @@map("clans")
 }
@@ -843,4 +889,102 @@ model ClanMessage {
 
   @@index([clanId, createdAt])
   @@map("clan_messages")
+}
+
+// Clan-vs-clan war (owner decision, 2026-09-10 — instructions/OPEN_DECISIONS.md's
+// "clan-vs-clan war systems" was previously deliberately out of scope). One
+// active war per clan at a time. Declared unilaterally by the attacking
+// clan's leader/officer (mirrors kickMember/upgradeClanBuilding's role gate)
+// — this immediately puts BOTH clans in a mutual "at war" state; the
+// defending clan does not need to declare back (matches how regular PvP
+// already works: the attacker initiates, the defender responds by fighting
+// back on their own terms). Both clans need at least
+// GAME_BALANCE.clanWar.minMembersToParticipate members to declare or be
+// targeted — a flat floor, not a power-ratio matchmaking system, deliberately
+// at the same rough level of "unsolved" as regular PvP's own undefined power
+// range (instructions/OPEN_DECISIONS.md: PvP).
+//
+// attacker/defenderPoolMax are a snapshot taken at declaration time — sum of
+// every current member's basePlayerHp + baseHp×hpPointValue (GEAR
+// EXCLUDED on purpose: equipment is swappable at will, attribute points are
+// not, see game-config.ts's clanWar comment) × GAME_BALANCE.clanWar.poolMultiplier.
+// Every individual ClanWarAttack subtracts its raw damageDealt from the
+// defending side's *current* pool, regardless of whether that one duel was
+// individually won or lost (draining is damage-based, not win-based) — see
+// clan-wars.service.ts. The war ends the moment either pool hits 0
+// (ClanWarOutcome.CONQUEST) or endsAt passes first (CONQUEST if a pool
+// happened to hit 0 in that same lazy check, otherwise DECISION for whoever
+// has more remaining pool, or DRAW on an exact tie — e.g. nobody attacked at
+// all, the "hypothetically nobody attacks" edge case the owner flagged).
+// Resolution is checked lazily (elapsed-time, same pattern as buildings/
+// research/expeditions/bosses) — never attack-triggered only, so a war with
+// zero attacks still closes itself out at the deadline instead of staying
+// open forever.
+model ClanWar {
+  id             String        @id @default(uuid())
+  attackerClanId String
+  defenderClanId String
+  status         ClanWarStatus @default(ACTIVE)
+  startedAt      DateTime      @default(now())
+  endsAt         DateTime
+  resolvedAt     DateTime?
+
+  attackerPoolMax       Int
+  attackerPoolRemaining Int
+  defenderPoolMax       Int
+  defenderPoolRemaining Int
+
+  outcome      ClanWarOutcome?
+  winnerClanId String?
+
+  // Amount actually transferred from the loser's treasury to the winner's at
+  // resolution (GAME_BALANCE.clanWar.conquestTreasuryStealPercentage/
+  // decisionTreasuryStealPercentage of the loser's treasury at that moment,
+  // 0 on a DRAW) — stored rather than recomputed later, since treasuries keep
+  // changing after the war and the historical amount couldn't otherwise be
+  // reconstructed. Always 0 while the war is still ACTIVE.
+  treasuryMetalTransferred   Int @default(0)
+  treasuryCrystalTransferred Int @default(0)
+  treasuryCreditsTransferred Int @default(0)
+
+  attackerClan Clan            @relation("ClanWarsAsAttacker", fields: [attackerClanId], references: [id])
+  defenderClan Clan            @relation("ClanWarsAsDefender", fields: [defenderClanId], references: [id])
+  attacks      ClanWarAttack[]
+
+  @@index([attackerClanId, status])
+  @@index([defenderClanId, status])
+  @@map("clan_wars")
+}
+
+// One individual player-vs-player duel within a ClanWar — same round-by-round
+// combat resolution as PvP (pve/combat.service.ts's simulate()), and the same
+// resource-steal-on-win reward (GAME_BALANCE.pvp.resourceStealPercentage,
+// reused rather than duplicated — owner decision). Two independent cooldowns,
+// both owner-specified and modeled directly on PvP's existing
+// pvpProtectedUntil/attackCooldownMinutes precedent: a defender who was just
+// hit is protected from ANY attacker for clanWar.targetProtectionMinutes
+// (Player.clanWarProtectedUntil), and the same attacker specifically cannot
+// re-hit the same defender for clanWar.attackCooldownMinutes (checked by
+// querying this table directly, same pattern as PvpService.isEligibleOpponent).
+model ClanWarAttack {
+  id            String        @id @default(uuid())
+  clanWarId     String
+  attackerId    String
+  defenderId    String
+  outcome       BattleOutcome
+  rounds        Json
+  attackerMaxHp Int
+  defenderMaxHp Int
+  damageDealt   Int
+  damageTaken   Int
+  lootSummary   Json
+  createdAt     DateTime      @default(now())
+
+  clanWar  ClanWar @relation(fields: [clanWarId], references: [id])
+  attacker Player  @relation("ClanWarAttacksAsAttacker", fields: [attackerId], references: [id])
+  defender Player  @relation("ClanWarAttacksAsDefender", fields: [defenderId], references: [id])
+
+  @@index([clanWarId])
+  @@index([attackerId, defenderId, createdAt])
+  @@map("clan_war_attacks")
 }

@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "clans" ADD COLUMN     "joinAllowedRaces" "Race"[] DEFAULT ARRAY[]::"Race"[],
+ADD COLUMN     "joinMinDamage" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "joinMinDefense" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "joinMinEvasion" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "joinMinHp" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "joinMinLevel" INTEGER NOT NULL DEFAULT 0;

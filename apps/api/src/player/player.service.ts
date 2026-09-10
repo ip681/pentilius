@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CosmeticsCatalogDto, PlayerListEntryDto, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
+import { CosmeticsCatalogDto, PlayerLeaderboardEntryDto, PlayerLeaderboardPageDto, PlayerLeaderboardSortBy, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
 import { Race } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { GAME_BALANCE } from '../config/game-config';
@@ -120,25 +120,109 @@ export class PlayerService {
     return this.getPublicProfile(playerId);
   }
 
-  /** Leaderboard/search listing, sorted by level (highest first). */
-  async listPlayers(filter: { race?: Race; search?: string }): Promise<PlayerListEntryDto[]> {
-    const players = await this.prisma.player.findMany({
-      where: {
-        ...(filter.race ? { race: filter.race } : {}),
-        ...(filter.search ? { username: { contains: filter.search, mode: 'insensitive' as const } } : {}),
-      },
-      include: { clanMembership: { include: { clan: true } } },
-      orderBy: [{ level: 'desc' }, { username: 'asc' }],
-      take: 100,
-    });
+  /**
+   * Leaderboard/search listing (owner decision, 2026-09-10). Ranks are
+   * computed over the FULL player base first (both the global rank and the
+   * race-only rank), then search/race are applied as a filter on top — so
+   * "#" always reflects a player's true standing, not just their row index
+   * in whatever's currently filtered. Small-scale, in-memory approach
+   * (fetch everyone, rank in JS) — adequate at this project's actual size,
+   * same "simple over clever" spirit as the rest of this codebase; revisit
+   * with real SQL ranking if the player base ever grows large enough to matter.
+   */
+  async listPlayers(
+    viewerId: string,
+    filter: { race?: Race; search?: string; sortBy?: PlayerLeaderboardSortBy; page?: number; pageSize?: number },
+  ): Promise<PlayerLeaderboardPageDto> {
+    const sortBy = filter.sortBy ?? 'level';
+    const page = Math.max(1, filter.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 20));
 
-    return players.map((player) => ({
-      id: player.id,
-      username: player.username,
-      race: player.race,
-      level: player.level,
-      clanId: player.clanMembership?.clan.id ?? null,
-      clanTag: player.clanMembership?.clan.tag ?? null,
+    const [allPlayers, pvpAttackWins, pvpDefenseWins, clanWarDamage] = await Promise.all([
+      this.prisma.player.findMany({
+        select: {
+          id: true,
+          username: true,
+          race: true,
+          level: true,
+          selectedAvatarKey: true,
+          selectedFrameKey: true,
+          clanMembership: { select: { clan: { select: { id: true, tag: true } } } },
+        },
+      }),
+      this.prisma.pvpBattleReport.groupBy({ by: ['attackerId'], where: { outcome: 'WIN' }, _count: { _all: true } }),
+      this.prisma.pvpBattleReport.groupBy({ by: ['defenderId'], where: { outcome: 'LOSS' }, _count: { _all: true } }),
+      this.prisma.clanWarAttack.groupBy({ by: ['attackerId'], _sum: { damageDealt: true } }),
+    ]);
+
+    const pvpWinsByPlayer = new Map<string, number>();
+    for (const row of pvpAttackWins) {
+      pvpWinsByPlayer.set(row.attackerId, (pvpWinsByPlayer.get(row.attackerId) ?? 0) + row._count._all);
+    }
+    for (const row of pvpDefenseWins) {
+      // A LOSS from the attacker's perspective means the defender won.
+      pvpWinsByPlayer.set(row.defenderId, (pvpWinsByPlayer.get(row.defenderId) ?? 0) + row._count._all);
+    }
+    const clanWarDamageByPlayer = new Map(clanWarDamage.map((row) => [row.attackerId, row._sum.damageDealt ?? 0]));
+
+    const enriched = allPlayers.map((p) => ({
+      id: p.id,
+      username: p.username,
+      race: p.race,
+      level: p.level,
+      clanId: p.clanMembership?.clan.id ?? null,
+      clanTag: p.clanMembership?.clan.tag ?? null,
+      selectedAvatarKey: p.selectedAvatarKey,
+      selectedFrameKey: p.selectedFrameKey,
+      pvpWins: pvpWinsByPlayer.get(p.id) ?? 0,
+      clanWarDamageDealt: clanWarDamageByPlayer.get(p.id) ?? 0,
     }));
+
+    const metricOf = (p: (typeof enriched)[number]) =>
+      sortBy === 'pvpWins' ? p.pvpWins : sortBy === 'clanWarDamage' ? p.clanWarDamageDealt : p.level;
+    const sorted = [...enriched].sort((a, b) => metricOf(b) - metricOf(a) || a.username.localeCompare(b.username));
+
+    const globalRankById = new Map(sorted.map((p, index) => [p.id, index + 1]));
+
+    const raceRankById = new Map<string, number>();
+    const byRace = new Map<Race, typeof sorted>();
+    for (const p of sorted) {
+      const list = byRace.get(p.race) ?? [];
+      list.push(p);
+      byRace.set(p.race, list);
+    }
+    for (const list of byRace.values()) {
+      list.forEach((p, index) => raceRankById.set(p.id, index + 1));
+    }
+
+    let filtered = sorted;
+    if (filter.race) {
+      filtered = filtered.filter((p) => p.race === filter.race);
+    }
+    if (filter.search) {
+      const needle = filter.search.toLowerCase();
+      filtered = filtered.filter((p) => p.username.toLowerCase().includes(needle));
+    }
+
+    const total = filtered.length;
+    const pageItems = filtered.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+
+    const entries: PlayerLeaderboardEntryDto[] = pageItems.map((p) => ({
+      id: p.id,
+      username: p.username,
+      race: p.race,
+      level: p.level,
+      clanId: p.clanId,
+      clanTag: p.clanTag,
+      selectedAvatarKey: p.selectedAvatarKey,
+      selectedFrameKey: p.selectedFrameKey,
+      pvpWins: p.pvpWins,
+      clanWarDamageDealt: p.clanWarDamageDealt,
+      globalRank: globalRankById.get(p.id)!,
+      raceRank: raceRankById.get(p.id)!,
+      isCurrentPlayer: p.id === viewerId,
+    }));
+
+    return { entries, page, pageSize, total };
   }
 }

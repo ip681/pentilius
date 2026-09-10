@@ -1,12 +1,14 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentPlayer } from '../auth/decorators/current-player.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/jwt-payload.interface';
 import { ClansService } from './clans.service';
+import { ClanLeaderboardQueryDto } from './dto/clan-leaderboard-query.dto';
 import { CreateClanDto } from './dto/create-clan.dto';
 import { DonateDto } from './dto/donate.dto';
 import { SendClanMessageDto } from './dto/send-clan-message.dto';
 import { UpdateClanDto } from './dto/update-clan.dto';
+import { UpdateJoinRequirementsDto } from './dto/update-join-requirements.dto';
 
 @Controller('clans')
 @UseGuards(JwtAuthGuard)
@@ -21,6 +23,11 @@ export class ClansController {
   @Get('me')
   getMyClan(@CurrentPlayer() currentPlayer: JwtPayload) {
     return this.clansService.getMyClan(currentPlayer.sub);
+  }
+
+  @Get('leaderboard')
+  getLeaderboard(@CurrentPlayer() currentPlayer: JwtPayload, @Query() query: ClanLeaderboardQueryDto) {
+    return this.clansService.getLeaderboard(currentPlayer.sub, query);
   }
 
   @Get(':id')
@@ -51,6 +58,11 @@ export class ClansController {
   @Post('update')
   updateClan(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: UpdateClanDto) {
     return this.clansService.updateClan(currentPlayer.sub, dto);
+  }
+
+  @Post('join-requirements')
+  updateJoinRequirements(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: UpdateJoinRequirementsDto) {
+    return this.clansService.updateJoinRequirements(currentPlayer.sub, dto);
   }
 
   @Post('donate')

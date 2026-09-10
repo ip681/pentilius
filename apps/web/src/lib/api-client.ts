@@ -9,8 +9,16 @@ import type {
   BoxOpenResultDto,
   BuildingStateDto,
   ClanDetailDto,
+  ClanLeaderboardPageDto,
+  ClanLeaderboardSortBy,
   ClanMessageDto,
   ClanSummaryDto,
+  ClanWarAttackReportDto,
+  ClanWarContributionsDto,
+  ClanWarHistoryEntryDto,
+  ClanWarStateDto,
+  ClanWarStatusResponseDto,
+  ClanWarTargetDto,
   CombatReportDto,
   CombatStatsDto,
   CosmeticsCatalogDto,
@@ -25,7 +33,8 @@ import type {
   MarketListingDto,
   MyClanResponseDto,
   PentiliDto,
-  PlayerListEntryDto,
+  PlayerLeaderboardPageDto,
+  PlayerLeaderboardSortBy,
   PlayerProfileDto,
   PlayerPublicProfileDto,
   PvpBattleReportDto,
@@ -183,12 +192,28 @@ export function updateFrame(frameKey: string): Promise<PlayerProfileDto> {
   return request<PlayerProfileDto>('/player/me/frame', { method: 'POST', auth: true, body: { frameKey } });
 }
 
-export function listPlayers(filter: { race?: Race; search?: string } = {}): Promise<PlayerListEntryDto[]> {
+export function listPlayers(
+  filter: { race?: Race; search?: string; sortBy?: PlayerLeaderboardSortBy; page?: number; pageSize?: number } = {},
+): Promise<PlayerLeaderboardPageDto> {
   const params = new URLSearchParams();
   if (filter.race) params.set('race', filter.race);
   if (filter.search) params.set('search', filter.search);
+  if (filter.sortBy) params.set('sortBy', filter.sortBy);
+  if (filter.page) params.set('page', String(filter.page));
+  if (filter.pageSize) params.set('pageSize', String(filter.pageSize));
   const query = params.toString();
-  return request<PlayerListEntryDto[]>(`/player${query ? `?${query}` : ''}`, { auth: true });
+  return request<PlayerLeaderboardPageDto>(`/player${query ? `?${query}` : ''}`, { auth: true });
+}
+
+export function getClanLeaderboard(
+  filter: { sortBy?: ClanLeaderboardSortBy; page?: number; pageSize?: number } = {},
+): Promise<ClanLeaderboardPageDto> {
+  const params = new URLSearchParams();
+  if (filter.sortBy) params.set('sortBy', filter.sortBy);
+  if (filter.page) params.set('page', String(filter.page));
+  if (filter.pageSize) params.set('pageSize', String(filter.pageSize));
+  const query = params.toString();
+  return request<ClanLeaderboardPageDto>(`/clans/leaderboard${query ? `?${query}` : ''}`, { auth: true });
 }
 
 // Friends
@@ -417,6 +442,17 @@ export function updateClan(payload: { name?: string; description?: string }): Pr
   return request<ClanDetailDto>('/clans/update', { method: 'POST', auth: true, body: payload });
 }
 
+export function updateClanJoinRequirements(payload: {
+  minLevel?: number;
+  minDamage?: number;
+  minDefense?: number;
+  minHp?: number;
+  minEvasion?: number;
+  allowedRaces?: Race[];
+}): Promise<ClanDetailDto> {
+  return request<ClanDetailDto>('/clans/join-requirements', { method: 'POST', auth: true, body: payload });
+}
+
 export function createClan(payload: { name: string; tag: string; description?: string }): Promise<ClanDetailDto> {
   return request<ClanDetailDto>('/clans', { method: 'POST', auth: true, body: payload });
 }
@@ -463,4 +499,33 @@ export function getClanMessages(clanId: string): Promise<ClanMessageDto[]> {
 
 export function sendClanMessage(clanId: string, text: string): Promise<ClanMessageDto> {
   return request<ClanMessageDto>(`/clans/${clanId}/messages`, { method: 'POST', auth: true, body: { text } });
+}
+
+// Clan wars
+export function declareClanWar(targetClanId: string): Promise<ClanWarStateDto> {
+  return request<ClanWarStateDto>('/clan-wars/declare', { method: 'POST', auth: true, body: { targetClanId } });
+}
+
+export function getClanWarStatus(): Promise<ClanWarStatusResponseDto> {
+  return request<ClanWarStatusResponseDto>('/clan-wars/status', { auth: true });
+}
+
+export function getClanWarTargets(): Promise<ClanWarTargetDto[]> {
+  return request<ClanWarTargetDto[]>('/clan-wars/targets', { auth: true });
+}
+
+export function attackClanWarTarget(defenderId: string): Promise<ClanWarAttackReportDto> {
+  return request<ClanWarAttackReportDto>('/clan-wars/attack', { method: 'POST', auth: true, body: { defenderId } });
+}
+
+export function getClanWarReports(): Promise<ClanWarAttackReportDto[]> {
+  return request<ClanWarAttackReportDto[]>('/clan-wars/reports', { auth: true });
+}
+
+export function getClanWarHistory(): Promise<ClanWarHistoryEntryDto[]> {
+  return request<ClanWarHistoryEntryDto[]>('/clan-wars/history', { auth: true });
+}
+
+export function getClanWarContributions(warId: string): Promise<ClanWarContributionsDto> {
+  return request<ClanWarContributionsDto>(`/clan-wars/${warId}/contributions`, { auth: true });
 }

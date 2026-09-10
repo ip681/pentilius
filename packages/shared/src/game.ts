@@ -68,13 +68,71 @@ export interface PublicProfileClanDto {
   role: ClanRole;
 }
 
-export interface PlayerListEntryDto {
+// Leaderboard (owner decision, 2026-09-10) — split into a player board and a
+// clan board (see ClanLeaderboardEntryDto below). Sortable by more than raw
+// level so more than one type of play gets its own "#1", reusing data
+// already tracked elsewhere (PvpBattleReport, ClanWarAttack) rather than
+// introducing new tracking just for this. Deliberately excludes wealth
+// (Metal/Crystal/Credits) as a rankable metric — owner decision, same
+// privacy reasoning as excluding clan treasury from the clan board.
+export type PlayerLeaderboardSortBy = 'level' | 'pvpWins' | 'clanWarDamage';
+
+export interface PlayerLeaderboardEntryDto {
   id: string;
   username: string;
   race: Race;
   level: number;
   clanId: string | null;
   clanTag: string | null;
+  selectedAvatarKey: string;
+  selectedFrameKey: string;
+  // Wins as attacker (outcome WIN) plus successful defenses (outcome LOSS
+  // from the attacker's own perspective) — every PvP battle this player
+  // actually won, regardless of which side they were on.
+  pvpWins: number;
+  // Sum of raw damageDealt across every clan-war duel this player has ever
+  // attacked in (not just the current war).
+  clanWarDamageDealt: number;
+  // True rank by the requested sort metric across ALL players — stable
+  // regardless of the current search/race filter, unlike a plain row index.
+  globalRank: number;
+  // Rank by the same metric among players of this player's own race only
+  // (e.g. "15th among Luxari").
+  raceRank: number;
+  isCurrentPlayer: boolean;
+}
+
+export interface PlayerLeaderboardPageDto {
+  entries: PlayerLeaderboardEntryDto[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+// Clan board — owner decision: no treasury (donation amounts stay private)
+// and no loss count shown (only total wars fought plus each win type),
+// mirroring the same "only show what a clan achieved, not what it lost or
+// spent" philosophy applied to the player board's wealth exclusion above.
+export type ClanLeaderboardSortBy = 'wars' | 'avgLevel';
+
+export interface ClanLeaderboardEntryDto {
+  id: string;
+  name: string;
+  tag: string;
+  memberCount: number;
+  averageMemberLevel: number;
+  totalWars: number;
+  conquestWins: number;
+  decisionWins: number;
+  rank: number;
+  isMyClan: boolean;
+}
+
+export interface ClanLeaderboardPageDto {
+  entries: ClanLeaderboardEntryDto[];
+  page: number;
+  pageSize: number;
+  total: number;
 }
 
 export interface PlayerPublicProfileDto {
@@ -544,6 +602,17 @@ export interface ClanTreasuryDto {
   credits: number;
 }
 
+// Join requirements (owner decision, 2026-09-10) — automatic eligibility
+// filter checked at join time, set by the leader or an officer. minAttributes
+// checks the player's raw Core Attribute points (equipment excluded — see
+// schema.prisma's comment on Clan.joinMinLevel/etc.). An empty allowedRaces
+// array means no race restriction.
+export interface ClanJoinRequirementsDto {
+  minLevel: number;
+  minAttributes: CoreAttributeValues;
+  allowedRaces: Race[];
+}
+
 export interface ClanSummaryDto {
   id: string;
   name: string;
@@ -554,6 +623,7 @@ export interface ClanSummaryDto {
   leaderId: string;
   leaderUsername: string;
   treasury: ClanTreasuryDto;
+  joinRequirements: ClanJoinRequirementsDto;
 }
 
 export interface ClanMemberDto {
@@ -610,6 +680,104 @@ export interface ClanMessageDto {
   username: string;
   text: string;
   createdAt: string;
+}
+
+// Clan-vs-clan war (owner decision, 2026-09-10). See schema.prisma's comment
+// on ClanWar/ClanWarAttack for the full mechanic.
+export type ClanWarStatusValue = 'ACTIVE' | 'RESOLVED';
+export type ClanWarOutcomeValue = 'CONQUEST' | 'DECISION' | 'DRAW';
+
+// Wrapped in an object rather than returned bare (same convention as
+// MyClanResponseDto's `clan: ClanDetailDto | null`) — a bare `null` JSON
+// body doesn't round-trip reliably through every HTTP client/test harness.
+export interface ClanWarStatusResponseDto {
+  war: ClanWarStateDto | null;
+}
+
+export interface ClanWarStateDto {
+  id: string;
+  status: ClanWarStatusValue;
+  // Whether the current player's own clan is the one that declared this war.
+  role: 'attacker' | 'defender';
+  myClanId: string;
+  myClanName: string;
+  myClanTag: string;
+  enemyClanId: string;
+  enemyClanName: string;
+  enemyClanTag: string;
+  startedAt: string;
+  endsAt: string;
+  resolvedAt: string | null;
+  myPoolMax: number;
+  myPoolRemaining: number;
+  enemyPoolMax: number;
+  enemyPoolRemaining: number;
+  outcome: ClanWarOutcomeValue | null;
+  // Null until resolved.
+  won: boolean | null;
+}
+
+export interface ClanWarTargetDto {
+  playerId: string;
+  username: string;
+  race: Race;
+  level: number;
+  // Real current combat stats (equipment included) — what the fight actually
+  // uses, unlike the war-pool snapshot or join requirements, which are
+  // deliberately gear-free for different reasons. Lets an attacker judge
+  // their odds before committing Action Energy.
+  stats: CombatStatsDto;
+  // Null = attackable right now; otherwise an ISO timestamp for when either
+  // the target's own 5-minute protection or this attacker's 1-hour
+  // same-target cooldown lifts (whichever is later).
+  attackableAt: string | null;
+}
+
+export interface ClanWarAttackReportDto {
+  id: string;
+  role: 'attacker' | 'defender';
+  opponentId: string;
+  opponentUsername: string;
+  outcome: BattleOutcome;
+  rounds: CombatRoundDto[];
+  attackerMaxHp: number;
+  defenderMaxHp: number;
+  damageDealt: number;
+  damageTaken: number;
+  lootSummary: LootResultEntryDto[];
+  createdAt: string;
+}
+
+export interface ClanWarHistoryEntryDto {
+  id: string;
+  role: 'attacker' | 'defender';
+  opponentClanId: string;
+  opponentClanName: string;
+  opponentClanTag: string;
+  outcome: ClanWarOutcomeValue;
+  // Null on a DRAW.
+  won: boolean | null;
+  startedAt: string;
+  resolvedAt: string;
+  // Signed from the viewing clan's own perspective — positive if gained
+  // (won), negative if lost, 0 on a DRAW.
+  treasuryMetalChange: number;
+  treasuryCrystalChange: number;
+  treasuryCreditsChange: number;
+}
+
+export interface ClanWarContributionEntryDto {
+  playerId: string;
+  username: string;
+  attackCount: number;
+  totalDamageDealt: number;
+}
+
+// Per-member breakdown of a single war (active or resolved) — only players
+// who actually attacked appear; sorted by damage dealt, highest first.
+export interface ClanWarContributionsDto {
+  mine: ClanWarContributionEntryDto[];
+  enemy: ClanWarContributionEntryDto[];
 }
 
 // Friends list (owner decision, 2026-09-09) — step one toward friends-only

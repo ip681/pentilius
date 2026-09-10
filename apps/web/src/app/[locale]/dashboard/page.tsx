@@ -1,12 +1,12 @@
 'use client';
 
-import type { BaseResponseDto, BossDto, ExpeditionsResponseDto, MyClanResponseDto, PvpStatusDto, ResearchResponseDto, RobotSlotDto, ZoneDto } from '@pentilius/shared';
+import type { BaseResponseDto, BossDto, ClanWarStateDto, ExpeditionsResponseDto, MyClanResponseDto, PvpStatusDto, ResearchResponseDto, RobotSlotDto, ZoneDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
 import { Link } from '@/i18n/navigation';
-import { getBase, getBosses, getExpeditions, getMyClan, getPvpStatus, getResearches, getRobot, getZones } from '@/lib/api-client';
+import { getBase, getBosses, getClanWarStatus, getExpeditions, getMyClan, getPvpStatus, getResearches, getRobot, getZones } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const [bosses, setBosses] = useState<BossDto[] | null>(null);
   const [myClan, setMyClan] = useState<MyClanResponseDto | null>(null);
   const [pvpStatus, setPvpStatus] = useState<PvpStatusDto | null>(null);
+  const [clanWar, setClanWar] = useState<ClanWarStateDto | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   async function load() {
@@ -47,6 +48,9 @@ export default function DashboardPage() {
     getBosses().then(setBosses).catch(() => undefined);
     getMyClan().then(setMyClan).catch(() => undefined);
     getPvpStatus().then(setPvpStatus).catch(() => undefined);
+    getClanWarStatus()
+      .then((res) => setClanWar(res.war))
+      .catch(() => undefined);
   }
 
   useEffect(() => {
@@ -143,6 +147,16 @@ export default function DashboardPage() {
   ];
 
   const operations: OperationRow[] = [];
+
+  if (clanWar) {
+    const secondsLeft = Math.ceil((new Date(clanWar.endsAt).getTime() - now) / 1000);
+    operations.push({
+      key: 'clan-war',
+      label: t('dashboard.atWarWith', { clan: `[${clanWar.enemyClanTag}] ${clanWar.enemyClanName}` }),
+      secondsLeft: Math.max(0, secondsLeft),
+      href: '/clan-war',
+    });
+  }
 
   for (const building of base?.buildings ?? []) {
     if (!building.constructionEndsAt) continue;

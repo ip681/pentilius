@@ -95,16 +95,16 @@ describe('Player public profile (e2e)', () => {
 
   it('finds the player by username search, including their clan tag', async () => {
     const res = await request(app.getHttpServer()).get(`/api/v1/player?search=${username}`).set(auth()).expect(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0]).toEqual({ id: playerId, username, race: 'THALION', level: 1, clanId, clanTag: 'PFT' });
+    expect(res.body.entries).toHaveLength(1);
+    expect(res.body.entries[0]).toMatchObject({ id: playerId, username, race: 'THALION', level: 1, clanId, clanTag: 'PFT' });
   });
 
   it('filters the leaderboard by race, excluding a non-matching race', async () => {
     const matching = await request(app.getHttpServer()).get(`/api/v1/player?search=${username}&race=THALION`).set(auth()).expect(200);
-    expect(matching.body).toHaveLength(1);
+    expect(matching.body.entries).toHaveLength(1);
 
     const nonMatching = await request(app.getHttpServer()).get(`/api/v1/player?search=${username}&race=NEXAR`).set(auth()).expect(200);
-    expect(nonMatching.body).toHaveLength(0);
+    expect(nonMatching.body.entries).toHaveLength(0);
   });
 
   it('returns 404 for an unknown player id', async () => {

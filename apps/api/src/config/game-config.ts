@@ -171,6 +171,50 @@ export const GAME_BALANCE = {
     attackCooldownMinutes: 10,
     revengeProtectionMinutes: 10,
   },
+  clanWar: {
+    // Clan-vs-clan war (owner decision, 2026-09-10 — instructions/OPEN_DECISIONS.md's
+    // "clan-vs-clan war systems" was previously out of scope). See
+    // schema.prisma's comment on ClanWar/ClanWarAttack for the full mechanic.
+    // A flat floor on both sides, not a power-ratio matchmaking system —
+    // deliberately as unsolved as regular PvP's own undefined power range.
+    minMembersToParticipate: 5,
+    // Owner-specified: a war auto-resolves after 3 days even if neither
+    // pool hit 0 (whoever has more remaining pool wins by DECISION instead).
+    maxDurationHours: 72,
+    // Same specific attacking clan cannot re-declare on the same target
+    // clan for this many days after their last war together resolves.
+    rematchCooldownDays: 14,
+    // War-pool size: sum of every current member's basePlayerHp + baseHp×
+    // robotAttributes.hpPointValue (gear excluded on purpose — equipment is
+    // swappable at will, attribute points are not) × this multiplier.
+    // Snapshotted once at declaration, never recalculated. Starting value,
+    // not tuned against real play yet — retune here once wars have actually
+    // been fought.
+    poolMultiplier: 100,
+    // Two independent cooldowns, modeled directly on PvP's existing
+    // pvpProtectedUntil/attackCooldownMinutes precedent (owner-specified
+    // starting values): a defender who was just hit is protected from ANY
+    // attacker for targetProtectionMinutes; the same attacker specifically
+    // cannot re-hit the same defender for attackCooldownMinutes.
+    targetProtectionMinutes: 5,
+    attackCooldownMinutes: 60,
+    // Attacks cost Action Energy like regular PvP — reuses pvp.attackCostEnergy
+    // rather than a separate constant. Reward on a won individual duel also
+    // reuses pvp.resourceStealPercentage directly (owner decision: no
+    // separate war-specific per-duel steal rate) — see clan-wars.service.ts.
+    //
+    // War-level reward (owner decision, 2026-09-10, on top of the per-duel
+    // steal above): when the war itself resolves with a winner, that clan's
+    // treasury takes a percentage of the LOSING clan's current treasury
+    // (Metal/Crystal/Credits) — a separate, bigger prize for the collective
+    // outcome, not just individual loot. CONQUEST (a pool actually driven to
+    // 0) pays out more than DECISION (won only by having more pool left when
+    // the 3-day deadline hit) — deliberately, since DECISION didn't require
+    // actually breaking the enemy. DRAW transfers nothing. Starting values,
+    // not tuned against real play yet.
+    conquestTreasuryStealPercentage: 0.15,
+    decisionTreasuryStealPercentage: 0.05,
+  },
   presence: {
     // No real-time system (instructions/ARCHITECTURE.md prefers elapsed-time
     // computation over a background job/socket per player) — "online" is just

@@ -1,14 +1,16 @@
 'use client';
 
-import type { ClanDetailDto } from '@pentilius/shared';
+import type { ClanDetailDto, PlayerProfileDto, RobotAttributesDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerLink } from '@/components/PlayerLink';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import { Link } from '@/i18n/navigation';
-import { getClan } from '@/lib/api-client';
+import { ApiError, getClan, getMyClan, getProfile, getRobotAttributes, joinClan } from '@/lib/api-client';
+import { hasAnyRequirement, meetsJoinRequirements } from '@/lib/clan-requirements';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 export default function ClanDetailPage() {
@@ -18,13 +20,46 @@ export default function ClanDetailPage() {
   const clanId = params.id;
 
   const [clan, setClan] = useState<ClanDetailDto | null>(null);
+  const [hasClan, setHasClan] = useState<boolean | null>(null);
+  const [myProfile, setMyProfile] = useState<PlayerProfileDto | null>(null);
+  const [myAttributes, setMyAttributes] = useState<RobotAttributesDto | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  async function load() {
+    try {
+      const [clanRes, mine, profile, attributes] = await Promise.all([getClan(clanId), getMyClan(), getProfile(), getRobotAttributes()]);
+      setClan(clanRes);
+      setHasClan(mine.clan !== null);
+      setMyProfile(profile);
+      setMyAttributes(attributes);
+    } catch {
+      setError(t('clans.loadError'));
+    }
+  }
+
   useEffect(() => {
-    getClan(clanId)
-      .then(setClan)
-      .catch(() => setError(t('clans.loadError')));
-  }, [clanId, t]);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clanId]);
+
+  async function handleJoin() {
+    setError(null);
+    try {
+      await joinClan(clanId);
+      await load();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'JOIN_REQUIREMENTS_NOT_MET') {
+        setError(t('clans.errorRequirementsNotMet'));
+      } else if (err instanceof ApiError && err.code === 'CLAN_FULL') {
+        setError(t('clans.errorFull'));
+      } else {
+        setError(t('clans.joinError'));
+      }
+    }
+  }
+
+  const eligible = clan ? meetsJoinRequirements(clan, myProfile, myAttributes) : false;
+  const full = clan ? clan.memberCount >= clan.memberCap : false;
 
   return (
     <GameLayout>
@@ -45,6 +80,59 @@ export default function ClanDetailPage() {
             </span>
           </div>
           {clan.description && <p className="mb-4 text-sm text-textMuted">{clan.description}</p>}
+
+          {hasAnyRequirement(clan.joinRequirements) && (
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              {clan.joinRequirements.minLevel > 0 && (
+                <span className="rounded border border-wellBorder bg-well px-1.5 py-0.5 text-[9px] uppercase text-textMuted">
+                  {t('clans.reqLevel', { value: clan.joinRequirements.minLevel })}
+                </span>
+              )}
+              {clan.joinRequirements.minAttributes.damage > 0 && (
+                <span className="rounded border border-wellBorder bg-well px-1.5 py-0.5 text-[9px] uppercase text-textMuted">
+                  {t('clans.reqDamage', { value: clan.joinRequirements.minAttributes.damage })}
+                </span>
+              )}
+              {clan.joinRequirements.minAttributes.defense > 0 && (
+                <span className="rounded border border-wellBorder bg-well px-1.5 py-0.5 text-[9px] uppercase text-textMuted">
+                  {t('clans.reqDefense', { value: clan.joinRequirements.minAttributes.defense })}
+                </span>
+              )}
+              {clan.joinRequirements.minAttributes.hp > 0 && (
+                <span className="rounded border border-wellBorder bg-well px-1.5 py-0.5 text-[9px] uppercase text-textMuted">
+                  {t('clans.reqHp', { value: clan.joinRequirements.minAttributes.hp })}
+                </span>
+              )}
+              {clan.joinRequirements.minAttributes.evasion > 0 && (
+                <span className="rounded border border-wellBorder bg-well px-1.5 py-0.5 text-[9px] uppercase text-textMuted">
+                  {t('clans.reqEvasion', { value: clan.joinRequirements.minAttributes.evasion })}
+                </span>
+              )}
+              {clan.joinRequirements.allowedRaces.map((race) => (
+                <span key={race} className="flex items-center gap-1 rounded border border-wellBorder bg-well px-1.5 py-0.5 text-[9px] uppercase text-textMuted">
+                  <AssetIcon
+                    assetId={`races.${race.toLowerCase()}.icon`}
+                    alt={t(`race.${race}.name`)}
+                    className="h-3 w-3 object-contain"
+                    fallback={<div className="h-3 w-3 rounded-sm bg-accent opacity-60" />}
+                  />
+                  {t(`race.${race}.name`)}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {hasClan === false && (
+            <button
+              type="button"
+              disabled={full || !eligible}
+              title={!eligible ? t('clans.errorRequirementsNotMet') : undefined}
+              onClick={handleJoin}
+              className="mb-4 w-full rounded-md border border-accent bg-accentBg py-2 text-[11px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              {t('clans.join')}
+            </button>
+          )}
 
           <div className="mb-4 rounded-md border border-wellBorder bg-well p-4">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-textFaint">{t('clans.treasury')}</h3>

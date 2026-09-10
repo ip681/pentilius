@@ -1,13 +1,14 @@
 'use client';
 
-import type { BossDto, BossEncounterResultDto, PlayerProfileDto } from '@pentilius/shared';
+import type { BossDto, BossEncounterResultDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
 import { LootEntry } from '@/components/LootEntry';
-import { getBosses, getProfile, joinBossEncounter, resolveBossEncounter } from '@/lib/api-client';
+import { ApiError, getBosses, joinBossEncounter, resolveBossEncounter } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface LogLine {
@@ -32,16 +33,17 @@ export default function BossesPage() {
   useRequireAuth();
   const t = useTranslations();
   const [data, setData] = useState<BossDto[] | null>(null);
-  const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
+  const { profile, refreshProfile } = usePlayerEnergy();
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
+  const [joining, setJoining] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function load() {
     try {
-      const [bosses, profileRes] = await Promise.all([getBosses(), getProfile()]);
+      const bosses = await getBosses();
       setData(bosses);
-      setProfile(profileRes);
     } catch {
       setError(t('bosses.loadError'));
     }
@@ -58,18 +60,29 @@ export default function BossesPage() {
   }, []);
 
   async function handleJoin(key: string) {
+    if (joining) return;
     setError(null);
+    setJoining(true);
     try {
       await joinBossEncounter(key);
       notifyProfileChanged();
-      await load();
-    } catch {
-      setError(t('bosses.joinError'));
+      await Promise.all([load(), refreshProfile()]);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 400) {
+        setError(t('bosses.notEnoughEnergy'));
+      } else {
+        setError(t('bosses.joinError'));
+      }
+      await refreshProfile();
+    } finally {
+      setJoining(false);
     }
   }
 
   async function handleResolve(boss: BossDto) {
+    if (resolving) return;
     setError(null);
+    setResolving(true);
     try {
       const result = await resolveBossEncounter(boss.key);
       notifyProfileChanged();
@@ -131,6 +144,8 @@ export default function BossesPage() {
       }, ROUND_INTERVAL_MS);
     } catch {
       setError(t('bosses.resolveError'));
+    } finally {
+      setResolving(false);
     }
   }
 
@@ -248,6 +263,7 @@ export default function BossesPage() {
                               </div>
                               <div className="mt-1 flex justify-between">
                                 <span className="text-textFaint">{t('robot.stat.hp')}</span>
+                                {/* Party (robots) — "Здравина"/Durability, not the boss's own "HP" below. */}
                                 <span>{Math.round(boss.encounter.partyPreview.hp)}</span>
                               </div>
                               <div className="mt-1 flex justify-between">
@@ -297,7 +313,7 @@ export default function BossesPage() {
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          disabled={(isOpen && isParticipant) || (profile?.energy.current ?? 0) < 1}
+                          disabled={(isOpen && isParticipant) || joining || (profile?.energy.current ?? 0) < 1}
                           onClick={() => handleJoin(boss.key)}
                           title={!isParticipant && (profile?.energy.current ?? 0) < 1 ? t('bosses.notEnoughEnergy') : undefined}
                           className="flex-1 rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
@@ -306,7 +322,7 @@ export default function BossesPage() {
                         </button>
                         <button
                           type="button"
-                          disabled={!isOpen || !isParticipant}
+                          disabled={!isOpen || !isParticipant || resolving}
                           onClick={() => handleResolve(boss)}
                           className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-xs uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                         >
@@ -335,7 +351,8 @@ function FighterPanel({ name, hp, maxHp, variant }: { name: string; hp: number; 
         <div className={`h-10 w-32 ${variant === 'enemy' ? 'bg-danger' : 'bg-accent'} opacity-70`} style={{ clipPath: 'polygon(0 50%, 20% 15%, 80% 15%, 100% 50%, 80% 85%, 20% 85%)' }} />
       </div>
       <div className="mb-1.5 flex justify-between text-[11px] text-textMuted">
-        <span>{t('robot.stat.hp')}</span>
+        {/* The enemy here is always a boss (Pentili-type creature) — "HP" — while the player side is the party's robots' "Здравина"/Durability. */}
+        <span>{t(variant === 'enemy' ? 'pve.hp' : 'robot.stat.hp')}</span>
         <span>
           {Math.round(hp)} / {maxHp}
         </span>

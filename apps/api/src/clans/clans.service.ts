@@ -1,12 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClanBuildingStateDto, ClanDetailDto, ClanMessageDto, ClanSummaryDto, MyClanResponseDto } from '@pentilius/shared';
+import { ClanBuildingStateDto, ClanDetailDto, ClanLeaderboardEntryDto, ClanLeaderboardPageDto, ClanMessageDto, ClanSummaryDto, MyClanResponseDto } from '@pentilius/shared';
 import { Clan, ClanBuilding, ClanBuildingLevelCost, ClanBuildingType, ClanMembership, ClanMessage, Player, Prisma } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ClanLeaderboardQueryDto } from './dto/clan-leaderboard-query.dto';
 import { CreateClanDto } from './dto/create-clan.dto';
 import { DonateDto } from './dto/donate.dto';
 import { UpdateClanDto } from './dto/update-clan.dto';
+import { UpdateJoinRequirementsDto } from './dto/update-join-requirements.dto';
 
 type Tx = PrismaService | Prisma.TransactionClient;
 type BuildingWithType = ClanBuilding & { clanBuildingType: ClanBuildingType & { levelCosts: ClanBuildingLevelCost[] } };
@@ -44,6 +46,78 @@ export class ClansService {
       orderBy: { createdAt: 'asc' },
     });
     return clans.map(toSummaryDto);
+  }
+
+  /**
+   * Clan leaderboard (owner decision, 2026-09-10) — deliberately excludes
+   * treasury (donation amounts stay private, same reasoning as the player
+   * board excluding wealth) and loss counts (only total wars fought plus
+   * each win type — CONQUEST and DECISION shown separately, no "losses"
+   * column). Small-scale, in-memory ranking — see the comment on
+   * PlayerService.listPlayers for why that's fine at this project's size.
+   */
+  async getLeaderboard(viewerId: string, filter: ClanLeaderboardQueryDto): Promise<ClanLeaderboardPageDto> {
+    const sortBy = filter.sortBy ?? 'wars';
+    const page = Math.max(1, filter.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 20));
+
+    const [myMembership, clans, resolvedWars] = await Promise.all([
+      this.prisma.clanMembership.findUnique({ where: { playerId: viewerId } }),
+      this.prisma.clan.findMany({
+        select: { id: true, name: true, tag: true, members: { select: { player: { select: { level: true } } } } },
+      }),
+      this.prisma.clanWar.findMany({
+        where: { status: 'RESOLVED' },
+        select: { attackerClanId: true, defenderClanId: true, winnerClanId: true, outcome: true },
+      }),
+    ]);
+
+    const warStatsByClan = new Map<string, { totalWars: number; conquestWins: number; decisionWins: number }>();
+    const bump = (clanId: string, field: 'totalWars' | 'conquestWins' | 'decisionWins') => {
+      const entry = warStatsByClan.get(clanId) ?? { totalWars: 0, conquestWins: 0, decisionWins: 0 };
+      entry[field] += 1;
+      warStatsByClan.set(clanId, entry);
+    };
+    for (const war of resolvedWars) {
+      bump(war.attackerClanId, 'totalWars');
+      bump(war.defenderClanId, 'totalWars');
+      if (war.winnerClanId && war.outcome === 'CONQUEST') bump(war.winnerClanId, 'conquestWins');
+      if (war.winnerClanId && war.outcome === 'DECISION') bump(war.winnerClanId, 'decisionWins');
+    }
+
+    const enriched = clans.map((clan) => {
+      const stats = warStatsByClan.get(clan.id) ?? { totalWars: 0, conquestWins: 0, decisionWins: 0 };
+      const levels = clan.members.map((m) => m.player.level);
+      const averageMemberLevel = levels.length > 0 ? Math.round((levels.reduce((sum, l) => sum + l, 0) / levels.length) * 10) / 10 : 0;
+      return {
+        id: clan.id,
+        name: clan.name,
+        tag: clan.tag,
+        memberCount: clan.members.length,
+        averageMemberLevel,
+        totalWars: stats.totalWars,
+        conquestWins: stats.conquestWins,
+        decisionWins: stats.decisionWins,
+      };
+    });
+
+    // CONQUEST weighs more than DECISION for the default 'wars' sort — a
+    // conquest required actually breaking the enemy, a decision didn't.
+    const metricOf = (c: (typeof enriched)[number]) =>
+      sortBy === 'avgLevel' ? c.averageMemberLevel : c.conquestWins * 1000 + c.decisionWins;
+    const sorted = [...enriched].sort((a, b) => metricOf(b) - metricOf(a) || a.name.localeCompare(b.name));
+
+    const total = sorted.length;
+    const startIndex = (page - 1) * pageSize;
+    const pageItems = sorted.slice(startIndex, startIndex + pageSize);
+
+    const entries: ClanLeaderboardEntryDto[] = pageItems.map((c, index) => ({
+      ...c,
+      rank: startIndex + index + 1,
+      isMyClan: myMembership?.clanId === c.id,
+    }));
+
+    return { entries, page, pageSize, total };
   }
 
   async getClan(clanId: string, currentPlayerId: string): Promise<ClanDetailDto> {
@@ -103,6 +177,11 @@ export class ClansService {
       }
       if (clan.members.length >= effectiveMemberCap(clan)) {
         throw new BadRequestException('CLAN_FULL');
+      }
+
+      const player = await tx.player.findUniqueOrThrow({ where: { id: playerId } });
+      if (!meetsJoinRequirements(clan, player)) {
+        throw new BadRequestException('JOIN_REQUIREMENTS_NOT_MET');
       }
 
       await tx.clanMembership.create({ data: { clanId, playerId, role: 'MEMBER' } });
@@ -181,6 +260,27 @@ export class ClansService {
     });
 
     return this.getClan(membership.clanId, playerId);
+  }
+
+  async updateJoinRequirements(actingPlayerId: string, dto: UpdateJoinRequirementsDto): Promise<ClanDetailDto> {
+    const acting = await this.prisma.clanMembership.findUnique({ where: { playerId: actingPlayerId } });
+    if (!acting || acting.role === 'MEMBER') {
+      throw new ForbiddenException('Only the leader or an officer may change join requirements');
+    }
+
+    await this.prisma.clan.update({
+      where: { id: acting.clanId },
+      data: {
+        ...(dto.minLevel !== undefined ? { joinMinLevel: dto.minLevel } : {}),
+        ...(dto.minDamage !== undefined ? { joinMinDamage: dto.minDamage } : {}),
+        ...(dto.minDefense !== undefined ? { joinMinDefense: dto.minDefense } : {}),
+        ...(dto.minHp !== undefined ? { joinMinHp: dto.minHp } : {}),
+        ...(dto.minEvasion !== undefined ? { joinMinEvasion: dto.minEvasion } : {}),
+        ...(dto.allowedRaces !== undefined ? { joinAllowedRaces: dto.allowedRaces } : {}),
+      },
+    });
+
+    return this.getClan(acting.clanId, actingPlayerId);
   }
 
   async kickMember(actingPlayerId: string, targetPlayerId: string): Promise<void> {
@@ -418,6 +518,17 @@ function effectiveMemberCap(clan: ClanWithDetails): number {
   return clan.memberCap + Math.round(bonus);
 }
 
+/** Equipment deliberately excluded — checks the player's raw Core Attribute points only (see schema.prisma's comment on Clan.joinMinLevel). */
+function meetsJoinRequirements(clan: Clan, player: Player): boolean {
+  if (clan.joinAllowedRaces.length > 0 && !clan.joinAllowedRaces.includes(player.race)) return false;
+  if (player.level < clan.joinMinLevel) return false;
+  if (player.baseDamage < clan.joinMinDamage) return false;
+  if (player.baseDefense < clan.joinMinDefense) return false;
+  if (player.baseHp < clan.joinMinHp) return false;
+  if (player.baseEvasion < clan.joinMinEvasion) return false;
+  return true;
+}
+
 function toSummaryDto(clan: ClanWithDetails): ClanSummaryDto {
   const leader = clan.members.find((m) => m.role === 'LEADER');
   return {
@@ -430,6 +541,11 @@ function toSummaryDto(clan: ClanWithDetails): ClanSummaryDto {
     leaderId: leader?.player.id ?? '',
     leaderUsername: leader?.player.username ?? '',
     treasury: { metal: clan.treasuryMetal, crystal: clan.treasuryCrystal, credits: clan.treasuryCredits },
+    joinRequirements: {
+      minLevel: clan.joinMinLevel,
+      minAttributes: { damage: clan.joinMinDamage, defense: clan.joinMinDefense, hp: clan.joinMinHp, evasion: clan.joinMinEvasion },
+      allowedRaces: clan.joinAllowedRaces,
+    },
   };
 }
 

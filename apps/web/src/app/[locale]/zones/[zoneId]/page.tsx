@@ -1,6 +1,6 @@
 'use client';
 
-import type { BattleReportDto, PentiliDto, PentiliLootDropDto, PlayerProfileDto } from '@pentilius/shared';
+import type { BattleReportDto, PentiliDto, PentiliLootDropDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -10,8 +10,9 @@ import { GameLayout } from '@/components/GameLayout';
 import { LootEntry } from '@/components/LootEntry';
 import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { ResourceIcon } from '@/components/ResourceIcon';
-import { attackPentili, getPentiliInZone, getProfile } from '@/lib/api-client';
+import { ApiError, attackPentili, getPentiliInZone } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface LogLine {
@@ -82,9 +83,10 @@ export default function ZonePentiliPage() {
   const zoneId = params.zoneId;
 
   const [pentili, setPentili] = useState<PentiliDto[] | null>(null);
-  const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
+  const { profile, refreshProfile } = usePlayerEnergy();
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
+  const [attacking, setAttacking] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const myName = profile?.username ?? t('pve.you');
@@ -98,29 +100,20 @@ export default function ZonePentiliPage() {
     getPentiliInZone(zoneId)
       .then(setPentili)
       .catch(() => setError(t('pve.loadError')));
-    getProfile().then(setProfile).catch(() => undefined);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoneId]);
 
-  // Re-fetch once, exactly when the next Action Energy point is due, so the
-  // Attack button's disabled state self-corrects without continuous polling
-  // (same pattern as GameLayout's TopBar energy bar).
-  useEffect(() => {
-    if (!profile?.energy.nextRegenAt) return;
-    const delayMs = new Date(profile.energy.nextRegenAt).getTime() - Date.now() + 1000;
-    if (delayMs <= 0) return;
-    const timeout = setTimeout(() => getProfile().then(setProfile).catch(() => undefined), delayMs);
-    return () => clearTimeout(timeout);
-  }, [profile?.energy.nextRegenAt]);
-
   async function handleAttack(target: PentiliDto) {
+    if (attacking) return;
     setError(null);
+    setAttacking(true);
     try {
       const report = await attackPentili(target.id);
       notifyProfileChanged();
+      await refreshProfile();
 
       setBattle({
         target,
@@ -190,8 +183,15 @@ export default function ZonePentiliPage() {
           };
         });
       }, ROUND_INTERVAL_MS);
-    } catch {
-      setError(t('pve.attackError'));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 400) {
+        setError(t('pve.notEnoughEnergy'));
+      } else {
+        setError(t('pve.attackError'));
+      }
+      await refreshProfile();
+    } finally {
+      setAttacking(false);
     }
   }
 
@@ -273,7 +273,7 @@ export default function ZonePentiliPage() {
               <button
                 type="button"
                 onClick={() => handleAttack(entry)}
-                disabled={(profile?.energy.current ?? 0) < 1}
+                disabled={attacking || (profile?.energy.current ?? 0) < 1}
                 title={(profile?.energy.current ?? 0) < 1 ? t('pve.notEnoughEnergy') : undefined}
                 className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-accentBg"
               >
@@ -330,7 +330,8 @@ function FighterPanel({
         )}
       </div>
       <div className="mb-1 flex justify-between text-[9px] text-textMuted sm:mb-1.5 sm:text-[11px]">
-        <span>{t('robot.stat.hp')}</span>
+        {/* The enemy here is always a Pentili (creature) — "HP" — while the player side is the robot's "Здравина"/Durability. */}
+        <span>{t(variant === 'enemy' ? 'pve.hp' : 'robot.stat.hp')}</span>
         <span>
           {Math.round(hp)} / {maxHp}
         </span>

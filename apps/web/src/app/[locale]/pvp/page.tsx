@@ -1,6 +1,6 @@
 'use client';
 
-import type { MyClanResponseDto, PlayerProfileDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto } from '@pentilius/shared';
+import type { MyClanResponseDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { BattleDivider } from '@/components/BattleDivider';
@@ -10,8 +10,9 @@ import { LootEntry } from '@/components/LootEntry';
 import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { PlayerLink } from '@/components/PlayerLink';
 import { Link } from '@/i18n/navigation';
-import { ApiError, attackPvpOpponent, getMyClan, getProfile, getPvpReports, getPvpStatus, scoutPvpOpponent } from '@/lib/api-client';
+import { ApiError, attackPvpOpponent, getMyClan, getPvpReports, getPvpStatus, scoutPvpOpponent } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface LogLine {
@@ -48,10 +49,11 @@ export default function PvpPage() {
   const [status, setStatus] = useState<PvpStatusDto | null>(null);
   const [reports, setReports] = useState<PvpBattleReportDto[] | null>(null);
   const [scout, setScout] = useState<PvpScoutDto | null>(null);
-  const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
+  const { profile, refreshProfile } = usePlayerEnergy();
   const [myClan, setMyClan] = useState<MyClanResponseDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
+  const [attacking, setAttacking] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const myName = profile?.username ?? t('pvp.you');
@@ -75,10 +77,9 @@ export default function PvpPage() {
 
   async function load() {
     try {
-      const [statusRes, reportsRes, profileRes, myClanRes] = await Promise.all([getPvpStatus(), getPvpReports(), getProfile(), getMyClan()]);
+      const [statusRes, reportsRes, myClanRes] = await Promise.all([getPvpStatus(), getPvpReports(), getMyClan()]);
       setStatus(statusRes);
       setReports(reportsRes);
-      setProfile(profileRes);
       setMyClan(myClanRes);
       if (statusRes.unlocked) {
         await loadScout();
@@ -96,20 +97,11 @@ export default function PvpPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-fetch once, exactly when the next Action Energy point is due, so the
-  // Attack button's disabled state self-corrects without continuous polling
-  // (same pattern as GameLayout's TopBar energy bar).
-  useEffect(() => {
-    if (!profile?.energy.nextRegenAt) return;
-    const delayMs = new Date(profile.energy.nextRegenAt).getTime() - Date.now() + 1000;
-    if (delayMs <= 0) return;
-    const timeout = setTimeout(() => getProfile().then(setProfile).catch(() => undefined), delayMs);
-    return () => clearTimeout(timeout);
-  }, [profile?.energy.nextRegenAt]);
-
   async function handleAttack() {
+    if (attacking) return;
     if (!scout) return;
     setError(null);
+    setAttacking(true);
     try {
       const report = await attackPvpOpponent(scout.opponentId);
       notifyProfileChanged();
@@ -183,7 +175,7 @@ export default function PvpPage() {
         });
       }, ROUND_INTERVAL_MS);
 
-      await load();
+      await Promise.all([load(), refreshProfile()]);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setError(t('pvp.opponentGone'));
@@ -193,6 +185,9 @@ export default function PvpPage() {
       } else {
         setError(t('pvp.attackError'));
       }
+      await refreshProfile();
+    } finally {
+      setAttacking(false);
     }
   }
 
@@ -262,14 +257,15 @@ export default function PvpPage() {
                 <button
                   type="button"
                   onClick={handleReroll}
-                  className="rounded-md border border-wellBorder bg-well px-5 py-2.5 text-xs uppercase text-textMuted hover:bg-accentBgHover"
+                  disabled={attacking}
+                  className="rounded-md border border-wellBorder bg-well px-5 py-2.5 text-xs uppercase text-textMuted hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
                 >
                   {t('pvp.reroll')}
                 </button>
                 <button
                   type="button"
                   onClick={handleAttack}
-                  disabled={(profile?.energy.current ?? 0) < 1}
+                  disabled={attacking || (profile?.energy.current ?? 0) < 1}
                   title={(profile?.energy.current ?? 0) < 1 ? t('pvp.notEnoughEnergy') : undefined}
                   className="rounded-md border border-accent bg-accentBg px-6 py-2.5 text-xs uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-accentBg"
                 >

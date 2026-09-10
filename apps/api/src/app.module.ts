@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { BaseModule } from './base/base.module';
 import { BossModule } from './boss/boss.module';
+import { ClanWarsModule } from './clan-wars/clan-wars.module';
 import { ClansModule } from './clans/clans.module';
 import configuration from './config/configuration';
 import { ExpeditionsModule } from './expeditions/expeditions.module';
@@ -35,6 +36,7 @@ import { ZonesModule } from './zones/zones.module';
     BossModule,
     PvpModule,
     ClansModule,
+    ClanWarsModule,
     ReportsModule,
     ShopModule,
     FriendsModule,

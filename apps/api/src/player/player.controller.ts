@@ -16,8 +16,8 @@ export class PlayerController {
   constructor(private readonly playerService: PlayerService) {}
 
   @Get()
-  listPlayers(@Query() query: ListPlayersDto) {
-    return this.playerService.listPlayers(query);
+  listPlayers(@CurrentPlayer() currentPlayer: JwtPayload, @Query() query: ListPlayersDto) {
+    return this.playerService.listPlayers(currentPlayer.sub, query);
   }
 
   @Get('me')
