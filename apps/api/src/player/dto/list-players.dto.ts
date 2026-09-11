@@ -13,8 +13,8 @@ export class ListPlayersDto {
   search?: string;
 
   @IsOptional()
-  @IsIn(['level', 'pvpWins', 'clanWarDamage'])
-  sortBy?: 'level' | 'pvpWins' | 'clanWarDamage';
+  @IsIn(['level', 'pvpWins', 'clanWarDamage', 'bossPoints'])
+  sortBy?: 'level' | 'pvpWins' | 'clanWarDamage' | 'bossPoints';
 
   @IsOptional()
   @Type(() => Number)

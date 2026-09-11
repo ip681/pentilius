@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
+import { ItemHoverTooltip, useItemHoverTooltip } from '@/components/ItemHoverTooltip';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, buyItem, getShop } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
@@ -144,65 +145,119 @@ export default function ShopPage() {
 
       <div className="flex flex-col gap-2">
         {visibleItems.map((item) => (
-          <div key={item.itemDefinitionKey} className="flex items-center gap-3 rounded-md border border-wellBorder bg-well p-3">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-wellBorder bg-ink">
-              <AssetIcon
-                assetId={item.iconAssetId}
-                alt={t(item.nameKey)}
-                className="h-full w-full object-contain p-1"
-                fallback={<span className="text-sm font-semibold text-textMuted">{t(item.nameKey).charAt(0)}</span>}
-              />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{t(item.nameKey)}</p>
-              <p className="truncate text-[10px] text-textFaint">{t(item.descriptionKey)}</p>
-
-              {item.baseStats && (item.baseStats.attack !== undefined || item.baseStats.defense !== undefined || item.baseStats.hp !== undefined) && (
-                <p className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-textFaint">
-                  {(['attack', 'defense', 'hp'] as const).map((key) => {
-                    const value = item.baseStats?.[key];
-                    if (value === undefined) return null;
-                    return (
-                      <span key={key}>
-                        {t(`robot.stat.${key === 'attack' ? 'damage' : key}`)} <span className="text-text">{value}</span>
-                      </span>
-                    );
-                  })}
-                </p>
-              )}
-
-              {item.raceLockInfo && (
-                <p className="mt-0.5 text-[9px] text-textFaint">
-                  {t('shop.raceLockOwnRace', { percent: Math.round(item.raceLockInfo.ownRaceChance * 100) })}
-                  {item.raceLockInfo.universalChance > 0 &&
-                    ` · ${t('shop.raceLockUniversal', { percent: Math.round(item.raceLockInfo.universalChance * 100) })}`}
-                </p>
-              )}
-
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                {priceParts(item).map((part) => (
-                  <span key={part.type} className="flex items-center gap-1">
-                    {part.amount.toLocaleString()} <ResourceIcon type={part.type} className="h-3.5 w-3.5" />
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <ConfirmButton
-              label={t('shop.buy')}
-              confirmLabel={t('common.confirm')}
-              cancelLabel={t('common.cancel')}
-              message={t('shop.buyConfirm', { price: priceLabel(item) })}
-              onConfirm={() => handleBuy(item.itemDefinitionKey, item.nameKey)}
-              className="shrink-0 rounded-md border border-accent bg-accentBg px-3 py-1.5 text-[10px] uppercase hover:bg-accentBgHover"
-              confirmClassName="flex-1 rounded-md border border-accent bg-accentBg px-3 py-1.5 text-[10px] uppercase hover:bg-accentBgHover"
-              cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel px-3 py-1.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
-              wrapperClassName="shrink-0"
-            />
-          </div>
+          <ShopItemRow key={item.itemDefinitionKey} item={item} priceLabel={priceLabel} priceParts={priceParts} onBuy={handleBuy} />
         ))}
       </div>
     </GameLayout>
+  );
+}
+
+// Own useItemHoverTooltip() instance per row (mirrors market/page.tsx's ListingCard) so each
+// item's popup is independent — onMouseEnter for desktop hover, onClick doubles as mobile tap.
+function ShopItemRow({
+  item,
+  priceLabel,
+  priceParts,
+  onBuy,
+}: {
+  item: ShopItemDto;
+  priceLabel: (item: ShopItemDto) => string;
+  priceParts: (item: ShopItemDto) => { type: ResourceType; amount: number }[];
+  onBuy: (key: string, nameKey: string) => void;
+}) {
+  const t = useTranslations();
+  const tooltip = useItemHoverTooltip();
+  const hasStats = item.baseStats && (item.baseStats.attack !== undefined || item.baseStats.defense !== undefined || item.baseStats.hp !== undefined);
+
+  return (
+    <div className="flex items-center gap-3 rounded-md border border-wellBorder bg-well p-3">
+      <button
+        type="button"
+        onMouseEnter={tooltip.show}
+        onMouseLeave={tooltip.hide}
+        onClick={tooltip.show}
+        className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-wellBorder bg-ink"
+      >
+        <AssetIcon
+          assetId={item.iconAssetId}
+          alt={t(item.nameKey)}
+          className="h-full w-full object-contain p-1"
+          fallback={<span className="text-sm font-semibold text-textMuted">{t(item.nameKey).charAt(0)}</span>}
+        />
+      </button>
+      {tooltip.rect && (
+        <ItemHoverTooltip rect={tooltip.rect} name={t(item.nameKey)}>
+          <p className="mb-1.5 text-textMuted">{t(item.descriptionKey)}</p>
+          {hasStats && (
+            <div className="mb-1.5 rounded border border-wellBorder bg-ink p-2">
+              {(['attack', 'defense', 'hp'] as const).map((key) => {
+                const value = item.baseStats?.[key];
+                if (value === undefined) return null;
+                return (
+                  <div key={key} className="flex justify-between text-textFaint">
+                    <span>{t(`robot.stat.${key === 'attack' ? 'damage' : key}`)}</span>
+                    <span className="text-text">{value}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {item.raceLockInfo && (
+            <p className="text-positive">
+              {t('shop.raceLockOwnRace', { percent: Math.round(item.raceLockInfo.ownRaceChance * 100) })}
+              {item.raceLockInfo.universalChance > 0 &&
+                ` · ${t('shop.raceLockUniversal', { percent: Math.round(item.raceLockInfo.universalChance * 100) })}`}
+            </p>
+          )}
+        </ItemHoverTooltip>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold">{t(item.nameKey)}</p>
+        <p className="truncate text-[10px] text-textFaint">{t(item.descriptionKey)}</p>
+
+        {hasStats && (
+          <p className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-textFaint">
+            {(['attack', 'defense', 'hp'] as const).map((key) => {
+              const value = item.baseStats?.[key];
+              if (value === undefined) return null;
+              return (
+                <span key={key}>
+                  {t(`robot.stat.${key === 'attack' ? 'damage' : key}`)} <span className="text-text">{value}</span>
+                </span>
+              );
+            })}
+          </p>
+        )}
+
+        {item.raceLockInfo && (
+          <p className="mt-0.5 text-[9px] text-textFaint">
+            {t('shop.raceLockOwnRace', { percent: Math.round(item.raceLockInfo.ownRaceChance * 100) })}
+            {item.raceLockInfo.universalChance > 0 &&
+              ` · ${t('shop.raceLockUniversal', { percent: Math.round(item.raceLockInfo.universalChance * 100) })}`}
+          </p>
+        )}
+
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+          {priceParts(item).map((part) => (
+            <span key={part.type} className="flex items-center gap-1">
+              {part.amount.toLocaleString()} <ResourceIcon type={part.type} className="h-3.5 w-3.5" />
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <ConfirmButton
+        label={t('shop.buy')}
+        confirmLabel={t('common.confirm')}
+        cancelLabel={t('common.cancel')}
+        message={t('shop.buyConfirm', { price: priceLabel(item) })}
+        onConfirm={() => onBuy(item.itemDefinitionKey, item.nameKey)}
+        className="shrink-0 rounded-md border border-accent bg-accentBg px-3 py-1.5 text-[10px] uppercase hover:bg-accentBgHover"
+        confirmClassName="flex-1 rounded-md border border-accent bg-accentBg px-3 py-1.5 text-[10px] uppercase hover:bg-accentBgHover"
+        cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel px-3 py-1.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+        wrapperClassName="shrink-0"
+      />
+    </div>
   );
 }

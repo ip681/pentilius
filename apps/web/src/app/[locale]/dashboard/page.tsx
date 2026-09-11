@@ -1,12 +1,12 @@
 'use client';
 
-import type { BaseResponseDto, BossDto, ClanWarStateDto, ExpeditionsResponseDto, MyClanResponseDto, PvpStatusDto, ResearchResponseDto, RobotSlotDto, ZoneDto } from '@pentilius/shared';
+import type { BaseResponseDto, BossFormationsResponseDto, ClanWarStateDto, ExpeditionsResponseDto, MyClanResponseDto, PvpStatusDto, ResearchResponseDto, RobotSlotDto, ZoneDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
 import { Link } from '@/i18n/navigation';
-import { getBase, getBosses, getClanWarStatus, getExpeditions, getMyClan, getPvpStatus, getResearches, getRobot, getZones } from '@/lib/api-client';
+import { getBase, getBossFormations, getClanWarStatus, getExpeditions, getMyClan, getPvpStatus, getResearches, getRobot, getZones } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
@@ -33,7 +33,7 @@ export default function DashboardPage() {
   const [zones, setZones] = useState<ZoneDto[] | null>(null);
   const [research, setResearch] = useState<ResearchResponseDto | null>(null);
   const [expeditions, setExpeditions] = useState<ExpeditionsResponseDto | null>(null);
-  const [bosses, setBosses] = useState<BossDto[] | null>(null);
+  const [bossFormations, setBossFormations] = useState<BossFormationsResponseDto | null>(null);
   const [myClan, setMyClan] = useState<MyClanResponseDto | null>(null);
   const [pvpStatus, setPvpStatus] = useState<PvpStatusDto | null>(null);
   const [clanWar, setClanWar] = useState<ClanWarStateDto | null>(null);
@@ -45,7 +45,7 @@ export default function DashboardPage() {
     getZones().then(setZones).catch(() => undefined);
     getResearches().then(setResearch).catch(() => undefined);
     getExpeditions().then(setExpeditions).catch(() => undefined);
-    getBosses().then(setBosses).catch(() => undefined);
+    getBossFormations().then(setBossFormations).catch(() => undefined);
     getMyClan().then(setMyClan).catch(() => undefined);
     getPvpStatus().then(setPvpStatus).catch(() => undefined);
     getClanWarStatus()
@@ -67,7 +67,7 @@ export default function DashboardPage() {
   const equippedCount = robot?.filter((slot) => slot.item !== null).length ?? 0;
   const unlockedZoneCount = zones?.filter((zone) => zone.unlocked).length ?? 0;
   const researchedCount = research?.researches.filter((r) => r.level > 0).length ?? 0;
-  const unlockedBossCount = bosses?.filter((boss) => boss.unlocked).length ?? 0;
+  const unlockedBossCount = bossFormations?.bosses.filter((boss) => boss.unlocked).length ?? 0;
 
   // Ordered by engagement type rather than onboarding order — same as
   // NAV_ITEMS (Sidebar/BottomNav), minus Command Center itself.
@@ -112,7 +112,7 @@ export default function DashboardPage() {
       key: 'bosses',
       navKey: 'nav.bosses',
       href: '/bosses',
-      subtitle: bosses ? `${unlockedBossCount} ${t('dashboard.bossesAvailable')}` : '…',
+      subtitle: bossFormations ? `${unlockedBossCount} ${t('dashboard.bossesAvailable')}` : '…',
     },
     {
       key: 'base',
@@ -181,10 +181,24 @@ export default function DashboardPage() {
     });
   }
 
-  for (const boss of bosses ?? []) {
-    if (boss.encounter.status !== 'OPEN' || !boss.encounter.participants.some((p) => p.isCurrentPlayer)) continue;
-    const secondsLeft = Math.ceil((new Date(boss.encounter.resolvesAt).getTime() - now) / 1000);
-    operations.push({ key: `boss-${boss.key}`, label: t(boss.nameKey), secondsLeft: Math.max(0, secondsLeft), href: '/bosses' });
+  const READY_RESULT_WINDOW_MS = 24 * 60 * 60 * 1000;
+  for (const boss of bossFormations?.bosses ?? []) {
+    for (const formation of boss.formations) {
+      const mine = formation.slots.some((s) => s.isCurrentPlayer);
+      if (!mine) continue;
+      if (formation.status === 'OPEN') {
+        const secondsLeft = Math.ceil((new Date(formation.resolvesAt).getTime() - now) / 1000);
+        operations.push({ key: `boss-formation-${formation.id}`, label: t(boss.nameKey), secondsLeft: Math.max(0, secondsLeft), href: '/bosses' });
+      } else if (now - new Date(formation.resolvesAt).getTime() < READY_RESULT_WINDOW_MS) {
+        operations.push({
+          key: `boss-formation-${formation.id}`,
+          label: t(boss.nameKey),
+          secondsLeft: null,
+          href: '/bosses',
+          readyLabel: t('bosses.resultReady'),
+        });
+      }
+    }
   }
 
   return (

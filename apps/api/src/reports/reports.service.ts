@@ -76,28 +76,28 @@ export class ReportsService {
   }
 
   private async getBossReports(playerId: string): Promise<CombatReportDto[]> {
-    const participations = await this.prisma.bossEncounterParticipant.findMany({
-      where: { playerId, encounter: { status: 'RESOLVED' } },
-      include: { encounter: { include: { boss: { include: { zone: true } } } } },
-      orderBy: { encounter: { resolvesAt: 'desc' } },
+    const slots = await this.prisma.bossFormationSlot.findMany({
+      where: { playerId, formation: { status: 'RESOLVED' } },
+      include: { formation: { include: { boss: { include: { zone: true } } } } },
+      orderBy: { formation: { resolvesAt: 'desc' } },
       take: TAKE_PER_SOURCE,
     });
 
-    return participations.map((participation) => ({
-      id: participation.id,
+    return slots.map((slot) => ({
+      id: slot.id,
       source: 'BOSS' as const,
       // No separate "resolved at" timestamp is tracked anywhere — resolvesAt
-      // is the closest meaningful proxy for when this encounter happened.
-      createdAt: participation.encounter.resolvesAt.toISOString(),
-      // Safe non-null: a participant row only exists once the group had at
+      // is the closest meaningful proxy for when this formation resolved.
+      createdAt: slot.formation.resolvesAt.toISOString(),
+      // Safe non-null: a filled slot only exists once the formation had at
       // least one member, so settle() always assigns WIN/LOSS in that case.
-      outcome: participation.encounter.outcome!,
-      zoneNameKey: participation.encounter.boss.zone.nameKey,
-      opponentNameKey: participation.encounter.boss.nameKey,
+      outcome: slot.formation.outcome!,
+      zoneNameKey: slot.formation.boss.zone.nameKey,
+      opponentNameKey: slot.formation.boss.nameKey,
       opponentPlayerId: null,
       opponentUsername: null,
-      xpGained: participation.xpGained ?? 0,
-      lootSummary: (participation.lootSummary as unknown as LootResultEntryDto[]) ?? [],
+      xpGained: slot.xpGained ?? 0,
+      lootSummary: (slot.lootSummary as unknown as LootResultEntryDto[]) ?? [],
     }));
   }
 }

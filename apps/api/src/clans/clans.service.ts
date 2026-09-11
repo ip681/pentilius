@@ -126,7 +126,13 @@ export class ClansService {
       isMyClan: myMembership?.clanId === c.id,
     }));
 
-    return { entries, page, pageSize, total };
+    // Computed over the full `sorted` list — present regardless of the
+    // current page, so "where is my clan" always works.
+    const myClanIndex = myMembership ? sorted.findIndex((c) => c.id === myMembership.clanId) : -1;
+    const viewerEntry: ClanLeaderboardEntryDto | null =
+      myClanIndex >= 0 ? { ...sorted[myClanIndex], rank: myClanIndex + 1, isMyClan: true } : null;
+
+    return { entries, page, pageSize, total, viewerEntry };
   }
 
   async getClan(clanId: string, currentPlayerId: string): Promise<ClanDetailDto> {

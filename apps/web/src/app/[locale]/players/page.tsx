@@ -103,14 +103,24 @@ function PlayersTab() {
       </div>
 
       <div className="mb-4 flex flex-wrap gap-1.5">
-        {(['level', 'pvpWins', 'clanWarDamage'] as PlayerLeaderboardSortBy[]).map((s) => (
+        {(['level', 'pvpWins', 'clanWarDamage', 'bossPoints'] as PlayerLeaderboardSortBy[]).map((s) => (
           <button key={s} type="button" onClick={() => setSortBy(s)} className={pill(sortBy === s)}>
-            {t(`leaderboard.sortBy${s === 'level' ? 'Level' : s === 'pvpWins' ? 'PvpWins' : 'ClanWarDamage'}`)}
+            {t(`leaderboard.sortBy${s === 'level' ? 'Level' : s === 'pvpWins' ? 'PvpWins' : s === 'clanWarDamage' ? 'ClanWarDamage' : 'BossPoints'}`)}
           </button>
         ))}
       </div>
 
       {error && <p className="mb-4 text-red-400">{error}</p>}
+
+      {data?.viewerEntry && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-accent bg-accentBg px-4 py-2.5 text-xs">
+          <span className="font-semibold uppercase text-textFaint">{t('leaderboard.yourPosition')}</span>
+          <PlayerAvatarFrame avatarKey={data.viewerEntry.selectedAvatarKey} frameKey={data.viewerEntry.selectedFrameKey} className="h-6 w-6" />
+          <PlayerLink playerId={data.viewerEntry.id} username={data.viewerEntry.username} />
+          <span className="tabular-nums">#{data.viewerEntry.globalRank}</span>
+          <span className="text-textFaint">{t('leaderboard.raceRankLabel', { rank: data.viewerEntry.raceRank })}</span>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-panelBorder bg-panel">
         <table className="w-full text-left text-sm">
@@ -122,6 +132,7 @@ function PlayersTab() {
               <th className="px-4 py-3">{t('leaderboard.level')}</th>
               <th className="px-4 py-3">{t('leaderboard.pvpWins')}</th>
               <th className="px-4 py-3">{t('leaderboard.clanWarDamage')}</th>
+              <th className="px-4 py-3">{t('leaderboard.bossPoints')}</th>
               <th className="px-4 py-3">{t('leaderboard.clan')}</th>
             </tr>
           </thead>
@@ -155,6 +166,7 @@ function PlayersTab() {
                 <td className="px-4 py-2.5">{player.level}</td>
                 <td className="px-4 py-2.5">{player.pvpWins}</td>
                 <td className="px-4 py-2.5">{player.clanWarDamageDealt}</td>
+                <td className="px-4 py-2.5">{player.bossFormationPoints}</td>
                 <td className="px-4 py-2.5">
                   {player.clanId && player.clanTag ? (
                     <ClanLink clanId={player.clanId} tag={player.clanTag} />
@@ -201,6 +213,14 @@ function ClansTab() {
       </div>
 
       {error && <p className="mb-4 text-red-400">{error}</p>}
+
+      {data?.viewerEntry && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-accent bg-accentBg px-4 py-2.5 text-xs">
+          <span className="font-semibold uppercase text-textFaint">{t('leaderboard.yourClanPosition')}</span>
+          <ClanLink clanId={data.viewerEntry.id} tag={data.viewerEntry.tag} name={data.viewerEntry.name} />
+          <span className="tabular-nums">#{data.viewerEntry.rank}</span>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-panelBorder bg-panel">
         <table className="w-full text-left text-sm">

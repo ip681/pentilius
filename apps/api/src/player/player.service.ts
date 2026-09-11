@@ -138,7 +138,7 @@ export class PlayerService {
     const page = Math.max(1, filter.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 20));
 
-    const [allPlayers, pvpAttackWins, pvpDefenseWins, clanWarDamage] = await Promise.all([
+    const [allPlayers, pvpAttackWins, pvpDefenseWins, clanWarDamage, bossPoints] = await Promise.all([
       this.prisma.player.findMany({
         select: {
           id: true,
@@ -153,6 +153,7 @@ export class PlayerService {
       this.prisma.pvpBattleReport.groupBy({ by: ['attackerId'], where: { outcome: 'WIN' }, _count: { _all: true } }),
       this.prisma.pvpBattleReport.groupBy({ by: ['defenderId'], where: { outcome: 'LOSS' }, _count: { _all: true } }),
       this.prisma.clanWarAttack.groupBy({ by: ['attackerId'], _sum: { damageDealt: true } }),
+      this.prisma.bossFormationDailyPoints.groupBy({ by: ['playerId'], _sum: { points: true } }),
     ]);
 
     const pvpWinsByPlayer = new Map<string, number>();
@@ -164,6 +165,8 @@ export class PlayerService {
       pvpWinsByPlayer.set(row.defenderId, (pvpWinsByPlayer.get(row.defenderId) ?? 0) + row._count._all);
     }
     const clanWarDamageByPlayer = new Map(clanWarDamage.map((row) => [row.attackerId, row._sum.damageDealt ?? 0]));
+    // Lifetime total across every UTC day, not just today's bucket — see PlayerLeaderboardEntryDto's comment.
+    const bossPointsByPlayer = new Map(bossPoints.map((row) => [row.playerId, row._sum.points ?? 0]));
 
     const enriched = allPlayers.map((p) => ({
       id: p.id,
@@ -176,10 +179,11 @@ export class PlayerService {
       selectedFrameKey: p.selectedFrameKey,
       pvpWins: pvpWinsByPlayer.get(p.id) ?? 0,
       clanWarDamageDealt: clanWarDamageByPlayer.get(p.id) ?? 0,
+      bossFormationPoints: bossPointsByPlayer.get(p.id) ?? 0,
     }));
 
     const metricOf = (p: (typeof enriched)[number]) =>
-      sortBy === 'pvpWins' ? p.pvpWins : sortBy === 'clanWarDamage' ? p.clanWarDamageDealt : p.level;
+      sortBy === 'pvpWins' ? p.pvpWins : sortBy === 'clanWarDamage' ? p.clanWarDamageDealt : sortBy === 'bossPoints' ? p.bossFormationPoints : p.level;
     const sorted = [...enriched].sort((a, b) => metricOf(b) - metricOf(a) || a.username.localeCompare(b.username));
 
     const globalRankById = new Map(sorted.map((p, index) => [p.id, index + 1]));
@@ -207,7 +211,7 @@ export class PlayerService {
     const total = filtered.length;
     const pageItems = filtered.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
-    const entries: PlayerLeaderboardEntryDto[] = pageItems.map((p) => ({
+    const toEntry = (p: (typeof sorted)[number]): PlayerLeaderboardEntryDto => ({
       id: p.id,
       username: p.username,
       race: p.race,
@@ -218,11 +222,18 @@ export class PlayerService {
       selectedFrameKey: p.selectedFrameKey,
       pvpWins: p.pvpWins,
       clanWarDamageDealt: p.clanWarDamageDealt,
+      bossFormationPoints: p.bossFormationPoints,
       globalRank: globalRankById.get(p.id)!,
       raceRank: raceRankById.get(p.id)!,
       isCurrentPlayer: p.id === viewerId,
-    }));
+    });
 
-    return { entries, page, pageSize, total };
+    const entries = pageItems.map(toEntry);
+    // Computed over the full, unfiltered `sorted` list — present regardless
+    // of the current page/search/race filter, so "where am I" always works.
+    const viewerPlayer = sorted.find((p) => p.id === viewerId);
+    const viewerEntry = viewerPlayer ? toEntry(viewerPlayer) : null;
+
+    return { entries, page, pageSize, total, viewerEntry };
   }
 }

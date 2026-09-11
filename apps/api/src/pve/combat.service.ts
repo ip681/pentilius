@@ -60,6 +60,31 @@ interface EquippedAccumulator {
 }
 
 /**
+ * One player's combat inputs BEFORE the final combine step — split out so
+ * Boss Formations (boss-formations.service.ts) can sum raw stats and Excellent-
+ * option percentages ACROSS every filled slot before applying them once to the
+ * formation's combined total, instead of each player's own options only ever
+ * affecting their own stat (see aggregateFormationCombatStats below). Solo
+ * combat (PvE/PvP/Clan War) keeps using computePlayerStats, which is now a
+ * thin wrapper around this + combineBreakdown — bit-identical output.
+ */
+export interface PlayerCombatBreakdown {
+  // Equipment (upgrade-scaled) + Core Attribute points — no multipliers, no options.
+  base: { attack: number; defense: number; hp: number };
+  attackFactor: number; // researchAttackMultiplier + clanCombatBonus (excludes increaseDamage)
+  defenseFactor: number; // 1 + clanCombatBonus (no research/option targets defense yet)
+  hpFactor: number; // researchHpMultiplier alone (excludes increaseMaxHp)
+  optionTotals: {
+    increaseDamage: number;
+    increaseMaxHp: number;
+    criticalDamageBonus: number;
+    damageDecrease: number;
+    damageReflect: number;
+  };
+  evasion: number;
+}
+
+/**
  * Combat formula is UNDEFINED (instructions/OPEN_DECISIONS.md: "final damage
  * formula"). This is a deliberately simple, clearly-isolated placeholder so
  * Milestone 1 has a working automatic/simulated battle (LOCKED requirement in
@@ -79,6 +104,11 @@ export class CombatService {
   ) {}
 
   async computePlayerStats(playerId: string, tx: Prisma.TransactionClient | PrismaService = this.prisma): Promise<CombatStats> {
+    const breakdown = await this.computeCombatBreakdown(playerId, tx);
+    return combineBreakdown(breakdown);
+  }
+
+  async computeCombatBreakdown(playerId: string, tx: Prisma.TransactionClient | PrismaService = this.prisma): Promise<PlayerCombatBreakdown> {
     const [player, equipped] = await Promise.all([
       tx.player.findUniqueOrThrow({ where: { id: playerId } }),
       tx.itemInstance.findMany({
@@ -116,7 +146,7 @@ export class CombatService {
 
     // Core Attribute points (instructions/GAME_SYSTEMS.md has no prior ruling —
     // see game-config.ts's robotAttributes block).
-    const stats = {
+    const base = {
       attack: equippedStats.attack + player.baseDamage * GAME_BALANCE.robotAttributes.damagePointValue,
       defense: equippedStats.defense + player.baseDefense * GAME_BALANCE.robotAttributes.defensePointValue,
       hp: equippedStats.hp + player.baseHp * GAME_BALANCE.robotAttributes.hpPointValue,
@@ -129,18 +159,21 @@ export class CombatService {
       this.economy.getResearchMultiplier(playerId, ResearchBonusType.COMBAT_HP, tx),
       this.clanBonus.getBonus(playerId, 'COMBAT_BONUS', tx),
     ]);
-    const attackMultiplier = researchAttackMultiplier + clanCombatBonus + equippedStats.increaseDamage;
-    // No personal research targets defense yet — only the clan's Clan Forge does.
-    const defenseMultiplier = 1 + clanCombatBonus;
 
     return {
-      attack: stats.attack * attackMultiplier,
-      defense: stats.defense * defenseMultiplier,
-      hp: stats.hp * (hpMultiplier + equippedStats.increaseMaxHp),
+      base,
+      attackFactor: researchAttackMultiplier + clanCombatBonus,
+      // No personal research targets defense yet — only the clan's Clan Forge does.
+      defenseFactor: 1 + clanCombatBonus,
+      hpFactor: hpMultiplier,
+      optionTotals: {
+        increaseDamage: equippedStats.increaseDamage,
+        increaseMaxHp: equippedStats.increaseMaxHp,
+        criticalDamageBonus: equippedStats.criticalDamageBonus,
+        damageDecrease: equippedStats.damageDecrease,
+        damageReflect: equippedStats.damageReflect,
+      },
       evasion,
-      criticalDamageBonus: equippedStats.criticalDamageBonus,
-      damageDecrease: equippedStats.damageDecrease,
-      damageReflect: equippedStats.damageReflect,
     };
   }
 
@@ -199,6 +232,57 @@ export class CombatService {
       pentiliMaxHp,
     };
   }
+}
+
+/** Reproduces computePlayerStats' original combine formula exactly, bit-for-bit — solo combat only. */
+function combineBreakdown(b: PlayerCombatBreakdown): CombatStats {
+  return {
+    attack: b.base.attack * (b.attackFactor + b.optionTotals.increaseDamage),
+    defense: b.base.defense * b.defenseFactor,
+    hp: b.base.hp * (b.hpFactor + b.optionTotals.increaseMaxHp),
+    evasion: b.evasion,
+    criticalDamageBonus: b.optionTotals.criticalDamageBonus,
+    damageDecrease: b.optionTotals.damageDecrease,
+    damageReflect: b.optionTotals.damageReflect,
+  };
+}
+
+/**
+ * Boss Formations only (owner decision, 2026-09-11): raw stats are summed
+ * across every filled slot (each still carrying its own per-player
+ * attackFactor/defenseFactor/hpFactor, since research/clan levels can differ
+ * per player), THEN Excellent-option percentages are summed across every
+ * filled slot and applied ONCE to the combined total — deliberately stronger
+ * than solo combat's per-player-then-summed model (see combineBreakdown
+ * above), since here every player's % now multiplies the whole party's total
+ * instead of only their own share. DAMAGE_REFLECT is excluded entirely — kept
+ * a PvP-only mechanic going forward. Evasion has no established aggregation
+ * rule (the old Boss Hunts model never aggregated it either) — averaged
+ * across filled slots as a simple placeholder.
+ */
+export function aggregateFormationCombatStats(breakdowns: PlayerCombatBreakdown[]): CombatStats {
+  const rawAttack = sumBy(breakdowns, (b) => b.base.attack * b.attackFactor);
+  const rawDefense = sumBy(breakdowns, (b) => b.base.defense * b.defenseFactor);
+  const rawHp = sumBy(breakdowns, (b) => b.base.hp * b.hpFactor);
+  const increaseDamage = sumBy(breakdowns, (b) => b.optionTotals.increaseDamage);
+  const increaseMaxHp = sumBy(breakdowns, (b) => b.optionTotals.increaseMaxHp);
+  const criticalDamageBonus = sumBy(breakdowns, (b) => b.optionTotals.criticalDamageBonus);
+  const damageDecrease = Math.min(GAME_BALANCE.bossFormations.maxDamageDecrease, sumBy(breakdowns, (b) => b.optionTotals.damageDecrease));
+  const evasion = breakdowns.length > 0 ? sumBy(breakdowns, (b) => b.evasion) / breakdowns.length : 0;
+
+  return {
+    attack: rawAttack * (1 + increaseDamage),
+    defense: rawDefense,
+    hp: rawHp * (1 + increaseMaxHp),
+    evasion,
+    criticalDamageBonus,
+    damageDecrease,
+    damageReflect: 0,
+  };
+}
+
+function sumBy<T>(items: T[], fn: (item: T) => number): number {
+  return items.reduce((sum, item) => sum + fn(item), 0);
 }
 
 function addOption(acc: EquippedAccumulator, option: ItemOption): void {

@@ -4,8 +4,8 @@ import type {
   AuthTokens,
   BaseResponseDto,
   BattleReportDto,
-  BossDto,
-  BossEncounterResultDto,
+  BossFormationDto,
+  BossFormationsResponseDto,
   BoxOpenResultDto,
   BuildingStateDto,
   ClanDetailDto,
@@ -401,17 +401,31 @@ export function startResearch(key: string): Promise<ResearchStateDto> {
   return request<ResearchStateDto>(`/research/${key}/start`, { method: 'POST', auth: true });
 }
 
-// Bosses
-export function getBosses(): Promise<BossDto[]> {
-  return request<BossDto[]>('/bosses', { auth: true });
+// Boss Formations
+export function getBossFormations(): Promise<BossFormationsResponseDto> {
+  return request<BossFormationsResponseDto>('/boss-formations', { auth: true });
 }
 
-export function joinBossEncounter(key: string): Promise<BossDto> {
-  return request<BossDto>(`/bosses/${key}/join`, { method: 'POST', auth: true });
+export function getBossFormation(id: string): Promise<BossFormationDto> {
+  return request<BossFormationDto>(`/boss-formations/${id}`, { auth: true });
 }
 
-export function resolveBossEncounter(key: string): Promise<BossEncounterResultDto> {
-  return request<BossEncounterResultDto>(`/bosses/${key}/resolve`, { method: 'POST', auth: true });
+export function createBossFormation(
+  bossKey: string,
+  visibility: { visibleToClanOnly: boolean; visibleToFriendsOnly: boolean },
+): Promise<BossFormationDto> {
+  return request<BossFormationDto>('/boss-formations', { method: 'POST', auth: true, body: { bossKey, ...visibility } });
+}
+
+export function joinBossFormation(id: string): Promise<BossFormationDto> {
+  return request<BossFormationDto>(`/boss-formations/${id}/join`, { method: 'POST', auth: true });
+}
+
+export function updateBossFormationVisibility(
+  id: string,
+  visibility: { visibleToClanOnly: boolean; visibleToFriendsOnly: boolean },
+): Promise<BossFormationDto> {
+  return request<BossFormationDto>(`/boss-formations/${id}/visibility`, { method: 'PATCH', auth: true, body: visibility });
 }
 
 // PvP

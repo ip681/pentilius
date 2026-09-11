@@ -150,6 +150,12 @@ model Player {
   // the two systems' protection windows can be tuned independently.
   clanWarProtectedUntil DateTime?
 
+  // Shared rolling 24h cooldown covering BOTH creating a new Boss Formation
+  // AND joining an existing one — one formation-related action per rolling
+  // day, not two independent limits (owner decision, 2026-09-11). Same
+  // timestamp-cooldown shape as pvpProtectedUntil/clanWarProtectedUntil above.
+  nextBossFormationActionAt DateTime?
+
   // "Core Attributes" — personal stat points earned from leveling
   // (instructions/GAME_SYSTEMS.md has no prior ruling on this; it's a new
   // system introduced alongside the ship→robot redesign). Owner decision
@@ -181,7 +187,9 @@ model Player {
   battleReports          BattleReport[]
   expeditions            PlayerExpedition[]
   researches             PlayerResearch[]
-  bossEncounterEntries   BossEncounterParticipant[]
+  bossFormationsCreated    BossFormation[]            @relation("BossFormationsCreated")
+  bossFormationSlots       BossFormationSlot[]
+  bossFormationDailyPoints BossFormationDailyPoints[]
   pvpAttacks             PvpBattleReport[] @relation("PvpAttacks")
   pvpDefenses            PvpBattleReport[] @relation("PvpDefenses")
   clanWarAttacksSent     ClanWarAttack[] @relation("ClanWarAttacksAsAttacker")
@@ -408,10 +416,11 @@ model ItemDefinition {
   shopPriceCrystal Int @default(0)
   shopPriceCredits Int @default(0)
 
-  itemInstances   ItemInstance[]
-  lootDrops       LootDrop[]
-  bossLootDrops   BossLootDrop[]
-  expeditionTypes ExpeditionType[]
+  itemInstances       ItemInstance[]
+  lootDrops           LootDrop[]
+  bossLootDrops       BossLootDrop[]
+  expeditionTypes     ExpeditionType[]
+  guaranteedBoxForBosses Boss[]
 
   @@map("item_definitions")
 }
@@ -627,37 +636,46 @@ model PlayerResearch {
   @@map("player_researches")
 }
 
-// Boss Hunts (instructions/GAME_SYSTEMS.md, LOCKED direction): group size,
-// attempts, loot, boss timers and contribution calculation are UNDEFINED
-// (instructions/OPEN_DECISIONS.md). Since clans (Milestone 4) don't exist
-// yet, joining is an open lobby per zone rather than an invite system: any
-// player with the zone unlocked may freely join a boss's current OPEN
-// encounter while its join window is running. Resolution combines every
-// joined player's combat stats (pve/combat.service.ts) plus the LOCKED
-// racial-synergy bonus (instructions/GAME_SYSTEMS.md) into one party vs. the
-// boss, then splits rewards by each player's share of total party attack —
-// a clearly-isolated placeholder for "contribution calculation".
-enum BossEncounterStatus {
+// Boss Formations (owner decision, 2026-09-11 — fully replaces the old open-
+// lobby Boss Hunts model; see the project_boss_formations.md design memory
+// for the full discussion). A formation is a squad of exactly 5 hard
+// race-locked slots built against one boss. Multiple OPEN formations can
+// coexist for the same boss (e.g. public + clan-only + friends-only in
+// parallel) — visibility differentiates who can see/join which, it isn't a
+// cap on concurrent attempts. No contribution-weighted rewards: every
+// participant of a WINNING formation gets the same XP share, the same
+// guaranteed box, and the formation's full damage total credited to their
+// own daily leaderboard points — regardless of individual stat contribution.
+// A loss gives nothing. Resolution is lazy (checked on next read), same as
+// buildings/research/expeditions — no cron, no early-resolve action.
+enum BossFormationStatus {
   OPEN
   RESOLVED
 }
 
 model Boss {
-  id                     String @id @default(uuid())
-  key                    String @unique
-  nameKey                String
-  zoneId                 String
-  level                  Int
-  maxHp                  Int
-  attack                 Int
-  defense                Int
-  xpReward               Int
-  encounterWindowSeconds Int
-  iconAssetId            String
+  id       String @id @default(uuid())
+  key      String @unique
+  nameKey  String
+  zoneId   String
+  level    Int
+  maxHp    Int
+  attack   Int
+  defense  Int
+  xpReward Int
+  iconAssetId String
+  // Guaranteed, non-chance reward for every winning formation participant —
+  // schema FK (not a game-config.ts mapping), mirroring how every other
+  // "which item does X grant" relationship in this codebase already lives on
+  // the content row itself (BossLootDrop.itemDefinitionId, ExpeditionType.
+  // bonusItemDefinitionId). Tier-matched to the boss's own zone tier
+  // (pioneer_box/ascendant_box/coreforged_box) — see seed.ts.
+  guaranteedBoxItemDefinitionId String
 
-  zone       Zone            @relation(fields: [zoneId], references: [id])
-  lootDrops  BossLootDrop[]
-  encounters BossEncounter[]
+  zone                Zone                @relation(fields: [zoneId], references: [id])
+  guaranteedBoxItem   ItemDefinition      @relation(fields: [guaranteedBoxItemDefinitionId], references: [id])
+  lootDrops           BossLootDrop[]
+  formations          BossFormation[]
 
   @@map("bosses")
 }
@@ -677,37 +695,74 @@ model BossLootDrop {
   @@map("boss_loot_drops")
 }
 
-model BossEncounter {
-  id           String               @id @default(uuid())
-  bossId       String
-  status       BossEncounterStatus  @default(OPEN)
-  openedAt     DateTime             @default(now())
-  resolvesAt   DateTime
-  outcome      BattleOutcome?
-  rounds       Json?
-  partyMaxHp   Int?
-  bossMaxHp    Int?
+model BossFormation {
+  id        String              @id @default(uuid())
+  bossId    String
+  creatorId String
+  status    BossFormationStatus @default(OPEN)
+  createdAt DateTime            @default(now())
+  // createdAt + GAME_BALANCE.bossFormations.enrollmentWindowHours, snapshotted at creation.
+  resolvesAt DateTime
 
-  boss         Boss                       @relation(fields: [bossId], references: [id])
-  participants BossEncounterParticipant[]
+  // Same boolean-union semantics as MarketListing.visibleToClanOnly/
+  // visibleToFriendsOnly (both false = public; either true = visible to that
+  // pool; both true = union, not intersection). Editable by the creator only
+  // during the first GAME_BALANCE.bossFormations.visibilityEditWindowHours of
+  // the enrollment window — re-checked live (not snapshotted) at browse AND
+  // join time, exactly like MarketListing.
+  visibleToClanOnly    Boolean @default(false)
+  visibleToFriendsOnly Boolean @default(false)
 
-  @@map("boss_encounters")
+  outcome    BattleOutcome?
+  rounds     Json?
+  partyMaxHp Int?
+  bossMaxHp  Int?
+  // combat.simulate()'s damageDealt, snapshotted once on a WIN — credited in
+  // full to every winning participant's BossFormationDailyPoints (not divided).
+  totalDamageDealt Int?
+
+  boss    Boss                @relation(fields: [bossId], references: [id])
+  creator Player              @relation("BossFormationsCreated", fields: [creatorId], references: [id])
+  slots   BossFormationSlot[]
+
+  @@map("boss_formations")
 }
 
-model BossEncounterParticipant {
-  id                String   @id @default(uuid())
-  encounterId       String
-  playerId          String
-  joinedAt          DateTime @default(now())
-  contributionShare Float?
-  xpGained          Int?
-  lootSummary       Json?
+// One row per Race per formation, created eagerly (all 5) at formation
+// creation time — not created sparsely on join. Makes "join my race's slot"
+// a single concurrency-safe compare-and-swap UPDATE (WHERE race=X AND
+// playerId IS NULL), and makes "how many slots are filled" a trivial filter.
+model BossFormationSlot {
+  id          String    @id @default(uuid())
+  formationId String
+  race        Race
+  playerId    String?
+  joinedAt    DateTime?
+  xpGained    Int?
+  lootSummary Json?
 
-  encounter BossEncounter @relation(fields: [encounterId], references: [id])
-  player    Player        @relation(fields: [playerId], references: [id])
+  formation BossFormation @relation(fields: [formationId], references: [id])
+  player    Player?       @relation(fields: [playerId], references: [id])
 
-  @@unique([encounterId, playerId])
-  @@map("boss_encounter_participants")
+  @@unique([formationId, race])
+  @@map("boss_formation_slots")
+}
+
+// Per-account, per-UTC-calendar-day point accumulator — a SEPARATE clock
+// from Player.nextBossFormationActionAt (that's the personal rolling 24h
+// action cooldown; this is a fixed 00:00 UTC bucket used only for a future
+// ranking/reward-tier payout, not gating any action). No leaderboard UI yet
+// — this table just gives a future ranking feature something to read.
+model BossFormationDailyPoints {
+  id       String   @id @default(uuid())
+  playerId String
+  dateUtc  DateTime // always midnight UTC of the day earned
+  points   Int      @default(0)
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, dateUtc])
+  @@map("boss_formation_daily_points")
 }
 
 // PvP (instructions/GAME_SYSTEMS.md, LOCKED direction: PvP exists, no

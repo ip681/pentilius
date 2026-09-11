@@ -455,26 +455,41 @@ async function main() {
     });
   }
 
-  // Boss Hunts (instructions/GAME_SYSTEMS.md, LOCKED direction): group size,
-  // attempts, loot and boss timers are UNDEFINED — 2 bosses with placeholder
-  // stats/window as a working M2 foundation, not a final content list.
+  // Boss Formations (owner decision, 2026-09-11 — fully replaces the old
+  // open-lobby Boss Hunts model). One boss per Territory/zone, scaled by zone
+  // difficulty; stats for the 2 new bosses (Verdant Flats, Crimson Wastes)
+  // are placeholders derived proportionally from the existing 2 bosses'
+  // ratio to their own zone's strongest Pentili — retune once real balance
+  // data exists. guaranteedBoxItemDefinitionId is tier-matched to the boss's
+  // own zone tier (pioneer/ascendant/coreforged) — every winning formation
+  // participant gets exactly 1, on top of the independent BossLootDrop rolls
+  // below (unchanged mechanic, still independent per participant).
   const bossData = [
-    { key: 'boss_ridgeback_alpha', nameKey: 'bosses.ridgeback_alpha.name', zoneId: zoneAshen.id, level: 6, maxHp: 1200, attack: 30, defense: 15, xpReward: 300, encounterWindowSeconds: 600, iconAssetId: 'bosses.ridgeback_alpha.icon' },
-    { key: 'boss_frost_sovereign', nameKey: 'bosses.frost_sovereign.name', zoneId: zoneFrostbound.id, level: 12, maxHp: 3500, attack: 55, defense: 30, xpReward: 800, encounterWindowSeconds: 900, iconAssetId: 'bosses.frost_sovereign.icon' },
+    { key: 'boss_verdant_warden', nameKey: 'bosses.verdant_warden.name', zoneId: zoneVerdant.id, level: 3, maxHp: 450, attack: 11, defense: 5, xpReward: 90, iconAssetId: 'bosses.verdant_warden.icon', guaranteedBoxItemDefinitionId: itemsByKey.pioneer_box.id },
+    { key: 'boss_ridgeback_alpha', nameKey: 'bosses.ridgeback_alpha.name', zoneId: zoneAshen.id, level: 6, maxHp: 1200, attack: 30, defense: 15, xpReward: 300, iconAssetId: 'bosses.ridgeback_alpha.icon', guaranteedBoxItemDefinitionId: itemsByKey.ascendant_box.id },
+    { key: 'boss_crimson_harbinger', nameKey: 'bosses.crimson_harbinger.name', zoneId: zoneCrimson.id, level: 9, maxHp: 2300, attack: 46, defense: 24, xpReward: 550, iconAssetId: 'bosses.crimson_harbinger.icon', guaranteedBoxItemDefinitionId: itemsByKey.coreforged_box.id },
+    // No distinct top-tier reward designed yet for the final boss — reuses coreforged_box for now (owner decision, deferred).
+    { key: 'boss_frost_sovereign', nameKey: 'bosses.frost_sovereign.name', zoneId: zoneFrostbound.id, level: 12, maxHp: 3500, attack: 55, defense: 30, xpReward: 800, iconAssetId: 'bosses.frost_sovereign.icon', guaranteedBoxItemDefinitionId: itemsByKey.coreforged_box.id },
   ];
   const bossesByKey: Record<string, Awaited<ReturnType<typeof prisma.boss.upsert>>> = {};
   for (const data of bossData) {
     bossesByKey[data.key] = await prisma.boss.upsert({ where: { key: data.key }, update: data, create: data });
   }
-  const { boss_ridgeback_alpha: ridgebackAlpha, boss_frost_sovereign: frostSovereign } = bossesByKey;
+  const { boss_verdant_warden: verdantWarden, boss_ridgeback_alpha: ridgebackAlpha, boss_crimson_harbinger: crimsonHarbinger, boss_frost_sovereign: frostSovereign } = bossesByKey;
 
   const allBossIds = Object.values(bossesByKey).map((b) => b.id);
   await prisma.bossLootDrop.deleteMany({ where: { bossId: { in: allBossIds } } });
   await prisma.bossLootDrop.createMany({
     data: [
+      { bossId: verdantWarden.id, resourceType: 'METAL', dropChance: 0.9, minQuantity: 20, maxQuantity: 40 },
+      { bossId: verdantWarden.id, resourceType: 'CRYSTAL', dropChance: 0.6, minQuantity: 8, maxQuantity: 16 },
+
       { bossId: ridgebackAlpha.id, resourceType: 'METAL', dropChance: 0.9, minQuantity: 50, maxQuantity: 100 },
       { bossId: ridgebackAlpha.id, resourceType: 'CRYSTAL', dropChance: 0.7, minQuantity: 20, maxQuantity: 40 },
       { bossId: ridgebackAlpha.id, itemDefinitionId: itemsByKey.coreforged_left_arm_blaster.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
+
+      { bossId: crimsonHarbinger.id, resourceType: 'CRYSTAL', dropChance: 0.8, minQuantity: 40, maxQuantity: 80 },
+      { bossId: crimsonHarbinger.id, resourceType: 'CREDITS', dropChance: 0.7, minQuantity: 60, maxQuantity: 120 },
 
       { bossId: frostSovereign.id, resourceType: 'CREDITS', dropChance: 0.9, minQuantity: 100, maxQuantity: 200 },
       { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.coreforged_upgrade.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 2 },

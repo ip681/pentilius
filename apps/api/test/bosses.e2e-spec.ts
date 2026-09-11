@@ -4,24 +4,29 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
-describe('Boss Hunts (e2e)', () => {
+describe('Boss Formations (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let tokenA: string;
   let tokenB: string;
   let tokenC: string;
+  let tokenD: string;
   let playerAId: string;
   let playerBId: string;
   let playerCId: string;
+  let playerDId: string;
   const suffix = Date.now();
   const emailA = `boss-a-${suffix}@example.com`;
   const emailB = `boss-b-${suffix}@example.com`;
   const emailC = `boss-c-${suffix}@example.com`;
+  const emailD = `boss-d-${suffix}@example.com`;
   const usernameA = `bA_${suffix}`;
   const usernameB = `bB_${suffix}`;
   const usernameC = `bC_${suffix}`;
+  const usernameD = `bD_${suffix}`;
   const password = 'password123';
   const bossKey = 'boss_ridgeback_alpha';
+  let formationId: string;
   let randomSpy: jest.SpyInstance;
 
   beforeAll(async () => {
@@ -35,42 +40,37 @@ describe('Boss Hunts (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    const [regA, regB, regC] = await Promise.all([
+    const [regA, regB, regC, regD] = await Promise.all([
       request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: emailA, username: usernameA, password, race: 'LUXARI' }),
       request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: emailB, username: usernameB, password, race: 'VORLUN' }),
       request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: emailC, username: usernameC, password, race: 'ZARYTH' }),
+      request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: emailD, username: usernameD, password, race: 'LUXARI' }),
     ]);
     tokenA = regA.body.accessToken;
     tokenB = regB.body.accessToken;
     tokenC = regC.body.accessToken;
+    tokenD = regD.body.accessToken;
     playerAId = regA.body.player.id;
     playerBId = regB.body.player.id;
     playerCId = regC.body.player.id;
+    playerDId = regD.body.player.id;
 
-    // zone_ashen_ridge unlocks at level 3; playerC stays at level 1 to test the locked-zone rejection.
-    await prisma.player.updateMany({ where: { id: { in: [playerAId, playerBId] } }, data: { level: 5 } });
+    // Boss Formations' minLevel is a flat 10 (GAME_BALANCE.bossFormations.minLevel) — A/B/D clear it, C stays at 1 to test the level gate.
+    await prisma.player.updateMany({ where: { id: { in: [playerAId, playerBId, playerDId] } }, data: { level: 10 } });
 
-    // Gear playerA/B up with top-tier equipment so the fight against the
-    // boss's full stats resolves as a clean, deterministic win.
+    // Gear A/B up with top-tier equipment so the formation fight resolves as a clean, deterministic win.
     await equipTopTierLoadout(prisma, playerAId);
     await equipTopTierLoadout(prisma, playerBId);
 
-    // Bosses are shared, persistent seed content (not per-test fixtures), so
-    // clear out any encounter left behind by a previous run or by manual
-    // testing against this dev database — this suite assumes a clean slate.
-    const boss = await prisma.boss.findUniqueOrThrow({ where: { key: bossKey } });
-    const staleEncounters = await prisma.bossEncounter.findMany({ where: { bossId: boss.id } });
-    await prisma.bossEncounterParticipant.deleteMany({ where: { encounterId: { in: staleEncounters.map((e) => e.id) } } });
-    await prisma.bossEncounter.deleteMany({ where: { bossId: boss.id } });
+    // Bosses are shared, persistent seed content — clear any formation left behind by a previous run.
+    await cleanupBossFormations(prisma, bossKey);
   });
 
   afterAll(async () => {
-    const boss = await prisma.boss.findUniqueOrThrow({ where: { key: bossKey } });
-    const encounters = await prisma.bossEncounter.findMany({ where: { bossId: boss.id } });
-    await prisma.bossEncounterParticipant.deleteMany({ where: { encounterId: { in: encounters.map((e) => e.id) } } });
-    await prisma.bossEncounter.deleteMany({ where: { bossId: boss.id } });
-    await prisma.itemInstance.deleteMany({ where: { playerId: { in: [playerAId, playerBId, playerCId] } } });
-    await prisma.player.deleteMany({ where: { id: { in: [playerAId, playerBId, playerCId] } } });
+    await cleanupBossFormations(prisma, bossKey);
+    await prisma.bossFormationDailyPoints.deleteMany({ where: { playerId: { in: [playerAId, playerBId, playerCId, playerDId] } } });
+    await prisma.itemInstance.deleteMany({ where: { playerId: { in: [playerAId, playerBId, playerCId, playerDId] } } });
+    await prisma.player.deleteMany({ where: { id: { in: [playerAId, playerBId, playerCId, playerDId] } } });
     await app.close();
   });
 
@@ -78,92 +78,93 @@ describe('Boss Hunts (e2e)', () => {
     return { Authorization: `Bearer ${token}` };
   }
 
-  it('rejects joining a boss in a zone the player has not unlocked', async () => {
-    await request(app.getHttpServer()).post(`/api/v1/bosses/${bossKey}/join`).set(auth(tokenC)).expect(403);
-  });
-
-  it('lists bosses with the unlocked flag and an open encounter with no participants yet', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/bosses').set(auth(tokenA)).expect(200);
-    const boss = res.body.find((b: { key: string }) => b.key === bossKey);
+  it('lists bosses with the unlocked flag and no formations yet', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/boss-formations').set(auth(tokenA)).expect(200);
+    expect(res.body.minLevel).toBe(10);
+    expect(res.body.nextActionAvailableAt).toBeNull();
+    const boss = res.body.bosses.find((b: { key: string }) => b.key === bossKey);
     expect(boss.unlocked).toBe(true);
-    expect(boss.encounter.status).toBe('OPEN');
-    expect(boss.encounter.participants).toHaveLength(0);
-    expect(boss.encounter.partyPreview).toBeNull();
+    expect(boss.formations).toHaveLength(0);
+
+    const bossC = (await request(app.getHttpServer()).get('/api/v1/boss-formations').set(auth(tokenC)).expect(200)).body.bosses.find(
+      (b: { key: string }) => b.key === bossKey,
+    );
+    expect(bossC.unlocked).toBe(false);
   });
 
-  it('joins the open encounter and deducts one Action Energy', async () => {
-    const before = await request(app.getHttpServer()).get('/api/v1/player/me').set(auth(tokenA)).expect(200);
-
-    const joined = await request(app.getHttpServer()).post(`/api/v1/bosses/${bossKey}/join`).set(auth(tokenA)).expect(201);
-    expect(joined.body.encounter.participants).toHaveLength(1);
-    expect(joined.body.encounter.participants[0].isCurrentPlayer).toBe(true);
-    // Solo so far — one race, no synergy bonus yet, but the party's own attack/defense/hp already show.
-    expect(joined.body.encounter.partyPreview).not.toBeNull();
-    expect(joined.body.encounter.partyPreview.synergyBonusPercent).toBe(0);
-    expect(joined.body.encounter.partyPreview.attack).toBeGreaterThan(0);
-
-    const after = await request(app.getHttpServer()).get('/api/v1/player/me').set(auth(tokenA)).expect(200);
-    expect(after.body.energy.current).toBe(before.body.energy.current - 1);
+  it('rejects creating a formation below the minimum level', async () => {
+    await request(app.getHttpServer()).post('/api/v1/boss-formations').set(auth(tokenC)).send({ bossKey }).expect(403);
   });
 
-  it('blocks joining the same encounter twice', async () => {
-    await request(app.getHttpServer()).post(`/api/v1/bosses/${bossKey}/join`).set(auth(tokenA)).expect(400);
+  it('rejects a clan-only formation from a player with no clan', async () => {
+    await request(app.getHttpServer()).post('/api/v1/boss-formations').set(auth(tokenC)).send({ bossKey, visibleToClanOnly: true }).expect(400);
   });
 
-  it('allows a second player of a different race to join the same open encounter', async () => {
-    const joined = await request(app.getHttpServer()).post(`/api/v1/bosses/${bossKey}/join`).set(auth(tokenB)).expect(201);
-    expect(joined.body.encounter.participants).toHaveLength(2);
-    // Two unique races now — the live preview should reflect the racial synergy bonus before anyone resolves.
-    expect(joined.body.encounter.partyPreview.synergyBonusPercent).toBeCloseTo(0.05);
+  it('creates a public formation and auto-joins the creator into their own race slot', async () => {
+    const res = await request(app.getHttpServer()).post('/api/v1/boss-formations').set(auth(tokenA)).send({ bossKey }).expect(201);
+    formationId = res.body.id;
+    expect(res.body.status).toBe('OPEN');
+    expect(res.body.slots).toHaveLength(5);
+    const luxariSlot = res.body.slots.find((s: { race: string }) => s.race === 'LUXARI');
+    expect(luxariSlot.playerId).toBe(playerAId);
+    expect(luxariSlot.isCurrentPlayer).toBe(true);
+    const vorlunSlot = res.body.slots.find((s: { race: string }) => s.race === 'VORLUN');
+    expect(vorlunSlot.playerId).toBeNull();
+
+    const status = await request(app.getHttpServer()).get('/api/v1/boss-formations').set(auth(tokenA)).expect(200);
+    expect(status.body.nextActionAvailableAt).not.toBeNull();
   });
 
-  it('rejects manual resolve from a player who never joined', async () => {
-    await request(app.getHttpServer()).post(`/api/v1/bosses/${bossKey}/resolve`).set(auth(tokenC)).expect(403);
+  it('blocks a second formation-related action from the same player within the 24h cooldown', async () => {
+    await request(app.getHttpServer()).post('/api/v1/boss-formations').set(auth(tokenA)).send({ bossKey }).expect(400);
   });
 
-  it('resolves the encounter, applying racial synergy and splitting rewards by attack contribution', async () => {
+  it('lets a different race join the open slot', async () => {
+    const res = await request(app.getHttpServer()).post(`/api/v1/boss-formations/${formationId}/join`).set(auth(tokenB)).expect(201);
+    const vorlunSlot = res.body.slots.find((s: { race: string }) => s.race === 'VORLUN');
+    expect(vorlunSlot.playerId).toBe(playerBId);
+  });
+
+  it('rejects a second player of an already-filled race', async () => {
+    await request(app.getHttpServer()).post(`/api/v1/boss-formations/${formationId}/join`).set(auth(tokenD)).expect(400);
+  });
+
+  it('resolves the formation once its enrollment window expires, granting the guaranteed box and daily points', async () => {
     randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
 
-    const resolved = await request(app.getHttpServer()).post(`/api/v1/bosses/${bossKey}/resolve`).set(auth(tokenA)).expect(201);
-    expect(resolved.body.outcome).toBe('WIN');
-    expect(resolved.body.synergyBonusPercent).toBeCloseTo(0.05); // 2 unique races
-    expect(resolved.body.participants).toHaveLength(2);
+    await prisma.bossFormation.update({ where: { id: formationId }, data: { resolvesAt: new Date(Date.now() - 1000) } });
 
-    const shareSum = resolved.body.participants.reduce((sum: number, p: { contributionShare: number }) => sum + p.contributionShare, 0);
-    expect(shareSum).toBeCloseTo(1);
-    for (const participant of resolved.body.participants) {
-      expect(participant.xpGained).toBeGreaterThan(0);
-    }
+    // D has no cooldown yet — safe to use as a neutral reader that triggers the lazy global sweep.
+    await request(app.getHttpServer()).get('/api/v1/boss-formations').set(auth(tokenD)).expect(200);
+
+    const res = await request(app.getHttpServer()).get(`/api/v1/boss-formations/${formationId}`).set(auth(tokenA)).expect(200);
+    expect(res.body.status).toBe('RESOLVED');
+    expect(res.body.result.outcome).toBe('WIN');
+    expect(res.body.result.totalDamageDealt).toBeGreaterThan(0);
+
+    const luxariSlot = res.body.slots.find((s: { race: string }) => s.race === 'LUXARI');
+    const vorlunSlot = res.body.slots.find((s: { race: string }) => s.race === 'VORLUN');
+    expect(luxariSlot.xpGained).toBeGreaterThan(0);
+    expect(vorlunSlot.xpGained).toBe(luxariSlot.xpGained); // equal split, not contribution-weighted
+    const zarythSlot = res.body.slots.find((s: { race: string }) => s.race === 'ZARYTH');
+    expect(zarythSlot.xpGained).toBeNull(); // never filled
+
+    const boss = await prisma.boss.findUniqueOrThrow({ where: { key: bossKey } });
+    const [boxA, boxB] = await Promise.all([
+      prisma.itemInstance.findFirst({ where: { playerId: playerAId, itemDefinitionId: boss.guaranteedBoxItemDefinitionId } }),
+      prisma.itemInstance.findFirst({ where: { playerId: playerBId, itemDefinitionId: boss.guaranteedBoxItemDefinitionId } }),
+    ]);
+    expect(boxA).not.toBeNull();
+    expect(boxB).not.toBeNull();
+
+    const [pointsA, pointsB] = await Promise.all([
+      prisma.bossFormationDailyPoints.findFirst({ where: { playerId: playerAId } }),
+      prisma.bossFormationDailyPoints.findFirst({ where: { playerId: playerBId } }),
+    ]);
+    expect(pointsA?.points).toBe(res.body.result.totalDamageDealt);
+    expect(pointsB?.points).toBe(res.body.result.totalDamageDealt); // credited in full to every winner, not divided
 
     randomSpy.mockRestore();
-  });
-
-  it('reflects the resolved result on the next read without creating a new encounter', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/bosses').set(auth(tokenA)).expect(200);
-    const boss = res.body.find((b: { key: string }) => b.key === bossKey);
-    expect(boss.encounter.status).toBe('RESOLVED');
-    expect(boss.encounter.result.outcome).toBe('WIN');
-    expect(boss.encounter.result.participants).toHaveLength(2);
-  });
-
-  it('opens a fresh encounter once a player joins again after a resolved one', async () => {
-    const joined = await request(app.getHttpServer()).post(`/api/v1/bosses/${bossKey}/join`).set(auth(tokenA)).expect(201);
-    expect(joined.body.encounter.status).toBe('OPEN');
-    expect(joined.body.encounter.participants).toHaveLength(1);
-  });
-
-  it('auto-finalizes an empty encounter once its join window expires, with a null outcome', async () => {
-    const boss = await prisma.boss.findUniqueOrThrow({ where: { key: bossKey } });
-    const emptyEncounter = await prisma.bossEncounter.create({
-      data: { bossId: boss.id, resolvesAt: new Date(Date.now() - 1000) },
-    });
-
-    const res = await request(app.getHttpServer()).get('/api/v1/bosses').set(auth(tokenA)).expect(200);
-    const bossDto = res.body.find((b: { key: string }) => b.key === bossKey);
-    expect(bossDto.encounter.id).toBe(emptyEncounter.id);
-    expect(bossDto.encounter.status).toBe('RESOLVED');
-    expect(bossDto.encounter.result.outcome).toBeNull();
-    expect(bossDto.encounter.result.participants).toHaveLength(0);
   });
 });
 
@@ -181,4 +182,11 @@ async function equipTopTierLoadout(prisma: PrismaService, playerId: string): Pro
     const itemDefinition = await prisma.itemDefinition.findUniqueOrThrow({ where: { key } });
     await prisma.itemInstance.create({ data: { playerId, itemDefinitionId: itemDefinition.id, equippedSlot: slot } });
   }
+}
+
+async function cleanupBossFormations(prisma: PrismaService, bossKey: string): Promise<void> {
+  const boss = await prisma.boss.findUniqueOrThrow({ where: { key: bossKey } });
+  const formations = await prisma.bossFormation.findMany({ where: { bossId: boss.id } });
+  await prisma.bossFormationSlot.deleteMany({ where: { formationId: { in: formations.map((f) => f.id) } } });
+  await prisma.bossFormation.deleteMany({ where: { bossId: boss.id } });
 }

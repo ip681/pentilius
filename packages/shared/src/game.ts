@@ -75,7 +75,7 @@ export interface PublicProfileClanDto {
 // introducing new tracking just for this. Deliberately excludes wealth
 // (Metal/Crystal/Credits) as a rankable metric — owner decision, same
 // privacy reasoning as excluding clan treasury from the clan board.
-export type PlayerLeaderboardSortBy = 'level' | 'pvpWins' | 'clanWarDamage';
+export type PlayerLeaderboardSortBy = 'level' | 'pvpWins' | 'clanWarDamage' | 'bossPoints';
 
 export interface PlayerLeaderboardEntryDto {
   id: string;
@@ -93,6 +93,11 @@ export interface PlayerLeaderboardEntryDto {
   // Sum of raw damageDealt across every clan-war duel this player has ever
   // attacked in (not just the current war).
   clanWarDamageDealt: number;
+  // Lifetime sum of BossFormationDailyPoints across every day, not just
+  // today's UTC bucket (that per-day bucket exists only to support a future
+  // daily ranked-reward payout, still unbuilt — this column is the simpler
+  // "how much have I ever contributed" view).
+  bossFormationPoints: number;
   // True rank by the requested sort metric across ALL players — stable
   // regardless of the current search/race filter, unlike a plain row index.
   globalRank: number;
@@ -107,6 +112,12 @@ export interface PlayerLeaderboardPageDto {
   page: number;
   pageSize: number;
   total: number;
+  // The viewer's own entry with their TRUE rank, computed over the full
+  // (unfiltered, unpaginated) board — present even when they're nowhere on
+  // the current page/search/race filter, so "where am I" always works.
+  // Null only if the viewer isn't a player being ranked (shouldn't happen
+  // for an authenticated player, but kept nullable defensively).
+  viewerEntry: PlayerLeaderboardEntryDto | null;
 }
 
 // Clan board — owner decision: no treasury (donation amounts stay private)
@@ -133,6 +144,10 @@ export interface ClanLeaderboardPageDto {
   page: number;
   pageSize: number;
   total: number;
+  // The viewer's own clan's entry with its TRUE rank, computed over the
+  // full board — present even when it's nowhere on the current page. Null
+  // if the viewer isn't in a clan.
+  viewerEntry: ClanLeaderboardEntryDto | null;
 }
 
 export interface PlayerPublicProfileDto {
@@ -495,45 +510,47 @@ export interface ResearchResponseDto {
   researches: ResearchStateDto[];
 }
 
-export type BossEncounterStatus = 'OPEN' | 'RESOLVED';
+// Boss Formations (owner decision, 2026-09-11 — fully replaces the old
+// open-lobby Boss Hunts DTOs above). A formation is a squad of 5 hard
+// race-locked slots against one boss; multiple OPEN formations can exist for
+// the same boss at once (visibility differentiates who can see/join which).
+export type BossFormationStatus = 'OPEN' | 'RESOLVED';
 
-export interface BossEncounterParticipantDto {
-  playerId: string;
+export interface BossFormationSlotDto {
   race: Race;
-  joinedAt: string;
+  playerId: string | null;
+  playerUsername: string | null;
+  joinedAt: string | null;
   isCurrentPlayer: boolean;
+  // Only set once the formation is RESOLVED and this slot was filled.
+  xpGained: number | null;
+  lootSummary: LootResultEntryDto[] | null;
 }
 
-export interface BossEncounterResultDto {
-  outcome: BattleOutcome | null; // null: the join window expired with no participants
+export interface BossFormationResultDto {
+  outcome: BattleOutcome | null; // null only if the window expired with zero filled slots
   rounds: CombatRoundDto[];
   partyMaxHp: number;
   bossMaxHp: number;
-  synergyBonusPercent: number;
-  participants: {
-    playerId: string;
-    contributionShare: number;
-    xpGained: number;
-    lootSummary: LootResultEntryDto[];
-  }[];
+  // The formation's total damage dealt — credited in full (not divided) to
+  // every winning participant's daily leaderboard points.
+  totalDamageDealt: number;
 }
 
-export interface BossPartyPreviewDto {
-  attack: number;
-  defense: number;
-  hp: number;
-  synergyBonusPercent: number;
-}
-
-export interface BossEncounterDto {
+export interface BossFormationDto {
   id: string;
-  status: BossEncounterStatus;
-  openedAt: string;
+  bossKey: string;
+  creatorId: string;
+  creatorUsername: string;
+  status: BossFormationStatus;
+  createdAt: string;
   resolvesAt: string;
-  participants: BossEncounterParticipantDto[];
-  // Live totals for an OPEN encounter (null once no one has joined, or once RESOLVED — see `result` then).
-  partyPreview: BossPartyPreviewDto | null;
-  result: BossEncounterResultDto | null;
+  visibleToClanOnly: boolean;
+  visibleToFriendsOnly: boolean;
+  // True only for the creator, and only while still inside the visibility-edit window.
+  canEditVisibility: boolean;
+  slots: BossFormationSlotDto[];
+  result: BossFormationResultDto | null;
 }
 
 export interface BossDto {
@@ -547,8 +564,16 @@ export interface BossDto {
   defense: number;
   xpReward: number;
   iconAssetId: string;
-  unlocked: boolean;
-  encounter: BossEncounterDto;
+  unlocked: boolean; // player.level >= GAME_BALANCE.bossFormations.minLevel (flat, not per-zone)
+  // Only formations visible to the current viewer (public, or matching their clan/friends).
+  formations: BossFormationDto[];
+}
+
+export interface BossFormationsResponseDto {
+  bosses: BossDto[];
+  minLevel: number;
+  // The viewer's own personal 24h create-or-join cooldown — null if free to act now.
+  nextActionAvailableAt: string | null;
 }
 
 export interface PvpStatusDto {

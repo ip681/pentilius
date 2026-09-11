@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { BaseModule } from './base/base.module';
-import { BossModule } from './boss/boss.module';
+import { BossFormationsModule } from './boss-formations/boss-formations.module';
 import { ClanWarsModule } from './clan-wars/clan-wars.module';
 import { ClansModule } from './clans/clans.module';
 import configuration from './config/configuration';
@@ -33,7 +33,7 @@ import { ZonesModule } from './zones/zones.module';
     PveModule,
     ExpeditionsModule,
     ResearchModule,
-    BossModule,
+    BossFormationsModule,
     PvpModule,
     ClansModule,
     ClanWarsModule,

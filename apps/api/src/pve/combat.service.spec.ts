@@ -1,5 +1,17 @@
 import { Pentili } from '@prisma/client';
-import { CombatService } from './combat.service';
+import { aggregateFormationCombatStats, CombatService, PlayerCombatBreakdown } from './combat.service';
+
+function makeBreakdown(overrides: Partial<PlayerCombatBreakdown> = {}): PlayerCombatBreakdown {
+  return {
+    base: { attack: 100, defense: 50, hp: 200 },
+    attackFactor: 1,
+    defenseFactor: 1,
+    hpFactor: 1,
+    optionTotals: { increaseDamage: 0, increaseMaxHp: 0, criticalDamageBonus: 0, damageDecrease: 0, damageReflect: 0 },
+    evasion: 0,
+    ...overrides,
+  };
+}
 
 function makePentili(overrides: Partial<Pentili> = {}): Pentili {
   return {
@@ -141,5 +153,60 @@ describe('CombatService', () => {
 
     // 30% of the 100 damage the pentili dealt bounces back onto it.
     expect(result.rounds[0].pentiliReflectedDamage).toBe(30);
+  });
+});
+
+describe('aggregateFormationCombatStats', () => {
+  it('reduces to the same result as solo combine for a single filled slot', () => {
+    const breakdown = makeBreakdown({ optionTotals: { increaseDamage: 0.02, increaseMaxHp: 0.04, criticalDamageBonus: 0.1, damageDecrease: 0.04, damageReflect: 0.04 } });
+
+    const result = aggregateFormationCombatStats([breakdown]);
+
+    // Matches computePlayerStats' own combine formula: base * (factor + optionTotal).
+    expect(result.attack).toBeCloseTo(100 * (1 + 0.02));
+    expect(result.defense).toBeCloseTo(50 * 1);
+    expect(result.hp).toBeCloseTo(200 * (1 + 0.04));
+    expect(result.criticalDamageBonus).toBeCloseTo(0.1);
+    expect(result.damageDecrease).toBeCloseTo(0.04);
+    // Excluded entirely from formation combat, even when the solo option total is non-zero.
+    expect(result.damageReflect).toBe(0);
+  });
+
+  it("sums Excellent-option percentages across every filled slot and applies them once to the party's combined raw total", () => {
+    const breakdowns = [
+      makeBreakdown({ base: { attack: 100, defense: 10, hp: 100 }, optionTotals: { increaseDamage: 0.02, increaseMaxHp: 0, criticalDamageBonus: 0, damageDecrease: 0, damageReflect: 0 } }),
+      makeBreakdown({ base: { attack: 200, defense: 10, hp: 100 }, optionTotals: { increaseDamage: 0.02, increaseMaxHp: 0, criticalDamageBonus: 0, damageDecrease: 0, damageReflect: 0 } }),
+      makeBreakdown({ base: { attack: 300, defense: 10, hp: 100 }, optionTotals: { increaseDamage: 0.02, increaseMaxHp: 0, criticalDamageBonus: 0, damageDecrease: 0, damageReflect: 0 } }),
+    ];
+
+    const result = aggregateFormationCombatStats(breakdowns);
+
+    // Raw attack sums to 600, then the 3 players' +2% each (6% total) applies ONCE to the whole
+    // sum — deliberately stronger than summing each player's own 102/204/306 individually (612).
+    expect(result.attack).toBeCloseTo(600 * 1.06);
+    expect(result.defense).toBeCloseTo(30);
+  });
+
+  it('caps summed Damage Decrease at GAME_BALANCE.bossFormations.maxDamageDecrease', () => {
+    const breakdowns = Array.from({ length: 5 }, () => makeBreakdown({ optionTotals: { increaseDamage: 0, increaseMaxHp: 0, criticalDamageBonus: 0, damageDecrease: 0.3, damageReflect: 0 } }));
+
+    const result = aggregateFormationCombatStats(breakdowns);
+
+    // 5 * 0.3 = 1.5, capped to 0.9.
+    expect(result.damageDecrease).toBeCloseTo(0.9);
+  });
+
+  it('averages evasion across filled slots', () => {
+    const breakdowns = [makeBreakdown({ evasion: 0.2 }), makeBreakdown({ evasion: 0.4 })];
+
+    const result = aggregateFormationCombatStats(breakdowns);
+
+    expect(result.evasion).toBeCloseTo(0.3);
+  });
+
+  it('returns zeroed stats for an empty formation without throwing', () => {
+    const result = aggregateFormationCombatStats([]);
+
+    expect(result).toEqual({ attack: 0, defense: 0, hp: 0, evasion: 0, criticalDamageBonus: 0, damageDecrease: 0, damageReflect: 0 });
   });
 });

@@ -149,13 +149,39 @@ export const GAME_BALANCE = {
     // proportionally to elapsed time (not a placeholder — an actual decision).
     earlyCancelPercentage: 0.7,
   },
-  bossHunts: {
-    // Racial group synergy percentages are PROVISIONAL but explicitly
-    // specified in instructions/GAME_SYSTEMS.md — not a guess, unlike the
-    // per-boss encounter window (Boss.encounterWindowSeconds, seed data) and
-    // the attack-share contribution split, both UNDEFINED ("boss timers",
-    // "contribution calculation").
-    synergyBonusByUniqueRaceCount: { 1: 0, 2: 0.05, 3: 0.1, 4: 0.15, 5: 0.25 } as Record<number, number>,
+  bossFormations: {
+    // Owner decision (2026-09-11) — fully replaces the old open-lobby Boss
+    // Hunts model (see instructions/OPEN_DECISIONS.md's Bosses section and
+    // the project_boss_formations.md design memory). A formation is a squad
+    // of 5 hard race-locked slots; unfilled slots aren't blocked, they just
+    // weaken the party — deliberately no separate "reduced reward" formula,
+    // a weaker party already produces a smaller win chance and a loss gives
+    // nothing.
+    //
+    // Flat for every boss (previously a per-boss Boss.encounterWindowSeconds
+    // column — dropped, since the owner wants one uniform window).
+    enrollmentWindowHours: 3,
+    // Creator may edit visibleToClanOnly/visibleToFriendsOnly only during
+    // this many hours from creation; locked for the rest of the window.
+    visibilityEditWindowHours: 2,
+    // The shared rolling cooldown (Player.nextBossFormationActionAt) covering
+    // BOTH creating a new formation AND joining an existing one — one action
+    // per rolling day, not two independent limits (owner decision: a personal
+    // rolling window, not a fixed global reset hour, to stay fair across
+    // timezones — see instructions/ARCHITECTURE.md's elapsed-time preference).
+    actionCooldownHours: 24,
+    // Starting placeholder — owner explicitly deferred the exact value
+    // ("после ще го измислим"). Flat minimum for the whole feature, not a
+    // per-zone Zone.unlockLevel gate like the old system.
+    minLevel: 10,
+    // Excellent-option percentages are SUMMED ACROSS every filled slot, then
+    // applied once to the formation's combined stats (owner decision,
+    // deliberately stronger than solo combat's per-player-then-summed
+    // model — see combat.service.ts's aggregateFormationCombatStats).
+    // DAMAGE_REFLECT is excluded entirely (PvP-only going forward). Summed
+    // DAMAGE_DECREASE across up to 5 slots could reach/exceed 100% and make
+    // the boss deal ~0 damage — capped here as a safety net, not a tuned value.
+    maxDamageDecrease: 0.9,
   },
   pvp: {
     // Owner-specified: PvP unlocks at level 5, and players below level 5
