@@ -20,6 +20,7 @@ import {
   sendDirectMessage,
 } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format-datetime';
+import { notifyFriendsActivity } from '@/lib/friends-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 function RaceLabel({ race }: { race: FriendDto['race'] }) {
@@ -102,7 +103,13 @@ export default function FriendsPage() {
       setMessages(null);
       return;
     }
-    loadMessages(selectedFriendId);
+    // getConversation() marks the conversation read server-side as a side
+    // effect — reflect that locally right away instead of refetching the
+    // whole friends list, and let the TopBar indicator know too.
+    loadMessages(selectedFriendId).then(() => {
+      setFriends((prev) => prev?.map((f) => (f.id === selectedFriendId ? { ...f, hasUnread: false } : f)) ?? prev);
+      notifyFriendsActivity();
+    });
     chatIntervalRef.current = setInterval(() => loadMessages(selectedFriendId), 5000);
     return () => {
       if (chatIntervalRef.current) clearInterval(chatIntervalRef.current);
@@ -153,6 +160,7 @@ export default function FriendsPage() {
       await sendDirectMessage(selectedFriendId, chatText.trim());
       setChatText('');
       await loadMessages(selectedFriendId);
+      notifyFriendsActivity();
     } catch (err) {
       setChatError(friendActionErrorMessage(err));
     }
@@ -236,9 +244,10 @@ export default function FriendsPage() {
             <div key={friend.id} className="flex items-center justify-between gap-2 border-t border-wellBorder px-4 py-2.5 first:border-t-0">
               <Link
                 href={`/friends/${friend.id}`}
-                className={`min-w-0 flex-1 truncate text-sm font-semibold hover:text-accent ${friend.id === selectedFriendId ? 'text-accent' : ''}`}
+                className={`flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-semibold hover:text-accent ${friend.id === selectedFriendId ? 'text-accent' : ''}`}
               >
-                {friend.username}
+                {friend.hasUnread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger" />}
+                <span className="truncate">{friend.username}</span>
               </Link>
               <ConfirmButton
                 label={t('friends.remove')}

@@ -214,6 +214,16 @@ model Friendship {
   addresseeId String
   status      FriendshipStatus @default(PENDING)
   createdAt   DateTime         @default(now())
+  // Owner decision (2026-09-11): powers both the friends-list sort ("most
+  // recent conversation first") and the unread indicator, without per-message
+  // read receipts. lastMessageAt is set on every sendMessage() regardless of
+  // sender — a single shared "when did this conversation last move" marker.
+  // requesterLastReadAt/addresseeLastReadAt are each side's own "I opened
+  // this conversation" marker, set when that player views it. Unread for a
+  // given viewer = lastMessageAt > their own side's lastReadAt.
+  lastMessageAt       DateTime?
+  requesterLastReadAt DateTime?
+  addresseeLastReadAt DateTime?
 
   requester Player @relation("FriendRequestsSent", fields: [requesterId], references: [id], onDelete: Cascade)
   addressee Player @relation("FriendRequestsReceived", fields: [addresseeId], references: [id], onDelete: Cascade)
@@ -326,6 +336,12 @@ model BuildingType {
   // for every other building. Mirrors ClanBuildingType.bonusPerLevel's flat
   // per-level pattern, scoped to the one building that needs it.
   capacityBonusPerLevel Int?
+  // Only the Trading Post sets this (owner decision, 2026-09-11: Market
+  // listing capacity is a building, not a research — same "buildings =
+  // capacity, research = % bonuses" split as the Warehouse above). Base
+  // Market capacity is 0 — a player can't list anything until this reaches
+  // level 1.
+  marketSlotBonusPerLevel Int?
 
   levelCosts      BuildingLevelCost[]
   playerBuildings PlayerBuilding[]

@@ -12,6 +12,7 @@ import {
 } from '@pentilius/shared';
 import { ClanMembership, ClanWar, ClanWarAttack, ClanWarOutcome, Player, Prisma } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
+import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { CombatService, toStatsDto } from '../pve/combat.service';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -200,6 +201,7 @@ export class ClanWarsService {
       if (attacker.actionEnergy < GAME_BALANCE.pvp.attackCostEnergy) {
         throw new BadRequestException('Not enough Action Energy');
       }
+      await assertNoActiveExpedition(attackerId, tx);
 
       // Checked in this order deliberately: the same-attacker cooldown (60 min)
       // always outlasts the universal target protection (5 min), so checking

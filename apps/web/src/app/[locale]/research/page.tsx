@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
 import { ResourceIcon } from '@/components/ResourceIcon';
-import { getResearches, startResearch } from '@/lib/api-client';
+import { ApiError, getResearches, startResearch } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -52,8 +52,14 @@ export default function ResearchPage() {
       await startResearch(key);
       notifyProfileChanged();
       await load();
-    } catch {
-      setError(t('research.startError'));
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'ANOTHER_RESEARCH_IN_PROGRESS') {
+        setError(t('research.anotherResearchActive'));
+      } else if (err instanceof ApiError && err.status === 400) {
+        setError(t('research.notEnoughResources'));
+      } else {
+        setError(t('research.startError'));
+      }
     }
   }
 
@@ -70,6 +76,7 @@ export default function ResearchPage() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {data.researches.map((research) => {
             const progress = researchProgress(research);
+            const anotherActive = !progress.active && data.researches.some((r) => researchProgress(r).active);
             return (
               <section key={research.key} className="overflow-hidden rounded-lg border border-panelBorder bg-panel">
                 <div className="flex items-center justify-between border-b border-panelBorder bg-panelHeader px-4 py-3">
@@ -126,8 +133,9 @@ export default function ResearchPage() {
                   <button
                     type="button"
                     disabled={progress.active || !research.nextLevelCost}
+                    aria-disabled={anotherActive}
                     onClick={() => handleStart(research.key)}
-                    className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                    className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
                   >
                     {t('research.start')}
                   </button>

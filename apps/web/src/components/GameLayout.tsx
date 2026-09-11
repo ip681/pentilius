@@ -8,6 +8,7 @@ import { getProfile } from '@/lib/api-client';
 import { clearTokens, isAuthenticated } from '@/lib/auth';
 import { onProfileChanged } from '@/lib/profile-events';
 import { getCachedProfile, setCachedProfile } from '@/lib/profile-cache';
+import { useFriendsUnread } from '@/lib/use-friends-unread';
 import { BottomNav } from './BottomNav';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
@@ -15,6 +16,7 @@ import { TopBar } from './TopBar';
 export function GameLayout({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
+  const hasUnreadFriends = useFriendsUnread();
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
@@ -85,10 +87,10 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-ink text-text">
       <TopBar profile={profile} loggedIn={loggedIn} />
       <div className="flex min-h-[calc(100vh-4rem)]">
-        <Sidebar />
+        <Sidebar hasUnreadFriends={hasUnreadFriends} />
         <main className="w-full max-w-[1500px] flex-1 px-4 pb-20 pt-4 md:p-7">{children}</main>
       </div>
-      {loggedIn && <BottomNav />}
+      {loggedIn && <BottomNav hasUnreadFriends={hasUnreadFriends} />}
     </div>
   );
 }

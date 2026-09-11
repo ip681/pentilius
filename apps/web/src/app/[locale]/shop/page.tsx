@@ -142,52 +142,51 @@ export default function ShopPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-4">
+      <div className="flex flex-col gap-2">
         {visibleItems.map((item) => (
-          <div key={item.itemDefinitionKey} className="flex flex-col rounded-lg border border-panelBorder bg-panel p-5">
-            <div className="flex-1">
-              <div className="mx-auto mb-3 h-16 w-16">
-                <AssetIcon
-                  assetId={item.iconAssetId}
-                  alt={t(item.nameKey)}
-                  className="h-full w-full object-contain"
-                  fallback={<span className="text-lg font-semibold text-textMuted">{t(item.nameKey).charAt(0)}</span>}
-                />
-              </div>
-              <h2 className="mb-1 text-center text-sm font-semibold">{t(item.nameKey)}</h2>
-              <p className="mb-2 text-center text-[10px] text-textMuted">{t(item.descriptionKey)}</p>
+          <div key={item.itemDefinitionKey} className="flex items-center gap-3 rounded-md border border-wellBorder bg-well p-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-wellBorder bg-ink">
+              <AssetIcon
+                assetId={item.iconAssetId}
+                alt={t(item.nameKey)}
+                className="h-full w-full object-contain p-1"
+                fallback={<span className="text-sm font-semibold text-textMuted">{t(item.nameKey).charAt(0)}</span>}
+              />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{t(item.nameKey)}</p>
+              <p className="truncate text-[10px] text-textFaint">{t(item.descriptionKey)}</p>
 
               {item.baseStats && (item.baseStats.attack !== undefined || item.baseStats.defense !== undefined || item.baseStats.hp !== undefined) && (
-                <div className="mb-2 rounded border border-wellBorder bg-ink p-2">
+                <p className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-textFaint">
                   {(['attack', 'defense', 'hp'] as const).map((key) => {
                     const value = item.baseStats?.[key];
                     if (value === undefined) return null;
                     return (
-                      <div key={key} className="flex justify-between text-[10px] text-textFaint last:mb-0">
-                        <span>{t(`robot.stat.${key === 'attack' ? 'damage' : key}`)}</span>
-                        <span className="text-text">{value}</span>
-                      </div>
+                      <span key={key}>
+                        {t(`robot.stat.${key === 'attack' ? 'damage' : key}`)} <span className="text-text">{value}</span>
+                      </span>
                     );
                   })}
-                </div>
+                </p>
               )}
 
               {item.raceLockInfo && (
-                <div className="mb-3 text-center text-[10px] text-textFaint">
-                  <p>{t('shop.raceLockOwnRace', { percent: Math.round(item.raceLockInfo.ownRaceChance * 100) })}</p>
-                  {item.raceLockInfo.universalChance > 0 && (
-                    <p>{t('shop.raceLockUniversal', { percent: Math.round(item.raceLockInfo.universalChance * 100) })}</p>
-                  )}
-                </div>
+                <p className="mt-0.5 text-[9px] text-textFaint">
+                  {t('shop.raceLockOwnRace', { percent: Math.round(item.raceLockInfo.ownRaceChance * 100) })}
+                  {item.raceLockInfo.universalChance > 0 &&
+                    ` · ${t('shop.raceLockUniversal', { percent: Math.round(item.raceLockInfo.universalChance * 100) })}`}
+                </p>
               )}
 
-              <p className="mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-textMuted">
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                 {priceParts(item).map((part) => (
                   <span key={part.type} className="flex items-center gap-1">
-                    {part.amount} <ResourceIcon type={part.type} className="h-3.5 w-3.5" />
+                    {part.amount.toLocaleString()} <ResourceIcon type={part.type} className="h-3.5 w-3.5" />
                   </span>
                 ))}
-              </p>
+              </div>
             </div>
 
             <ConfirmButton
@@ -196,9 +195,10 @@ export default function ShopPage() {
               cancelLabel={t('common.cancel')}
               message={t('shop.buyConfirm', { price: priceLabel(item) })}
               onConfirm={() => handleBuy(item.itemDefinitionKey, item.nameKey)}
-              className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-[10px] uppercase hover:bg-accentBgHover"
-              confirmClassName="flex-1 rounded-md border border-accent bg-accentBg py-2.5 text-[10px] uppercase hover:bg-accentBgHover"
-              cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+              className="shrink-0 rounded-md border border-accent bg-accentBg px-3 py-1.5 text-[10px] uppercase hover:bg-accentBgHover"
+              confirmClassName="flex-1 rounded-md border border-accent bg-accentBg px-3 py-1.5 text-[10px] uppercase hover:bg-accentBgHover"
+              cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel px-3 py-1.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+              wrapperClassName="shrink-0"
             />
           </div>
         ))}

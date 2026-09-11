@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
 import { ResourceIcon } from '@/components/ResourceIcon';
-import { consumeItem, getBase, getInventory, upgradeBuilding } from '@/lib/api-client';
+import { ApiError, consumeItem, getBase, getInventory, upgradeBuilding } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -59,8 +59,14 @@ export default function BasePage() {
       await upgradeBuilding(key);
       notifyProfileChanged();
       await load();
-    } catch {
-      setError(t('base.upgradeError'));
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'ANOTHER_BUILDING_UNDER_CONSTRUCTION') {
+        setError(t('base.anotherBuildingActive'));
+      } else if (err instanceof ApiError && err.status === 400) {
+        setError(t('base.notEnoughResources'));
+      } else {
+        setError(t('base.upgradeError'));
+      }
     }
   }
 
@@ -75,12 +81,9 @@ export default function BasePage() {
 
   return (
     <GameLayout>
-      <div className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{t('base.title')}</h1>
-          <p className="text-xs text-textMuted">{t('base.subtitle')}</p>
-        </div>
-        <div className="text-xs uppercase tracking-wide text-positive">● {t('base.status')}</div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">{t('base.title')}</h1>
+        <p className="text-xs text-textMuted">{t('base.subtitle')}</p>
       </div>
 
       {error && <p className="mb-4 text-red-400">{error}</p>}
@@ -89,6 +92,7 @@ export default function BasePage() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {data.buildings.map((building) => {
             const progress = buildingProgress(building);
+            const anotherActive = !progress.active && data.buildings.some((b) => buildingProgress(b).active);
             return (
               <section key={building.key} className="overflow-hidden rounded-lg border border-panelBorder bg-panel">
                 <div className="flex items-center justify-between border-b border-panelBorder bg-panelHeader px-4 py-3">
@@ -111,7 +115,9 @@ export default function BasePage() {
                   {building.currentProduction ||
                   building.nextLevelProduction ||
                   building.currentCapacityBonus !== null ||
-                  building.nextLevelCapacityBonus !== null ? (
+                  building.nextLevelCapacityBonus !== null ||
+                  building.currentMarketSlotBonus !== null ||
+                  building.nextLevelMarketSlotBonus !== null ? (
                     <div className="mb-4 rounded border border-wellBorder bg-well p-2.5 text-[11px]">
                       {building.currentProduction ? (
                         <div className="flex justify-between">
@@ -127,6 +133,13 @@ export default function BasePage() {
                             +{building.currentCapacityBonus} {t('base.inventorySlots')}
                           </span>
                         </div>
+                      ) : building.currentMarketSlotBonus !== null ? (
+                        <div className="flex justify-between">
+                          <span className="text-textFaint">{t('base.currentEffect')}</span>
+                          <span>
+                            +{building.currentMarketSlotBonus} {t('base.marketSlots')}
+                          </span>
+                        </div>
                       ) : (
                         <div className="flex justify-between text-textFaint">
                           <span>{t('base.currentEffect')}</span>
@@ -140,12 +153,19 @@ export default function BasePage() {
                             +{building.nextLevelProduction.perHour} {t(`resource.${building.nextLevelProduction.resourceType}`)}/{t('base.perHour')}
                           </span>
                         </div>
+                      ) : building.nextLevelCapacityBonus !== null ? (
+                        <div className="mt-1 flex justify-between text-positive">
+                          <span className="text-textFaint">{t('base.nextEffect')}</span>
+                          <span>
+                            +{building.nextLevelCapacityBonus} {t('base.inventorySlots')}
+                          </span>
+                        </div>
                       ) : (
-                        building.nextLevelCapacityBonus !== null && (
+                        building.nextLevelMarketSlotBonus !== null && (
                           <div className="mt-1 flex justify-between text-positive">
                             <span className="text-textFaint">{t('base.nextEffect')}</span>
                             <span>
-                              +{building.nextLevelCapacityBonus} {t('base.inventorySlots')}
+                              +{building.nextLevelMarketSlotBonus} {t('base.marketSlots')}
                             </span>
                           </div>
                         )
@@ -206,8 +226,9 @@ export default function BasePage() {
                   <button
                     type="button"
                     disabled={progress.active || !building.nextLevelCost}
+                    aria-disabled={anotherActive}
                     onClick={() => handleUpgrade(building.key)}
-                    className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                    className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
                   >
                     {t('base.upgrade')}
                   </button>

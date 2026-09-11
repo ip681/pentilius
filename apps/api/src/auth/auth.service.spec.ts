@@ -10,6 +10,8 @@ describe('AuthService', () => {
   let authService: AuthService;
   let prisma: {
     player: { findUnique: jest.Mock; create: jest.Mock };
+    avatarDefinition: { findMany: jest.Mock };
+    frameDefinition: { findMany: jest.Mock };
   };
 
   beforeEach(async () => {
@@ -18,6 +20,8 @@ describe('AuthService', () => {
         findUnique: jest.fn(),
         create: jest.fn(),
       },
+      avatarDefinition: { findMany: jest.fn().mockResolvedValue([{ key: 'avatar1' }]) },
+      frameDefinition: { findMany: jest.fn().mockResolvedValue([{ key: 'frame1' }]) },
     };
 
     const moduleRef = await Test.createTestingModule({

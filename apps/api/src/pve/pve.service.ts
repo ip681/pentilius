@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BattleReportDto, CombatRoundDto, LootResultEntryDto, ResourceType } from '@pentilius/shared';
 import { Prisma } from '@prisma/client';
+import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { grantItem } from '../inventory/inventory-capacity';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -34,6 +35,7 @@ export class PveService {
       if (player.actionEnergy < 1) {
         throw new BadRequestException('Not enough Action Energy');
       }
+      await assertNoActiveExpedition(playerId, tx);
 
       player = await tx.player.update({ where: { id: playerId }, data: { actionEnergy: { decrement: 1 } } });
 

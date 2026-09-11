@@ -108,6 +108,10 @@ export default function ZonePentiliPage() {
 
   async function handleAttack(target: PentiliDto) {
     if (attacking) return;
+    if ((profile?.energy.current ?? 0) < 1) {
+      setError(t('pve.notEnoughEnergy'));
+      return;
+    }
     setError(null);
     setAttacking(true);
     try {
@@ -184,7 +188,9 @@ export default function ZonePentiliPage() {
         });
       }, ROUND_INTERVAL_MS);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 400) {
+      if (err instanceof ApiError && err.code === 'EXPEDITION_IN_PROGRESS') {
+        setError(t('pve.expeditionInProgress'));
+      } else if (err instanceof ApiError && err.status === 400) {
         setError(t('pve.notEnoughEnergy'));
       } else {
         setError(t('pve.attackError'));
@@ -273,9 +279,8 @@ export default function ZonePentiliPage() {
               <button
                 type="button"
                 onClick={() => handleAttack(entry)}
-                disabled={attacking || (profile?.energy.current ?? 0) < 1}
-                title={(profile?.energy.current ?? 0) < 1 ? t('pve.notEnoughEnergy') : undefined}
-                className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-accentBg"
+                aria-disabled={attacking || (profile?.energy.current ?? 0) < 1}
+                className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
               >
                 {t('pve.attack')}
               </button>

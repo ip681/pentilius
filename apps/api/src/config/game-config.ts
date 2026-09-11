@@ -170,6 +170,18 @@ export const GAME_BALANCE = {
     resourceStealPercentage: 0.1,
     attackCooldownMinutes: 10,
     revengeProtectionMinutes: 10,
+    // Owner decision (2026-09-11): the steal rate scales with the level gap
+    // instead of being flat, so punching down at a much weaker player is no
+    // longer strictly efficient (same energy cost, same reward regardless of
+    // difficulty) — see instructions/GAME_SYSTEMS.md's "anti-harassment
+    // protection must exist". multiplier = 1 + (defenderLevel - attackerLevel)
+    // * levelDifferenceAdjustment, clamped to [minStealMultiplier,
+    // maxStealMultiplier] — attacking someone lower-level than you shrinks the
+    // reward, attacking someone higher-level grows it. Starting values, not
+    // tuned against real play yet.
+    levelDifferenceAdjustment: 0.05,
+    minStealMultiplier: 0.2,
+    maxStealMultiplier: 2.5,
   },
   clanWar: {
     // Clan-vs-clan war (owner decision, 2026-09-10 — instructions/OPEN_DECISIONS.md's
@@ -244,10 +256,12 @@ export const GAME_BALANCE = {
   },
   market: {
     // Owner decisions (2026-09-10): no listing fee, listings never expire
-    // (only removed by sale or cancellation), max concurrent ACTIVE listings
-    // per player is a flat 5 for now — revisit once real usage data exists.
-    // Equipment only for now (see MarketListing's schema comment).
-    maxActiveListingsPerPlayer: 5,
+    // (only removed by sale or cancellation). Equipment only for now (see
+    // MarketListing's schema comment). Listing capacity itself moved off
+    // this flat constant on 2026-09-11 — it's now driven entirely by the
+    // Trading Post building (base 0, +1 slot/level — see
+    // schema.prisma's BuildingType.marketSlotBonusPerLevel and
+    // MarketService.getEffectiveListingCapacity).
   },
 } as const;
 

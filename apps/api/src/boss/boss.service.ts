@@ -10,6 +10,7 @@ import {
 } from '@pentilius/shared';
 import { Boss, BossEncounter, BossEncounterParticipant, BossLootDrop, Player, Prisma, Zone } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
+import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { grantItem } from '../inventory/inventory-capacity';
 import { CombatService } from '../pve/combat.service';
 import { EconomyService } from '../player/economy.service';
@@ -66,6 +67,7 @@ export class BossService {
       if (player.actionEnergy < 1) {
         throw new BadRequestException('Not enough Action Energy');
       }
+      await assertNoActiveExpedition(playerId, tx);
 
       await this.finalizeIfExpired(boss.id, tx);
       let encounter = await this.loadLatestEncounter(boss.id, tx);

@@ -29,7 +29,6 @@ import { formatRelativeTime } from '@/lib/format-relative-time';
 import {
   ApiError,
   createClan,
-  declareClanWar,
   demoteClanMember,
   disbandClan,
   donateToClan,
@@ -154,8 +153,6 @@ export default function ClansPage() {
   const [clanOptionsOpen, setClanOptionsOpen] = useState(false);
   const [pendingClanAction, setPendingClanAction] = useState<ClanOptionAction | null>(null);
   const [warStatus, setWarStatus] = useState<ClanWarStateDto | null>(null);
-  const [declareWarTargetId, setDeclareWarTargetId] = useState('');
-  const [declareWarConfirmOpen, setDeclareWarConfirmOpen] = useState(false);
   const [myProfile, setMyProfile] = useState<PlayerProfileDto | null>(null);
   const [myAttributes, setMyAttributes] = useState<RobotAttributesDto | null>(null);
   const [editingRequirements, setEditingRequirements] = useState(false);
@@ -245,8 +242,16 @@ export default function ClansPage() {
     }
   }
 
-  async function handleJoin(clanId: string) {
+  async function handleJoin(clanId: string, full: boolean, eligible: boolean) {
     setError(null);
+    if (full) {
+      setError(t('clans.errorFull'));
+      return;
+    }
+    if (!eligible) {
+      setError(t('clans.errorRequirementsNotMet'));
+      return;
+    }
     try {
       await joinClan(clanId);
       await load();
@@ -396,20 +401,12 @@ export default function ClansPage() {
     }
   }
 
-  async function handleDeclareWar() {
-    if (!declareWarTargetId) return;
+  async function handleUpgradeBuilding(key: string, canAfford: boolean) {
     setError(null);
-    try {
-      await declareClanWar(declareWarTargetId);
-      setDeclareWarTargetId('');
-      await load();
-    } catch (err) {
-      setError(errorMessage(err, t('clans.declareWarError')));
+    if (!canAfford) {
+      setError(t('clans.errorNotEnoughTreasury'));
+      return;
     }
-  }
-
-  async function handleUpgradeBuilding(key: string) {
-    setError(null);
     try {
       await upgradeClanBuilding(key);
       await load();
@@ -564,10 +561,9 @@ export default function ClansPage() {
 
                     <button
                       type="button"
-                      disabled={full || !eligible}
-                      title={!eligible ? t('clans.errorRequirementsNotMet') : undefined}
-                      onClick={() => handleJoin(clan.id)}
-                      className="w-full rounded-md border border-accent bg-accentBg py-2 text-[11px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                      aria-disabled={full || !eligible}
+                      onClick={() => handleJoin(clan.id, full, eligible)}
+                      className="w-full rounded-md border border-accent bg-accentBg py-2 text-[11px] uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
                     >
                       {t('clans.join')}
                     </button>
@@ -591,7 +587,7 @@ export default function ClansPage() {
           </div>
           {myClan.description && !editingClan && <p className="mb-2 text-xs text-textMuted">{myClan.description}</p>}
 
-          {warStatus ? (
+          {warStatus && (
             <Link
               href="/clan-war"
               className="mb-4 flex items-center justify-between rounded-md border border-panelBorderDanger bg-well px-4 py-2.5 text-xs uppercase text-danger hover:bg-accentBgHover"
@@ -599,57 +595,7 @@ export default function ClansPage() {
               <span>{t('clans.war.atWarWith', { clan: `[${warStatus.enemyClanTag}] ${warStatus.enemyClanName}` })}</span>
               <span className="text-textFaint">{t('clans.war.viewBattle')} →</span>
             </Link>
-          ) : (
-            (myClan.myRole === 'LEADER' || myClan.myRole === 'OFFICER') && (
-              <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-wellBorder bg-well p-3">
-                <select
-                  value={declareWarTargetId}
-                  onChange={(e) => setDeclareWarTargetId(e.target.value)}
-                  className="flex-1 rounded-md border border-wellBorder bg-ink px-3 py-2 text-xs text-text outline-none focus:border-accent"
-                >
-                  <option value="">{t('clans.war.pickTarget')}</option>
-                  {clans
-                    ?.filter((c) => c.id !== myClan.id)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        [{c.tag}] {c.name} ({c.memberCount})
-                      </option>
-                    ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!declareWarTargetId}
-                  onClick={() => setDeclareWarConfirmOpen(true)}
-                  className="rounded-md border border-panelBorderDanger bg-well px-4 py-2 text-[11px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  {t('clans.war.declareWar')}
-                </button>
-              </div>
-            )
           )}
-
-          <BottomSheet open={declareWarConfirmOpen} onClose={() => setDeclareWarConfirmOpen(false)}>
-            <p className="mb-4 text-sm text-textMuted">{t('clans.war.confirmDeclareWar')}</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  handleDeclareWar();
-                  setDeclareWarConfirmOpen(false);
-                }}
-                className="flex-1 rounded-md border border-panelBorderDanger bg-well py-2.5 text-xs uppercase text-danger hover:bg-accentBgHover"
-              >
-                {t('common.confirm')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeclareWarConfirmOpen(false)}
-                className="flex-1 rounded-md border border-panelBorder bg-panel py-2.5 text-xs uppercase text-textMuted hover:bg-accentBgHover"
-              >
-                {t('common.cancel')}
-              </button>
-            </div>
-          </BottomSheet>
 
           {(!editingClan || !editingRequirements) && (
             <div className="mb-4 flex justify-end gap-2">
@@ -831,9 +777,10 @@ export default function ClansPage() {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-textFaint">{t('clans.treasury')}</h3>
             </div>
             <div className="mb-3 flex gap-5 text-sm">
-              <span className="flex items-center gap-1.5"><ResourceIcon type="METAL" /><strong>{myClan.treasury.metal.toLocaleString()}</strong></span>
-              <span className="flex items-center gap-1.5"><ResourceIcon type="CRYSTAL" /><strong>{myClan.treasury.crystal.toLocaleString()}</strong></span>
-              <span className="flex items-center gap-1.5"><ResourceIcon type="CREDITS" /><strong>{myClan.treasury.credits.toLocaleString()}</strong></span>
+              {/* getMyClan() always includes treasury for the viewer's own clan — only the public getClan() hides it. */}
+              <span className="flex items-center gap-1.5"><ResourceIcon type="METAL" /><strong>{myClan.treasury!.metal.toLocaleString()}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="CRYSTAL" /><strong>{myClan.treasury!.crystal.toLocaleString()}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="CREDITS" /><strong>{myClan.treasury!.credits.toLocaleString()}</strong></span>
             </div>
             <form onSubmit={handleDonate} className="flex flex-wrap items-end gap-2">
               <label className="flex w-24 flex-col gap-1 text-[10px] text-textMuted">
@@ -880,6 +827,11 @@ export default function ClansPage() {
               const progress = buildingProgress(building);
               const canManage = myClan.myRole === 'LEADER' || myClan.myRole === 'OFFICER';
               const bonus = bonusLabel(building);
+              const canAfford =
+                !building.nextLevelCost ||
+                (myClan.treasury!.metal >= building.nextLevelCost.metalCost &&
+                  myClan.treasury!.crystal >= building.nextLevelCost.crystalCost &&
+                  myClan.treasury!.credits >= building.nextLevelCost.creditsCost);
               return (
                 <div key={building.key} className="rounded-md border border-wellBorder bg-well p-3">
                   <div className="mb-1 flex items-center justify-between">
@@ -934,8 +886,9 @@ export default function ClansPage() {
                   <button
                     type="button"
                     disabled={!canManage || progress.active || !building.nextLevelCost}
-                    onClick={() => handleUpgradeBuilding(building.key)}
-                    className="w-full rounded-md border border-accent bg-accentBg py-1.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-disabled={!canAfford}
+                    onClick={() => handleUpgradeBuilding(building.key, canAfford)}
+                    className="w-full rounded-md border border-accent bg-accentBg py-1.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
                   >
                     {t('clans.upgradeBuilding')}
                   </button>

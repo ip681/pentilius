@@ -2,7 +2,7 @@ import type { ClanSummaryDto, PlayerProfileDto, RobotAttributesDto } from '@pent
 
 /** Equipment deliberately excluded — compares the player's raw Core Attribute points only, same as the backend check. */
 export function meetsJoinRequirements(
-  clan: ClanSummaryDto,
+  clan: Pick<ClanSummaryDto, 'joinRequirements'>,
   profile: PlayerProfileDto | null,
   attributes: RobotAttributesDto | null,
 ): boolean {

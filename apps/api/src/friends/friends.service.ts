@@ -58,12 +58,27 @@ export class FriendsService {
     await this.prisma.friendship.delete({ where: { id: friendship.id } });
   }
 
+  /** Most recent conversation first (owner decision, 2026-09-11) — see schema.prisma's comment on Friendship's read/unread fields. */
   async listFriends(playerId: string): Promise<FriendDto[]> {
     const rows = await this.prisma.friendship.findMany({
       where: { status: 'ACCEPTED', OR: [{ requesterId: playerId }, { addresseeId: playerId }] },
       include: { requester: true, addressee: true },
+      orderBy: { lastMessageAt: { sort: 'desc', nulls: 'last' } },
     });
-    return rows.map((row) => toFriendDto(row.requesterId === playerId ? row.addressee : row.requester));
+    return rows.map((row) => {
+      const isRequester = row.requesterId === playerId;
+      const otherPlayer = isRequester ? row.addressee : row.requester;
+      return toFriendDto(otherPlayer, hasUnread(row, isRequester));
+    });
+  }
+
+  /** Cheap aggregate check for the TopBar indicator — see schema.prisma's comment on Friendship's read/unread fields. */
+  async hasAnyUnread(playerId: string): Promise<boolean> {
+    const rows = await this.prisma.friendship.findMany({
+      where: { status: 'ACCEPTED', OR: [{ requesterId: playerId }, { addresseeId: playerId }], lastMessageAt: { not: null } },
+      select: { requesterId: true, requesterLastReadAt: true, addresseeLastReadAt: true, lastMessageAt: true },
+    });
+    return rows.some((row) => hasUnread(row, row.requesterId === playerId));
   }
 
   async listRequests(playerId: string): Promise<FriendRequestsDto> {
@@ -99,7 +114,16 @@ export class FriendsService {
   }
 
   async getConversation(playerId: string, otherPlayerId: string): Promise<DirectMessageDto[]> {
-    await this.assertFriends(playerId, otherPlayerId);
+    const friendship = await this.assertFriends(playerId, otherPlayerId);
+
+    // Mark read (owner decision, 2026-09-11) — viewing the conversation is
+    // the whole "read" signal, no per-message tracking. See schema.prisma's
+    // comment on Friendship's read/unread fields.
+    const isRequester = friendship.requesterId === playerId;
+    await this.prisma.friendship.update({
+      where: { id: friendship.id },
+      data: isRequester ? { requesterLastReadAt: new Date() } : { addresseeLastReadAt: new Date() },
+    });
 
     const messages = await this.prisma.directMessage.findMany({
       where: {
@@ -115,7 +139,7 @@ export class FriendsService {
   }
 
   async sendMessage(senderId: string, recipientId: string, text: string): Promise<DirectMessageDto> {
-    await this.assertFriends(senderId, recipientId);
+    const friendship = await this.assertFriends(senderId, recipientId);
 
     const trimmed = text.trim();
     if (!trimmed) {
@@ -134,19 +158,43 @@ export class FriendsService {
     }
 
     const created = await this.prisma.directMessage.create({ data: { senderId, recipientId, text: trimmed } });
+
+    // The sender has trivially "read" up to their own message — updating
+    // their own side's read marker alongside lastMessageAt keeps them from
+    // seeing their own conversation as unread.
+    const isRequester = friendship.requesterId === senderId;
+    await this.prisma.friendship.update({
+      where: { id: friendship.id },
+      data: {
+        lastMessageAt: created.createdAt,
+        ...(isRequester ? { requesterLastReadAt: created.createdAt } : { addresseeLastReadAt: created.createdAt }),
+      },
+    });
+
     return toDirectMessageDto(created);
   }
 
-  private async assertFriends(playerId: string, otherPlayerId: string): Promise<void> {
+  private async assertFriends(playerId: string, otherPlayerId: string): Promise<Friendship> {
     const friendship = await this.findFriendshipBetween(playerId, otherPlayerId);
     if (!friendship || friendship.status !== 'ACCEPTED') {
       throw new BadRequestException('NOT_FRIENDS');
     }
+    return friendship;
   }
 }
 
-function toFriendDto(player: Player): FriendDto {
-  return { id: player.id, username: player.username, race: player.race, level: player.level };
+/** See schema.prisma's comment on Friendship's read/unread fields. */
+function hasUnread(
+  row: { lastMessageAt: Date | null; requesterLastReadAt: Date | null; addresseeLastReadAt: Date | null },
+  isRequester: boolean,
+): boolean {
+  if (!row.lastMessageAt) return false;
+  const myLastReadAt = isRequester ? row.requesterLastReadAt : row.addresseeLastReadAt;
+  return !myLastReadAt || row.lastMessageAt > myLastReadAt;
+}
+
+function toFriendDto(player: Player, hasUnreadMessages: boolean): FriendDto {
+  return { id: player.id, username: player.username, race: player.race, level: player.level, hasUnread: hasUnreadMessages };
 }
 
 function toFriendRequestDto(row: Friendship, otherPlayer: Player): FriendRequestDto {

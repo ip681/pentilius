@@ -183,6 +183,8 @@ export default function ClanWarPage() {
         setError(t('clans.war.errorTargetProtected'));
       } else if (err instanceof ApiError && err.code === 'ATTACK_COOLDOWN') {
         setError(t('clans.war.errorAttackCooldown'));
+      } else if (err instanceof ApiError && err.code === 'EXPEDITION_IN_PROGRESS') {
+        setError(t('pve.expeditionInProgress'));
       } else if (err instanceof ApiError && err.status === 400) {
         setError(t('pvp.notEnoughEnergy'));
       } else {
@@ -305,10 +307,10 @@ export default function ClanWarPage() {
                       </div>
                       <button
                         type="button"
-                        disabled={!attackable}
+                        disabled={onCooldown || attacking}
+                        aria-disabled={!hasEnergy}
                         onClick={() => handleAttack(target.playerId)}
-                        title={!onCooldown && !hasEnergy ? t('pvp.notEnoughEnergy') : undefined}
-                        className="shrink-0 rounded-md border border-panelBorderDanger bg-well px-4 py-2 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                        className="shrink-0 rounded-md border border-panelBorderDanger bg-well px-4 py-2 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
                       >
                         {onCooldown ? formatDuration(secondsUntil) : t('clans.war.attack')}
                       </button>

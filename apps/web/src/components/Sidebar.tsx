@@ -9,7 +9,7 @@ import { NAV_ITEMS } from '@/lib/nav-items';
 // Desktop-only now — the Command Center's Quick Access grid covers every one
 // of these destinations, so mobile relies on that (plus the BottomNav)
 // instead of a slide-in menu. Same order/icons as BottomNav for consistency.
-export function Sidebar() {
+export function Sidebar({ hasUnreadFriends }: { hasUnreadFriends: boolean }) {
   const t = useTranslations();
   const pathname = usePathname();
 
@@ -22,7 +22,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded px-3 py-2.5 text-base ${active ? 'bg-accentBgHover text-text' : 'text-textMuted hover:bg-panel hover:text-text'}`}
+              className={`relative flex items-center gap-3 rounded px-3 py-2.5 text-base ${active ? 'bg-accentBgHover text-text' : 'text-textMuted hover:bg-panel hover:text-text'}`}
             >
               <AssetIcon
                 assetId={`dashboard.${item.iconKey}.icon`}
@@ -31,6 +31,7 @@ export function Sidebar() {
                 fallback={<span className="flex h-6 w-6 shrink-0 items-center justify-center text-sm font-semibold">{t(item.labelKey).charAt(0)}</span>}
               />
               {t(item.labelKey)}
+              {item.href === '/friends' && hasUnreadFriends && <span className="absolute right-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-danger" />}
             </Link>
           );
         })}

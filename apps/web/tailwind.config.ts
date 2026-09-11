@@ -5,7 +5,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Dark sci-fi palette shared across every game screen — see design-references/.
+        // Dark sci-fi palette shared across every game screen.
         ink: '#080c11',
         inkRaised: '#0e141b',
         panel: '#10171e',

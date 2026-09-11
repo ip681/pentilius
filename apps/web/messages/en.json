@@ -112,7 +112,6 @@
   "base": {
     "title": "Base",
     "subtitle": "Resource buildings generate materials automatically.",
-    "status": "Base production active",
     "level": "Level",
     "upgrade": "Upgrade",
     "nextLevelCost": "Next level cost",
@@ -121,12 +120,15 @@
     "maxLevel": "Max level reached",
     "loadError": "Could not load your base.",
     "upgradeError": "Could not upgrade this building.",
+    "anotherBuildingActive": "You're already building something else — wait for it to finish.",
+    "notEnoughResources": "Not enough resources.",
     "speedupError": "Could not use that construction kit.",
     "currentEffect": "Current effect",
     "nextEffect": "Next level",
     "perHour": "hour",
     "noEffect": "No effect yet",
-    "inventorySlots": "Inventory Slots"
+    "inventorySlots": "Inventory Slots",
+    "marketSlots": "Market Listing Slots"
   },
   "robot": {
     "title": "Robot",
@@ -224,6 +226,7 @@
     "loadError": "Could not load this zone.",
     "attackError": "The attack failed.",
     "notEnoughEnergy": "Not enough energy.",
+    "expeditionInProgress": "Your robot is on an expedition and can't fight right now.",
     "reportsTitle": "Battle Reports"
   },
   "expeditions": {
@@ -259,6 +262,8 @@
     "bonusPerLevel": "+{percent}% per level",
     "loadError": "Could not load research.",
     "startError": "Could not start this research.",
+    "anotherResearchActive": "You're already researching something else — wait for it to finish.",
+    "notEnoughResources": "Not enough resources.",
     "metal_production": { "name": "Metal Production", "description": "Improves the yield of every metal-producing building." },
     "crystal_production": { "name": "Crystal Production", "description": "Improves the yield of every crystal-producing building." },
     "weapon_systems": { "name": "Weapon Systems", "description": "Increases the attack power of your robot's equipped weapons." },
@@ -403,7 +408,8 @@
     "errorOnlyEquipment": "Only equipment items can be listed for now.",
     "errorItemEquipped": "Unequip this item before listing it.",
     "errorAlreadyListed": "This item is already listed.",
-    "errorTooManyListings": "You've reached the maximum number of active listings (5).",
+    "errorTooManyListings": "You've reached your maximum number of active listings — upgrade the Trading Post in your base for more.",
+    "errorTradingPostRequired": "You need at least a level 1 Trading Post in your base to sell on the Market.",
     "errorPriceRequired": "Set at least one resource as the price.",
     "errorCannotBuyOwn": "You can't buy your own listing.",
     "errorNotEnoughResources": "You don't have enough resources for this purchase.",
@@ -519,6 +525,8 @@
     },
     "war": {
       "atWarWith": "At war with {clan}",
+      "thisClanAtWarWith": "This clan is currently at war with {clan}",
+      "youAreAtWar": "You are currently at war with this clan!",
       "viewBattle": "View battle",
       "pickTarget": "Choose a clan to declare war on...",
       "declareWar": "Declare War",
@@ -535,6 +543,7 @@
       "errorTargetProtected": "This player is protected right now — try again later.",
       "errorAttackCooldown": "You already attacked this player recently — try someone else.",
       "errorAlreadyAtWar": "Your clan is already at war.",
+      "errorAlreadyAtWarWith": "Your clan is already at war with {clan} — finish that first.",
       "errorTargetAlreadyAtWar": "That clan is already at war with someone else.",
       "errorClanTooSmall": "Your clan needs more members to declare war.",
       "errorTargetTooSmall": "That clan is too small to be a valid target.",
@@ -580,6 +589,7 @@
     "attackError": "The attack failed.",
     "noOpponents": "No opponents available right now.",
     "opponentGone": "That opponent is no longer available. Finding another...",
+    "expeditionInProgress": "Your robot is on an expedition and can't fight right now.",
     "notEnoughEnergy": "Not enough Action Energy.",
     "encounterStart": "Engaging {name}.",
     "roundHit": "{name} deals {damage} damage.",
@@ -609,6 +619,7 @@
     "loadError": "Could not load bosses.",
     "joinError": "Could not join this boss.",
     "notEnoughEnergy": "Not enough energy.",
+    "expeditionInProgress": "Your robot is on an expedition and can't fight right now.",
     "resolveError": "Could not resolve this encounter.",
     "encounterStart": "The party engages {name}.",
     "roundHit": "{name} deals {damage} damage.",
@@ -640,7 +651,8 @@
   "buildings": {
     "metal_mine": { "name": "Metal Mine" },
     "crystal_extractor": { "name": "Crystal Extractor" },
-    "warehouse": { "name": "Warehouse" }
+    "warehouse": { "name": "Warehouse" },
+    "trading_post": { "name": "Trading Post" }
   },
   "items": {
     "pioneer_head_scanner": { "name": "Pioneer Head Scanner", "description": "A basic targeting sensor." },

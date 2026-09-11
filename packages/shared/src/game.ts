@@ -173,6 +173,10 @@ export interface BuildingStateDto {
   // exclusive with currentProduction/nextLevelProduction — a building has one effect or the other.
   currentCapacityBonus: number | null;
   nextLevelCapacityBonus: number | null;
+  // Flat Market listing-slot bonus (currently only the Trading Post sets this) — same
+  // mutually-exclusive-effect pattern as currentCapacityBonus above.
+  currentMarketSlotBonus: number | null;
+  nextLevelMarketSlotBonus: number | null;
 }
 
 export interface BaseResponseDto {
@@ -663,8 +667,25 @@ export interface ClanBuildingStateDto {
   nextLevelCost: ClanBuildingCostDto | null;
 }
 
-export interface ClanDetailDto extends ClanSummaryDto {
+// Treasury is null unless the viewer is a member of this clan (owner
+// decision, 2026-09-11 — donation amounts stay private on the public clan
+// page, same reasoning already applied to the clan leaderboard). Buildings
+// stay public — they signal a clan's strength without exposing donations.
+// Owner decision (2026-09-11): unlike treasury, current war status is fully
+// public — it's an institutional fact (not individual player behavior) and
+// showing who's fighting whom adds real strategic depth (e.g. targeting an
+// opponent already weakened by another war), consistent with the genre.
+export interface ClanActiveWarDto {
+  opponentClanId: string;
+  opponentClanTag: string;
+  opponentClanName: string;
+  endsAt: string;
+}
+
+export interface ClanDetailDto extends Omit<ClanSummaryDto, 'treasury'> {
   createdAt: string;
+  treasury: ClanTreasuryDto | null;
+  activeWar: ClanActiveWarDto | null;
   members: ClanMemberDto[];
   myRole: ClanRole | null;
   buildings: ClanBuildingStateDto[];
@@ -796,6 +817,14 @@ export interface FriendDto {
   username: string;
   race: Race;
   level: number;
+  // Owner decision (2026-09-11) — true when this conversation has a message
+  // since the viewer last opened it. Also drives listFriends()' sort order
+  // (most recent conversation first) on the backend.
+  hasUnread: boolean;
+}
+
+export interface FriendsUnreadStatusDto {
+  hasUnread: boolean;
 }
 
 export interface FriendRequestDto {
@@ -853,4 +882,13 @@ export interface MarketListingDto {
   visibleToClanOnly: boolean;
   visibleToFriendsOnly: boolean;
   createdAt: string;
+}
+
+// Wrapped with capacity (owner decision, 2026-09-11) — listing capacity is
+// now driven by the Trading Post building (base 0, +1/level), not a fixed
+// constant, so the frontend needs the current effective value to render an
+// accurate "X/Y" counter and gate the "list an item" button correctly.
+export interface MyMarketListingsDto {
+  listings: MarketListingDto[];
+  capacity: number;
 }

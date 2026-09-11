@@ -27,11 +27,13 @@ import type {
   ExpeditionsResponseDto,
   FriendDto,
   FriendRequestsDto,
+  FriendsUnreadStatusDto,
   FriendshipStatusDto,
   InventoryResponseDto,
   LoginRequest,
   MarketListingDto,
   MyClanResponseDto,
+  MyMarketListingsDto,
   PentiliDto,
   PlayerLeaderboardPageDto,
   PlayerLeaderboardSortBy,
@@ -229,6 +231,10 @@ export function getFriendshipStatus(playerId: string): Promise<FriendshipStatusD
   return request<FriendshipStatusDto>(`/friends/status/${playerId}`, { auth: true });
 }
 
+export function getFriendsUnreadStatus(): Promise<FriendsUnreadStatusDto> {
+  return request<FriendsUnreadStatusDto>('/friends/unread', { auth: true });
+}
+
 export function sendFriendRequest(playerId: string): Promise<void> {
   return request<void>('/friends/request', { method: 'POST', auth: true, body: { playerId } });
 }
@@ -326,8 +332,8 @@ export function getMarketListings(): Promise<MarketListingDto[]> {
   return request<MarketListingDto[]>('/market', { auth: true });
 }
 
-export function getMyMarketListings(): Promise<MarketListingDto[]> {
-  return request<MarketListingDto[]>('/market/mine', { auth: true });
+export function getMyMarketListings(): Promise<MyMarketListingsDto> {
+  return request<MyMarketListingsDto>('/market/mine', { auth: true });
 }
 
 export function createMarketListing(

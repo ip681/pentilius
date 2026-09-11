@@ -41,8 +41,16 @@ export class AuthService {
     // only the single weakest Pentili. Equipment comes later, from that first
     // win's loot or the Shop (instructions/MILESTONES.md's flow was updated
     // to match: fight first, then equip).
+    const [avatarKey, frameKey] = await Promise.all([this.pickRandomAvatarKey(), this.pickRandomFrameKey()]);
     const player = await this.prisma.player.create({
-      data: { email: dto.email, username: dto.username, passwordHash, race: dto.race },
+      data: {
+        email: dto.email,
+        username: dto.username,
+        passwordHash,
+        race: dto.race,
+        ...(avatarKey ? { selectedAvatarKey: avatarKey } : {}),
+        ...(frameKey ? { selectedFrameKey: frameKey } : {}),
+      },
     });
 
     return this.buildAuthResponse(player.id, player.email, player.username, player.race, player.createdAt);
@@ -87,6 +95,22 @@ export class AuthService {
     }
 
     return this.issueTokens(player.id, player.email);
+  }
+
+  // Owner decision (2026-09-11): a random avatar/frame at registration
+  // instead of every account starting on the same "avatar1"/"frame1"
+  // (still the schema default, used as a fallback if a definition table is
+  // ever empty). Freely replaceable afterward in Settings either way.
+  private async pickRandomAvatarKey(): Promise<string | null> {
+    const avatars = await this.prisma.avatarDefinition.findMany({ select: { key: true } });
+    if (avatars.length === 0) return null;
+    return avatars[Math.floor(Math.random() * avatars.length)].key;
+  }
+
+  private async pickRandomFrameKey(): Promise<string | null> {
+    const frames = await this.prisma.frameDefinition.findMany({ select: { key: true } });
+    if (frames.length === 0) return null;
+    return frames[Math.floor(Math.random() * frames.length)].key;
   }
 
   private async buildAuthResponse(id: string, email: string, username: string, race: Race, createdAt: Date): Promise<AuthResponse> {

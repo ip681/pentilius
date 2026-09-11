@@ -64,11 +64,16 @@ async function main() {
       // capacityBonusPerLevel: raises personal inventory capacity — owner
       // decision, resolving the Warehouse's previous lack of any coded effect.
       { key: 'warehouse', nameKey: 'buildings.warehouse.name', maxLevel: 10, iconAssetId: 'buildings.warehouse.icon', capacityBonusPerLevel: 3 },
-      // update: data (not {}) — capacityBonusPerLevel must follow this list
-      // when it changes, not freeze at whatever an existing row already has.
+      // marketSlotBonusPerLevel: raises Market listing capacity, base 0 —
+      // owner decision, 2026-09-11 (see schema.prisma's comment on
+      // BuildingType.marketSlotBonusPerLevel).
+      { key: 'trading_post', nameKey: 'buildings.trading_post.name', maxLevel: 10, iconAssetId: 'buildings.trading_post.icon', marketSlotBonusPerLevel: 1 },
+      // update: data (not {}) — capacityBonusPerLevel/marketSlotBonusPerLevel
+      // must follow this list when it changes, not freeze at whatever an
+      // existing row already has.
     ].map((data) => prisma.buildingType.upsert({ where: { key: data.key }, update: data, create: data })),
   );
-  const [metalMine, crystalExtractor, warehouse] = buildingTypes;
+  const [metalMine, crystalExtractor, warehouse, tradingPost] = buildingTypes;
 
   const levelCosts = [
     { buildingTypeId: metalMine.id, level: 1, metalCost: 0, crystalCost: 50, constructionSeconds: 60, producesResourceType: 'METAL' as const, producesPerHour: 100 },
@@ -104,6 +109,16 @@ async function main() {
     { buildingTypeId: warehouse.id, level: 8, metalCost: 5800, crystalCost: 2300, constructionSeconds: 12000 },
     { buildingTypeId: warehouse.id, level: 9, metalCost: 10000, crystalCost: 4100, constructionSeconds: 24000 },
     { buildingTypeId: warehouse.id, level: 10, metalCost: 18000, crystalCost: 7300, constructionSeconds: 48000 },
+    { buildingTypeId: tradingPost.id, level: 1, metalCost: 60, crystalCost: 20, constructionSeconds: 60 },
+    { buildingTypeId: tradingPost.id, level: 2, metalCost: 150, crystalCost: 60, constructionSeconds: 200 },
+    { buildingTypeId: tradingPost.id, level: 3, metalCost: 300, crystalCost: 120, constructionSeconds: 400 },
+    { buildingTypeId: tradingPost.id, level: 4, metalCost: 550, crystalCost: 220, constructionSeconds: 750 },
+    { buildingTypeId: tradingPost.id, level: 5, metalCost: 1000, crystalCost: 400, constructionSeconds: 1500 },
+    { buildingTypeId: tradingPost.id, level: 6, metalCost: 1800, crystalCost: 720, constructionSeconds: 3000 },
+    { buildingTypeId: tradingPost.id, level: 7, metalCost: 3200, crystalCost: 1300, constructionSeconds: 6000 },
+    { buildingTypeId: tradingPost.id, level: 8, metalCost: 5800, crystalCost: 2300, constructionSeconds: 12000 },
+    { buildingTypeId: tradingPost.id, level: 9, metalCost: 10000, crystalCost: 4100, constructionSeconds: 24000 },
+    { buildingTypeId: tradingPost.id, level: 10, metalCost: 18000, crystalCost: 7300, constructionSeconds: 48000 },
   ];
   for (const cost of levelCosts) {
     await prisma.buildingLevelCost.upsert({

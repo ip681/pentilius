@@ -21,6 +21,11 @@ export class FriendsController {
     return this.friendsService.listRequests(currentPlayer.sub);
   }
 
+  @Get('unread')
+  async getUnreadStatus(@CurrentPlayer() currentPlayer: JwtPayload) {
+    return { hasUnread: await this.friendsService.hasAnyUnread(currentPlayer.sub) };
+  }
+
   @Get('status/:playerId')
   getStatus(@CurrentPlayer() currentPlayer: JwtPayload, @Param('playerId') playerId: string) {
     return this.friendsService.getStatus(currentPlayer.sub, playerId);

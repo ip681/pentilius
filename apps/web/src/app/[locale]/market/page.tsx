@@ -25,7 +25,6 @@ import { notifyProfileChanged } from '@/lib/profile-events';
 import { RACE_BG_CLASS } from '@/lib/race-colors';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
-const MAX_ACTIVE_LISTINGS = 5;
 const SLOTS: EquipmentSlot[] = ['HEAD', 'LEFT_ARM', 'RIGHT_ARM', 'ARMOR', 'CORE', 'LEFT_LEG', 'RIGHT_LEG'];
 const RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
 const QUALITIES: ItemQuality[] = ['NORMAL', 'RARE', 'EPIC'];
@@ -144,6 +143,7 @@ function ListingCard({
     <div
       onMouseEnter={tooltip.show}
       onMouseLeave={tooltip.hide}
+      onClick={tooltip.show}
       className={`relative flex items-center gap-3 rounded-md border p-3 ${QualityBorder(listing.quality)} ${listing.race ? RACE_BG_CLASS[listing.race] : 'bg-well'}`}
     >
       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-wellBorder bg-ink">
@@ -259,8 +259,10 @@ function PickerItemButton({ item, onSelect }: { item: InventoryItemDto; onSelect
 export default function MarketPage() {
   useRequireAuth();
   const t = useTranslations();
+  const itemToListTooltip = useItemHoverTooltip();
   const [listings, setListings] = useState<MarketListingDto[] | null>(null);
   const [myListings, setMyListings] = useState<MarketListingDto[] | null>(null);
+  const [myListingsCapacity, setMyListingsCapacity] = useState(0);
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [browseFilters, setBrowseFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -281,7 +283,8 @@ export default function MarketPage() {
     try {
       const [all, mine, profileRes, myClanRes] = await Promise.all([getMarketListings(), getMyMarketListings(), getProfile(), getMyClan()]);
       setListings(all);
-      setMyListings(mine);
+      setMyListings(mine.listings);
+      setMyListingsCapacity(mine.capacity);
       setProfile(profileRes);
       setInClan(myClanRes.clan !== null);
     } catch {
@@ -301,6 +304,7 @@ export default function MarketPage() {
         ITEM_EQUIPPED: t('market.errorItemEquipped'),
         ITEM_ALREADY_LISTED: t('market.errorAlreadyListed'),
         TOO_MANY_LISTINGS: t('market.errorTooManyListings'),
+        TRADING_POST_REQUIRED: t('market.errorTradingPostRequired'),
         PRICE_REQUIRED: t('market.errorPriceRequired'),
         CANNOT_BUY_OWN_LISTING: t('market.errorCannotBuyOwn'),
         NOT_ENOUGH_RESOURCES: t('market.errorNotEnoughResources'),
@@ -312,6 +316,15 @@ export default function MarketPage() {
   }
 
   async function openPicker() {
+    setError(null);
+    if (myListingsCapacity === 0) {
+      setError(t('market.errorTradingPostRequired'));
+      return;
+    }
+    if ((myListings?.length ?? 0) >= myListingsCapacity) {
+      setError(t('market.errorTooManyListings'));
+      return;
+    }
     setListingError(null);
     setItemToList(null);
     setPriceMetal('');
@@ -388,13 +401,13 @@ export default function MarketPage() {
       <section className="mb-6 overflow-hidden rounded-lg border border-panelBorder bg-panel">
         <div className="flex items-center justify-between border-b border-panelBorder bg-panelHeader px-4 py-3">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-textFaint">
-            {t('market.myListings')} ({myListings?.length ?? 0}/{MAX_ACTIVE_LISTINGS})
+            {t('market.myListings')} ({myListings?.length ?? 0}/{myListingsCapacity})
           </h2>
           <button
             type="button"
             onClick={openPicker}
-            disabled={(myListings?.length ?? 0) >= MAX_ACTIVE_LISTINGS}
-            className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+            aria-disabled={(myListings?.length ?? 0) >= myListingsCapacity}
+            className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-[10px] uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
           >
             {t('market.listItem')}
           </button>
@@ -442,8 +455,15 @@ export default function MarketPage() {
           </>
         ) : (
           <form onSubmit={handleCreateListing} className="flex flex-col gap-3">
-            <div className="flex items-center gap-3 rounded-md border border-wellBorder bg-well p-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-wellBorder bg-ink">
+            <div
+              onMouseEnter={itemToListTooltip.show}
+              onMouseLeave={itemToListTooltip.hide}
+              onClick={itemToListTooltip.show}
+              className="relative flex items-center gap-3 rounded-md border border-wellBorder bg-well p-3"
+            >
+              <div
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-md border ${QualityBorder(itemToList.quality)} ${itemToList.race ? RACE_BG_CLASS[itemToList.race] : 'bg-ink'}`}
+              >
                 <AssetIcon
                   assetId={itemToList.iconAssetId}
                   alt={t(itemToList.nameKey)}
@@ -452,6 +472,11 @@ export default function MarketPage() {
                 />
               </div>
               <p className="text-sm font-semibold">{t(itemToList.nameKey)}</p>
+              {itemToListTooltip.rect && (
+                <ItemHoverTooltip rect={itemToListTooltip.rect} name={t(itemToList.nameKey)}>
+                  <EquipmentTooltipDetails item={itemToList} playerRace={undefined} />
+                </ItemHoverTooltip>
+              )}
             </div>
 
             <p className="text-[10px] uppercase tracking-wide text-textFaint">{t('market.desiredPrice')}</p>

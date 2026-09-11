@@ -41,6 +41,17 @@ export class BaseService {
         throw new BadRequestException('Building is already under construction');
       }
 
+      // Owner decision (2026-09-11): only one construction in progress at a
+      // time, base-wide — not per-building. Serializing gives players a real
+      // priority choice and stretches base progression across the season,
+      // instead of finishing every building in parallel.
+      const anyUnderConstruction = await tx.playerBuilding.findFirst({
+        where: { playerId, constructionEndsAt: { not: null } },
+      });
+      if (anyUnderConstruction) {
+        throw new BadRequestException('ANOTHER_BUILDING_UNDER_CONSTRUCTION');
+      }
+
       const nextLevelCost = await tx.buildingLevelCost.findUnique({
         where: { buildingTypeId_level: { buildingTypeId: buildingType.id, level: playerBuilding.level + 1 } },
       });
@@ -126,8 +137,10 @@ function toBuildingStateDto(building: BuildingWithType): BuildingStateDto {
       : null,
     currentProduction: toProductionDto(currentLevelCost),
     nextLevelProduction: toProductionDto(nextLevelCost),
-    currentCapacityBonus: toCapacityBonusDto(building.level, building.buildingType.capacityBonusPerLevel),
-    nextLevelCapacityBonus: nextLevelCost ? toCapacityBonusDto(building.level + 1, building.buildingType.capacityBonusPerLevel) : null,
+    currentCapacityBonus: toBonusDto(building.level, building.buildingType.capacityBonusPerLevel),
+    nextLevelCapacityBonus: nextLevelCost ? toBonusDto(building.level + 1, building.buildingType.capacityBonusPerLevel) : null,
+    currentMarketSlotBonus: toBonusDto(building.level, building.buildingType.marketSlotBonusPerLevel),
+    nextLevelMarketSlotBonus: nextLevelCost ? toBonusDto(building.level + 1, building.buildingType.marketSlotBonusPerLevel) : null,
   };
 }
 
@@ -138,9 +151,9 @@ function toProductionDto(levelCost: BuildingLevelCost | undefined): BuildingProd
   return { resourceType: levelCost.producesResourceType, perHour: levelCost.producesPerHour };
 }
 
-function toCapacityBonusDto(level: number, capacityBonusPerLevel: number | null): number | null {
-  if (!capacityBonusPerLevel || level <= 0) {
+function toBonusDto(level: number, bonusPerLevel: number | null): number | null {
+  if (!bonusPerLevel || level <= 0) {
     return null;
   }
-  return level * capacityBonusPerLevel;
+  return level * bonusPerLevel;
 }

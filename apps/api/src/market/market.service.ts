@@ -1,10 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { MarketListingDto } from '@pentilius/shared';
-import { ItemDefinition, ItemInstance, MarketListing, Player } from '@prisma/client';
-import { GAME_BALANCE } from '../config/game-config';
+import { MarketListingDto, MyMarketListingsDto } from '@pentilius/shared';
+import { ItemDefinition, ItemInstance, MarketListing, Player, Prisma } from '@prisma/client';
 import { computeItemStats } from '../inventory/inventory.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+type Tx = PrismaService | Prisma.TransactionClient;
 type ListingWithRelations = MarketListing & { seller: Player; itemInstance: ItemInstance & { itemDefinition: ItemDefinition } };
 
 /**
@@ -53,13 +53,16 @@ export class MarketService {
     return visible.map(toListingDto);
   }
 
-  async listMine(sellerId: string): Promise<MarketListingDto[]> {
-    const listings = await this.prisma.marketListing.findMany({
-      where: { status: 'ACTIVE', sellerId },
-      include: { seller: true, itemInstance: { include: { itemDefinition: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-    return listings.map(toListingDto);
+  async listMine(sellerId: string): Promise<MyMarketListingsDto> {
+    const [listings, capacity] = await Promise.all([
+      this.prisma.marketListing.findMany({
+        where: { status: 'ACTIVE', sellerId },
+        include: { seller: true, itemInstance: { include: { itemDefinition: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.getEffectiveListingCapacity(sellerId, this.prisma),
+    ]);
+    return { listings: listings.map(toListingDto), capacity };
   }
 
   async createListing(
@@ -96,8 +99,14 @@ export class MarketService {
         throw new BadRequestException('ITEM_ALREADY_LISTED');
       }
 
-      const activeCount = await tx.marketListing.count({ where: { sellerId, status: 'ACTIVE' } });
-      if (activeCount >= GAME_BALANCE.market.maxActiveListingsPerPlayer) {
+      const [activeCount, capacity] = await Promise.all([
+        tx.marketListing.count({ where: { sellerId, status: 'ACTIVE' } }),
+        this.getEffectiveListingCapacity(sellerId, tx),
+      ]);
+      if (capacity === 0) {
+        throw new BadRequestException('TRADING_POST_REQUIRED');
+      }
+      if (activeCount >= capacity) {
         throw new BadRequestException('TOO_MANY_LISTINGS');
       }
 
@@ -173,6 +182,15 @@ export class MarketService {
       await tx.itemInstance.update({ where: { id: listing.itemInstanceId }, data: { playerId: buyerId, listedForSale: false } });
       await tx.marketListing.update({ where: { id: listingId }, data: { status: 'SOLD', resolvedAt: new Date(), buyerId } });
     });
+  }
+
+  /** Base capacity is 0 (owner decision, 2026-09-11) — see schema.prisma's BuildingType.marketSlotBonusPerLevel. */
+  private async getEffectiveListingCapacity(sellerId: string, tx: Tx): Promise<number> {
+    const buildings = await tx.playerBuilding.findMany({
+      where: { playerId: sellerId, level: { gt: 0 }, buildingType: { marketSlotBonusPerLevel: { not: null } } },
+      include: { buildingType: true },
+    });
+    return buildings.reduce((sum, building) => sum + building.level * (building.buildingType.marketSlotBonusPerLevel ?? 0), 0);
   }
 }
 

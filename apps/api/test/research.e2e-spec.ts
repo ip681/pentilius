@@ -64,24 +64,17 @@ describe('Research (e2e)', () => {
     await request(app.getHttpServer()).post('/api/v1/research/research_metal_production/start').set(auth()).expect(400);
   });
 
-  it('allows a second, different research to run in parallel once affordable', async () => {
+  it('blocks starting a second research while another is already in progress', async () => {
     await prisma.player.update({ where: { id: playerId }, data: { metal: 1000, crystal: 1000 } });
 
-    const started = await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .post('/api/v1/research/research_crystal_production/start')
       .set(auth())
-      .expect(201);
-    expect(started.body.key).toBe('research_crystal_production');
-    expect(started.body.researchEndsAt).not.toBeNull();
-
-    const list = await request(app.getHttpServer()).get('/api/v1/research').set(auth()).expect(200);
-    const metalProd = list.body.researches.find((r: { key: string }) => r.key === 'research_metal_production');
-    const crystalProd = list.body.researches.find((r: { key: string }) => r.key === 'research_crystal_production');
-    expect(metalProd.researchEndsAt).not.toBeNull();
-    expect(crystalProd.researchEndsAt).not.toBeNull();
+      .expect(400);
+    expect(res.body.message).toBe('ANOTHER_RESEARCH_IN_PROGRESS');
   });
 
-  it('finalizes a completed research into a level-up on the next read', async () => {
+  it('finalizes a completed research into a level-up on the next read, freeing the slot for another', async () => {
     await prisma.playerResearch.updateMany({
       where: { playerId, researchType: { key: 'research_metal_production' } },
       data: { researchEndsAt: new Date(Date.now() - 1000) },
@@ -89,11 +82,16 @@ describe('Research (e2e)', () => {
 
     const list = await request(app.getHttpServer()).get('/api/v1/research').set(auth()).expect(200);
     const metalProd = list.body.researches.find((r: { key: string }) => r.key === 'research_metal_production');
-    const crystalProd = list.body.researches.find((r: { key: string }) => r.key === 'research_crystal_production');
     expect(metalProd.level).toBe(1);
     expect(metalProd.researchEndsAt).toBeNull();
-    expect(crystalProd.level).toBe(0); // untouched, still in progress
-    expect(crystalProd.researchEndsAt).not.toBeNull();
+
+    // The slot is free now — a different research can start.
+    const started = await request(app.getHttpServer())
+      .post('/api/v1/research/research_crystal_production/start')
+      .set(auth())
+      .expect(201);
+    expect(started.body.key).toBe('research_crystal_production');
+    expect(started.body.researchEndsAt).not.toBeNull();
   });
 
   it('rejects starting an unknown research key', async () => {

@@ -3,6 +3,7 @@ import { LootResultEntryDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto, Reso
 import { Player, Prisma, PvpBattleReport } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
 import { CombatService, toStatsDto } from '../pve/combat.service';
+import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -91,6 +92,7 @@ export class PvpService {
     if (opponentId === attackerId) {
       throw new BadRequestException('Cannot attack yourself');
     }
+    await assertNoActiveExpedition(attackerId, this.prisma);
 
     return this.prisma.$transaction(async (tx) => {
       const eligible = await this.isEligibleOpponent(attackerId, opponentId, tx);
@@ -122,9 +124,10 @@ export class PvpService {
       const lootSummary: LootResultEntryDto[] = [];
 
       if (result.won) {
+        const stealMultiplier = computeStealMultiplier(attacker.level, defender.level);
         for (const resourceType of STEALABLE_RESOURCES) {
           const field = RESOURCE_FIELD[resourceType];
-          const quantity = Math.floor(settledDefender[field] * GAME_BALANCE.pvp.resourceStealPercentage);
+          const quantity = Math.floor(settledDefender[field] * GAME_BALANCE.pvp.resourceStealPercentage * stealMultiplier);
           if (quantity <= 0) continue;
 
           await tx.player.update({ where: { id: attackerId }, data: { [field]: { increment: quantity } } });
@@ -218,6 +221,13 @@ export class PvpService {
   }
 }
 
+
+/** See GAME_BALANCE.pvp's comment: shrinks the steal reward for punching down, grows it for punching up. */
+function computeStealMultiplier(attackerLevel: number, defenderLevel: number): number {
+  const { levelDifferenceAdjustment, minStealMultiplier, maxStealMultiplier } = GAME_BALANCE.pvp;
+  const raw = 1 + (defenderLevel - attackerLevel) * levelDifferenceAdjustment;
+  return Math.max(minStealMultiplier, Math.min(maxStealMultiplier, raw));
+}
 
 function toReportDto(
   report: PvpBattleReport,

@@ -1,5 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClanBuildingStateDto, ClanDetailDto, ClanLeaderboardEntryDto, ClanLeaderboardPageDto, ClanMessageDto, ClanSummaryDto, MyClanResponseDto } from '@pentilius/shared';
+import {
+  ClanActiveWarDto,
+  ClanBuildingStateDto,
+  ClanDetailDto,
+  ClanLeaderboardEntryDto,
+  ClanLeaderboardPageDto,
+  ClanMessageDto,
+  ClanSummaryDto,
+  MyClanResponseDto,
+} from '@pentilius/shared';
 import { Clan, ClanBuilding, ClanBuildingLevelCost, ClanBuildingType, ClanMembership, ClanMessage, Player, Prisma } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
 import { EconomyService } from '../player/economy.service';
@@ -125,7 +134,7 @@ export class ClansService {
     if (!clan) {
       throw new NotFoundException('Clan not found');
     }
-    return toDetailDto(clan, currentPlayerId);
+    return toDetailDto(clan, currentPlayerId, this.prisma);
   }
 
   async getMyClan(playerId: string): Promise<MyClanResponseDto> {
@@ -134,7 +143,7 @@ export class ClansService {
       return { clan: null };
     }
     const clan = await this.loadClanFresh(membership.clanId);
-    return { clan: clan ? toDetailDto(clan, playerId) : null };
+    return { clan: clan ? await toDetailDto(clan, playerId, this.prisma) : null };
   }
 
   async createClan(playerId: string, dto: CreateClanDto): Promise<ClanDetailDto> {
@@ -186,7 +195,7 @@ export class ClansService {
 
       await tx.clanMembership.create({ data: { clanId, playerId, role: 'MEMBER' } });
       const full = await this.loadClanRaw(clanId, tx);
-      return toDetailDto(full!, playerId);
+      return toDetailDto(full!, playerId, tx);
     });
   }
 
@@ -572,11 +581,28 @@ function toBuildingStateDto(building: BuildingWithType): ClanBuildingStateDto {
   };
 }
 
-function toDetailDto(clan: ClanWithDetails, currentPlayerId: string): ClanDetailDto {
+async function getActiveWarInfo(clanId: string, tx: Tx): Promise<ClanActiveWarDto | null> {
+  const war = await tx.clanWar.findFirst({
+    where: { status: 'ACTIVE', OR: [{ attackerClanId: clanId }, { defenderClanId: clanId }] },
+    include: { attackerClan: true, defenderClan: true },
+  });
+  if (!war) {
+    return null;
+  }
+  const opponent = war.attackerClanId === clanId ? war.defenderClan : war.attackerClan;
+  return { opponentClanId: opponent.id, opponentClanTag: opponent.tag, opponentClanName: opponent.name, endsAt: war.endsAt.toISOString() };
+}
+
+async function toDetailDto(clan: ClanWithDetails, currentPlayerId: string, tx: Tx): Promise<ClanDetailDto> {
   const myMembership = clan.members.find((m) => m.playerId === currentPlayerId);
+  const activeWar = await getActiveWarInfo(clan.id, tx);
   return {
     ...toSummaryDto(clan),
     createdAt: clan.createdAt.toISOString(),
+    // Owner decision (2026-09-11): treasury stays private to members —
+    // visible on getMyClan(), null on the public getClan().
+    treasury: myMembership ? { metal: clan.treasuryMetal, crystal: clan.treasuryCrystal, credits: clan.treasuryCredits } : null,
+    activeWar,
     members: clan.members
       .slice()
       .sort((a, b) => b.player.level - a.player.level)

@@ -8,11 +8,14 @@ type ResearchWithType = PlayerResearch & { researchType: ResearchType & { levelC
 
 /**
  * Mirrors base/base.service.ts's ensure-rows / finalize-completed / get /
- * start-upgrade pattern, with one difference: each technology has its own
- * independent timer, so several can be researched in parallel (unlike the
- * single active-slot rule in expeditions). Branches, technology list, costs
- * and effects are UNDEFINED (instructions/OPEN_DECISIONS.md: "Research") —
- * this is a working mechanism with clearly placeholder seed content.
+ * start-upgrade pattern, including its single-active-slot rule (owner
+ * decision, 2026-09-11 — reversed from an earlier "let all 4 technologies
+ * run in parallel" call: with only 4 techs capped at level 5 each, parallel
+ * research let a dedicated player exhaust the whole tree too quickly,
+ * cutting season-long content short instead of stretching it out). Branches,
+ * technology list, costs and effects are UNDEFINED
+ * (instructions/OPEN_DECISIONS.md: "Research") — this is a working mechanism
+ * with clearly placeholder seed content.
  */
 @Injectable()
 export class ResearchService {
@@ -47,6 +50,13 @@ export class ResearchService {
 
       if (playerResearch.researchEndsAt) {
         throw new BadRequestException('Research is already in progress');
+      }
+
+      const anyInProgress = await tx.playerResearch.findFirst({
+        where: { playerId, researchEndsAt: { not: null } },
+      });
+      if (anyInProgress) {
+        throw new BadRequestException('ANOTHER_RESEARCH_IN_PROGRESS');
       }
 
       const nextLevelCost = await tx.researchLevelCost.findUnique({

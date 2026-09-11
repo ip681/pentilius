@@ -59,8 +59,12 @@ export default function BossesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleJoin(key: string) {
-    if (joining) return;
+  async function handleJoin(key: string, isParticipant: boolean) {
+    if (joining || isParticipant) return;
+    if ((profile?.energy.current ?? 0) < 1) {
+      setError(t('bosses.notEnoughEnergy'));
+      return;
+    }
     setError(null);
     setJoining(true);
     try {
@@ -68,7 +72,9 @@ export default function BossesPage() {
       notifyProfileChanged();
       await Promise.all([load(), refreshProfile()]);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 400) {
+      if (err instanceof ApiError && err.code === 'EXPEDITION_IN_PROGRESS') {
+        setError(t('bosses.expeditionInProgress'));
+      } else if (err instanceof ApiError && err.status === 400) {
         setError(t('bosses.notEnoughEnergy'));
       } else {
         setError(t('bosses.joinError'));
@@ -313,10 +319,9 @@ export default function BossesPage() {
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          disabled={(isOpen && isParticipant) || joining || (profile?.energy.current ?? 0) < 1}
-                          onClick={() => handleJoin(boss.key)}
-                          title={!isParticipant && (profile?.energy.current ?? 0) < 1 ? t('bosses.notEnoughEnergy') : undefined}
-                          className="flex-1 rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                          aria-disabled={(isOpen && isParticipant) || joining || (profile?.energy.current ?? 0) < 1}
+                          onClick={() => handleJoin(boss.key, isOpen && isParticipant)}
+                          className="flex-1 rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
                         >
                           {isOpen && isParticipant ? t('bosses.joined') : t('bosses.join')}
                         </button>
