@@ -1,9 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import { createReadStream } from 'fs';
+import type { Response } from 'express';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminService } from './admin.service';
 import { CurrentAdmin } from './decorators/current-admin.decorator';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { BanPlayerDto } from './dto/ban-player.dto';
+import { CreateAdminDto } from './dto/create-admin.dto';
 import { GrantItemDto } from './dto/grant-item.dto';
 import { GrantResourceDto } from './dto/grant-resource.dto';
 import { RenamePlayerDto } from './dto/rename-player.dto';
@@ -75,5 +78,37 @@ export class AdminController {
   @Post('players/rename')
   renamePlayer(@Body() dto: RenamePlayerDto, @CurrentAdmin() admin: AdminJwtPayload) {
     return this.adminService.renamePlayer(dto, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('admins')
+  listAdmins(@CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminAuthService.listAdmins(admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('admins')
+  createAdmin(@Body() dto: CreateAdminDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminAuthService.createAdmin(dto, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('backups')
+  listBackups() {
+    return this.adminService.listBackups();
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('backups/:filename/download')
+  async downloadBackup(@Param('filename') filename: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    const filePath = await this.adminService.getBackupFilePath(filename);
+    res.set({ 'Content-Disposition': `attachment; filename="${filename}"`, 'Content-Type': 'application/octet-stream' });
+    return new StreamableFile(createReadStream(filePath));
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('action-log')
+  getRecentActions() {
+    return this.adminService.getRecentActions();
   }
 }

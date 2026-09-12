@@ -18,6 +18,11 @@ const MONITORING_DIR = process.env.MONITORING_DIR ?? '/app/monitoring';
 const SERVER_STATUS_FILE = `${MONITORING_DIR}/server-status.json`;
 const BACKUP_STATUS_LOG = `${MONITORING_DIR}/backup-status.log`;
 const BACKUP_LOG_TAIL_LINES = 20;
+// Matches backup-db.sh's own naming (pentilius-<ISO-ish timestamp>.dump) —
+// also doubles as the path-traversal guard for the download endpoint, since
+// a filename that doesn't match this can never resolve outside MONITORING_DIR.
+const BACKUP_FILENAME_PATTERN = /^pentilius-[\w-]+\.dump$/;
+const RECENT_ACTIONS_LIMIT = 50;
 
 const RESOURCE_FIELD = {
   METAL: 'metal',
@@ -55,9 +60,9 @@ export class AdminService {
   }
 
   /** Full list (small, ~35 rows) — the godmaster UI filters it client-side by key AND resolved display name, no server-side search needed. */
-  async listItems(): Promise<{ key: string; nameKey: string; category: string; tier: string | null }[]> {
+  async listItems(): Promise<{ key: string; nameKey: string; category: string; tier: string | null; iconAssetId: string }[]> {
     return this.prisma.itemDefinition.findMany({
-      select: { key: true, nameKey: true, category: true, tier: true },
+      select: { key: true, nameKey: true, category: true, tier: true, iconAssetId: true },
       orderBy: { key: 'asc' },
     });
   }
@@ -94,7 +99,7 @@ export class AdminService {
 
       let granted = 0;
       for (let i = 0; i < dto.quantity; i += 1) {
-        if (await grantItem(player.id, itemDefinition.id, tx)) {
+        if (await grantItem(player.id, itemDefinition.id, tx, { quality: dto.quality })) {
           granted += 1;
         }
       }
@@ -102,7 +107,7 @@ export class AdminService {
         throw new BadRequestException('INVENTORY_FULL');
       }
 
-      await this.logAction(tx, admin, 'GRANT_ITEM', player, { itemDefinitionKey: dto.itemDefinitionKey, requested: dto.quantity, granted });
+      await this.logAction(tx, admin, 'GRANT_ITEM', player, { itemDefinitionKey: dto.itemDefinitionKey, requested: dto.quantity, granted, quality: dto.quality ?? null });
 
       return { username: player.username, itemDefinitionKey: dto.itemDefinitionKey, granted };
     });
@@ -298,5 +303,56 @@ export class AdminService {
     }
 
     return { server, backupLogTail, errors };
+  }
+
+  /** Local VPS backup files (the read-only monitoring mount) — same ~14-day retention as the Google Drive copies, since backup-db.sh prunes both together, so this list is already a faithful mirror without a round-trip to Drive. */
+  async listBackups(): Promise<{ filename: string; sizeBytes: number; createdAt: Date }[]> {
+    let entries: string[];
+    try {
+      entries = await fs.readdir(MONITORING_DIR);
+    } catch {
+      return [];
+    }
+
+    const backups = await Promise.all(
+      entries
+        .filter((name) => BACKUP_FILENAME_PATTERN.test(name))
+        .map(async (filename) => {
+          const stat = await fs.stat(`${MONITORING_DIR}/${filename}`);
+          return { filename, sizeBytes: stat.size, createdAt: stat.mtime };
+        }),
+    );
+
+    return backups.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  /** Resolves + validates a backup filename for download — the pattern check is also the path-traversal guard, so a non-matching name never reaches the filesystem. */
+  async getBackupFilePath(filename: string): Promise<string> {
+    if (!BACKUP_FILENAME_PATTERN.test(filename)) {
+      throw new BadRequestException('INVALID_BACKUP_FILENAME');
+    }
+    const filePath = `${MONITORING_DIR}/${filename}`;
+    try {
+      await fs.access(filePath);
+    } catch {
+      throw new NotFoundException('BACKUP_NOT_FOUND');
+    }
+    return filePath;
+  }
+
+  /** Cross-player admin activity feed — the per-player history in getPlayerDetail() filters this same table by targetPlayerId. */
+  async getRecentActions(): Promise<{ id: string; adminUsername: string; actionType: string; targetUsername: string | null; details: unknown; createdAt: Date }[]> {
+    const rows = await this.prisma.adminActionLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: RECENT_ACTIONS_LIMIT,
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      adminUsername: row.adminUsername,
+      actionType: row.actionType,
+      targetUsername: row.targetUsername,
+      details: row.details,
+      createdAt: row.createdAt,
+    }));
   }
 }
