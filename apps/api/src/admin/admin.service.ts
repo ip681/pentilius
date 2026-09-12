@@ -33,7 +33,16 @@ export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
   async searchPlayers(query: string): Promise<{ id: string; username: string; level: number }[]> {
-    if (!query || query.length < 2) {
+    // Empty query — the box was just opened, nothing typed yet: show the most
+    // recently active players instead of a blank dropdown.
+    if (!query) {
+      return this.prisma.player.findMany({
+        select: { id: true, username: true, level: true },
+        take: 10,
+        orderBy: { lastActiveAt: 'desc' },
+      });
+    }
+    if (query.length < 2) {
       return [];
     }
     const players = await this.prisma.player.findMany({

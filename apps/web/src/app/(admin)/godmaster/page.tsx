@@ -110,15 +110,45 @@ function LoginForm({ onLogin }: { onLogin: (token: string) => void }) {
 }
 
 function AdminPanel({ onLogout }: { onLogout: () => void }) {
+  // One selected player for the whole panel — search once here, every form
+  // below (grant resource/item, ban/rename) acts on this same player instead
+  // of each form asking for a username separately.
+  const [username, setUsername] = useState('');
+  const [detail, setDetail] = useState<PlayerDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function loadPlayer(name: string) {
+    if (!name) return;
+    setUsername(name);
+    setLoading(true);
+    setError(null);
+    adminFetch<PlayerDetail>(`/admin/players/${encodeURIComponent(name)}`)
+      .then((res) => setDetail(res))
+      .catch((err) => {
+        setDetail(null);
+        setError(err instanceof Error ? err.message : 'Грешка');
+      })
+      .finally(() => setLoading(false));
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <button type="button" onClick={onLogout} className="w-fit rounded-md border border-panelBorder bg-panel px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover">
         Изход
       </button>
       <ServerStatusPanel />
-      <PlayerLookupPanel />
-      <GrantResourceForm />
-      <GrantItemForm />
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="mb-3 text-sm font-semibold">Играч</h2>
+        <PlayerAutocomplete value={username} onChange={setUsername} onSelect={loadPlayer} />
+        {loading && <p className="mt-3 text-xs text-textFaint">Зареждане...</p>}
+        {error && <p className="mt-3 text-xs text-danger">{error}</p>}
+        {detail && <PlayerDetailView detail={detail} onReload={loadPlayer} />}
+      </section>
+
+      <GrantResourceForm username={username} onGranted={() => loadPlayer(username)} />
+      <GrantItemForm username={username} onGranted={() => loadPlayer(username)} />
     </div>
   );
 }
@@ -149,38 +179,6 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
   UNBAN_PLAYER: 'Наказанието премахнато',
   RENAME_PLAYER: 'Преименуван',
 };
-
-/** Единен изглед на играч — избираш веднъж чрез търсачката, после виждаш профил, ресурси, екипировка, инвентар и историята на промените (AdminActionLog), плюс контроли за наказание и преименуване, направо тук. */
-function PlayerLookupPanel() {
-  const [username, setUsername] = useState('');
-  const [detail, setDetail] = useState<PlayerDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  function loadPlayer(name: string) {
-    if (!name) return;
-    setUsername(name);
-    setLoading(true);
-    setError(null);
-    adminFetch<PlayerDetail>(`/admin/players/${encodeURIComponent(name)}`)
-      .then((res) => setDetail(res))
-      .catch((err) => {
-        setDetail(null);
-        setError(err instanceof Error ? err.message : 'Грешка');
-      })
-      .finally(() => setLoading(false));
-  }
-
-  return (
-    <section className="rounded-lg border border-panelBorder bg-panel p-4">
-      <h2 className="mb-3 text-sm font-semibold">Търсене на играч</h2>
-      <PlayerAutocomplete value={username} onChange={setUsername} onSelect={loadPlayer} />
-      {loading && <p className="mt-3 text-xs text-textFaint">Зареждане...</p>}
-      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
-      {detail && <PlayerDetailView detail={detail} onReload={loadPlayer} />}
-    </section>
-  );
-}
 
 function PlayerDetailView({ detail, onReload }: { detail: PlayerDetail; onReload: (username: string) => void }) {
   const { profile, resources, equipped, inventory, actionLog } = detail;
@@ -496,19 +494,17 @@ function PlayerAutocomplete({ value, onChange, onSelect }: { value: string; onCh
   const [open, setOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  function fetchHits(q: string) {
+    adminFetch<PlayerHit[]>(`/admin/players/search?q=${encodeURIComponent(q)}`)
+      .then(setHits)
+      .catch(() => setHits([]));
+  }
+
   function handleInput(next: string) {
     onChange(next);
     setOpen(true);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (next.length < 2) {
-      setHits([]);
-      return;
-    }
-    debounceRef.current = setTimeout(() => {
-      adminFetch<PlayerHit[]>(`/admin/players/search?q=${encodeURIComponent(next)}`)
-        .then(setHits)
-        .catch(() => setHits([]));
-    }, 200);
+    debounceRef.current = setTimeout(() => fetchHits(next), 200);
   }
 
   return (
@@ -518,7 +514,13 @@ function PlayerAutocomplete({ value, onChange, onSelect }: { value: string; onCh
         placeholder="потребителско име"
         value={value}
         onChange={(e) => handleInput(e.target.value)}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true);
+          // Nothing loaded yet for the current text — show a starter list
+          // (recent players, or the current query's matches) instead of an
+          // empty dropdown the instant the field is clicked.
+          if (hits.length === 0) fetchHits(value);
+        }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         className="rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent"
       />
@@ -566,7 +568,7 @@ function ItemAutocomplete({ value, onChange }: { value: string; onChange: (key: 
   const needle = query.trim().toLowerCase();
   const matches =
     needle.length < 1
-      ? []
+      ? allItems.slice(0, 15)
       : allItems
           .filter((item) => item.key.toLowerCase().includes(needle) || resolveMessageKey(item.nameKey).toLowerCase().includes(needle))
           .slice(0, 15);
@@ -610,8 +612,7 @@ function ItemAutocomplete({ value, onChange }: { value: string; onChange: (key: 
   );
 }
 
-function GrantResourceForm() {
-  const [username, setUsername] = useState('');
+function GrantResourceForm({ username, onGranted }: { username: string; onGranted: () => void }) {
   const [resourceType, setResourceType] = useState<'METAL' | 'CRYSTAL' | 'CREDITS'>('CREDITS');
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -621,6 +622,10 @@ function GrantResourceForm() {
     e.preventDefault();
     setMessage(null);
     setError(null);
+    if (!username) {
+      setError('Избери играч отгоре');
+      return;
+    }
     try {
       const res = await adminFetch<{ username: string; resourceType: string; newAmount: number }>('/admin/grant/resource', {
         method: 'POST',
@@ -628,6 +633,7 @@ function GrantResourceForm() {
       });
       setMessage(`${res.username} вече има ${res.newAmount} ${RESOURCE_LABEL[res.resourceType as keyof typeof RESOURCE_LABEL]}`);
       setAmount('');
+      onGranted();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Грешка');
     }
@@ -635,9 +641,8 @@ function GrantResourceForm() {
 
   return (
     <section className="rounded-lg border border-panelBorder bg-panel p-4">
-      <h2 className="mb-3 text-sm font-semibold">Добави ресурс</h2>
+      <h2 className="mb-3 text-sm font-semibold">Добави ресурс{username ? ` — ${username}` : ''}</h2>
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
-        <PlayerAutocomplete value={username} onChange={setUsername} />
         <select
           value={resourceType}
           onChange={(e) => setResourceType(e.target.value as 'METAL' | 'CRYSTAL' | 'CREDITS')}
@@ -666,8 +671,7 @@ function GrantResourceForm() {
 
 const RESOURCE_LABEL = { METAL: 'метал', CRYSTAL: 'кристал', CREDITS: 'кредита' };
 
-function GrantItemForm() {
-  const [username, setUsername] = useState('');
+function GrantItemForm({ username, onGranted }: { username: string; onGranted: () => void }) {
   const [itemDefinitionKey, setItemDefinitionKey] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [message, setMessage] = useState<string | null>(null);
@@ -677,6 +681,10 @@ function GrantItemForm() {
     e.preventDefault();
     setMessage(null);
     setError(null);
+    if (!username) {
+      setError('Избери играч отгоре');
+      return;
+    }
     if (!itemDefinitionKey) {
       setError('Избери предмет от списъка');
       return;
@@ -687,6 +695,7 @@ function GrantItemForm() {
         body: { username, itemDefinitionKey, quantity: Number(quantity) },
       });
       setMessage(`Дадени ${res.granted}x ${resolveMessageKey(`items.${res.itemDefinitionKey}.name`)} на ${res.username}`);
+      onGranted();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Грешка');
     }
@@ -694,9 +703,8 @@ function GrantItemForm() {
 
   return (
     <section className="rounded-lg border border-panelBorder bg-panel p-4">
-      <h2 className="mb-3 text-sm font-semibold">Добави предмет</h2>
+      <h2 className="mb-3 text-sm font-semibold">Добави предмет{username ? ` — ${username}` : ''}</h2>
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
-        <PlayerAutocomplete value={username} onChange={setUsername} />
         <ItemAutocomplete value={itemDefinitionKey} onChange={setItemDefinitionKey} />
         <input
           type="number"
