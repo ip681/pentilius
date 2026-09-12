@@ -156,6 +156,14 @@ model Player {
   // timestamp-cooldown shape as pvpProtectedUntil/clanWarProtectedUntil above.
   nextBossFormationActionAt DateTime?
 
+  // Admin-issued suspension (godmaster panel) — null means not banned. Login
+  // rejects with the remaining time while now < bannedUntil; the ban simply
+  // expires on its own afterward, no separate "unban" state to clean up
+  // (same lapses-on-its-own shape as pvpProtectedUntil above). banReason is
+  // shown to the banned player on the login screen.
+  bannedUntil DateTime?
+  banReason   String?
+
   // "Core Attributes" — personal stat points earned from leveling
   // (instructions/GAME_SYSTEMS.md has no prior ruling on this; it's a new
   // system introduced alongside the ship→robot redesign). Owner decision
@@ -202,6 +210,7 @@ model Player {
   directMessagesReceived DirectMessage[] @relation("DirectMessagesReceived")
   marketListingsSold     MarketListing[] @relation("MarketListingsSold")
   marketListingsBought   MarketListing[] @relation("MarketListingsBought")
+  adminActionLogs        AdminActionLog[]
 
   @@map("players")
 }
@@ -1058,4 +1067,63 @@ model ClanWarAttack {
   @@index([clanWarId])
   @@index([attackerId, defenderId, createdAt])
   @@map("clan_war_attacks")
+}
+
+// Site staff accounts (owner decision, 2026-09-12) — deliberately NOT part of
+// the Player model. An admin/moderator isn't a game character (no race,
+// level, resources), and keeping this fully separate means a bug or bulk
+// operation touching Player rows can never accidentally affect staff access,
+// and adding a lower-privilege role (e.g. MODERATOR) later is just a new row
+// with a different role, not a schema change to the player table. Logs in
+// via its own endpoint/JWT (distinct secret from player tokens, distinct
+// guard) at a deliberately unlinked URL — see apps/web/src/app/godmaster/.
+enum AdminRole {
+  ADMIN
+  MODERATOR
+}
+
+model AdminUser {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  passwordHash String
+  role         AdminRole @default(ADMIN)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+
+  actionLogs AdminActionLog[]
+
+  @@map("admin_users")
+}
+
+enum AdminActionType {
+  GRANT_RESOURCE
+  GRANT_ITEM
+  BAN_PLAYER
+  UNBAN_PLAYER
+  RENAME_PLAYER
+}
+
+// Audit trail for every godmaster mutation (owner decision, 2026-09-12) —
+// built as the foundation for the unified player-lookup detail view before
+// ban/rename themselves. targetUsername is a denormalized snapshot (not just
+// a join through targetPlayerId) so a rename's own log entry still reads
+// correctly, and so history survives even if the player relation is ever
+// nulled out. details is a free-form JSON bag (amount, resourceType, itemKey,
+// oldUsername/newUsername, banHours/reason, etc.) — one shape per actionType,
+// not a fixed column set, same "flexible bag" reasoning as ItemDefinition.baseStats.
+model AdminActionLog {
+  id             String           @id @default(uuid())
+  adminId        String
+  adminUsername  String
+  actionType     AdminActionType
+  targetPlayerId String?
+  targetUsername String?
+  details        Json
+  createdAt      DateTime         @default(now())
+
+  admin  AdminUser @relation(fields: [adminId], references: [id])
+  target Player?   @relation(fields: [targetPlayerId], references: [id], onDelete: SetNull)
+
+  @@index([targetPlayerId])
+  @@map("admin_action_logs")
 }

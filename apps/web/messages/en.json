@@ -18,7 +18,10 @@
     "errorConflict": "An account with this email already exists.",
     "errorEmailTaken": "An account with this email already exists.",
     "errorUsernameTaken": "This username is already taken.",
-    "errorInvalidCredentials": "Invalid email or password."
+    "errorInvalidCredentials": "Invalid email or password.",
+    "bannedTitle": "Account temporarily restricted",
+    "bannedReason": "Reason: {reason}",
+    "bannedTimeRemaining": "Time remaining: {time}"
   },
   "race": {
     "chooseLabel": "Choose your race",

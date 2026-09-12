@@ -63,6 +63,9 @@ export class ApiError extends Error {
     public readonly status: number,
     message: string,
     public readonly code?: string,
+    // The full parsed error body, for callers that need more than `code` — e.g.
+    // PLAYER_BANNED's bannedUntil/reason on the login screen.
+    public readonly details?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -130,12 +133,11 @@ async function request<TResponse>(path: string, options: { method?: string; body
       }
     }
 
-    const code = await response
+    const body = await response
       .clone()
       .json()
-      .then((body: { message?: string }) => body.message)
-      .catch(() => undefined);
-    throw new ApiError(response.status, `Request to ${path} failed with status ${response.status}`, code);
+      .catch(() => undefined) as { message?: string } | undefined;
+    throw new ApiError(response.status, `Request to ${path} failed with status ${response.status}`, body?.message, body);
   }
 
   // NestJS sends an empty body (not literal "null") for handlers returning

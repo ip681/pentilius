@@ -7,4 +7,8 @@ export default () => ({
     refreshSecret: process.env.JWT_REFRESH_SECRET,
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   },
+  adminJwt: {
+    secret: process.env.ADMIN_JWT_SECRET,
+    expiresIn: process.env.ADMIN_JWT_EXPIRES_IN ?? '2h',
+  },
 });

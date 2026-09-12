@@ -18,7 +18,10 @@
     "errorConflict": "Вече има акаунт с този имейл.",
     "errorEmailTaken": "Вече има акаунт с този имейл.",
     "errorUsernameTaken": "Това потребителско име вече е заето.",
-    "errorInvalidCredentials": "Грешен имейл или парола."
+    "errorInvalidCredentials": "Грешен имейл или парола.",
+    "bannedTitle": "Акаунтът е временно ограничен",
+    "bannedReason": "Причина: {reason}",
+    "bannedTimeRemaining": "Остава: {time}"
   },
   "race": {
     "chooseLabel": "Избери своята раса",

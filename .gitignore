@@ -20,3 +20,6 @@ Thumbs.db
 apps/api/generated/
 
 coverage/
+
+# Credentials — never committed
+secrets/

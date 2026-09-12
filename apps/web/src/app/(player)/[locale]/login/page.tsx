@@ -10,9 +10,43 @@ import { useRouter } from '@/i18n/navigation';
 import { ApiError, getRaceCounts, login, register } from '@/lib/api-client';
 import { storeTokens } from '@/lib/auth';
 
-type Status = { kind: 'idle' } | { kind: 'error'; messageKey: string };
+type Status = { kind: 'idle' } | { kind: 'error'; messageKey: string } | { kind: 'banned'; bannedUntil: string; reason: string | null };
 
 const RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
+
+function formatRemaining(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return days > 0 ? `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
+
+/** Live ticking countdown shown in place of the login form while PLAYER_BANNED is active — reverts to a normal retry once bannedUntil passes. */
+function BannedNotice({ bannedUntil, reason, onExpired }: { bannedUntil: string; reason: string | null; onExpired: () => void }) {
+  const t = useTranslations();
+  const target = new Date(bannedUntil).getTime();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (now >= target) onExpired();
+  }, [now, target, onExpired]);
+
+  return (
+    <div className="rounded-md border border-danger/40 bg-danger/10 p-3 text-xs">
+      <p className="font-semibold text-danger">{t('auth.bannedTitle')}</p>
+      {reason && <p className="mt-1 text-textMuted">{t('auth.bannedReason', { reason })}</p>}
+      <p className="mt-1 tabular-nums text-textMuted">{t('auth.bannedTimeRemaining', { time: formatRemaining(target - now) })}</p>
+    </div>
+  );
+}
 
 export default function LoginPage() {
   const t = useTranslations();
@@ -55,6 +89,13 @@ export default function LoginPage() {
         setStatus({ kind: 'error', messageKey });
       } else if (error instanceof ApiError && error.status === 401) {
         setStatus({ kind: 'error', messageKey: 'auth.errorInvalidCredentials' });
+      } else if (error instanceof ApiError && error.status === 403 && error.code === 'PLAYER_BANNED') {
+        const details = error.details as { bannedUntil?: string; reason?: string | null } | undefined;
+        if (details?.bannedUntil) {
+          setStatus({ kind: 'banned', bannedUntil: details.bannedUntil, reason: details.reason ?? null });
+        } else {
+          setStatus({ kind: 'error', messageKey: 'auth.error' });
+        }
       } else {
         setStatus({ kind: 'error', messageKey: 'auth.error' });
       }
@@ -181,10 +222,11 @@ export default function LoginPage() {
             )}
 
             {status.kind === 'error' && <p className="text-xs text-danger">{t(status.messageKey)}</p>}
+            {status.kind === 'banned' && <BannedNotice bannedUntil={status.bannedUntil} reason={status.reason} onExpired={() => setStatus({ kind: 'idle' })} />}
 
             <button
               type="submit"
-              disabled={mode === 'register' && !race}
+              disabled={(mode === 'register' && !race) || status.kind === 'banned'}
               className="mt-1 w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase tracking-wide text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
             >
               {t('auth.submit')}

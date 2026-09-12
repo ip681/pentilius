@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { BaseModule } from './base/base.module';
 import { BossFormationsModule } from './boss-formations/boss-formations.module';
@@ -41,6 +42,7 @@ import { ZonesModule } from './zones/zones.module';
     ShopModule,
     FriendsModule,
     MarketModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

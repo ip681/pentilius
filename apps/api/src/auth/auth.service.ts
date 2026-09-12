@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthResponse, AuthTokens, RaceCountsDto } from '@pentilius/shared';
@@ -67,6 +67,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Admin-issued suspension (godmaster panel) — checked only after the
+    // password is confirmed, so a wrong-password guess can't be used to probe
+    // whether an account is banned. Lapses on its own once bannedUntil passes,
+    // no separate unban call needed for a normal expiry.
+    if (player.bannedUntil && player.bannedUntil > new Date()) {
+      throw new ForbiddenException({
+        message: 'PLAYER_BANNED',
+        bannedUntil: player.bannedUntil.toISOString(),
+        reason: player.banReason,
+      });
+    }
+
     return this.buildAuthResponse(player.id, player.email, player.username, player.race, player.createdAt);
   }
 
@@ -92,6 +104,12 @@ export class AuthService {
     const player = await this.prisma.player.findUnique({ where: { id: payload.sub } });
     if (!player) {
       throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // Same immediate-ban-enforcement reasoning as JwtStrategy.validate() — a
+    // banned player must not be able to silently mint a fresh access token.
+    if (player.bannedUntil && player.bannedUntil > new Date()) {
+      throw new UnauthorizedException('PLAYER_BANNED');
     }
 
     return this.issueTokens(player.id, player.email);

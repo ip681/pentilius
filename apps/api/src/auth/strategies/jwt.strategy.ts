@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -20,6 +20,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<JwtPayload> {
+    // Checked on every authenticated request (not just login) so an
+    // admin-issued ban takes effect immediately against an already-active
+    // session, not only against a future login attempt.
+    const player = await this.prisma.player.findUnique({ where: { id: payload.sub }, select: { bannedUntil: true } });
+    if (player?.bannedUntil && player.bannedUntil > new Date()) {
+      throw new UnauthorizedException('PLAYER_BANNED');
+    }
+
     await this.touchLastActive(payload.sub).catch(() => undefined);
     return payload;
   }

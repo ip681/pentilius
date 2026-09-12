@@ -27,6 +27,11 @@ services:
       JWT_ACCESS_EXPIRES_IN: 15m
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_EXPIRES_IN: 7d
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET}
+      ADMIN_JWT_EXPIRES_IN: 2h
+      MONITORING_DIR: /app/monitoring
+    volumes:
+      - /opt/pentilius-backups:/app/monitoring:ro
     depends_on:
       postgres:
         condition: service_healthy
