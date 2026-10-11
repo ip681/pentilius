@@ -489,39 +489,83 @@ interface ServerStatusResponse {
 const POLL_INTERVAL_MS = 30_000;
 
 const SPARKLINE_WIDTH = 600;
-const SPARKLINE_HEIGHT = 48;
-// Load (unlike memory/disk) can go above 100% — anything past this ceiling
-// is clamped to the top of the chart rather than stretching the scale, so
-// one brief spike doesn't flatten the rest of the line.
-const LOAD_SPARKLINE_CEILING_PERCENT = 150;
+const SPARKLINE_HEIGHT = 96;
+// Shared Y-axis ceiling for every series on the combined chart. Load (unlike
+// memory/disk) can exceed 100% of total CPU capacity, so this stays above
+// 100 — memory just never reaches the very top of the box. Simpler than a
+// real dual-axis chart for what's just a small admin sparkline.
+const SPARKLINE_CEILING_PERCENT = 150;
+// Horizontal gridlines every 10%, with 0%/50%/100% drawn very slightly
+// heavier so the three most meaningful marks (empty, half, full capacity)
+// stand out without looking like a different kind of line.
+const SPARKLINE_GRID_PERCENTS = [0, ...Array.from({ length: Math.floor(SPARKLINE_CEILING_PERCENT / 10) - 1 }, (_, i) => (i + 1) * 10)];
+const SPARKLINE_MAJOR_GRID_PERCENTS = new Set([0, 50, 100]);
 
-/** Fixed-size SVG line (never grows with data) of load% over the retained history window — see admin.service.ts's SERVER_STATUS_HISTORY_FILE comment for the ~24h/720-point retention. */
-function LoadSparkline({ points }: { points: LoadHistoryPoint[] }) {
+interface SparklineSeries {
+  label: string;
+  colorClassName: string;
+  getPercent: (point: LoadHistoryPoint) => number;
+}
+
+/**
+ * Fixed-size SVG (never grows with data) overlaying one line per series on a
+ * shared percentage scale, with a small color-coded legend — see
+ * admin.service.ts's SERVER_STATUS_HISTORY_FILE comment for the ~24h/
+ * 720-point retention this is drawing from.
+ */
+function CombinedSparkline({ points, series }: { points: LoadHistoryPoint[]; series: SparklineSeries[] }) {
   if (points.length < 2) {
     return <p className="text-[11px] text-textFaint">Графиката все още няма достатъчно данни</p>;
   }
 
-  const coords = points.map((p, i) => {
-    const x = (i / (points.length - 1)) * SPARKLINE_WIDTH;
-    const percent = (p.load1m / p.cpuCores) * 100;
-    const clamped = Math.min(LOAD_SPARKLINE_CEILING_PERCENT, Math.max(0, percent));
-    const y = SPARKLINE_HEIGHT - (clamped / LOAD_SPARKLINE_CEILING_PERCENT) * SPARKLINE_HEIGHT;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
+  function coordsFor(getPercent: (point: LoadHistoryPoint) => number): string {
+    return points
+      .map((p, i) => {
+        const x = (i / (points.length - 1)) * SPARKLINE_WIDTH;
+        const clamped = Math.min(SPARKLINE_CEILING_PERCENT, Math.max(0, getPercent(p)));
+        const y = SPARKLINE_HEIGHT - (clamped / SPARKLINE_CEILING_PERCENT) * SPARKLINE_HEIGHT;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(' ');
+  }
 
   const first = points[0];
   const last = points[points.length - 1];
   const hoursSpan = (new Date(last.timestamp).getTime() - new Date(first.timestamp).getTime()) / 1000 / 60 / 60;
-  const lastPercent = Math.round((last.load1m / last.cpuCores) * 100);
 
   return (
     <div>
-      <div className="flex items-center justify-between text-[11px] text-textFaint">
-        <span>Натоварване — последните {hoursSpan.toFixed(1)}ч</span>
-        <span>сега: {lastPercent}%</span>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-textFaint">
+        <span>последните {hoursSpan.toFixed(1)}ч</span>
+        <div className="flex items-center gap-3">
+          {series.map((s) => (
+            <span key={s.label} className="flex items-center gap-1">
+              <span className={`h-1.5 w-1.5 rounded-full bg-current ${s.colorClassName}`} />
+              {s.label}: {Math.round(s.getPercent(last))}%
+            </span>
+          ))}
+        </div>
       </div>
-      <svg viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`} preserveAspectRatio="none" className="mt-1 h-12 w-full text-gold">
-        <polyline points={coords.join(' ')} fill="none" stroke="currentColor" strokeWidth={2} />
+      <svg viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`} preserveAspectRatio="none" className="h-24 w-full overflow-visible">
+        {SPARKLINE_GRID_PERCENTS.map((pct) => {
+          const y = SPARKLINE_HEIGHT - (pct / SPARKLINE_CEILING_PERCENT) * SPARKLINE_HEIGHT;
+          const major = SPARKLINE_MAJOR_GRID_PERCENTS.has(pct);
+          return (
+            <line
+              key={pct}
+              x1={0}
+              y1={y}
+              x2={SPARKLINE_WIDTH}
+              y2={y}
+              stroke="currentColor"
+              strokeWidth={0.5}
+              className={major ? 'text-textMuted' : 'text-wellBorder'}
+            />
+          );
+        })}
+        {series.map((s) => (
+          <polyline key={s.label} points={coordsFor(s.getPercent)} fill="none" stroke="currentColor" strokeWidth={2} className={s.colorClassName} />
+        ))}
       </svg>
     </div>
   );
@@ -584,7 +628,13 @@ function ServerStatusPanel() {
             />
           </div>
           <div className="rounded-md border border-wellBorder bg-well px-3 py-2">
-            <LoadSparkline points={data?.history ?? []} />
+            <CombinedSparkline
+              points={data?.history ?? []}
+              series={[
+                { label: 'Натоварване', colorClassName: 'text-gold', getPercent: (p) => (p.load1m / p.cpuCores) * 100 },
+                { label: 'Памет', colorClassName: 'text-energy', getPercent: (p) => (p.memUsedMb / p.memTotalMb) * 100 },
+              ]}
+            />
           </div>
           <div>
             <p className="mb-1 text-[11px] font-medium text-textFaint">Контейнери</p>

@@ -19,6 +19,10 @@ Thumbs.db
 # Prisma generated client
 apps/api/generated/
 
+# Dev-only fake godmaster server-status snapshot (see apps/api/.env's
+# MONITORING_DIR) — the real thing is host-cron-written, never in the repo.
+apps/api/local-monitoring/
+
 coverage/
 
 # Credentials — never committed
