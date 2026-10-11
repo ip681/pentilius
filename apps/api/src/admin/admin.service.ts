@@ -16,6 +16,12 @@ type Tx = PrismaService | Prisma.TransactionClient;
 // a host-side cron script writes both files, the API container only ever reads them.
 const MONITORING_DIR = process.env.MONITORING_DIR ?? '/app/monitoring';
 const SERVER_STATUS_FILE = `${MONITORING_DIR}/server-status.json`;
+// Appended by the same host-side cron run as SERVER_STATUS_FILE (one JSONL
+// line every ~2 minutes, trimmed to the last 720 lines = ~24h) — owner
+// decision (2026-10-11), for the godmaster load sparkline. Deliberately a
+// much smaller record than the full snapshot (no containers) since this one
+// accumulates, not overwrites.
+const SERVER_STATUS_HISTORY_FILE = `${MONITORING_DIR}/server-status-history.jsonl`;
 const BACKUP_STATUS_LOG = `${MONITORING_DIR}/backup-status.log`;
 const BACKUP_LOG_TAIL_LINES = 20;
 // Matches backup-db.sh's own naming (pentilius-<ISO-ish timestamp>.dump) —
@@ -280,6 +286,7 @@ export class AdminService {
 
   async getServerStatus(): Promise<{
     server: unknown | null;
+    history: unknown[];
     backupLogTail: string[];
     errors: string[];
   }> {
@@ -293,6 +300,26 @@ export class AdminService {
       errors.push('SERVER_STATUS_UNAVAILABLE');
     }
 
+    let history: unknown[] = [];
+    try {
+      const raw = await fs.readFile(SERVER_STATUS_HISTORY_FILE, 'utf-8');
+      history = raw
+        .split('\n')
+        .filter((line) => line.trim().length > 0)
+        .map((line) => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return null;
+          }
+        })
+        .filter((point): point is Record<string, unknown> => point !== null);
+    } catch {
+      // Soft-missing, not pushed to errors — the history file is new and
+      // only exists once the cron script has run at least once; the
+      // sparkline simply has nothing to draw yet.
+    }
+
     let backupLogTail: string[] = [];
     try {
       const raw = await fs.readFile(BACKUP_STATUS_LOG, 'utf-8');
@@ -302,7 +329,7 @@ export class AdminService {
       errors.push('BACKUP_LOG_UNAVAILABLE');
     }
 
-    return { server, backupLogTail, errors };
+    return { server, history, backupLogTail, errors };
   }
 
   /** Local VPS backup files (the read-only monitoring mount) — same ~14-day retention as the Google Drive copies, since backup-db.sh prunes both together, so this list is already a faithful mirror without a round-trip to Drive. */
