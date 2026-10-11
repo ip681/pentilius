@@ -133,6 +133,14 @@ function isBox(item: InventoryItemDto): boolean {
   return item.itemDefinitionKey.endsWith('_box');
 }
 
+// Fragments auto-convert into their tier's upgrade stone on recycle (inventory.service.ts's
+// recycleItem), and upgrade stones are spent automatically by upgradeItem() when upgrading
+// equipment — neither is ever meant to be hand-"used" from the Consumables tab. Owner-confirmed
+// bug (2026-10-11): the generic Use button previously just deleted these for no effect.
+function isUpgradeMaterial(item: InventoryItemDto): boolean {
+  return item.itemDefinitionKey.endsWith('_fragment') || item.itemDefinitionKey.endsWith('_upgrade');
+}
+
 export default function RobotPage() {
   useRequireAuth();
   const t = useTranslations();
@@ -631,6 +639,10 @@ export default function RobotPage() {
                 </button>
               ) : isBuildingTargetedConsumable(selected) ? (
                 <p className="mt-3 text-[10px] text-textFaint">{t('robot.useOnBase')}</p>
+              ) : isUpgradeMaterial(selected) ? (
+                <p className="mt-3 text-[10px] text-textFaint">
+                  {t(selected.itemDefinitionKey.endsWith('_fragment') ? 'robot.useAutoFragment' : 'robot.useAutoUpgrade')}
+                </p>
               ) : (
                 <button
                   type="button"

@@ -37,7 +37,7 @@ export class PveService {
       }
       await assertNoActiveExpedition(playerId, tx);
 
-      player = await tx.player.update({ where: { id: playerId }, data: { actionEnergy: { decrement: 1 } } });
+      player = await this.economy.spendEnergy(playerId, 1, player, tx);
 
       const playerStats = await this.combat.computePlayerStats(playerId, tx);
       const result = this.combat.simulate(playerStats, pentili);

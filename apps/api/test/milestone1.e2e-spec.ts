@@ -105,12 +105,12 @@ describe('Milestone 1 vertical slice (e2e)', () => {
     randomSpy.mockRestore();
 
     expect(attackRes.body.outcome).toBe('WIN');
-    expect(attackRes.body.xpGained).toBe(10);
+    expect(attackRes.body.xpGained).toBe(8); // pentili_skitterling's xpReward (owner decision 2026-10-11, was 10)
     expect(attackRes.body.lootSummary.length).toBeGreaterThan(0);
 
     const profile = await request(app.getHttpServer()).get('/api/v1/player/me').set(auth()).expect(200);
     expect(profile.body.energy.current).toBe(9); // started at 10, spent 1
-    expect(profile.body.xp).toBe(10);
+    expect(profile.body.xp).toBe(8);
 
     const reports = await request(app.getHttpServer()).get('/api/v1/pve/reports').set(auth()).expect(200);
     expect(reports.body).toHaveLength(1);

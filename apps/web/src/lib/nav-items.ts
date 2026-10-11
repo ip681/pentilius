@@ -10,7 +10,6 @@ export const NAV_ITEMS: { href: string; labelKey: string; iconKey: string }[] = 
   { href: '/zones', labelKey: 'nav.zones', iconKey: 'zones' },
   { href: '/pvp', labelKey: 'nav.pvp', iconKey: 'pvp' },
   { href: '/expeditions', labelKey: 'nav.expeditions', iconKey: 'expeditions' },
-  { href: '/bosses', labelKey: 'nav.bosses', iconKey: 'bosses' },
   { href: '/base', labelKey: 'nav.base', iconKey: 'base' },
   { href: '/research', labelKey: 'nav.research', iconKey: 'research' },
   { href: '/players', labelKey: 'nav.leaderboard', iconKey: 'players' },

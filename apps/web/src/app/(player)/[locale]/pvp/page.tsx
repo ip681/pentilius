@@ -98,7 +98,7 @@ export default function PvpPage() {
   }, []);
 
   async function handleAttack() {
-    if (attacking) return;
+    if (attacking || (battle && !battle.finished)) return;
     if (!scout) return;
     if ((profile?.energy.current ?? 0) < 1) {
       setError(t('pvp.notEnoughEnergy'));
@@ -106,6 +106,9 @@ export default function PvpPage() {
     }
     setError(null);
     setAttacking(true);
+    // Defensive: see the matching comment in zones/[zoneId]/page.tsx's
+    // handleAttack — same stale-interval race, same fix (owner-reported bug, 2026-10-11).
+    if (timerRef.current) clearInterval(timerRef.current);
     try {
       const report = await attackPvpOpponent(scout.opponentId);
       notifyProfileChanged();

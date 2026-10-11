@@ -224,10 +224,7 @@ export class ClanWarsService {
       await this.economy.settleResources(defenderId, tx);
       const settledDefender = await tx.player.findUniqueOrThrow({ where: { id: defenderId } });
 
-      await tx.player.update({
-        where: { id: attackerId },
-        data: { actionEnergy: { decrement: GAME_BALANCE.pvp.attackCostEnergy } },
-      });
+      await this.economy.spendEnergy(attackerId, GAME_BALANCE.pvp.attackCostEnergy, attacker, tx);
 
       const [attackerStats, defenderStats] = await Promise.all([
         this.combat.computePlayerStats(attackerId, tx),

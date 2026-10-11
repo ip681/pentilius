@@ -1,17 +1,31 @@
 'use client';
 
-import type { BattleReportDto, PentiliDto, PentiliLootDropDto } from '@pentilius/shared';
+import type { BattleReportDto, BossDto, PentiliDto, PentiliLootDropDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
-import { useParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { BattleDivider } from '@/components/BattleDivider';
+import { BossFormationCard } from '@/components/BossFormationCard';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
 import { LootEntry } from '@/components/LootEntry';
 import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { ResourceIcon } from '@/components/ResourceIcon';
-import { ApiError, attackPentili, getPentiliInZone } from '@/lib/api-client';
+import {
+  ApiError,
+  attackPentili,
+  createBossFormation,
+  getBossFormations,
+  getMyClan,
+  getPentiliInZone,
+  joinBossFormation,
+  updateBossFormationVisibility,
+} from '@/lib/api-client';
+import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { getCachedProfile } from '@/lib/profile-cache';
+import { takePendingBattle } from '@/lib/pending-battle';
 import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
@@ -76,11 +90,27 @@ interface BattleState {
 
 const ROUND_INTERVAL_MS = 550;
 
+// useSearchParams() requires a Suspense boundary (Next.js App Router) — this
+// wrapper is just that; all the real logic stays in ZonePentiliPageInner.
 export default function ZonePentiliPage() {
+  return (
+    <Suspense fallback={null}>
+      <ZonePentiliPageInner />
+    </Suspense>
+  );
+}
+
+function ZonePentiliPageInner() {
   useRequireAuth();
   const t = useTranslations();
   const params = useParams<{ zoneId: string }>();
   const zoneId = params.zoneId;
+  const searchParams = useSearchParams();
+  const targetPentiliId = searchParams.get('pentili');
+  // Deep-link from the planet page's boss teaser (owner decision, 2026-10-11) —
+  // mirrors the Pentili focus above: show only the boss panel, not the
+  // Pentili list too.
+  const focusBoss = searchParams.get('boss') === '1';
 
   const [pentili, setPentili] = useState<PentiliDto[] | null>(null);
   const { profile, refreshProfile } = usePlayerEnergy();
@@ -90,6 +120,9 @@ export default function ZonePentiliPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const myName = profile?.username ?? t('pve.you');
+  // Guards the deep-link auto-attack so it fires exactly once per page load,
+  // never again on a later re-render once `pentili`/`profile` settle.
+  const autoAttackedRef = useRef(false);
 
   // Keep the combat log scrolled to the newest line as rounds animate in.
   useEffect(() => {
@@ -106,20 +139,30 @@ export default function ZonePentiliPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoneId]);
 
-  async function handleAttack(target: PentiliDto) {
-    if (attacking) return;
-    if ((profile?.energy.current ?? 0) < 1) {
-      setError(t('pve.notEnoughEnergy'));
-      return;
-    }
-    setError(null);
-    setAttacking(true);
-    try {
-      const report = await attackPentili(target.id);
-      notifyProfileChanged();
-      await refreshProfile();
+  // Deep-link from the planet page's "Атакувай" button (owner decision,
+  // 2026-10-11): that button already fires the attack itself, before
+  // navigating here, and hands the result over via sessionStorage — so this
+  // just displays it immediately instead of re-requesting it (the earlier
+  // version called the API again here, which meant the player sat through
+  // "page loads, then the attack loads" as two separate waits). If there's
+  // no pending result (direct URL visit, refresh, back-navigation), this is
+  // a no-op — the player just sees the normal Attack button below.
+  useEffect(() => {
+    if (!targetPentiliId || autoAttackedRef.current || !pentili) return;
+    const target = pentili.find((entry) => entry.id === targetPentiliId);
+    if (!target) return;
+    const pendingReport = takePendingBattle(targetPentiliId);
+    if (!pendingReport) return;
+    autoAttackedRef.current = true;
+    startBattleFromReport(target, pendingReport);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pentili, targetPentiliId]);
 
-      setBattle({
+  /** Builds battle state from an already-fetched report and starts the round-reveal interval — shared by a fresh handleAttack() call and the pre-fetched deep-link result below, so neither path duplicates the reveal logic. */
+  function startBattleFromReport(target: PentiliDto, report: BattleReportDto) {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    setBattle({
         target,
         report,
         round: 0,
@@ -187,6 +230,21 @@ export default function ZonePentiliPage() {
           };
         });
       }, ROUND_INTERVAL_MS);
+  }
+
+  async function handleAttack(target: PentiliDto) {
+    if (attacking || (battle && !battle.finished)) return;
+    if ((profile?.energy.current ?? 0) < 1) {
+      setError(t('pve.notEnoughEnergy'));
+      return;
+    }
+    setError(null);
+    setAttacking(true);
+    try {
+      const report = await attackPentili(target.id);
+      notifyProfileChanged();
+      await refreshProfile();
+      startBattleFromReport(target, report);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'EXPEDITION_IN_PROGRESS') {
         setError(t('pve.expeditionInProgress'));
@@ -205,12 +263,11 @@ export default function ZonePentiliPage() {
     <GameLayout>
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-semibold">{t('pve.title')}</h1>
-        <p className="text-xs text-textMuted">{t('pve.subtitle')}</p>
       </div>
 
       {error && <p className="mb-4 text-center text-red-400">{error}</p>}
 
-      {battle && (
+      {battle && !focusBoss && (
         <>
           <section className="mb-6 grid grid-cols-[1fr_auto_1fr] items-stretch gap-1.5 sm:gap-5">
             <FighterPanel
@@ -246,41 +303,81 @@ export default function ZonePentiliPage() {
         </>
       )}
 
-      {pentili && (
+      {pentili && !focusBoss && targetPentiliId && (
         <ul className="flex flex-col gap-3">
-          {pentili.map((entry) => (
-            <li key={entry.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-panelBorder bg-panel p-4">
-              <div className="flex items-center gap-4">
-                <AssetIcon
-                  assetId={entry.iconAssetId}
-                  alt={t(entry.nameKey)}
-                  className="h-16 w-auto shrink-0 object-contain"
-                  fallback={
-                    <span className="flex h-16 w-16 shrink-0 items-center justify-center text-sm font-semibold text-textMuted">
-                      {t(entry.nameKey).charAt(0)}
-                    </span>
-                  }
-                />
-                <div>
-                  <p className="font-medium">
-                    {t(entry.nameKey)} (Lv. {entry.level})
-                  </p>
-                  <p className="text-xs text-textMuted">HP {entry.maxHp} · ATK {entry.attack} · DEF {entry.defense}</p>
-                  {entry.lootDrops.length > 0 && (
-                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
-                      <span>{t('pve.drops')}:</span>
-                      {entry.lootDrops.map((drop, index) => (
-                        <DropEntry key={index} drop={drop} />
-                      ))}
+          {pentili
+            .filter((entry) => entry.id === targetPentiliId)
+            .map((entry) => (
+              <li key={entry.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-panelBorder bg-panel p-4">
+                <div className="flex items-center gap-4">
+                  <AssetIcon
+                    assetId={entry.iconAssetId}
+                    alt={t(entry.nameKey)}
+                    className="h-16 w-auto shrink-0 object-contain"
+                    fallback={
+                      <span className="flex h-16 w-16 shrink-0 items-center justify-center text-sm font-semibold text-textMuted">
+                        {t(entry.nameKey).charAt(0)}
+                      </span>
+                    }
+                  />
+                  <div>
+                    <p className="font-medium">
+                      {t(entry.nameKey)} (Lv. {entry.level})
                     </p>
-                  )}
+                    <p className="text-xs text-textMuted">HP {entry.maxHp} · ATK {entry.attack} · DEF {entry.defense}</p>
+                    {entry.lootDrops.length > 0 && (
+                      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
+                        <span>{t('pve.drops')}:</span>
+                        {entry.lootDrops.map((drop, index) => (
+                          <DropEntry key={index} drop={drop} />
+                        ))}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => handleAttack(entry)}
+                  aria-disabled={attacking || (battle !== null && !battle.finished) || (profile?.energy.current ?? 0) < 1}
+                  className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
+                >
+                  {t('pve.attack')}
+                </button>
+              </li>
+            ))}
+        </ul>
+      )}
+
+      {/* Full roster — 5 per row (2 rows for the current 10-per-zone roster), compact
+          vertical cards instead of the wide single-focus row above. */}
+      {pentili && !focusBoss && !targetPentiliId && (
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {pentili.map((entry) => (
+            <li key={entry.id} className="flex flex-col items-center gap-2 rounded-lg border border-panelBorder bg-panel p-3 text-center">
+              <AssetIcon
+                assetId={entry.iconAssetId}
+                alt={t(entry.nameKey)}
+                className="h-14 w-auto object-contain"
+                fallback={<span className="flex h-14 w-14 items-center justify-center text-sm font-semibold text-textMuted">{t(entry.nameKey).charAt(0)}</span>}
+              />
+              <p className="text-xs font-medium">
+                {t(entry.nameKey)} (Lv. {entry.level})
+              </p>
+              <p className="text-[10px] tabular-nums text-textMuted">
+                HP {entry.maxHp} · ATK {entry.attack} · DEF {entry.defense}
+              </p>
+              {entry.lootDrops.length > 0 && (
+                <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-[9px] text-textFaint">
+                  {entry.lootDrops.map((drop, index) => (
+                    <DropEntry key={index} drop={drop} />
+                  ))}
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => handleAttack(entry)}
-                aria-disabled={attacking || (profile?.energy.current ?? 0) < 1}
-                className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
+                aria-disabled={attacking || (battle !== null && !battle.finished) || (profile?.energy.current ?? 0) < 1}
+                className="mt-1 w-full rounded-md border border-accent bg-accentBg py-1.5 text-[10px] uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
               >
                 {t('pve.attack')}
               </button>
@@ -288,7 +385,230 @@ export default function ZonePentiliPage() {
           ))}
         </ul>
       )}
+
+      {!targetPentiliId && <ZoneBossPanel zoneId={zoneId} />}
     </GameLayout>
+  );
+}
+
+/**
+ * This zone's own boss, embedded under its Pentili list (owner decision,
+ * 2026-10-11) — an additive alternative entry point, not a replacement for
+ * the standalone /bosses page (which still shows all 4 at once). Deliberately
+ * self-contained (own fetch/poll/countdown) so it doesn't tangle with the
+ * PvE combat state above it.
+ *
+ * Only OPEN formations are shown here (not resolved ones) — the owner was
+ * explicit that this compact panel must never accumulate old/resolved
+ * formations as a growing "history" list; the full /bosses page is still the
+ * place to review a finished fight's result. Visually set apart from the
+ * plain Pentili rows via a gold-bordered section + boss art, so it doesn't
+ * read as just another monster in the list.
+ */
+function ZoneBossPanel({ zoneId }: { zoneId: string }) {
+  const t = useTranslations();
+  const [data, setData] = useState<{ bosses: BossDto[]; nextActionAvailableAt: string | null } | null>(null);
+  const [inClan, setInClan] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [visibility, setVisibility] = useState({ visibleToClanOnly: false, visibleToFriendsOnly: false });
+
+  const myRace = getCachedProfile()?.race ?? null;
+
+  async function load() {
+    try {
+      const [formations, myClan] = await Promise.all([getBossFormations(), getMyClan()]);
+      setData(formations);
+      setInClan(myClan.clan !== null);
+    } catch {
+      setError(t('bosses.loadError'));
+    }
+  }
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 10000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const boss = data?.bosses.find((b) => b.zoneId === zoneId) ?? null;
+  const openFormations = boss?.formations.filter((f) => f.status === 'OPEN') ?? [];
+
+  const hasCountdown = Boolean(data?.nextActionAvailableAt) || openFormations.length > 0;
+  useEffect(() => {
+    if (!hasCountdown) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [hasCountdown]);
+
+  function errorMessage(err: unknown): string {
+    if (err instanceof ApiError && err.code) {
+      const map: Record<string, string> = {
+        LEVEL_TOO_LOW: t('bosses.errorLevelTooLow', { level: boss?.minLevel ?? 0 }),
+        NOT_IN_CLAN: t('bosses.errorNotInClan'),
+        BOSS_FORMATION_COOLDOWN_ACTIVE: t('bosses.errorCooldownActive'),
+        EXPEDITION_IN_PROGRESS: t('bosses.expeditionInProgress'),
+        SLOT_ALREADY_FILLED: t('bosses.errorSlotFilled'),
+        FORMATION_ALREADY_RESOLVED: t('bosses.errorAlreadyResolved'),
+        VISIBILITY_EDIT_WINDOW_CLOSED: t('bosses.errorVisibilityLocked'),
+      };
+      if (map[err.code]) return map[err.code];
+    }
+    return t('bosses.actionError');
+  }
+
+  async function handleCreate() {
+    if (!boss) return;
+    setError(null);
+    try {
+      await createBossFormation(boss.key, visibility);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  async function handleJoin(formationId: string) {
+    setError(null);
+    try {
+      await joinBossFormation(formationId);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  async function handleVisibilityToggle(formationId: string, next: { visibleToClanOnly: boolean; visibleToFriendsOnly: boolean }) {
+    setError(null);
+    try {
+      await updateBossFormationVisibility(formationId, next);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  if (!boss) return null;
+
+  const cooldownRemainingMs = data?.nextActionAvailableAt ? new Date(data.nextActionAvailableAt).getTime() - now : 0;
+  const onCooldown = cooldownRemainingMs > 0;
+
+  return (
+    <section className="mt-8 overflow-hidden rounded-lg border border-gold/50 bg-panel">
+      <div className="flex items-center justify-between border-b border-gold/50 bg-panelHeader px-4 py-3">
+        <span className="text-sm font-semibold uppercase text-gold">
+          {t('bosses.title')}: {t(boss.nameKey)}
+        </span>
+        {onCooldown && (
+          <span className="text-[10px] tabular-nums text-gold">
+            {t('bosses.cooldownActive')} {formatDuration(cooldownRemainingMs / 1000)}
+          </span>
+        )}
+      </div>
+
+      <div className="p-5">
+        {error && <p className="mb-3 text-xs text-danger">{error}</p>}
+
+        {!boss.unlocked && <p className="mb-3 text-xs text-textMuted">{t('bosses.locked', { level: boss.minLevel })}</p>}
+
+        {/* Visible but inactive below the required level — shown greyed out/desaturated
+            and non-interactive rather than hidden, same treatment as a locked zone wedge. */}
+        <div className={boss.unlocked ? undefined : 'pointer-events-none opacity-40 grayscale'}>
+          <div className="mb-4 flex items-center gap-5">
+            <AssetIcon
+              assetId={boss.iconAssetId}
+              alt={t(boss.nameKey)}
+              className="h-28 w-28 shrink-0 object-contain"
+              fallback={<span className="flex h-28 w-28 shrink-0 items-center justify-center text-lg font-semibold text-textMuted">{t(boss.nameKey).charAt(0)}</span>}
+            />
+            <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 text-xs text-textMuted">
+                <span>HP {boss.maxHp}</span>
+                <span>
+                  {t('bosses.attack')} {boss.attack}
+                </span>
+                <span>
+                  {t('bosses.defense')} {boss.defense}
+                </span>
+              </div>
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
+                <span>{t('pve.drops')}:</span>
+                <span className="inline-flex items-center gap-1">
+                  {t('pve.xpGained')} +{boss.xpReward}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <AssetIcon
+                    assetId={boss.guaranteedBoxIconAssetId}
+                    alt={t(boss.guaranteedBoxNameKey)}
+                    className="h-3.5 w-3.5 object-contain"
+                    fallback={<span className="text-[8px] font-semibold text-textMuted">{t(boss.guaranteedBoxNameKey).charAt(0)}</span>}
+                  />
+                  {t(boss.guaranteedBoxNameKey)} ({t('bosses.guaranteed')})
+                </span>
+                {boss.lootDrops.map((drop, index) => (
+                  <DropEntry key={index} drop={drop} />
+                ))}
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-5 rounded border border-wellBorder bg-well p-3">
+            <p className="mb-2 text-xs font-semibold">{t('bosses.createFormation')}</p>
+            <div className="mb-3 flex flex-col gap-1.5">
+              <label className={`flex items-center gap-2 text-xs ${inClan ? 'text-textMuted' : 'cursor-not-allowed text-textFaint opacity-50'}`}>
+                <input
+                  type="checkbox"
+                  checked={visibility.visibleToClanOnly}
+                  disabled={!inClan}
+                  onChange={(e) => setVisibility({ ...visibility, visibleToClanOnly: e.target.checked })}
+                  className="accent-accent"
+                />
+                {t('market.clanOnly')}
+              </label>
+              <label className="flex items-center gap-2 text-xs text-textMuted">
+                <input
+                  type="checkbox"
+                  checked={visibility.visibleToFriendsOnly}
+                  onChange={(e) => setVisibility({ ...visibility, visibleToFriendsOnly: e.target.checked })}
+                  className="accent-accent"
+                />
+                {t('market.friendsOnly')}
+              </label>
+            </div>
+            <ConfirmButton
+              label={t('bosses.createFormation')}
+              confirmLabel={t('common.confirm')}
+              cancelLabel={t('common.cancel')}
+              message={t('bosses.createConfirm')}
+              onConfirm={handleCreate}
+              disabled={onCooldown || !boss.unlocked}
+              className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+              confirmClassName="flex-1 rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase text-text hover:bg-accentBgHover"
+              cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel px-4 py-2 text-xs uppercase text-textMuted hover:bg-accentBgHover"
+            />
+          </div>
+
+          {openFormations.length === 0 ? (
+            <p className="text-xs text-textFaint">{t('bosses.noFormations')}</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {openFormations.map((formation) => (
+                <BossFormationCard
+                  key={formation.id}
+                  formation={formation}
+                  now={now}
+                  myRace={myRace}
+                  onCooldown={onCooldown}
+                  onJoin={() => handleJoin(formation.id)}
+                  onVisibilityToggle={(next) => handleVisibilityToggle(formation.id, next)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -102,9 +102,12 @@ export default function ClanWarPage() {
   }, [battle?.log]);
 
   async function handleAttack(defenderId: string) {
-    if (attacking) return;
+    if (attacking || (battle && !battle.finished)) return;
     setError(null);
     setAttacking(true);
+    // Defensive: see the matching comment in zones/[zoneId]/page.tsx's
+    // handleAttack — same stale-interval race, same fix (owner-reported bug, 2026-10-11).
+    if (timerRef.current) clearInterval(timerRef.current);
     try {
       const report = await attackClanWarTarget(defenderId);
       notifyProfileChanged();

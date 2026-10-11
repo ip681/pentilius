@@ -668,6 +668,11 @@ model Boss {
   nameKey  String
   zoneId   String
   level    Int
+  // Minimum player level to create/join a formation against this boss.
+  // Owner decision (2026-10-11): per-boss (30/50/70/90, one per zone's own
+  // boss) replacing the old flat GAME_BALANCE.bossFormations.minLevel that
+  // applied the same threshold to all 4 bosses regardless of difficulty.
+  minLevel Int
   maxHp    Int
   attack   Int
   defense  Int

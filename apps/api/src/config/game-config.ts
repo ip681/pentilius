@@ -44,7 +44,7 @@ export const GAME_BALANCE = {
     // Reaching fragmentsPerStone auto-converts into that tier's own upgrade
     // stone (see inventory.service.ts's recycleItem), no separate combine step.
     fragmentsPerItem: 1,
-    fragmentsPerStone: 20,
+    fragmentsPerStone: 10,
   },
   combat: {
     // Combat formula is UNDEFINED — placeholder linear model:
@@ -170,10 +170,8 @@ export const GAME_BALANCE = {
     // rolling window, not a fixed global reset hour, to stay fair across
     // timezones — see instructions/ARCHITECTURE.md's elapsed-time preference).
     actionCooldownHours: 24,
-    // Starting placeholder — owner explicitly deferred the exact value
-    // ("после ще го измислим"). Flat minimum for the whole feature, not a
-    // per-zone Zone.unlockLevel gate like the old system.
-    minLevel: 10,
+    // minLevel moved to Boss.minLevel (owner decision, 2026-10-11) — per-boss
+    // now (30/50/70/90), not a single flat value for all 4 bosses.
     // Excellent-option percentages are SUMMED ACROSS every filled slot, then
     // applied once to the formation's combined stats (owner decision,
     // deliberately stronger than solo combat's per-player-then-summed

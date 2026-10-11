@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -11,42 +11,112 @@ const prisma = new PrismaClient();
  * end-to-end; retune here, not in code, once real values are decided.
  */
 async function main() {
+  // Owner decision (2026-10-11, alongside the level-100 cap): unlock levels
+  // spread across the new wider range — 1 / 20 / 40 / 60 (previously 1 / 3 /
+  // 6 / 9 under the old 1-14 curve). `update` is no longer `{}` — these zones
+  // already exist in every already-seeded database (local and production),
+  // so an upsert with an empty update would silently leave the old unlock
+  // levels in place forever instead of applying the new ones.
   const [zoneVerdant, zoneAshen, zoneCrimson, zoneFrostbound] = await Promise.all([
     prisma.zone.upsert({
       where: { key: 'zone_verdant_flats' },
-      update: {},
+      update: { unlockLevel: 1 },
       create: { key: 'zone_verdant_flats', nameKey: 'zones.verdant_flats.name', order: 1, unlockLevel: 1, iconAssetId: 'zones.verdant_flats.icon' },
     }),
     prisma.zone.upsert({
       where: { key: 'zone_ashen_ridge' },
-      update: {},
-      create: { key: 'zone_ashen_ridge', nameKey: 'zones.ashen_ridge.name', order: 2, unlockLevel: 3, iconAssetId: 'zones.ashen_ridge.icon' },
+      update: { unlockLevel: 20 },
+      create: { key: 'zone_ashen_ridge', nameKey: 'zones.ashen_ridge.name', order: 2, unlockLevel: 20, iconAssetId: 'zones.ashen_ridge.icon' },
     }),
     prisma.zone.upsert({
       where: { key: 'zone_crimson_wastes' },
-      update: {},
-      create: { key: 'zone_crimson_wastes', nameKey: 'zones.crimson_wastes.name', order: 3, unlockLevel: 6, iconAssetId: 'zones.crimson_wastes.icon' },
+      update: { unlockLevel: 40 },
+      create: { key: 'zone_crimson_wastes', nameKey: 'zones.crimson_wastes.name', order: 3, unlockLevel: 40, iconAssetId: 'zones.crimson_wastes.icon' },
     }),
     prisma.zone.upsert({
       where: { key: 'zone_frostbound_reach' },
-      update: {},
-      create: { key: 'zone_frostbound_reach', nameKey: 'zones.frostbound_reach.name', order: 4, unlockLevel: 9, iconAssetId: 'zones.frostbound_reach.icon' },
+      update: { unlockLevel: 60 },
+      create: { key: 'zone_frostbound_reach', nameKey: 'zones.frostbound_reach.name', order: 4, unlockLevel: 60, iconAssetId: 'zones.frostbound_reach.icon' },
     }),
   ]);
 
+  // Owner decision (2026-10-11): reuse all 8 existing Pentili "looks" (name +
+  // icon) in every zone instead of commissioning new art — each zone gets a
+  // full 10-entry roster (all 8 creature types, power-ordered, plus the top
+  // 2 — Voidling/Stormcaller — repeated once more as a second, stronger
+  // encounter), with stats/level scaled to that zone's own slice of the new
+  // 1-100 level range. A Pentili's own `level` field doubles as its reveal
+  // gate within an already-unlocked zone (zones.service.ts filters by
+  // `player.level >= pentili.level`) — no separate "unlockLevel" column,
+  // since the two would always hold the same number. Display is just
+  // "(Lv. X)", no "Elite" wording, per owner decision.
+  //
+  // The original 8 keys below KEEP their original zoneId — only their
+  // level/stats move to fit the new range — specifically so their existing
+  // tier-matched loot tables (Pioneer/Ascendant/Coreforged, further down)
+  // stay correct. Every "borrowed" appearance of a creature in a zone it
+  // doesn't canonically belong to is a brand-new key below, so it can get
+  // its own zone-appropriate loot later rather than inheriting a mismatched
+  // tier. Stats follow a provisional power-law fit against the original 8
+  // values (HP=20*Lv^1.07, ATK=4*Lv^0.916, DEF=Lv^1.249, XP=8*Lv^1.3) — a
+  // first pass, not a final balance decision (see OPEN_DECISIONS.md).
+  // Loot drops for the 32 new entries are intentionally left empty for now —
+  // deferred, not part of this change.
   const pentiliData = [
-    { key: 'pentili_skitterling', nameKey: 'pentili.skitterling.name', zoneId: zoneVerdant.id, level: 1, maxHp: 20, attack: 4, defense: 1, xpReward: 10, iconAssetId: 'pentili.skitterling.icon' },
-    { key: 'pentili_mossback', nameKey: 'pentili.mossback.name', zoneId: zoneVerdant.id, level: 2, maxHp: 35, attack: 6, defense: 3, xpReward: 18, iconAssetId: 'pentili.mossback.icon' },
-    { key: 'pentili_ridgefang', nameKey: 'pentili.ridgefang.name', zoneId: zoneAshen.id, level: 4, maxHp: 70, attack: 12, defense: 6, xpReward: 40, iconAssetId: 'pentili.ridgefang.icon' },
-    { key: 'pentili_cinderclaw', nameKey: 'pentili.cinderclaw.name', zoneId: zoneAshen.id, level: 5, maxHp: 90, attack: 15, defense: 8, xpReward: 55, iconAssetId: 'pentili.cinderclaw.icon' },
-    { key: 'pentili_duskfang', nameKey: 'pentili.duskfang.name', zoneId: zoneCrimson.id, level: 7, maxHp: 140, attack: 22, defense: 12, xpReward: 90, iconAssetId: 'pentili.duskfang.icon' },
-    { key: 'pentili_voidling', nameKey: 'pentili.voidling.name', zoneId: zoneCrimson.id, level: 8, maxHp: 170, attack: 26, defense: 14, xpReward: 110, iconAssetId: 'pentili.voidling.icon' },
-    { key: 'pentili_glacialwraith', nameKey: 'pentili.glacialwraith.name', zoneId: zoneFrostbound.id, level: 10, maxHp: 230, attack: 32, defense: 18, xpReward: 150, iconAssetId: 'pentili.glacialwraith.icon' },
-    { key: 'pentili_stormcaller', nameKey: 'pentili.stormcaller.name', zoneId: zoneFrostbound.id, level: 11, maxHp: 260, attack: 36, defense: 20, xpReward: 175, iconAssetId: 'pentili.stormcaller.icon' },
+    // Zone 1 — Verdant Flats (Pioneer loot tier)
+    { key: 'pentili_skitterling', nameKey: 'pentili.skitterling.name', zoneId: zoneVerdant.id, level: 1, maxHp: 20, attack: 4, defense: 1, xpReward: 8, iconAssetId: 'pentili.skitterling.icon' },
+    { key: 'pentili_mossback', nameKey: 'pentili.mossback.name', zoneId: zoneVerdant.id, level: 3, maxHp: 65, attack: 11, defense: 4, xpReward: 33, iconAssetId: 'pentili.mossback.icon' },
+    { key: 'pentili_ridgefang_z1', nameKey: 'pentili.ridgefang.name', zoneId: zoneVerdant.id, level: 5, maxHp: 112, attack: 17, defense: 7, xpReward: 65, iconAssetId: 'pentili.ridgefang.icon' },
+    { key: 'pentili_cinderclaw_z1', nameKey: 'pentili.cinderclaw.name', zoneId: zoneVerdant.id, level: 7, maxHp: 160, attack: 24, defense: 11, xpReward: 100, iconAssetId: 'pentili.cinderclaw.icon' },
+    { key: 'pentili_duskfang_z1', nameKey: 'pentili.duskfang.name', zoneId: zoneVerdant.id, level: 9, maxHp: 210, attack: 30, defense: 16, xpReward: 139, iconAssetId: 'pentili.duskfang.icon' },
+    { key: 'pentili_voidling_z1', nameKey: 'pentili.voidling.name', zoneId: zoneVerdant.id, level: 11, maxHp: 260, attack: 36, defense: 20, xpReward: 181, iconAssetId: 'pentili.voidling.icon' },
+    { key: 'pentili_glacialwraith_z1', nameKey: 'pentili.glacialwraith.name', zoneId: zoneVerdant.id, level: 13, maxHp: 311, attack: 42, defense: 25, xpReward: 224, iconAssetId: 'pentili.glacialwraith.icon' },
+    { key: 'pentili_stormcaller_z1', nameKey: 'pentili.stormcaller.name', zoneId: zoneVerdant.id, level: 15, maxHp: 363, attack: 48, defense: 29, xpReward: 270, iconAssetId: 'pentili.stormcaller.icon' },
+    { key: 'pentili_voidling_z1b', nameKey: 'pentili.voidling.name', zoneId: zoneVerdant.id, level: 17, maxHp: 415, attack: 54, defense: 34, xpReward: 318, iconAssetId: 'pentili.voidling.icon' },
+    { key: 'pentili_stormcaller_z1b', nameKey: 'pentili.stormcaller.name', zoneId: zoneVerdant.id, level: 19, maxHp: 467, attack: 59, defense: 40, xpReward: 368, iconAssetId: 'pentili.stormcaller.icon' },
+
+    // Zone 2 — Ashen Ridge (Ascendant loot tier)
+    { key: 'pentili_skitterling_z2', nameKey: 'pentili.skitterling.name', zoneId: zoneAshen.id, level: 20, maxHp: 493, attack: 62, defense: 42, xpReward: 393, iconAssetId: 'pentili.skitterling.icon' },
+    { key: 'pentili_mossback_z2', nameKey: 'pentili.mossback.name', zoneId: zoneAshen.id, level: 22, maxHp: 546, attack: 68, defense: 47, xpReward: 445, iconAssetId: 'pentili.mossback.icon' },
+    { key: 'pentili_ridgefang', nameKey: 'pentili.ridgefang.name', zoneId: zoneAshen.id, level: 24, maxHp: 600, attack: 74, defense: 53, xpReward: 498, iconAssetId: 'pentili.ridgefang.icon' },
+    { key: 'pentili_cinderclaw', nameKey: 'pentili.cinderclaw.name', zoneId: zoneAshen.id, level: 26, maxHp: 653, attack: 79, defense: 59, xpReward: 553, iconAssetId: 'pentili.cinderclaw.icon' },
+    { key: 'pentili_duskfang_z2', nameKey: 'pentili.duskfang.name', zoneId: zoneAshen.id, level: 28, maxHp: 707, attack: 85, defense: 64, xpReward: 609, iconAssetId: 'pentili.duskfang.icon' },
+    { key: 'pentili_voidling_z2', nameKey: 'pentili.voidling.name', zoneId: zoneAshen.id, level: 30, maxHp: 761, attack: 90, defense: 70, xpReward: 666, iconAssetId: 'pentili.voidling.icon' },
+    { key: 'pentili_glacialwraith_z2', nameKey: 'pentili.glacialwraith.name', zoneId: zoneAshen.id, level: 32, maxHp: 816, attack: 96, defense: 76, xpReward: 724, iconAssetId: 'pentili.glacialwraith.icon' },
+    { key: 'pentili_stormcaller_z2', nameKey: 'pentili.stormcaller.name', zoneId: zoneAshen.id, level: 34, maxHp: 870, attack: 101, defense: 82, xpReward: 783, iconAssetId: 'pentili.stormcaller.icon' },
+    { key: 'pentili_voidling_z2b', nameKey: 'pentili.voidling.name', zoneId: zoneAshen.id, level: 36, maxHp: 925, attack: 107, defense: 88, xpReward: 844, iconAssetId: 'pentili.voidling.icon' },
+    { key: 'pentili_stormcaller_z2b', nameKey: 'pentili.stormcaller.name', zoneId: zoneAshen.id, level: 38, maxHp: 980, attack: 112, defense: 94, xpReward: 905, iconAssetId: 'pentili.stormcaller.icon' },
+
+    // Zone 3 — Crimson Wastes (Coreforged loot tier)
+    { key: 'pentili_skitterling_z3', nameKey: 'pentili.skitterling.name', zoneId: zoneCrimson.id, level: 40, maxHp: 1036, attack: 117, defense: 100, xpReward: 968, iconAssetId: 'pentili.skitterling.icon' },
+    { key: 'pentili_mossback_z3', nameKey: 'pentili.mossback.name', zoneId: zoneCrimson.id, level: 42, maxHp: 1091, attack: 123, defense: 107, xpReward: 1031, iconAssetId: 'pentili.mossback.icon' },
+    { key: 'pentili_ridgefang_z3', nameKey: 'pentili.ridgefang.name', zoneId: zoneCrimson.id, level: 44, maxHp: 1147, attack: 128, defense: 113, xpReward: 1095, iconAssetId: 'pentili.ridgefang.icon' },
+    { key: 'pentili_cinderclaw_z3', nameKey: 'pentili.cinderclaw.name', zoneId: zoneCrimson.id, level: 46, maxHp: 1203, attack: 133, defense: 119, xpReward: 1161, iconAssetId: 'pentili.cinderclaw.icon' },
+    { key: 'pentili_duskfang', nameKey: 'pentili.duskfang.name', zoneId: zoneCrimson.id, level: 48, maxHp: 1259, attack: 139, defense: 126, xpReward: 1227, iconAssetId: 'pentili.duskfang.icon' },
+    { key: 'pentili_voidling', nameKey: 'pentili.voidling.name', zoneId: zoneCrimson.id, level: 50, maxHp: 1315, attack: 144, defense: 132, xpReward: 1293, iconAssetId: 'pentili.voidling.icon' },
+    { key: 'pentili_glacialwraith_z3', nameKey: 'pentili.glacialwraith.name', zoneId: zoneCrimson.id, level: 52, maxHp: 1371, attack: 149, defense: 139, xpReward: 1361, iconAssetId: 'pentili.glacialwraith.icon' },
+    { key: 'pentili_stormcaller_z3', nameKey: 'pentili.stormcaller.name', zoneId: zoneCrimson.id, level: 54, maxHp: 1428, attack: 155, defense: 146, xpReward: 1430, iconAssetId: 'pentili.stormcaller.icon' },
+    { key: 'pentili_voidling_z3b', nameKey: 'pentili.voidling.name', zoneId: zoneCrimson.id, level: 56, maxHp: 1485, attack: 160, defense: 153, xpReward: 1499, iconAssetId: 'pentili.voidling.icon' },
+    { key: 'pentili_stormcaller_z3b', nameKey: 'pentili.stormcaller.name', zoneId: zoneCrimson.id, level: 58, maxHp: 1541, attack: 165, defense: 159, xpReward: 1569, iconAssetId: 'pentili.stormcaller.icon' },
+
+    // Zone 4 — Frostbound Reach (Coreforged loot tier continues)
+    { key: 'pentili_skitterling_z4', nameKey: 'pentili.skitterling.name', zoneId: zoneFrostbound.id, level: 60, maxHp: 1598, attack: 170, defense: 166, xpReward: 1639, iconAssetId: 'pentili.skitterling.icon' },
+    { key: 'pentili_mossback_z4', nameKey: 'pentili.mossback.name', zoneId: zoneFrostbound.id, level: 64, maxHp: 1713, attack: 181, defense: 180, xpReward: 1783, iconAssetId: 'pentili.mossback.icon' },
+    { key: 'pentili_ridgefang_z4', nameKey: 'pentili.ridgefang.name', zoneId: zoneFrostbound.id, level: 68, maxHp: 1827, attack: 191, defense: 194, xpReward: 1929, iconAssetId: 'pentili.ridgefang.icon' },
+    { key: 'pentili_cinderclaw_z4', nameKey: 'pentili.cinderclaw.name', zoneId: zoneFrostbound.id, level: 72, maxHp: 1943, attack: 201, defense: 209, xpReward: 2078, iconAssetId: 'pentili.cinderclaw.icon' },
+    { key: 'pentili_duskfang_z4', nameKey: 'pentili.duskfang.name', zoneId: zoneFrostbound.id, level: 76, maxHp: 2058, attack: 211, defense: 223, xpReward: 2229, iconAssetId: 'pentili.duskfang.icon' },
+    { key: 'pentili_voidling_z4', nameKey: 'pentili.voidling.name', zoneId: zoneFrostbound.id, level: 80, maxHp: 2174, attack: 221, defense: 238, xpReward: 2383, iconAssetId: 'pentili.voidling.icon' },
+    { key: 'pentili_glacialwraith', nameKey: 'pentili.glacialwraith.name', zoneId: zoneFrostbound.id, level: 84, maxHp: 2291, attack: 232, defense: 253, xpReward: 2539, iconAssetId: 'pentili.glacialwraith.icon' },
+    { key: 'pentili_stormcaller', nameKey: 'pentili.stormcaller.name', zoneId: zoneFrostbound.id, level: 88, maxHp: 2408, attack: 242, defense: 268, xpReward: 2697, iconAssetId: 'pentili.stormcaller.icon' },
+    { key: 'pentili_voidling_z4b', nameKey: 'pentili.voidling.name', zoneId: zoneFrostbound.id, level: 92, maxHp: 2525, attack: 252, defense: 284, xpReward: 2858, iconAssetId: 'pentili.voidling.icon' },
+    { key: 'pentili_stormcaller_z4b', nameKey: 'pentili.stormcaller.name', zoneId: zoneFrostbound.id, level: 96, maxHp: 2643, attack: 262, defense: 299, xpReward: 3020, iconAssetId: 'pentili.stormcaller.icon' },
   ];
   const pentiliByKey: Record<string, Awaited<ReturnType<typeof prisma.pentili.upsert>>> = {};
   for (const data of pentiliData) {
-    pentiliByKey[data.key] = await prisma.pentili.upsert({ where: { key: data.key }, update: {}, create: data });
+    // update: data (not {}) — these 8 original keys already exist in every
+    // seeded database, so an empty update would silently freeze their old
+    // level 1-14 stats forever instead of applying the new 1-100 values.
+    pentiliByKey[data.key] = await prisma.pentili.upsert({ where: { key: data.key }, update: data, create: data });
   }
   const { pentili_skitterling: skitterling, pentili_mossback: mossback, pentili_ridgefang: ridgefang,
     pentili_cinderclaw: cinderclaw, pentili_duskfang: duskfang, pentili_voidling: voidling,
@@ -336,6 +406,67 @@ async function main() {
 
   const allPentiliIds = Object.values(pentiliByKey).map((p) => p.id);
   await prisma.lootDrop.deleteMany({ where: { pentiliId: { in: allPentiliIds } } });
+
+  // Loot for the 32 "borrowed" Pentili entries added above (reused creature
+  // types appearing in a zone they don't canonically belong to) — owner
+  // decision (2026-10-11): generated from one rule instead of ~350
+  // hand-written rows. No Credits (doesn't fit a monster drop thematically —
+  // that stays Metal/Crystal/the Shop/bosses). Metal AND Crystal always
+  // drop (100% each, quantity banded by the zone's loot tier). One random
+  // item from that zone's 7-slot equipment set, each slot at its own ~2%
+  // chance (~14% combined chance of getting some item). Plus two separate,
+  // smaller chances: 5% for an upgrade fragment, 1% for a ready-made
+  // upgrade stone. The original 8 keys keep their own hand-authored tables
+  // above, untouched.
+  const SLOT_SUFFIXES = ['head_scanner', 'left_arm_blaster', 'right_arm_guard', 'armor_plating', 'core_battery', 'left_leg_actuator', 'right_leg_actuator'];
+  const BORROWED_PENTILI_LOOT_TIERS: { itemPrefix: 'pioneer' | 'ascendant' | 'coreforged'; metalRange: [number, number]; crystalRange: [number, number]; keys: string[] }[] = [
+    {
+      itemPrefix: 'pioneer',
+      metalRange: [5, 15],
+      crystalRange: [3, 8],
+      keys: ['pentili_ridgefang_z1', 'pentili_cinderclaw_z1', 'pentili_duskfang_z1', 'pentili_voidling_z1', 'pentili_glacialwraith_z1', 'pentili_stormcaller_z1', 'pentili_voidling_z1b', 'pentili_stormcaller_z1b'],
+    },
+    {
+      itemPrefix: 'ascendant',
+      metalRange: [15, 30],
+      crystalRange: [10, 20],
+      keys: ['pentili_skitterling_z2', 'pentili_mossback_z2', 'pentili_duskfang_z2', 'pentili_voidling_z2', 'pentili_glacialwraith_z2', 'pentili_stormcaller_z2', 'pentili_voidling_z2b', 'pentili_stormcaller_z2b'],
+    },
+    {
+      itemPrefix: 'coreforged',
+      metalRange: [30, 60],
+      crystalRange: [20, 40],
+      keys: ['pentili_skitterling_z3', 'pentili_mossback_z3', 'pentili_ridgefang_z3', 'pentili_cinderclaw_z3', 'pentili_glacialwraith_z3', 'pentili_stormcaller_z3', 'pentili_voidling_z3b', 'pentili_stormcaller_z3b'],
+    },
+    {
+      itemPrefix: 'coreforged',
+      metalRange: [50, 90],
+      crystalRange: [35, 60],
+      keys: ['pentili_skitterling_z4', 'pentili_mossback_z4', 'pentili_ridgefang_z4', 'pentili_cinderclaw_z4', 'pentili_duskfang_z4', 'pentili_voidling_z4', 'pentili_voidling_z4b', 'pentili_stormcaller_z4b'],
+    },
+  ];
+  const newPentiliLootDrops: Prisma.LootDropCreateManyInput[] = [];
+  for (const tier of BORROWED_PENTILI_LOOT_TIERS) {
+    for (const key of tier.keys) {
+      const pentiliId = pentiliByKey[key].id;
+      newPentiliLootDrops.push(
+        { pentiliId, resourceType: 'METAL', dropChance: 1, minQuantity: tier.metalRange[0], maxQuantity: tier.metalRange[1] },
+        { pentiliId, resourceType: 'CRYSTAL', dropChance: 1, minQuantity: tier.crystalRange[0], maxQuantity: tier.crystalRange[1] },
+        ...SLOT_SUFFIXES.map(
+          (suffix): Prisma.LootDropCreateManyInput => ({
+            pentiliId,
+            itemDefinitionId: itemsByKey[`${tier.itemPrefix}_${suffix}`].id,
+            dropChance: 0.02,
+            minQuantity: 1,
+            maxQuantity: 1,
+          }),
+        ),
+        { pentiliId, itemDefinitionId: itemsByKey[`${tier.itemPrefix}_fragment`].id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
+        { pentiliId, itemDefinitionId: itemsByKey[`${tier.itemPrefix}_upgrade`].id, dropChance: 0.01, minQuantity: 1, maxQuantity: 1 },
+      );
+    }
+  }
+
   await prisma.lootDrop.createMany({
     data: [
       // Zone 1 (Verdant Flats) — Pioneer tier only, per owner decision.
@@ -391,6 +522,8 @@ async function main() {
       { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.coreforged_upgrade.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
       { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.coreforged_head_scanner.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
       { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.coreforged_armor_plating.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
+
+      ...newPentiliLootDrops,
     ],
   });
 
@@ -408,6 +541,22 @@ async function main() {
     await prisma.expeditionType.upsert({ where: { key: data.key }, update: data, create: data });
   }
 
+  // Owner decision (2026-10-11): player level cap raised to 100 (from a
+  // curve that previously only went to 14) — there's no separate "max level"
+  // flag anywhere in the code, applyXp() simply stops once no LevelThreshold
+  // row exists for the current level, so capping at 100 is just "don't seed
+  // a level 100 row" (the level-99 row is the last one that matters, since
+  // it's the cost to advance 99->100). Levels 1-14 are left exactly as they
+  // were — real players already have levels/XP under that curve, and this
+  // was live production. Levels 15-99 are new: a provisional placeholder
+  // power-law curve (xpRequired = a * level^2.126, fit to pass through the
+  // existing level 14 value so there's no visible seam), not a hand-picked
+  // list — chosen over continuing the old curve's compounding-percentage
+  // growth because that blows up catastrophically over 100 levels (an
+  // earlier attempt put level 100 at 253 million XP for that level alone).
+  // True pacing against a real season length still depends on Pentili/boss
+  // XP rewards (not tuned yet) — this is a first pass, same as every other
+  // placeholder value in instructions/OPEN_DECISIONS.md.
   const levelThresholds = [
     { level: 1, xpRequired: 30 },
     { level: 2, xpRequired: 60 },
@@ -423,6 +572,91 @@ async function main() {
     { level: 12, xpRequired: 5200 },
     { level: 13, xpRequired: 6600 },
     { level: 14, xpRequired: 8200 },
+    { level: 15, xpRequired: 9495 },
+    { level: 16, xpRequired: 10892 },
+    { level: 17, xpRequired: 12390 },
+    { level: 18, xpRequired: 13991 },
+    { level: 19, xpRequired: 15696 },
+    { level: 20, xpRequired: 17504 },
+    { level: 21, xpRequired: 19417 },
+    { level: 22, xpRequired: 21436 },
+    { level: 23, xpRequired: 23560 },
+    { level: 24, xpRequired: 25791 },
+    { level: 25, xpRequired: 28130 },
+    { level: 26, xpRequired: 30576 },
+    { level: 27, xpRequired: 33130 },
+    { level: 28, xpRequired: 35793 },
+    { level: 29, xpRequired: 38566 },
+    { level: 30, xpRequired: 41448 },
+    { level: 31, xpRequired: 44441 },
+    { level: 32, xpRequired: 47544 },
+    { level: 33, xpRequired: 50758 },
+    { level: 34, xpRequired: 54084 },
+    { level: 35, xpRequired: 57522 },
+    { level: 36, xpRequired: 61072 },
+    { level: 37, xpRequired: 64736 },
+    { level: 38, xpRequired: 68512 },
+    { level: 39, xpRequired: 72402 },
+    { level: 40, xpRequired: 76406 },
+    { level: 41, xpRequired: 80524 },
+    { level: 42, xpRequired: 84757 },
+    { level: 43, xpRequired: 89104 },
+    { level: 44, xpRequired: 93568 },
+    { level: 45, xpRequired: 98147 },
+    { level: 46, xpRequired: 102842 },
+    { level: 47, xpRequired: 107653 },
+    { level: 48, xpRequired: 112581 },
+    { level: 49, xpRequired: 117626 },
+    { level: 50, xpRequired: 122788 },
+    { level: 51, xpRequired: 128068 },
+    { level: 52, xpRequired: 133465 },
+    { level: 53, xpRequired: 138981 },
+    { level: 54, xpRequired: 144615 },
+    { level: 55, xpRequired: 150368 },
+    { level: 56, xpRequired: 156240 },
+    { level: 57, xpRequired: 162232 },
+    { level: 58, xpRequired: 168342 },
+    { level: 59, xpRequired: 174573 },
+    { level: 60, xpRequired: 180924 },
+    { level: 61, xpRequired: 187395 },
+    { level: 62, xpRequired: 193986 },
+    { level: 63, xpRequired: 200698 },
+    { level: 64, xpRequired: 207532 },
+    { level: 65, xpRequired: 214486 },
+    { level: 66, xpRequired: 221562 },
+    { level: 67, xpRequired: 228760 },
+    { level: 68, xpRequired: 236080 },
+    { level: 69, xpRequired: 243522 },
+    { level: 70, xpRequired: 251087 },
+    { level: 71, xpRequired: 258774 },
+    { level: 72, xpRequired: 266584 },
+    { level: 73, xpRequired: 274518 },
+    { level: 74, xpRequired: 282574 },
+    { level: 75, xpRequired: 290754 },
+    { level: 76, xpRequired: 299058 },
+    { level: 77, xpRequired: 307486 },
+    { level: 78, xpRequired: 316038 },
+    { level: 79, xpRequired: 324714 },
+    { level: 80, xpRequired: 333515 },
+    { level: 81, xpRequired: 342440 },
+    { level: 82, xpRequired: 351491 },
+    { level: 83, xpRequired: 360666 },
+    { level: 84, xpRequired: 369967 },
+    { level: 85, xpRequired: 379394 },
+    { level: 86, xpRequired: 388946 },
+    { level: 87, xpRequired: 398624 },
+    { level: 88, xpRequired: 408428 },
+    { level: 89, xpRequired: 418359 },
+    { level: 90, xpRequired: 428416 },
+    { level: 91, xpRequired: 438599 },
+    { level: 92, xpRequired: 448909 },
+    { level: 93, xpRequired: 459346 },
+    { level: 94, xpRequired: 469911 },
+    { level: 95, xpRequired: 480603 },
+    { level: 96, xpRequired: 491422 },
+    { level: 97, xpRequired: 502368 },
+    { level: 98, xpRequired: 513443 },
+    { level: 99, xpRequired: 524646 },
   ];
   for (const threshold of levelThresholds) {
     await prisma.levelThreshold.upsert({ where: { level: threshold.level }, update: {}, create: threshold });
@@ -464,12 +698,40 @@ async function main() {
   // own zone tier (pioneer/ascendant/coreforged) — every winning formation
   // participant gets exactly 1, on top of the independent BossLootDrop rolls
   // below (unchanged mechanic, still independent per participant).
+  // minLevel: owner decision (2026-10-11, revised same day) — per-boss
+  // 15/25/45/65. The first boss is a fixed 15 (not its zone's own unlock
+  // level of 1, which would be too early); each later boss is its own
+  // zone's unlockLevel + 5, so the player has had a little room to gear up
+  // in the new zone before the boss becomes available. Replaces the old
+  // flat GAME_BALANCE.bossFormations.minLevel that gated all 4 bosses at
+  // the same player level regardless of difficulty.
+  //
+  // maxHp/attack/defense/xpReward: owner decision (2026-10-11) — rescaled
+  // against the new 1-100 level range and the formation combat model
+  // (combat.service.ts's aggregateFormationCombatStats sums every filled
+  // slot's raw attack/defense/hp before the fight, so a 5-player formation
+  // fights as one combined combatant with roughly 5x a solo player's
+  // stats). The previous values were untouched leftovers from the old,
+  // much-narrower level range and had fallen badly out of step — e.g. the
+  // first boss's attack/defense were weaker than several same-zone Pentili.
+  // Derived from `damage = attacker.attack - 0.5 * defender.defense`
+  // (combat.service.ts's resolveHit) against an estimated player power
+  // curve (GAME_BALANCE.robotAttributes points + that zone's gear tier at a
+  // modest, not-fully-upgraded level): a full 5-player formation wins in
+  // ~8 rounds keeping 40-60% of its HP, a 4-player formation is a close
+  // fight either way, and 3 or fewer players reliably lose — matching the
+  // existing "implicit weakening, no explicit formula" design (see the
+  // Boss Formations entry above). xpReward is split evenly across filled
+  // slots (`Math.floor(xpReward / filledSlotCount)`) and sized so each
+  // participant's share is roughly a dozen same-level Pentili kills' worth,
+  // reflecting the once-per-24h cooldown and multi-player coordination
+  // cost. First pass, not a final balance decision.
   const bossData = [
-    { key: 'boss_verdant_warden', nameKey: 'bosses.verdant_warden.name', zoneId: zoneVerdant.id, level: 3, maxHp: 450, attack: 11, defense: 5, xpReward: 90, iconAssetId: 'bosses.verdant_warden.icon', guaranteedBoxItemDefinitionId: itemsByKey.pioneer_box.id },
-    { key: 'boss_ridgeback_alpha', nameKey: 'bosses.ridgeback_alpha.name', zoneId: zoneAshen.id, level: 6, maxHp: 1200, attack: 30, defense: 15, xpReward: 300, iconAssetId: 'bosses.ridgeback_alpha.icon', guaranteedBoxItemDefinitionId: itemsByKey.ascendant_box.id },
-    { key: 'boss_crimson_harbinger', nameKey: 'bosses.crimson_harbinger.name', zoneId: zoneCrimson.id, level: 9, maxHp: 2300, attack: 46, defense: 24, xpReward: 550, iconAssetId: 'bosses.crimson_harbinger.icon', guaranteedBoxItemDefinitionId: itemsByKey.coreforged_box.id },
+    { key: 'boss_verdant_warden', nameKey: 'bosses.verdant_warden.name', zoneId: zoneVerdant.id, level: 3, minLevel: 15, maxHp: 1400, attack: 130, defense: 60, xpReward: 16000, iconAssetId: 'bosses.verdant_warden.icon', guaranteedBoxItemDefinitionId: itemsByKey.pioneer_box.id },
+    { key: 'boss_ridgeback_alpha', nameKey: 'bosses.ridgeback_alpha.name', zoneId: zoneAshen.id, level: 6, minLevel: 25, maxHp: 2500, attack: 210, defense: 180, xpReward: 32000, iconAssetId: 'bosses.ridgeback_alpha.icon', guaranteedBoxItemDefinitionId: itemsByKey.ascendant_box.id },
+    { key: 'boss_crimson_harbinger', nameKey: 'bosses.crimson_harbinger.name', zoneId: zoneCrimson.id, level: 9, minLevel: 45, maxHp: 4700, attack: 380, defense: 350, xpReward: 68000, iconAssetId: 'bosses.crimson_harbinger.icon', guaranteedBoxItemDefinitionId: itemsByKey.coreforged_box.id },
     // No distinct top-tier reward designed yet for the final boss — reuses coreforged_box for now (owner decision, deferred).
-    { key: 'boss_frost_sovereign', nameKey: 'bosses.frost_sovereign.name', zoneId: zoneFrostbound.id, level: 12, maxHp: 3500, attack: 55, defense: 30, xpReward: 800, iconAssetId: 'bosses.frost_sovereign.icon', guaranteedBoxItemDefinitionId: itemsByKey.coreforged_box.id },
+    { key: 'boss_frost_sovereign', nameKey: 'bosses.frost_sovereign.name', zoneId: zoneFrostbound.id, level: 12, minLevel: 65, maxHp: 6100, attack: 490, defense: 440, xpReward: 110000, iconAssetId: 'bosses.frost_sovereign.icon', guaranteedBoxItemDefinitionId: itemsByKey.coreforged_box.id },
   ];
   const bossesByKey: Record<string, Awaited<ReturnType<typeof prisma.boss.upsert>>> = {};
   for (const data of bossData) {

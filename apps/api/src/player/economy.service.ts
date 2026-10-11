@@ -96,6 +96,28 @@ export class EconomyService {
     return this.settleEnergy(playerId, tx);
   }
 
+  /**
+   * Spends Action Energy, correctly restarting the regen clock when the spend
+   * comes off a full bar. settleEnergy() above leaves energyUpdatedAt frozen
+   * while actionEnergy sits at actionEnergyMax (there's nothing to accrue
+   * toward), so a plain decrement would otherwise compute the next-point
+   * countdown from whenever the bar last became full — not from this spend —
+   * showing a stale or already-elapsed timer. Caller must pass the
+   * already-settled `player` (via settleAll/settleEnergy) so the "was full"
+   * check reflects current state, and must itself have verified sufficient
+   * balance beforehand.
+   */
+  async spendEnergy(playerId: string, amount: number, player: Player, tx: Tx = this.prisma): Promise<Player> {
+    const wasFull = player.actionEnergy >= player.actionEnergyMax;
+    return tx.player.update({
+      where: { id: playerId },
+      data: {
+        actionEnergy: { decrement: amount },
+        ...(wasFull ? { energyUpdatedAt: new Date() } : {}),
+      },
+    });
+  }
+
   /** Adds XP, cascading through as many level-ups as the gain covers. Returns the final player and whether it leveled up. */
   async applyXp(playerId: string, xpGained: number, tx: Tx = this.prisma): Promise<{ player: Player; leveledUp: boolean }> {
     let player = await tx.player.findUniqueOrThrow({ where: { id: playerId } });

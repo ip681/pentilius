@@ -10,7 +10,7 @@ export class ZonesService {
     const player = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
     const zones = await this.prisma.zone.findMany({
       orderBy: { order: 'asc' },
-      include: { pentili: { select: { nameKey: true, iconAssetId: true } } },
+      include: { pentili: { select: { id: true, nameKey: true, iconAssetId: true, level: true, maxHp: true, attack: true, defense: true } } },
     });
 
     return zones.map((zone) => ({

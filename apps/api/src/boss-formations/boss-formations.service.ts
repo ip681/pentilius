@@ -48,7 +48,10 @@ export class BossFormationsService {
     const player = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
     await this.globalFinalizeSweep();
 
-    const bosses = await this.prisma.boss.findMany({ include: { zone: true }, orderBy: { level: 'asc' } });
+    const bosses = await this.prisma.boss.findMany({
+      include: { zone: true, guaranteedBoxItem: true, lootDrops: { include: { itemDefinition: true } } },
+      orderBy: { level: 'asc' },
+    });
     const allFormations = await this.prisma.bossFormation.findMany({
       where: { bossId: { in: bosses.map((b) => b.id) } },
       include: { boss: { include: { zone: true } }, creator: true, slots: { include: { player: true }, orderBy: { race: 'asc' } } },
@@ -69,6 +72,7 @@ export class BossFormationsService {
         id: boss.id,
         key: boss.key,
         nameKey: boss.nameKey,
+        zoneId: boss.zoneId,
         zoneNameKey: boss.zone.nameKey,
         level: boss.level,
         maxHp: boss.maxHp,
@@ -76,14 +80,25 @@ export class BossFormationsService {
         defense: boss.defense,
         xpReward: boss.xpReward,
         iconAssetId: boss.iconAssetId,
-        unlocked: player.level >= GAME_BALANCE.bossFormations.minLevel,
+        minLevel: boss.minLevel,
+        unlocked: player.level >= boss.minLevel,
+        guaranteedBoxNameKey: boss.guaranteedBoxItem.nameKey,
+        guaranteedBoxIconAssetId: boss.guaranteedBoxItem.iconAssetId,
+        lootDrops: boss.lootDrops.map((drop) => ({
+          type: (drop.itemDefinitionId ? 'item' : 'resource') as 'resource' | 'item',
+          resourceType: drop.resourceType ?? undefined,
+          itemNameKey: drop.itemDefinition?.nameKey,
+          itemIconAssetId: drop.itemDefinition?.iconAssetId,
+          dropChance: drop.dropChance,
+          minQuantity: drop.minQuantity,
+          maxQuantity: drop.maxQuantity,
+        })),
         formations,
       };
     });
 
     return {
       bosses: dtoBosses,
-      minLevel: GAME_BALANCE.bossFormations.minLevel,
       nextActionAvailableAt: cooldownIso(player),
     };
   }
@@ -116,7 +131,7 @@ export class BossFormationsService {
       if (!boss) {
         throw new NotFoundException('Boss not found');
       }
-      if (player.level < GAME_BALANCE.bossFormations.minLevel) {
+      if (player.level < boss.minLevel) {
         throw new ForbiddenException('LEVEL_TOO_LOW');
       }
       assertCooldownFree(player);
@@ -148,15 +163,15 @@ export class BossFormationsService {
 
     return this.prisma.$transaction(async (tx) => {
       const player = await tx.player.findUniqueOrThrow({ where: { id: playerId } });
-      if (player.level < GAME_BALANCE.bossFormations.minLevel) {
-        throw new ForbiddenException('LEVEL_TOO_LOW');
-      }
       assertCooldownFree(player);
       await assertNoActiveExpedition(playerId, tx);
 
       const formation = await this.loadFormation(formationId, tx);
       if (!formation) {
         throw new NotFoundException('Formation not found');
+      }
+      if (player.level < formation.boss.minLevel) {
+        throw new ForbiddenException('LEVEL_TOO_LOW');
       }
       if (formation.status !== 'OPEN') {
         throw new BadRequestException('FORMATION_ALREADY_RESOLVED');
@@ -432,8 +447,8 @@ function randomInt(min: number, max: number): number {
 
 function toFormationDto(formation: FormationWithRelations, viewerId: string): BossFormationDto {
   const editWindowMs = GAME_BALANCE.bossFormations.visibilityEditWindowHours * 60 * 60 * 1000;
-  const canEditVisibility =
-    formation.status === 'OPEN' && formation.creatorId === viewerId && Date.now() < formation.createdAt.getTime() + editWindowMs;
+  const editDeadline = new Date(formation.createdAt.getTime() + editWindowMs);
+  const canEditVisibility = formation.status === 'OPEN' && formation.creatorId === viewerId && Date.now() < editDeadline.getTime();
 
   const slots: BossFormationSlotDto[] = formation.slots.map((slot) => ({
     race: slot.race,
@@ -467,6 +482,7 @@ function toFormationDto(formation: FormationWithRelations, viewerId: string): Bo
     visibleToClanOnly: formation.visibleToClanOnly,
     visibleToFriendsOnly: formation.visibleToFriendsOnly,
     canEditVisibility,
+    visibilityEditDeadline: canEditVisibility ? editDeadline.toISOString() : null,
     slots,
     result,
   };

@@ -342,8 +342,13 @@ export interface InventoryResponseDto {
 }
 
 export interface ZonePentiliPreviewDto {
+  id: string;
   nameKey: string;
   iconAssetId: string;
+  level: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
 }
 
 export interface ZoneDto {
@@ -549,6 +554,10 @@ export interface BossFormationDto {
   visibleToFriendsOnly: boolean;
   // True only for the creator, and only while still inside the visibility-edit window.
   canEditVisibility: boolean;
+  // createdAt + GAME_BALANCE.bossFormations.visibilityEditWindowHours, so the
+  // frontend can show a countdown without duplicating that constant — only
+  // meaningful (and only sent as non-null) while canEditVisibility is true.
+  visibilityEditDeadline: string | null;
   slots: BossFormationSlotDto[];
   result: BossFormationResultDto | null;
 }
@@ -557,6 +566,7 @@ export interface BossDto {
   id: string;
   key: string;
   nameKey: string;
+  zoneId: string;
   zoneNameKey: string;
   level: number;
   maxHp: number;
@@ -564,14 +574,21 @@ export interface BossDto {
   defense: number;
   xpReward: number;
   iconAssetId: string;
-  unlocked: boolean; // player.level >= GAME_BALANCE.bossFormations.minLevel (flat, not per-zone)
+  // Owner decision (2026-10-11): per-boss (30/50/70/90), replacing the old
+  // flat GAME_BALANCE.bossFormations.minLevel shared by all 4 bosses.
+  minLevel: number;
+  unlocked: boolean; // player.level >= this boss's own minLevel
+  // Always granted to every winning participant (Boss.guaranteedBoxItemDefinitionId) — on
+  // top of, not instead of, the independent chance rolls in lootDrops below.
+  guaranteedBoxNameKey: string;
+  guaranteedBoxIconAssetId: string;
+  lootDrops: PentiliLootDropDto[];
   // Only formations visible to the current viewer (public, or matching their clan/friends).
   formations: BossFormationDto[];
 }
 
 export interface BossFormationsResponseDto {
   bosses: BossDto[];
-  minLevel: number;
   // The viewer's own personal 24h create-or-join cooldown — null if free to act now.
   nextActionAvailableAt: string | null;
 }

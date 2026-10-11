@@ -19,6 +19,17 @@ function isBoxKey(key: string): boolean {
   return key.endsWith('_box');
 }
 
+/**
+ * Fragments auto-convert into their tier's upgrade stone on recycle (recycleItem below),
+ * and upgrade stones are spent automatically by upgradeItem() — neither has any baseStats
+ * effect to apply, so letting useConsumable() reach them would just delete the item for
+ * nothing. Owner-confirmed bug (2026-10-11): the frontend used to offer a "Use" button for
+ * both; this is the server-side guard so the same mistake can't resurface through any client.
+ */
+function isUpgradeMaterialKey(key: string): boolean {
+  return key.endsWith('_fragment') || key.endsWith('_upgrade');
+}
+
 @Injectable()
 export class InventoryService {
   constructor(
@@ -194,6 +205,9 @@ export class InventoryService {
       }
       if (isBoxKey(item.itemDefinition.key)) {
         throw new BadRequestException('ITEM_MUST_BE_OPENED');
+      }
+      if (isUpgradeMaterialKey(item.itemDefinition.key)) {
+        throw new BadRequestException('ITEM_NOT_USABLE');
       }
 
       const baseStats = item.itemDefinition.baseStats as { energy?: number; buildTimeReductionMinutes?: number };

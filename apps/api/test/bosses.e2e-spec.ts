@@ -55,12 +55,18 @@ describe('Boss Formations (e2e)', () => {
     playerCId = regC.body.player.id;
     playerDId = regD.body.player.id;
 
-    // Boss Formations' minLevel is a flat 10 (GAME_BALANCE.bossFormations.minLevel) — A/B/D clear it, C stays at 1 to test the level gate.
-    await prisma.player.updateMany({ where: { id: { in: [playerAId, playerBId, playerDId] } }, data: { level: 10 } });
+    // boss_ridgeback_alpha's minLevel is 25 (per-boss Boss.minLevel, owner decision 2026-10-11) — A/B/D clear it, C stays at 1 to test the level gate.
+    await prisma.player.updateMany({ where: { id: { in: [playerAId, playerBId, playerDId] } }, data: { level: 25 } });
 
     // Gear A/B up with top-tier equipment so the formation fight resolves as a clean, deterministic win.
     await equipTopTierLoadout(prisma, playerAId);
     await equipTopTierLoadout(prisma, playerBId);
+    // Boss stats are now calibrated against a full 5-player formation's summed
+    // stats (owner decision, 2026-10-11) — this test only fills 2 of 5 slots,
+    // so give A/B generous attribute points directly (bypassing the normal
+    // level-up grant) purely to keep this a deterministic win, not a realistic
+    // player build.
+    await prisma.player.updateMany({ where: { id: { in: [playerAId, playerBId] } }, data: { baseDamage: 100, baseDefense: 100, baseHp: 100 } });
 
     // Bosses are shared, persistent seed content — clear any formation left behind by a previous run.
     await cleanupBossFormations(prisma, bossKey);
@@ -80,9 +86,9 @@ describe('Boss Formations (e2e)', () => {
 
   it('lists bosses with the unlocked flag and no formations yet', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/boss-formations').set(auth(tokenA)).expect(200);
-    expect(res.body.minLevel).toBe(10);
     expect(res.body.nextActionAvailableAt).toBeNull();
     const boss = res.body.bosses.find((b: { key: string }) => b.key === bossKey);
+    expect(boss.minLevel).toBe(25);
     expect(boss.unlocked).toBe(true);
     expect(boss.formations).toHaveLength(0);
 
