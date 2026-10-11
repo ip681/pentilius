@@ -841,10 +841,9 @@ model Clan {
   memberCap   Int      @default(10)
   createdAt   DateTime @default(now())
 
-  // Shared clan resource pool. Oxygen/Upgrade Stones are personal-use
-  // resources (per OPEN_DECISIONS.md, Oxygen has no use yet at all) and are
-  // deliberately excluded — only the three resources already poolable in PvP
-  // (pvp/pvp.service.ts) are treasury-eligible.
+  // Shared clan resource pool. Only the three ResourceType values (Metal/
+  // Crystal/Credits — the same ones poolable in PvP, pvp/pvp.service.ts) are
+  // treasury-eligible; tier-specific Upgrade materials stay personal-only.
   treasuryMetal   Int @default(0)
   treasuryCrystal Int @default(0)
   treasuryCredits Int @default(0)

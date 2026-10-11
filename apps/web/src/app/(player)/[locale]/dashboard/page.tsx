@@ -67,7 +67,6 @@ export default function DashboardPage() {
   const equippedCount = robot?.filter((slot) => slot.item !== null).length ?? 0;
   const unlockedZoneCount = zones?.filter((zone) => zone.unlocked).length ?? 0;
   const researchedCount = research?.researches.filter((r) => r.level > 0).length ?? 0;
-  const unlockedBossCount = bossFormations?.bosses.filter((boss) => boss.unlocked).length ?? 0;
 
   // Ordered by engagement type rather than onboarding order — same as
   // NAV_ITEMS (Sidebar/BottomNav), minus Command Center itself.
@@ -107,12 +106,6 @@ export default function DashboardPage() {
       navKey: 'nav.expeditions',
       href: '/expeditions',
       subtitle: expeditions?.active ? t('dashboard.expeditionsActive') : t('dashboard.expeditionsIdle'),
-    },
-    {
-      key: 'bosses',
-      navKey: 'nav.bosses',
-      href: '/bosses',
-      subtitle: bossFormations ? `${unlockedBossCount} ${t('dashboard.bossesAvailable')}` : '…',
     },
     {
       key: 'base',

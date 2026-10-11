@@ -2,6 +2,7 @@
 
 import type { BaseResponseDto, BuildingStateDto, InventoryItemDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
+import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
@@ -36,6 +37,7 @@ export default function BasePage() {
   const [data, setData] = useState<BaseResponseDto | null>(null);
   const [speedupItems, setSpeedupItems] = useState<InventoryItemDto[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [wallHover, setWallHover] = useState(false);
 
   async function load() {
     try {
@@ -78,6 +80,57 @@ export default function BasePage() {
       setError(t('base.speedupError'));
     }
   }
+
+  // Temporary base-grid mockup — the wall is 4 separate bar/corner elements
+  // laid out via CSS grid (not a padded border around the terrain)
+  // specifically so the hover/click color-change only fires on the wall
+  // segments themselves, never on the terrain rectangle between them.
+  // Real art from the owner: public/assets/buildings/defensive_wall.png
+  // (128x256, portrait — tiles top-to-bottom for the vertical bars as-is)
+  // and guard_tower.png (128x128 — reused for all 4 corners via rotation).
+  const wallThickness = 'clamp(22px, 5vw, 36px)';
+  const wallFilter = wallHover ? 'brightness(1.35)' : 'brightness(1)';
+  const wallGlow = wallHover ? '0 0 14px 2px rgba(93,234,255,0.55)' : 'none';
+  const wallTransition = { transition: 'filter 200ms, box-shadow 200ms' };
+  const wallSegmentProps = {
+    onMouseEnter: () => setWallHover(true),
+    onMouseLeave: () => setWallHover(false),
+    onClick: () => setWallHover((v) => v),
+    className: 'relative cursor-pointer',
+  };
+  function cornerStyle(rotateDeg: number): CSSProperties {
+    return {
+      backgroundImage: 'url(/assets/buildings/guard_tower.png)',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      transform: `rotate(${rotateDeg}deg)`,
+      filter: wallFilter,
+      boxShadow: wallGlow,
+      ...wallTransition,
+    };
+  }
+  const verticalStyle: CSSProperties = {
+    backgroundImage: 'url(/assets/buildings/defensive_wall.png)',
+    backgroundRepeat: 'repeat-y',
+    backgroundSize: `${wallThickness} auto`,
+    filter: wallFilter,
+    boxShadow: wallGlow,
+    ...wallTransition,
+  };
+  // defensive_wall.png is a portrait tile — the top/bottom bars reuse it
+  // rotated 90°. A plain CSS background can't rotate independently of its
+  // element, so the fill lives in an oversized (100vw-tall) absolutely
+  // positioned child that gets rotated and clipped by the parent's own
+  // overflow-hidden, instead of needing a second horizontal-oriented asset.
+  const horizontalOuterStyle: CSSProperties = { filter: wallFilter, boxShadow: wallGlow, ...wallTransition };
+  const horizontalFillStyle: CSSProperties = {
+    width: wallThickness,
+    height: '100vw',
+    backgroundImage: 'url(/assets/buildings/defensive_wall.png)',
+    backgroundRepeat: 'repeat-y',
+    backgroundSize: `${wallThickness} auto`,
+    transform: 'translate(-50%, -50%) rotate(90deg)',
+  };
 
   return (
     <GameLayout>
@@ -236,6 +289,64 @@ export default function BasePage() {
               </section>
             );
           })}
+        </div>
+      )}
+
+      {data && (
+        <div className="mt-10">
+          <p className="mb-3 text-xs text-textFaint">
+            Временен визуален макет — сградите, положени директно върху терен, без квадратчета (не е свързано с нищо, само за преглед):
+          </p>
+          <div
+            className="grid overflow-hidden rounded-xl"
+            style={{ gridTemplateColumns: `${wallThickness} 1fr ${wallThickness}`, gridTemplateRows: `${wallThickness} 1fr ${wallThickness}` }}
+          >
+            <div {...wallSegmentProps} style={cornerStyle(0)} />
+            <div {...wallSegmentProps} style={horizontalOuterStyle}>
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute left-1/2 top-1/2" style={horizontalFillStyle} />
+              </div>
+            </div>
+            <div {...wallSegmentProps} style={cornerStyle(90)} />
+
+            <div {...wallSegmentProps} style={verticalStyle} />
+            <div className="overflow-hidden p-4 sm:p-6" style={{ background: 'radial-gradient(ellipse at 50% 30%, #1b232c 0%, rgb(16, 23, 30) 100%)' }}>
+              <div className="grid justify-center gap-x-4 gap-y-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 120px))' }}>
+                {[
+                  ...data.buildings.map((b) => ({ key: b.key, label: t(b.nameKey), iconAssetId: b.iconAssetId, built: b.level > 0 })),
+                  // Примерни бъдещи сгради, само за да видим как изглежда грида с повече елементи — не са свързани с нищо
+                  { key: 'mock_command_center', label: 'Команден център', iconAssetId: 'buildings.mock.icon', built: false },
+                  { key: 'mock_hideout', label: 'Скривалище', iconAssetId: 'buildings.mock.icon', built: false },
+                  { key: 'mock_energy_core', label: 'Енергийно ядро', iconAssetId: 'buildings.mock.icon', built: false },
+                  { key: 'mock_research_institute', label: 'Научен институт', iconAssetId: 'buildings.mock.icon', built: false },
+                  { key: 'mock_expedition_hangar', label: 'Експедиционен хангар', iconAssetId: 'buildings.mock.icon', built: false },
+                ].map((building) => (
+                  <div key={building.key} className="flex flex-col items-center gap-1">
+                    <AssetIcon
+                      assetId={building.iconAssetId}
+                      alt={building.label}
+                      className={`h-16 w-16 object-contain drop-shadow-lg sm:h-24 sm:w-24 ${building.built ? '' : 'opacity-40 grayscale'}`}
+                      fallback={
+                        <div
+                          className={`h-14 w-14 rounded-sm bg-accent drop-shadow-lg sm:h-20 sm:w-20 ${building.built ? 'opacity-80' : 'opacity-20'}`}
+                        />
+                      }
+                    />
+                    <span className="rounded bg-black/40 px-1.5 py-0.5 text-[8px] text-white sm:text-[10px]">{building.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div {...wallSegmentProps} style={verticalStyle} />
+
+            <div {...wallSegmentProps} style={cornerStyle(270)} />
+            <div {...wallSegmentProps} style={horizontalOuterStyle}>
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute left-1/2 top-1/2" style={horizontalFillStyle} />
+              </div>
+            </div>
+            <div {...wallSegmentProps} style={cornerStyle(180)} />
+          </div>
         </div>
       )}
     </GameLayout>

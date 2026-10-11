@@ -53,8 +53,10 @@ season launch or a natural stopping point:
 
 ## Decisions log
 
-There is no dedicated running log of confirmed decisions in this repo.
-`OPEN_DECISIONS.md` tracks the opposite — things *not yet* decided. Git
-commit history is the closest thing to a chronological record today. If a
-real decision log becomes worth having, it should be a separate file, not a
-repurposing of `OPEN_DECISIONS.md`.
+`instructions/DECISIONS_LOG.md` holds the historical record of confirmed
+decisions and their rationale (split out of `OPEN_DECISIONS.md` on
+2026-10-11, which had grown into a mix of resolved history and genuinely open
+questions — expensive to load in full on every conversation for mostly-dead
+weight). It is deliberately **not** referenced via `@` from `CLAUDE.md`, so
+it's read on demand instead of auto-loaded every turn. `OPEN_DECISIONS.md`
+keeps tracking the opposite — things *not yet* decided.

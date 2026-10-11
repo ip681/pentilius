@@ -1,71 +1,65 @@
 # PENTILIUS — Open Decisions
 
-Do not silently decide these as permanent product rules.
+Do not silently decide these as permanent product rules. For the history and
+rationale behind decisions already made, see `instructions/DECISIONS_LOG.md`
+(not auto-loaded — read on demand) — this file only tracks what is still
+open or still a placeholder value.
 
 ## Milestone 1 placeholders (implemented but NOT final)
 
-To make Milestone 1 a working vertical slice, the following still-open items
-below got a temporary, clearly-isolated, data-driven stand-in value. None of
-these are design decisions — they are stubs so the loop runs end to end, and
-every one can be retuned without touching application code:
+Still-isolated, data-driven stand-in values — not final balance, but the
+system around each one is built end-to-end and can be retuned without
+touching application code. Full rationale: `instructions/DECISIONS_LOG.md`.
 
-- **XP curve** → `apps/api/prisma/seed.ts` `levelThresholds`. Owner decision (2026-10-11): player level cap raised to 100, for a seasonal (~6-month reset) model with the Core as true endgame rather than unbounded leveling — a flat max level is dramatically easier to balance PvE/PvP combat stats around than an open-ended one. There's no separate "max level" flag anywhere in the code; `applyXp()` (economy.service.ts) simply stops once no `LevelThreshold` row exists for the player's current level, so the cap is purely "don't seed a level-100 row" (level 99's row is the cost to go 99→100, the last one that matters). Levels 1-14 are untouched from the original curve (already live in production with real player progress). Levels 15-99 are new: a provisional power-law curve (`xpRequired = a * level^2.126`, fit to meet the existing level-14 value with no visible seam) — chosen over continuing the old curve's compounding-percentage growth, which was checked and blows up catastrophically past ~20 levels (an earlier attempt put level 100 alone at 253 million XP). True pacing against a real season length still depends on Pentili/boss XP rewards, which haven't been retuned for the new level range yet — this is a first pass, not a balance decision.
-- **Land unlock thresholds** → `Zone.unlockLevel` seed rows in `seed.ts`. Owner decision (2026-10-11, alongside the level-100 cap above): zones now unlock at levels 1 / 20 / 40 / 60 (previously 1 / 3 / ... under the old 1-14 curve) — spread across the new wider level range. Boss formations now unlock per-boss at 15 / 25 / 45 / 65 (`Boss.minLevel`, one boss per zone) — the first boss is a fixed 15 rather than its zone's own unlock level of 1 (too early), and each later boss is its own zone's `unlockLevel + 5`, giving a little gearing-up room after entering a new zone before its boss becomes available. This replaced the old single flat `GAME_BALANCE.bossFormations.minLevel` that gated all 4 bosses at the same player level regardless of difficulty.
-- **Pentili roster across the new 1-100 level range** → `apps/api/prisma/seed.ts`'s `pentiliData`. Owner decision (2026-10-11): rather than commission new art for a wider level range, every zone now has a full 10-entry roster reusing all 8 existing Pentili "looks" (same `nameKey`/`iconAssetId`), power-ordered (Skitterling weakest → Stormcaller strongest), with the strongest 2 (Voidling, Stormcaller) repeated once more per zone as a second, stronger encounter — no "Elite" wording anywhere, only the existing "(Lv. X)" label communicates the difference. The original 8 keys keep their original `zoneId` (only their `level`/stats moved to fit the zone's new, wider level slice) specifically so their existing tier-matched loot tables (Pioneer in zone 1, Ascendant in zone 2, Coreforged in zones 3-4) stay correct; every "borrowed" appearance of a creature in a zone it doesn't canonically belong to is a new key (e.g. `pentili_ridgefang_z1`) with no loot table yet — item drops for those 32 new entries are explicitly deferred, not part of this change. Stats follow a provisional power-law fit against the original 8 data points (`maxHp = 20*level^1.07`, `attack = 4*level^0.916`, `defense = level^1.249`, `xpReward = 8*level^1.3`) — a first pass, not a final balance decision. Owner decision: Pentili are **not** level-gated within an already-unlocked zone — all 10 are shown and attackable immediately, the player judges for themselves whether a given one is too strong (unlike bosses, which do have a per-boss `minLevel` gate and show greyed-out/inactive below it).
-- **Action Energy regeneration rate** → `apps/api/src/config/game-config.ts` (`actionEnergy.regenIntervalMinutes`).
-- **Item upgrade cost/success rules** → `game-config.ts` (`itemUpgrade.stonesPerLevel`); Milestone 1 has no failure chance or protection stones at all yet.
-- **Final damage formula** → `apps/api/src/pve/combat.service.ts` (a simple power-ratio win-probability model); isolated in one service specifically so it can be replaced without touching callers.
-- **Robot item catalog and Core Attributes** → the ship concept was replaced by a combat robot (owner decision) with a LOCKED 7-slot anatomy (Head/Left Arm/Right Arm/Armor/Core/Left Leg/Right Leg, see `instructions/GAME_SYSTEMS.md`). `apps/api/prisma/seed.ts`'s `itemData` is now 3 named sets — Pioneer/Ascendant/Coreforged (owner-named, see `instructions/GAME_SYSTEMS.md`) — one item per slot per set, not a final content list. The Core Attributes point-buy system's curves live in `game-config.ts`'s `robotAttributes` block. Owner decision (2026-09-09): both curves are now flat, not compounding — `pointsGrowthRate`/`attributeCostGrowthRate` are `0`, so every level grants a flat 3 points and every point in a stat costs a flat 1, regardless of level or current rank (previously 15%/20% compounding growth respectively). This removes the old "spreading points across stats is cheaper than stacking one" soft-cap and makes Evasion's hard cap (still 40 ranks = 20%, unaffected) trivially reachable early. Existing players' already-*paid* cost under the old exponential curve was refunded as available points via a one-off, uncommitted script run directly against production once, immediately after this change deployed — not part of the codebase, not re-runnable. Already-*earned* points from leveling were left untouched (the old growing curve already gave more than the new flat one would have, so there was no shortfall to top up there). If flat/flat proves too easy in practice, the owner's planned fix is a full attribute respec (reset spent points, refund the total, let players reallocate) rather than quietly reintroducing growth — not built, since it's only needed if this change turns out to be wrong. Evasion, critical hits (flat chance + multiplier), Damage Decrease and Damage Reflect are now built (`game-config.ts`'s `combat`/`itemOptionValues`/`itemOptionPools` blocks); Defense Success Rate and a "Combat Power" summary score remain deferred. Owner decision (2026-09-09): a fresh registration no longer grants the Pioneer starter kit or any starting attribute points (`Player.attributePointsAvailable` default 20→0; `ItemDefinition.isStarterItem` removed entirely from the schema, since nothing reads it anymore — `auth.service.ts`'s `register()` now just creates the player row). In its place, `game-config.ts`'s `GAME_BALANCE.combat` gained a small universal `baseAttack: 3`/`baseDefense: 2` floor (same idea as the pre-existing `basePlayerHp: 100`), sized so a bare, unequipped, 0-point robot beats only the single weakest Pentili in the first zone (`pentili_skitterling`) and loses to the next-weakest (`pentili_mossback`) — see `instructions/MILESTONES.md`'s updated success-flow ordering. This change is registration-time only: it does not retroactively strip items or points from already-registered players, but the new baseAttack/baseDefense floor is a combat-formula constant, so it does apply immediately to every existing player's combat stats (same as `basePlayerHp` always has).
-- **Epic items ("boxes/caches")** → the box item + opening mechanic is now built: 3 tier-matched boxes (`pioneer_box`/`ascendant_box`/`coreforged_box`, `seed.ts`) can be opened (`inventory.service.ts`'s `openBox`) for a guaranteed RARE (90%) or EPIC (10%, 2 Excellent options) item of that tier — `GAME_BALANCE.boxOpen.epicChance`, owner-specified. Race-locking on the granted item still follows the normal tier-based `rollRace()` rule, unchanged. Still undefined/deferred (owner decision): which activity actually drops a box, and at what chance — boxes are **Shop-only for now** (not in any loot table yet).
-- **Construction costs/times, building production rates** → `BuildingLevelCost` seed rows in `seed.ts`.
-- **Final resource list** → Milestone 1 ships Metal, Crystal, Oxygen, Credits, and Upgrade Stones (Oxygen currently has no producing building or use — placeholder field only).
-- **Race** → chosen at registration (`Player.race`, one of the five LOCKED races in `instructions/PRODUCT_SPEC.md`) but purely identity for now — no stat bonus is applied. Group synergy (`instructions/GAME_SYSTEMS.md`) only needs to count distinct races in a group, so it doesn't require per-race bonuses to exist yet.
-- **Expedition durations/rewards and the early-cancel payout** → `apps/api/prisma/seed.ts` `expeditionTypes` (60/300/600 minutes, GAME_SYSTEMS.md's own example) and `game-config.ts` (`expeditions.earlyCancelPercentage`, owner-specified at 70%, not a placeholder guess).
-- **Research branches/technology list/costs/effects** → Milestone 2 ships 4 technologies (`apps/api/prisma/seed.ts` `researchTypes`/`researchLevelCosts`: Metal Production, Crystal Production, Weapon Systems, Hull Engineering) each granting +5%/level (placeholder rate) up to level 5, applied in `EconomyService.getResearchMultiplier` (production) and `CombatService.computePlayerStats` (combat). Only one technology can be actively researching at a time (owner decision, 2026-09-11 — reversed from letting all 4 run in parallel, since with only 4 techs capped at level 5, parallel research let players exhaust the whole tree too quickly), same single-slot rule as expeditions and base building.
-- **Boss Formations (owner decision, 2026-09-11 — fully replaces the earlier open-lobby "Boss Hunts" model described in prior versions of this file):** 4 bosses, one per zone/Territory (`apps/api/prisma/seed.ts`'s `bossData`: Verdant Warden, Ridgeback Alpha, Crimson Harbinger, Frost Sovereign — the middle two pre-existing, the outer two new placeholder-stat content). A formation is a squad of exactly 5 hard race-locked slots (`BossFormationSlot`, one per `Race`) built against one boss — creating one auto-fills the creator's own race slot. Visibility (`visibleToClanOnly`/`visibleToFriendsOnly`) mirrors `MarketListing`'s boolean-union semantics exactly, editable by the creator only during the first `GAME_BALANCE.bossFormations.visibilityEditWindowHours` (2h) of the 3h enrollment window (`enrollmentWindowHours`). A single rolling 24h cooldown (`Player.nextBossFormationActionAt`, `actionCooldownHours`) covers both creating and joining — not two separate limits, and deliberately personal/rolling rather than a fixed global reset hour, to stay fair across timezones. No kick, and no self-leave once joined — the frontend gates both create and join behind `ConfirmButton`. Combat is one combined party-vs-boss fight (`combat.service.ts`'s `aggregateFormationCombatStats`, built on a new `computeCombatBreakdown`/`PlayerCombatBreakdown` split of the existing per-player `computePlayerStats`): raw stats sum per-player-factor-first, then Excellent-option percentages (`INCREASE_DAMAGE`/`CRITICAL_DAMAGE`/`INCREASE_MAX_HP`/`DAMAGE_DECREASE`, capped via `maxDamageDecrease`) are summed across every filled slot and applied ONCE to the combined total — deliberately stronger than solo combat's per-player-then-summed model. `DAMAGE_REFLECT` is excluded entirely (PvP-only). No contribution-weighted rewards: every participant of a WIN gets an equal XP split (`Math.floor(xpReward / filledSlotCount)`), the same guaranteed tier-matched box (`Boss.guaranteedBoxItemDefinitionId`, on top of the pre-existing independent `BossLootDrop` chance rolls, unchanged), and the fight's full `damageDealt` credited (not divided) to every winner's `BossFormationDailyPoints` row for that UTC calendar day — a separate fixed-00:00-UTC clock from the personal action cooldown, collected now but with no ranking/reward-tier UI yet (explicitly deferred). A loss gives nothing at all. Resolution is lazy (checked on next read, no cron), same pattern as buildings/research/expeditions. `minLevel` is now per-boss (15/25/45/65, owner decision 2026-10-11 — see the Land unlock thresholds bullet above; originally a flat 10 shared by all 4 bosses) and the new bosses' exact stats/art remain explicit placeholders per the owner's own "после ще го измислим." Full design history: `project_boss_formations.md` in the auto-memory store.
-- **PvP: exact power range, cooldowns, defender losses, protected resources, online defense bonus, PvP cost, ranking formula** → Milestone 3 ships a working foundation in `apps/api/src/pvp/`. Owner-specified (not placeholders): PvP unlocks at player level 5, and players below level 5 cannot be targeted; the attack spends 1 Action Energy (`game-config.ts` `pvp.attackCostEnergy`), reusing the existing resource rather than a separate PvP currency; a loss costs the defender a flat percentage of their current Metal/Crystal/Credits (`pvp.resourceStealPercentage`, 10%), transferred to the attacker. Placeholders: targeting is "random suitable opponent" among all level-5+ players (clan-filtered targeting waits for Milestone 4's clans); a per-attacker/defender cooldown (`pvp.attackCooldownMinutes`) excludes a recently-attacked defender from that attacker's next random pick; a losing defender gets a short revenge-protection window (`pvp.revengeProtectionMinutes`, `Player.pvpProtectedUntil`) excluding them from anyone's target pool. No ranking/leaderboard yet.
-- **Clans: member cap, roles, clan building list, contribution rules, clan-war rules** → Milestone 4 ships create/join/leave/roles, a shared treasury, and three clan buildings funded by it, in `apps/api/src/clans/`. Owner-specified: joining any clan is open (no invite/request system), mirroring the Boss Hunts precedent from before clans existed; the treasury is donate-only — nothing may be withdrawn back to a player, only spent on clan buildings; the three buildings are Member Hall (raises the effective member cap), Clan Forge (a combat attack/defense bonus for every member) and Clan Depot (a Metal/Crystal production bonus for every member) — chosen with the owner. Placeholders: three roles (LEADER/OFFICER/MEMBER — exact role set is UNDEFINED), a flat base member cap of 10 (`Clan.memberCap`, owner-specified) topped up by Member Hall's level × its bonusPerLevel (+2 slots/level, a flat count not a percentage), all three buildings develop up to level 10 (owner-specified), Clan Forge/Depot's bonusPerLevel (+5%/level, mirroring Research's rate, now up to +50% at level 10) stacks additively on top of a member's own personal research bonus (`player/clan-bonus.service.ts`), leader succession on leave goes to the longest-tenured officer, else the longest-tenured member, else the clan disbands, and lifetime per-member donation tracking (`ClanMembership.contributedMetal/Crystal/Credits`, resets on leaving) as a placeholder for "contribution rules." Only the leader or an officer may start a clan-building upgrade. Deliberately NOT built yet: clan-scoped boss hunts, contribution tracking toward the Core, and clan-vs-clan war systems.
+- **XP curve (levels 15-99)** → `apps/api/prisma/seed.ts`'s `levelThresholds`, a provisional power-law curve. Not yet balanced against real Pentili/boss XP income.
+- **Pentili stats across the expanded roster** → `seed.ts`'s `pentiliData` (`maxHp`/`attack`/`defense`/`xpReward` power-law formulas). First pass, not final balance.
+- **Action Energy regeneration rate** → `game-config.ts` (`actionEnergy.regenIntervalMinutes`).
+- **Item upgrade cost/success rules** → `game-config.ts` (`itemUpgrade.stonesPerLevel`); no failure chance or protection stones yet.
+- **Final damage formula** → `apps/api/src/pve/combat.service.ts` (a simple power-ratio win-probability model), isolated so it can be replaced without touching callers.
+- **Core Attributes point-buy curves** → flat, not compounding (`game-config.ts`'s `robotAttributes`). Defense Success Rate and a "Combat Power" summary score remain undecided (see Combat below).
+- **Epic items ("boxes/caches")** → built, Shop-only for now. Still undecided: which activity should drop a box, and at what chance.
+- **Construction costs/times, building production rates** → `BuildingLevelCost` seed rows.
+- **Research tree size/rate** → 4 technologies, +5%/level, cap level 5 — placeholder numbers, not a final tree.
+- **PvP placeholders** → targeting pool (random among level-5+ players), attack cooldown minutes, revenge-protection window minutes — see `game-config.ts`'s `pvp` block.
+- **Clan placeholders** → exact role set beyond LEADER/OFFICER/MEMBER, flat base member cap (10), Member Hall/Forge/Depot bonus rates — see `game-config.ts`.
+- **Boss Formations** → the 4 bosses' names/art are still placeholder-named (`boss_verdant_warden` etc. — combat stats themselves are now calibrated, see the log); no ranking/reward-tier UI for `BossFormationDailyPoints` yet.
 
 ## Races
-- individual per-race stat bonuses (group synergy by race *count* is separate and already specified in instructions/GAME_SYSTEMS.md)
-- race symbols/visual art (names and lore are LOCKED — see instructions/PRODUCT_SPEC.md)
-- Race-restricted advanced robot parts are now built, but as an **instance-level** stamp, not a per-definition restriction: `ItemInstance.race` is set at grant time (`inventory-capacity.ts`'s `grantItem`/`rollRace`), not `ItemDefinition.race`. Owner-specified odds per tier (see `instructions/GAME_SYSTEMS.md`): Pioneer always universal, Ascendant a 1/6-universal-vs-5/6-locked split (evenly across the 5 races), Coreforged always locked. Applies identically to loot and Shop purchases. `ItemDefinition.race` still exists (nullable, every seeded item `null`) and is reserved for a possible different future mechanic — a definition that's *always* one fixed race — which remains undecided/unbuilt.
+- individual per-race stat bonuses (group synergy by race *count* is separate and already specified in `instructions/GAME_SYSTEMS.md`)
+- race symbols/visual art (names and lore are LOCKED — see `instructions/PRODUCT_SPEC.md`)
+- `ItemDefinition.race` — a possible future always-one-fixed-race item *type*, distinct from the built instance-level race-lock stamp. Reserved, unbuilt, undecided.
 
 ## Progression
-- XP curve shape beyond the level-100 cap decision (see the Milestone 1 placeholders section above) — levels 15-99 are a provisional power-law formula, not yet balanced against real XP income
-- exact XP sources and values — Pentili XP rewards got a first-pass retune for the new 1-100 range (see the Milestone 1 placeholders section above); boss XP rewards are still the pre-level-100-cap values and haven't been touched
+- XP curve shape beyond the level-100 cap — levels 15-99 are still a provisional formula (see Milestone 1 placeholders above)
 - catch-up rules
 
 ## Combat
 - final damage formula
 - defense formula
-- critical mechanics beyond the flat 10% chance / ×1.5 base multiplier now built (`game-config.ts`'s `combat.criticalChance`/`criticalMultiplier`) — e.g. whether chance itself should ever be itemized
-- reflect caps — Damage Reflect itself is built (fixed +4% per item, no stacking cap yet)
-- damage reduction caps — Damage Decrease itself is built (fixed +4% per item, no stacking cap yet)
+- critical mechanics beyond the flat 10% chance / ×1.5 base multiplier (e.g. whether chance itself should ever be itemized)
+- reflect caps (Damage Reflect itself is built, fixed +4%/item, no stacking cap yet)
+- damage reduction caps (Damage Decrease itself is built, fixed +4%/item, no stacking cap yet)
 - online defense bonus
+- Defense Success Rate and a "Combat Power" summary score
 
 ## PvP
-- defender losses
+- defender losses beyond the flat 10% resource steal
 - protected resources
-- attack cooldowns
 - matchmaking range
 - PvP ranking
-- PvP costs
+- PvP costs beyond the flat 1 Action Energy
 
 ## Items
-- Smelting/Recycling (GAME_SYSTEMS.md): both halves are now built. "Sell" gives flat Metal/Crystal by tier+quality (`game-config.ts`'s `GAME_BALANCE.itemSell`, `inventory.service.ts`'s `sellItem`), ignoring upgradeLevel by design. "Recycle" instead grants 1 tier-matched fragment per item regardless of quality/upgradeLevel (`GAME_BALANCE.itemRecycle`, `inventory.service.ts`'s `recycleItem`), auto-converting every 20 fragments into that tier's own upgrade stone; the two remain independent choices on the same item, neither replacing the other.
-- System Shop (owner decision, not in GAME_SYSTEMS.md — distinct from the separate, still-unbuilt player-to-player Trading/auction): players can buy any `ItemDefinition` for a combination of Metal/Crystal/Credits (`apps/api/src/shop/`). Price lives per-item on `ItemDefinition.shopPriceMetal/shopPriceCrystal/shopPriceCredits` (0 = not required), so real pricing is a data change, not a code change. Currently seeded (`seed.ts`'s `SHOP_PRICE_COMBOS`) with small placeholder combinations purely to exercise every price-display case in the UI — final live pricing per item is UNDEFINED. A bought item is always NORMAL quality (no Rare/Excellent options from the Shop, owner decision) but rolls the same tier-based race-lock chance as a loot drop (see the Races section below) — the Shop displays the odds before purchase (`ShopItemDto.raceLockInfo`).
 - final slot list
-- rarity tiers beyond Rare — Epic's source (which activity's "box/cache") is undecided, see the bullet above
-- Excellent option values are fixed for the built options (game-config.ts's itemOptionValues); Defense Success Rate and stacking caps across multiple items remain undecided
+- rarity tiers beyond Rare — Epic's drop source is undecided (see Milestone 1 placeholders above)
+- Excellent option stacking caps across multiple items; Defense Success Rate
 - upgrade maximum
 - success/failure rules
-- race restrictions beyond Coreforged's instance-level stamp (see the Races section above)
+- race restrictions beyond Coreforged's instance-level stamp (see Races above)
 
 ## Resources
-- final resource list
+- final resource list beyond Metal/Crystal/Credits (Power exists only as an unbuilt base-capacity concept; Oxygen was dropped entirely, see `instructions/DECISIONS_LOG.md`)
 - production formulas
-- Oxygen mechanics
 - population mechanics
 - Power capacity formulas
 - resource caps
@@ -77,57 +71,36 @@ every one can be retuned without touching application code:
 - hideout rules
 
 ## Research
-- branches
-- technology list
-- costs
-- effects
+- final branch/technology list beyond the current 4 (see Milestone 1 placeholders above)
+- costs/effects beyond the current flat +5%/level
 
 ## Clans
-- member cap
-- roles
-- clan building list
-- contribution rules
-- clan-war rules
-
-## Bosses
-- group size
-- attempts
-- loot
-- boss timers
-- contribution calculation
+- final role set, clan building list beyond the current 3, contribution rules, clan-war rules (see Milestone 1 placeholders above)
 
 ## Notifications
 `instructions/GAME_SYSTEMS.md`'s Notifications section is LOCKED only for the
 Action Energy case ("notify when fully regenerated") and explicitly leaves
-"other notifications may be added later" open. These are that "later,"
-discussed but deferred (2026-09-10):
-- Friends chat: a dot next to a friend's name in the conversation list when
-  they have an unread message, and the list sorted by most recent
-  conversation activity instead of a fixed order. Needs a real read/unread
-  tracking mechanism first — there's currently no concept of a message being
-  "read" at all (no schema for it yet).
-- Two separate small badges on the "Friends" nav button (Sidebar/BottomNav/
-  Command Center Quick Access) — one for pending incoming friend requests
-  (already cheap to count, no new schema needed), one for unread messages
-  (needs the same read-tracking mechanism above). Deliberately two distinct
-  indicators, not one combined count, since they're different notification
-  types.
-- A Command Center notification when there's a pending friend request or
-  unread message — exact presentation still undecided: a small dismissable
-  banner near the top of the page (where the old "systems operating
-  normally" line used to be) vs. just badging the existing "Friends" Quick
-  Access tile. Whichever is chosen should reuse the same underlying counts as
-  the nav badges above, not a separate calculation.
-- A notification when someone buys one of your Market listings — not
-  designed at all yet (banner? nav badge? something else?).
+"other notifications may be added later" open. Discussed but deferred
+(2026-09-10):
+- Friends chat: an unread-message dot per friend, conversation list sorted by
+  recent activity instead of fixed order. Needs a real read/unread tracking
+  mechanism first — no such schema exists yet.
+- Two separate badges on the "Friends" nav button — pending friend requests
+  (cheap to count now) and unread messages (needs the tracking above).
+  Deliberately two distinct indicators, not one combined count.
+- A Command Center notification for pending requests/unread messages —
+  presentation undecided (dismissable banner vs. badging the existing
+  Quick Access tile). Should reuse the same counts as the nav badges, not a
+  separate calculation.
+- A notification when someone buys a Market listing — not designed at all.
 
 ## Daily tasks/events
 `instructions/GAME_SYSTEMS.md` has this as LOCKED direction (tasks exist, may
 unlock sequentially, repeated-action milestones may grant rewards, timed
 events use participation windows rather than one exact login time) but no
-specifics exist yet. Owner wants to think this through properly later
-(2026-09-10) — the actual task list, unlock sequencing, exact reward values,
-and how a "daily" reset lines up against server time are all still open.
+specifics exist yet — task list, unlock sequencing, reward values, and how a
+"daily" reset lines up against server time are all still open (owner wants to
+think this through properly later, discussed 2026-09-10).
 
 ## Seasons/Core
 - season length
@@ -147,10 +120,15 @@ and how a "daily" reset lines up against server time are all still open.
 - limits preventing pay-to-win
 
 ## Art
-(race symbols moved to the "Races" section below — names/lore are LOCKED)
 - final robot part layering
 - final Pentili visual catalogue
 - final zone art direction
+(race symbols are tracked in the Races section above)
 
 ## Mobile
 - mobile framework choice (candidate: React Native + Expo, for TS/React consistency)
+- app-store compliance pages (Privacy Policy, Terms/EULA, support contact, age
+  rating) — drafting not started (discussed 2026-10-11). In-app account/data
+  deletion and a report/block mechanism for user-generated content (Apple's
+  stricter UGC rules, triggered by usernames/clan names/chat) are real
+  backend engineering tasks, not just static pages, and aren't built yet.

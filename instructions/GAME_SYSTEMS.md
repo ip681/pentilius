@@ -161,7 +161,6 @@ Discussed examples:
 - resource production;
 - warehouse;
 - hideout;
-- atmospheric/oxygen processing;
 - power generation;
 - research.
 
@@ -189,11 +188,6 @@ Possible uses:
 Preferably base capacity rather than stockpiled currency.
 
 Buildings consume Power.
-
-### Oxygen
-Produced by processing Pentilius' atmosphere.
-
-Connected to colony survival/development.
 
 ### Credits
 Economic currency.

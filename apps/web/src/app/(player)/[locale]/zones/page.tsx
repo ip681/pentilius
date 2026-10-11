@@ -70,6 +70,22 @@ function wedgePath(startDeg: number, endDeg: number): string {
   ].join(' ');
 }
 
+/** Just the outer rim arc from startDeg..endDeg — used to highlight the selected zone's edge of the shared outer circle. */
+function outerArcPath(startDeg: number, endDeg: number): string {
+  const start = polarToXY(OUTER_R, startDeg);
+  const end = polarToXY(OUTER_R, endDeg);
+  const largeArc = endDeg - startDeg > 180 ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${OUTER_R} ${OUTER_R} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+}
+
+/** Same as outerArcPath but along the inner (Core-facing) edge — note the sweep flag flips since the inner edge is traversed the opposite way around. */
+function innerArcPath(startDeg: number, endDeg: number): string {
+  const start = polarToXY(INNER_R, startDeg);
+  const end = polarToXY(INNER_R, endDeg);
+  const largeArc = endDeg - startDeg > 180 ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${INNER_R} ${INNER_R} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+}
+
 export default function ZonesPage() {
   useRequireAuth();
   const t = useTranslations();
@@ -166,6 +182,9 @@ export default function ZonesPage() {
                   </clipPath>
                 );
               })}
+              <clipPath id="core-clip">
+                <circle cx={CENTER} cy={CENTER} r={INNER_R} />
+              </clipPath>
             </defs>
 
             {zones.map((zone) => {
@@ -173,7 +192,6 @@ export default function ZonesPage() {
               const endDeg = zone.order * step - WEDGE_GAP_DEG / 2;
               const midDeg = (startDeg + endDeg) / 2;
               const labelPos = polarToXY(LABEL_R, midDeg);
-              const isSelected = zone.id === selectedId;
               const labelWords = t(zone.nameKey).split(' ');
 
               return (
@@ -196,12 +214,6 @@ export default function ZonesPage() {
                     preserveAspectRatio="xMidYMid slice"
                     clipPath={`url(#wedge-clip-${zone.id})`}
                     className={`transition-opacity duration-150 ${zone.unlocked ? 'opacity-100' : 'opacity-35 grayscale'}`}
-                  />
-                  <path
-                    d={wedgePath(startDeg, endDeg)}
-                    fill="none"
-                    className={isSelected ? 'stroke-gold' : 'stroke-white/15'}
-                    strokeWidth={isSelected ? 3 : 1}
                   />
                   <text
                     x={labelPos.x}
@@ -231,52 +243,101 @@ export default function ZonesPage() {
               }}
               className="cursor-pointer outline-none"
             >
-              <circle
-                cx={CENTER}
-                cy={CENTER}
-                r={INNER_R}
-                className={`fill-panel ${selectedId === CORE_ID ? 'stroke-gold' : 'stroke-panelBorder'}`}
-                strokeWidth={selectedId === CORE_ID ? 3 : 2}
+              <image
+                href={assetUrl('zones.core')}
+                x={CENTER - INNER_R}
+                y={CENTER - INNER_R}
+                width={INNER_R * 2}
+                height={INNER_R * 2}
+                preserveAspectRatio="xMidYMid slice"
+                clipPath="url(#core-clip)"
+                className="opacity-35 grayscale"
               />
-              <text x={CENTER} y={CENTER - 6} textAnchor="middle" className="select-none fill-text text-[10px] font-semibold uppercase">
+              {/* Readability backdrop — the image behind the text can be bright/busy */}
+              <rect x={CENTER - INNER_R + 6} y={CENTER - 16} width={(INNER_R - 6) * 2} height={32} rx={6} className="fill-black/45" />
+              <text x={CENTER} y={CENTER - 6} textAnchor="middle" className="select-none fill-white text-[10px] font-semibold uppercase">
                 {t('zones.core')}
               </text>
-              <text x={CENTER} y={CENTER + 10} textAnchor="middle" className="select-none fill-textFaint text-[8px]">
+              <text x={CENTER} y={CENTER + 10} textAnchor="middle" className="select-none fill-white/80 text-[8px]">
                 {t('zones.coreComingSoon')}
               </text>
             </g>
+
+            {/* Structural lines — drawn once on top of every image/clip, shared
+                between all zones and the Core, instead of each wedge drawing its
+                own full outline (that duplicated the Core's own circle and made
+                adjacent edges look doubled/crooked, owner-reported 2026-10-11). */}
+            <circle cx={CENTER} cy={CENTER} r={OUTER_R} fill="none" className="stroke-white/15" strokeWidth={1} />
+            <circle cx={CENTER} cy={CENTER} r={INNER_R} fill="none" className="stroke-white/15" strokeWidth={1} />
+            {zones.map((zone) => {
+              const boundaryDeg = (zone.order - 1) * step;
+              // A boundary is highlighted if it's either the selected zone's own
+              // left edge, or the left edge of its next neighbor (= the selected
+              // zone's right edge, wrapping past the last zone back to the first).
+              const isSelectedEdge = selected && (zone.order === selected.order || zone.order === (selected.order % zones.length) + 1);
+              const inner = polarToXY(INNER_R, boundaryDeg);
+              const outer = polarToXY(OUTER_R, boundaryDeg);
+              return (
+                <line
+                  key={zone.id}
+                  x1={inner.x}
+                  y1={inner.y}
+                  x2={outer.x}
+                  y2={outer.y}
+                  className={isSelectedEdge ? 'stroke-gold' : 'stroke-white/15'}
+                  strokeWidth={isSelectedEdge ? 3 : 1}
+                />
+              );
+            })}
+            {selected && (
+              <>
+                <path
+                  d={outerArcPath((selected.order - 1) * step, selected.order * step)}
+                  fill="none"
+                  className="stroke-gold"
+                  strokeWidth={3}
+                />
+                <path
+                  d={innerArcPath((selected.order - 1) * step, selected.order * step)}
+                  fill="none"
+                  className="stroke-gold"
+                  strokeWidth={3}
+                />
+              </>
+            )}
+            {selectedId === CORE_ID && <circle cx={CENTER} cy={CENTER} r={INNER_R} fill="none" className="stroke-gold" strokeWidth={3} />}
           </svg>
 
           {selected && (
-            <div className="w-full max-w-sm sm:max-w-md md:max-w-xl lg:max-w-2xl rounded-lg border border-panelBorder bg-panel p-4">
-              <div className="flex items-center gap-3">
-                <div className={`h-14 w-14 shrink-0 overflow-hidden rounded-md bg-well ${selected.unlocked ? '' : 'opacity-50'}`}>
-                  <AssetIcon
-                    assetId={selected.iconAssetId}
-                    alt={t(selected.nameKey)}
-                    className="h-full w-full object-cover"
-                    fallback={<div className="flex h-full w-full items-center justify-center text-sm font-semibold text-textMuted">{t(selected.nameKey).charAt(0)}</div>}
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{t(selected.nameKey)}</p>
-                  {!selected.unlocked && (
-                    <p className="text-xs text-textMuted">
-                      {t('zones.unlocksAtLevel')} {selected.unlockLevel}
-                    </p>
-                  )}
-                </div>
-                {selected.unlocked ? (
-                  <Link href={`/zones/${selected.id}`} className="shrink-0 rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover">
-                    {t('zones.enter')}
-                  </Link>
-                ) : (
-                  <span className="shrink-0 text-xs text-textFaint">{t('zones.locked')}</span>
-                )}
+            <div className="relative w-full max-w-sm overflow-hidden rounded-lg border border-panelBorder sm:max-w-md md:max-w-xl lg:max-w-2xl">
+              {/* Zone art as the whole block's background, darkening toward the bottom so the
+                  Pentili/boss content stays readable (owner-requested experiment, 2026-10-11) */}
+              <div className="absolute inset-0">
+                <AssetIcon assetId={selected.iconAssetId} alt={t(selected.nameKey)} className="h-full w-full object-cover" fallback={<div className="h-full w-full bg-well" />} />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/55 to-black/85" />
               </div>
 
-              {selected.pentiliPreview.length > 0 && (
-                <div className={`mt-3 border-t border-panelBorder pt-3 ${selected.unlocked ? '' : 'pointer-events-none opacity-50'}`}>
+              <div className="relative z-10 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="inline-block rounded bg-black/55 px-1.5 py-0.5 font-medium text-white">{t(selected.nameKey)}</p>
+                    {!selected.unlocked && (
+                      <p className="mt-1 inline-block rounded bg-black/55 px-1.5 py-0.5 text-xs text-white/70">
+                        {t('zones.unlocksAtLevel')} {selected.unlockLevel}
+                      </p>
+                    )}
+                  </div>
+                  {selected.unlocked ? (
+                    <Link href={`/zones/${selected.id}`} className="shrink-0 rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover">
+                      {t('zones.enter')}
+                    </Link>
+                  ) : (
+                    <span className="shrink-0 text-xs text-white/70">{t('zones.locked')}</span>
+                  )}
+                </div>
+
+                {selected.pentiliPreview.length > 0 && (
+                  <div className={`mt-3 border-t border-white/10 pt-3 ${selected.unlocked ? '' : 'pointer-events-none'}`}>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {selected.pentiliPreview.map((pentili) => {
                       const isPicked = pentili.id === selectedPentiliId;
@@ -289,16 +350,18 @@ export default function ZonesPage() {
                             setSelectedPentiliId(pentili.id);
                             rememberPentili(selected.id, pentili.id);
                           }}
-                          className={`flex flex-col items-center gap-1 rounded-md border p-1.5 text-center ${isPicked ? 'border-gold bg-accentBgHover' : 'border-transparent hover:bg-accentBgHover'}`}
+                          className={`flex flex-col items-center gap-1 rounded-md border p-1.5 text-center ${isPicked ? 'border-gold bg-gold/20' : 'border-transparent hover:border-gold hover:bg-gold/20'}`}
                         >
                           <AssetIcon
                             assetId={pentili.iconAssetId}
                             alt={t(pentili.nameKey)}
-                            className="h-12 w-auto object-contain"
+                            className="h-12 w-auto object-contain drop-shadow"
                             fallback={<span className="flex h-12 w-12 items-center justify-center text-sm font-semibold text-textMuted">{t(pentili.nameKey).charAt(0)}</span>}
                           />
-                          <span className="text-[10px] text-textFaint">{t(pentili.nameKey)}</span>
-                          <span className="text-[9px] tabular-nums text-textFaint">
+                          <span className="rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white">
+                            {t(pentili.nameKey)} (Lv. {pentili.level})
+                          </span>
+                          <span className="rounded bg-black/55 px-1.5 py-0.5 text-[9px] tabular-nums text-white/80">
                             HP {pentili.maxHp} · ATK {pentili.attack} · DEF {pentili.defense}
                           </span>
                         </button>
@@ -321,7 +384,7 @@ export default function ZonesPage() {
               {/* Boss teaser — gold-accented so it reads as distinct from the plain Pentili
                   row above, same color language as the zone page's own boss panel. */}
               {selectedBoss && (
-                <div className="mt-3 border-t border-panelBorder pt-3">
+                <div className="mt-3 border-t border-white/10 pt-3">
                   {selectedBoss.unlocked ? (
                     <Link
                       href={`/zones/${selected.id}?boss=1`}
@@ -350,16 +413,16 @@ export default function ZonesPage() {
                       </div>
                     </Link>
                   ) : (
-                    // Visible but inactive — shown greyed out/desaturated rather than hidden, same
-                    // treatment as a locked zone wedge, so the player can see what's ahead.
-                    <div className="flex items-center gap-4 rounded-md border border-gold/50 bg-well p-2.5 opacity-40 grayscale">
+                    // Visible but inactive — icon/text greyed out rather than the whole card, so
+                    // the bg-well backing stays solid instead of letting the zone art bleed through.
+                    <div className="flex items-center gap-4 rounded-md border border-gold/50 bg-well p-2.5">
                       <AssetIcon
                         assetId={selectedBoss.iconAssetId}
                         alt={t(selectedBoss.nameKey)}
-                        className="h-20 w-20 shrink-0 object-contain"
+                        className="h-20 w-20 shrink-0 object-contain opacity-40 grayscale"
                         fallback={<span className="flex h-20 w-20 items-center justify-center text-sm font-semibold text-textMuted">{t(selectedBoss.nameKey).charAt(0)}</span>}
                       />
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 opacity-60">
                         <p className="truncate text-xs font-semibold uppercase text-gold">{t(selectedBoss.nameKey)}</p>
                         <div className="mt-1 flex flex-col text-[10px] text-textMuted">
                           <span>HP {selectedBoss.maxHp}</span>
@@ -376,13 +439,26 @@ export default function ZonesPage() {
                   )}
                 </div>
               )}
+              </div>
             </div>
           )}
 
           {selectedId === CORE_ID && (
-            <div className="w-full max-w-sm sm:max-w-md md:max-w-xl lg:max-w-2xl rounded-lg border border-panelBorder bg-panel p-4 text-center">
-              <p className="font-medium uppercase">{t('zones.core')}</p>
-              <p className="mt-1 text-xs text-textMuted">{t('zones.coreComingSoon')}</p>
+            <div className="w-full max-w-sm sm:max-w-md md:max-w-xl lg:max-w-2xl rounded-lg border border-panelBorder bg-panel p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-well opacity-50">
+                  <AssetIcon
+                    assetId="zones.core"
+                    alt={t('zones.core')}
+                    className="h-full w-full object-cover"
+                    fallback={<div className="flex h-full w-full items-center justify-center text-sm font-semibold text-textMuted">{t('zones.core').charAt(0)}</div>}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{t('zones.core')}</p>
+                  <p className="text-xs text-textMuted">{t('zones.coreComingSoon')}</p>
+                </div>
+              </div>
             </div>
           )}
         </div>
