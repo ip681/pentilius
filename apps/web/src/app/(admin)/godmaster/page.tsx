@@ -149,7 +149,16 @@ function LoginForm({ onLogin }: { onLogin: (token: string) => void }) {
   );
 }
 
+const TABS = [
+  { key: 'server', label: 'Сървър' },
+  { key: 'players', label: 'Играчи' },
+  { key: 'admins', label: 'Админи' },
+] as const;
+type AdminTab = (typeof TABS)[number]['key'];
+
 function AdminPanel({ onLogout, role }: { onLogout: () => void; role: string | null }) {
+  const [tab, setTab] = useState<AdminTab>('server');
+
   // One selected player for the whole panel — search once here, every form
   // below (grant resource/item, ban/rename) acts on this same player instead
   // of each form asking for a username separately.
@@ -172,26 +181,52 @@ function AdminPanel({ onLogout, role }: { onLogout: () => void; role: string | n
       .finally(() => setLoading(false));
   }
 
+  const visibleTabs = TABS.filter((t) => t.key !== 'admins' || role === 'ADMIN');
+
   return (
     <div className="flex flex-col gap-8">
-      <button type="button" onClick={onLogout} className="w-fit rounded-md border border-panelBorder bg-panel px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover">
-        Изход
-      </button>
-      <ServerStatusPanel />
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          {visibleTabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={`rounded-md border px-3 py-1.5 text-xs ${tab === t.key ? 'border-accent bg-accentBg' : 'border-panelBorder bg-panel text-textMuted hover:bg-accentBgHover'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={onLogout} className="w-fit rounded-md border border-panelBorder bg-panel px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover">
+          Изход
+        </button>
+      </div>
 
-      <section className="rounded-lg border border-panelBorder bg-panel p-4">
-        <h2 className="mb-3 text-sm font-semibold">Играч</h2>
-        <PlayerAutocomplete value={username} onChange={setUsername} onSelect={loadPlayer} />
-        {loading && <p className="mt-3 text-xs text-textFaint">Зареждане...</p>}
-        {error && <p className="mt-3 text-xs text-danger">{error}</p>}
-        {detail && <PlayerDetailView detail={detail} onReload={loadPlayer} />}
-      </section>
+      {tab === 'server' && (
+        <>
+          <ServerStatusPanel />
+          <BackupsPanel />
+        </>
+      )}
 
-      <GrantResourceForm username={username} onGranted={() => loadPlayer(username)} />
-      <GrantItemForm username={username} onGranted={() => loadPlayer(username)} />
-      <BackupsPanel />
-      <RecentActivityPanel />
-      {role === 'ADMIN' && <AdminAccountsPanel />}
+      {tab === 'players' && (
+        <>
+          <section className="rounded-lg border border-panelBorder bg-panel p-4">
+            <h2 className="mb-3 text-sm font-semibold">Играч</h2>
+            <PlayerAutocomplete value={username} onChange={setUsername} onSelect={loadPlayer} />
+            {loading && <p className="mt-3 text-xs text-textFaint">Зареждане...</p>}
+            {error && <p className="mt-3 text-xs text-danger">{error}</p>}
+            {detail && <PlayerDetailView detail={detail} onReload={loadPlayer} />}
+          </section>
+
+          <GrantResourceForm username={username} onGranted={() => loadPlayer(username)} />
+          <GrantItemForm username={username} onGranted={() => loadPlayer(username)} />
+          <RecentActivityPanel />
+        </>
+      )}
+
+      {tab === 'admins' && role === 'ADMIN' && <AdminAccountsPanel />}
     </div>
   );
 }
@@ -481,14 +516,17 @@ function ServerStatusPanel() {
             <StatBox
               label="Натоварване (1м)"
               value={`${server.load['1m'].toFixed(2)} / ${server.load.cpuCores} ядра (${Math.round((server.load['1m'] / server.load.cpuCores) * 100)}%)`}
+              percent={(server.load['1m'] / server.load.cpuCores) * 100}
             />
             <StatBox
               label="Памет"
               value={`${(server.memory.usedMb / 1024).toFixed(1)} / ${(server.memory.totalMb / 1024).toFixed(1)} GB (${Math.round((server.memory.usedMb / server.memory.totalMb) * 100)}%)`}
+              percent={(server.memory.usedMb / server.memory.totalMb) * 100}
             />
             <StatBox
               label="Диск"
               value={`${(server.disk.usedKb / 1024 / 1024).toFixed(1)} / ${(server.disk.totalKb / 1024 / 1024).toFixed(1)} GB (${server.disk.usePercent}%)`}
+              percent={server.disk.usePercent}
             />
             <StatBox
               label="Последен бекъп"
@@ -501,7 +539,10 @@ function ServerStatusPanel() {
             <div className="flex flex-col gap-1">
               {server.containers.map((c) => (
                 <div key={c.name} className="flex items-center justify-between rounded-md border border-wellBorder bg-well px-3 py-1.5">
-                  <span>{c.service}</span>
+                  <span className="flex items-center gap-2">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${c.state === 'running' ? 'bg-positive' : 'bg-danger'}`} />
+                    {c.service}
+                  </span>
                   <span className={c.state === 'running' ? 'text-positive' : 'text-danger'}>{c.status}</span>
                 </div>
               ))}
@@ -525,11 +566,23 @@ function ServerStatusPanel() {
   );
 }
 
-function StatBox({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' }) {
+function StatBox({ label, value, tone, percent }: { label: string; value: string; tone?: 'good' | 'bad'; percent?: number }) {
   return (
     <div className="rounded-md border border-wellBorder bg-well px-3 py-2">
       <p className="text-[10px] text-textFaint">{label}</p>
       <p className={tone === 'good' ? 'text-positive' : tone === 'bad' ? 'text-danger' : ''}>{value}</p>
+      {percent !== undefined && <UsageBar percent={percent} />}
+    </div>
+  );
+}
+
+/** Green below 75%, gold 75-90%, red above — thresholds are a rough eyeball guide, not alerting. */
+function UsageBar({ percent }: { percent: number }) {
+  const clamped = Math.min(100, Math.max(0, percent));
+  const color = percent >= 90 ? 'bg-danger' : percent >= 75 ? 'bg-gold' : 'bg-positive';
+  return (
+    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-panel">
+      <div className={`h-full rounded-full ${color} transition-[width]`} style={{ width: `${clamped}%` }} />
     </div>
   );
 }
@@ -835,17 +888,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/** Lists the local VPS backup files (same ones the server-status panel already reads a log for) with a download-through-the-API button per row. */
+/** Lists the local VPS backup files (same ones the server-status panel already reads a log for) with a download-through-the-API button per row. Collapsed by default — rarely needed, so it shouldn't take up permanent space in the main view. */
 function BackupsPanel() {
+  const [open, setOpen] = useState(false);
   const [backups, setBackups] = useState<BackupFile[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!open || backups !== null) return;
     adminFetch<BackupFile[]>('/admin/backups')
       .then(setBackups)
       .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
-  }, []);
+  }, [open, backups]);
 
   async function handleDownload(filename: string) {
     setDownloading(filename);
@@ -861,29 +916,36 @@ function BackupsPanel() {
 
   return (
     <section className="rounded-lg border border-panelBorder bg-panel p-4">
-      <h2 className="mb-3 text-sm font-semibold">Бекъпи</h2>
-      {error && <p className="mb-2 text-xs text-danger">{error}</p>}
-      {!backups ? (
-        <p className="text-xs text-textFaint">Зареждане...</p>
-      ) : backups.length === 0 ? (
-        <p className="text-xs text-textFaint">Няма намерени бекъпи</p>
-      ) : (
-        <div className="flex flex-col gap-1">
-          {backups.map((backup) => (
-            <div key={backup.filename} className="flex items-center justify-between gap-2 rounded-md border border-wellBorder bg-well px-3 py-1.5 text-xs">
-              <span className="truncate">{backup.filename}</span>
-              <span className="shrink-0 text-textFaint">{formatBytes(backup.sizeBytes)}</span>
-              <span className="shrink-0 text-textFaint">{new Date(backup.createdAt).toLocaleString('bg-BG')}</span>
-              <button
-                type="button"
-                onClick={() => handleDownload(backup.filename)}
-                disabled={downloading === backup.filename}
-                className="shrink-0 rounded-md border border-panelBorder px-2 py-1 text-[11px] hover:bg-accentBgHover disabled:opacity-50"
-              >
-                {downloading === backup.filename ? '...' : 'Изтегли'}
-              </button>
+      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between text-left">
+        <h2 className="text-sm font-semibold">Бекъпи</h2>
+        <span className="text-xs text-textFaint">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-3">
+          {error && <p className="mb-2 text-xs text-danger">{error}</p>}
+          {!backups ? (
+            <p className="text-xs text-textFaint">Зареждане...</p>
+          ) : backups.length === 0 ? (
+            <p className="text-xs text-textFaint">Няма намерени бекъпи</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {backups.map((backup) => (
+                <div key={backup.filename} className="flex items-center justify-between gap-2 rounded-md border border-wellBorder bg-well px-3 py-1.5 text-xs">
+                  <span className="truncate">{backup.filename}</span>
+                  <span className="shrink-0 text-textFaint">{formatBytes(backup.sizeBytes)}</span>
+                  <span className="shrink-0 text-textFaint">{new Date(backup.createdAt).toLocaleString('bg-BG')}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(backup.filename)}
+                    disabled={downloading === backup.filename}
+                    className="shrink-0 rounded-md border border-panelBorder px-2 py-1 text-[11px] hover:bg-accentBgHover disabled:opacity-50"
+                  >
+                    {downloading === backup.filename ? '...' : 'Изтегли'}
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </section>
