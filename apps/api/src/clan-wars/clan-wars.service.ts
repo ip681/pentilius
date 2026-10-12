@@ -12,6 +12,7 @@ import {
 } from '@pentilius/shared';
 import { ClanMembership, ClanWar, ClanWarAttack, ClanWarOutcome, Player, Prisma } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
+import { getHideoutProtection, stealableAmount } from '../player/base-defense';
 import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { CombatService, toStatsDto } from '../pve/combat.service';
 import { EconomyService } from '../player/economy.service';
@@ -162,7 +163,8 @@ export class ClanWarsService {
             attackableAt = cooldownEnd;
           }
         }
-        const stats = await this.combat.computePlayerStats(member.playerId, this.prisma);
+        // Shown as a target — i.e. as a defender, so include their Defense System.
+        const stats = await this.combat.computePlayerStats(member.playerId, this.prisma, { defending: true });
         return {
           playerId: member.playerId,
           username: member.player.username,
@@ -228,7 +230,7 @@ export class ClanWarsService {
 
       const [attackerStats, defenderStats] = await Promise.all([
         this.combat.computePlayerStats(attackerId, tx),
-        this.combat.computePlayerStats(defenderId, tx),
+        this.combat.computePlayerStats(defenderId, tx, { defending: true }),
       ]);
 
       const result = this.combat.simulate(attackerStats, {
@@ -240,9 +242,11 @@ export class ClanWarsService {
 
       const lootSummary: LootResultEntryDto[] = [];
       if (result.won) {
+        // The defender's Hideout keeps a fixed amount of each resource out of reach.
+        const hideout = await getHideoutProtection(defenderId, tx);
         for (const resourceType of STEALABLE_RESOURCES) {
           const field = RESOURCE_FIELD[resourceType as 'METAL' | 'CRYSTAL' | 'CREDITS'];
-          const quantity = Math.floor(settledDefender[field] * GAME_BALANCE.pvp.resourceStealPercentage);
+          const quantity = Math.floor(stealableAmount(settledDefender[field], hideout[field]) * GAME_BALANCE.pvp.resourceStealPercentage);
           if (quantity <= 0) continue;
 
           await tx.player.update({ where: { id: attackerId }, data: { [field]: { increment: quantity } } });

@@ -21,6 +21,10 @@ import type {
   ClanWarTargetDto,
   CombatReportDto,
   CombatStatsDto,
+  CoreAttackResultDto,
+  CorePlayerRankingPageDto,
+  CorePlayerRankingScope,
+  CoreStateDto,
   CosmeticsCatalogDto,
   DirectMessageDto,
   ExpeditionClaimResultDto,
@@ -513,6 +517,22 @@ export function donateToClan(payload: { metal?: number; crystal?: number; credit
 
 export function upgradeClanBuilding(key: string): Promise<ClanDetailDto> {
   return request<ClanDetailDto>(`/clans/buildings/${key}/upgrade`, { method: 'POST', auth: true });
+}
+
+export function activateClanBuilding(key: string): Promise<ClanDetailDto> {
+  return request<ClanDetailDto>(`/clans/buildings/${key}/activate`, { method: 'POST', auth: true });
+}
+
+export function getCoreState(): Promise<CoreStateDto> {
+  return request<CoreStateDto>('/core', { auth: true });
+}
+
+export function getCorePlayerRanking(scope: CorePlayerRankingScope, page: number): Promise<CorePlayerRankingPageDto> {
+  return request<CorePlayerRankingPageDto>(`/core/players?scope=${scope}&page=${page}`, { auth: true });
+}
+
+export function attackCore(): Promise<CoreAttackResultDto> {
+  return request<CoreAttackResultDto>('/core/attack', { method: 'POST', auth: true });
 }
 
 export function getClanMessages(clanId: string): Promise<ClanMessageDto[]> {

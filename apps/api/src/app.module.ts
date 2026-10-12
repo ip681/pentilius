@@ -17,6 +17,7 @@ import { PveModule } from './pve/pve.module';
 import { PvpModule } from './pvp/pvp.module';
 import { ReportsModule } from './reports/reports.module';
 import { ResearchModule } from './research/research.module';
+import { SeasonModule } from './season/season.module';
 import { RobotModule } from './robot/robot.module';
 import { ShopModule } from './shop/shop.module';
 import { ZonesModule } from './zones/zones.module';
@@ -38,6 +39,7 @@ import { ZonesModule } from './zones/zones.module';
     PvpModule,
     ClansModule,
     ClanWarsModule,
+    SeasonModule,
     ReportsModule,
     ShopModule,
     FriendsModule,

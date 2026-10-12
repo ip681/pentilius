@@ -1,12 +1,12 @@
 'use client';
 
-import type { BaseResponseDto, BossFormationsResponseDto, ClanWarStateDto, ExpeditionsResponseDto, MyClanResponseDto, PvpStatusDto, ResearchResponseDto, RobotSlotDto, ZoneDto } from '@pentilius/shared';
+import type { BaseResponseDto, BossFormationsResponseDto, ClanWarStateDto, CoreStateDto, ExpeditionsResponseDto, MyClanResponseDto, PvpStatusDto, ResearchResponseDto, RobotSlotDto, ZoneDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
 import { Link } from '@/i18n/navigation';
-import { getBase, getBossFormations, getClanWarStatus, getExpeditions, getMyClan, getPvpStatus, getResearches, getRobot, getZones } from '@/lib/api-client';
+import { getBase, getBossFormations, getClanWarStatus, getCoreState, getExpeditions, getMyClan, getPvpStatus, getResearches, getRobot, getZones } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
@@ -37,6 +37,7 @@ export default function DashboardPage() {
   const [myClan, setMyClan] = useState<MyClanResponseDto | null>(null);
   const [pvpStatus, setPvpStatus] = useState<PvpStatusDto | null>(null);
   const [clanWar, setClanWar] = useState<ClanWarStateDto | null>(null);
+  const [core, setCore] = useState<CoreStateDto | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   async function load() {
@@ -48,6 +49,7 @@ export default function DashboardPage() {
     getBossFormations().then(setBossFormations).catch(() => undefined);
     getMyClan().then(setMyClan).catch(() => undefined);
     getPvpStatus().then(setPvpStatus).catch(() => undefined);
+    getCoreState().then(setCore).catch(() => undefined);
     getClanWarStatus()
       .then((res) => setClanWar(res.war))
       .catch(() => undefined);
@@ -140,6 +142,34 @@ export default function DashboardPage() {
   ];
 
   const operations: OperationRow[] = [];
+
+  // Seasons and the Core (owner decision, 2026-10-12): the Core's countdown
+  // and the clan Tavern's state are shown to every player here.
+  if (core?.status === 'SCHEDULED' && core.opensAt) {
+    operations.push({
+      key: 'core',
+      label: t('dashboard.coreOpensIn'),
+      secondsLeft: Math.max(0, Math.ceil((new Date(core.opensAt).getTime() - now) / 1000)),
+      href: '/core',
+    });
+  } else if (core?.status === 'OPEN' && core.endsAt) {
+    operations.push({
+      key: 'core',
+      label: t('dashboard.coreOpenEndsIn'),
+      secondsLeft: Math.max(0, Math.ceil((new Date(core.endsAt).getTime() - now) / 1000)),
+      href: '/core',
+    });
+  }
+  // Only an ACTIVE Tavern is shown (with its countdown) — an inactive one is
+  // deliberately silent here, to keep the Command Center free of noise (owner decision).
+  if (core?.tavern?.active && core.tavern.activeUntil) {
+    operations.push({
+      key: 'tavern',
+      label: t('dashboard.tavernActive', { percent: core.tavern.bonusPercent }),
+      secondsLeft: Math.max(0, Math.ceil((new Date(core.tavern.activeUntil).getTime() - now) / 1000)),
+      href: '/clans',
+    });
+  }
 
   if (clanWar) {
     const secondsLeft = Math.ceil((new Date(clanWar.endsAt).getTime() - now) / 1000);

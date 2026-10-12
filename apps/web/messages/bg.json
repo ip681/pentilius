@@ -110,7 +110,10 @@
     "atWarWith": "Воювате с {clan}",
     "activeOperations": "Активни операции",
     "noActiveOperations": "В момента нищо не тече — пусни строеж, изследване или експедиция, за да оползотвориш времето си.",
-    "quickAccess": "Бърз достъп"
+    "quickAccess": "Бърз достъп",
+    "coreOpensIn": "Ядрото се отваря след",
+    "coreOpenEndsIn": "Ядрото е отворено — остават",
+    "tavernActive": "Кръчмата е активна (+{percent}% срещу босове и Ядрото)"
   },
   "base": {
     "title": "База",
@@ -131,7 +134,15 @@
     "perHour": "час",
     "noEffect": "Все още без ефект",
     "inventorySlots": "места в инвентара",
-    "marketSlots": "обяви в пазара"
+    "marketSlots": "обяви в пазара",
+    "upgradeAvailable": "Имаш достатъчно ресурси за подобрение",
+    "defenseBonus": "+{percent}% защита",
+    "defenseBonusNote": "Действа само когато друг играч те атакува (PvP и дуели в кланова война), никога при твоите атаки.",
+    "constructing": "Строи се: {building} → ниво {level}",
+    "pvpProtectionBonus": "+{minutes} мин защита след загубена PvP защита",
+    "pvpProtectionNote": "Само за обикновено PvP: след като друг играч те победи, толкова по-дълго никой не може да те атакува отново. Не важи за клановата война.",
+    "protectedResources": "{metal} Метал, {crystal} Кристал, {credits} Кредити на сигурно",
+    "protectedResourcesNote": "Когато друг играч те победи (PvP или дуел в кланова война), това количество от всеки ресурс не може да бъде откраднато."
   },
   "robot": {
     "title": "Робот",
@@ -211,7 +222,11 @@
     "coreComingSoon": "Очаквайте скоро",
     "selectHint": "Избери земя от планетата",
     "bossOpenFormations": "{count} отворени формации",
-    "bossNoFormations": "Няма отворени формации"
+    "bossNoFormations": "Няма отворени формации",
+    "enterCore": "Влез в Ядрото",
+    "coreTimeLeft": "Остават: {time}",
+    "coreCallToAction": "Стана време да превземем Ядрото, за да поставим основите на новата цивилизация.",
+    "coreStandings": "Класиране"
   },
   "pve": {
     "title": "Бой",
@@ -489,6 +504,7 @@
     "buildingLevel": "Ниво",
     "buildingInProgress": "В строеж",
     "buildingMaxLevel": "Достигнато максимално ниво",
+    "buildingUpgradeAvailable": "В хазната има достатъчно за подобрение",
     "upgradeBuilding": "Подобри",
     "upgradeError": "Сградата не можа да бъде подобрена.",
     "promote": "Повиши",
@@ -581,12 +597,25 @@
       "damage": "Щета",
       "defense": "Защита",
       "evasion": "Уклон"
+    },
+    "tavern": {
+      "active": "Активна",
+      "inactive": "Неактивна",
+      "costPer": "Цена за {hours} ч:",
+      "activate": "Активирай",
+      "activateError": "Кръчмата не можа да се активира.",
+      "errorAlreadyActive": "Кръчмата вече е активна.",
+      "errorNotBuilt": "Първо построй Кръчмата."
     }
   },
   "clanBuildings": {
     "member_hall": { "name": "Зала на членовете", "description": "Увеличава максималния брой членове на клана." },
     "clan_forge": { "name": "Клан ковачница", "description": "Дава на всеки член бонус към атака и защита в бой." },
-    "clan_depot": { "name": "Клан производство", "description": "Дава на всеки член бонус към производството на метал и кристал." }
+    "clan_depot": { "name": "Клан производство", "description": "Дава на всеки член бонус към производството на метал и кристал." },
+    "clan_tavern": {
+      "name": "Кръчма",
+      "description": "Докато е активна, дава на всеки член допълнителна щета срещу босове и Ядрото."
+    }
   },
   "pvp": {
     "title": "PvP Битки",
@@ -668,9 +697,12 @@
   },
   "buildings": {
     "metal_mine": { "name": "Метална мина" },
-    "crystal_extractor": { "name": "Кристален извлекател" },
+    "crystal_extractor": { "name": "Кристална мина" },
     "warehouse": { "name": "Склад" },
-    "trading_post": { "name": "Търговски пункт" }
+    "trading_post": { "name": "Търговски пункт" },
+    "defense_system": { "name": "Отбранителна система" },
+    "defensive_wall": { "name": "Защитна стена" },
+    "hideout": { "name": "Скривалище" }
   },
   "items": {
     "pioneer_head_scanner": { "name": "Pioneer Глава-скенер", "description": "Базов сензор за прицелване." },
@@ -707,5 +739,34 @@
     "energy_pack_large": { "name": "Голям пакет енергия", "description": "Възстановява веднага 10 Action Energy." },
     "construction_speedup_small": { "name": "Малък строителен комплект", "description": "Намалява оставащото време за строеж на сграда с 5 минути." },
     "construction_speedup_large": { "name": "Голям строителен комплект", "description": "Намалява оставащото време за строеж на сграда с 10 минути." }
+  },
+  "core": {
+    "title": "Ядрото",
+    "seasonLabel": "Сезон {season}",
+    "loading": "Зареждане…",
+    "loadError": "Ядрото не можа да се зареди.",
+    "notScheduled": "Ядрото още няма дата на отваряне.",
+    "opensIn": "Ядрото се отваря след {time}",
+    "endsIn": "Ядрото е отворено — остават {time} (от {days} дни)",
+    "endedWinner": "Сезонът приключи. Победител: {clan}",
+    "endedNoWinner": "Сезонът приключи. Нито един клан не атакува Ядрото.",
+    "rulesSummary": "Всяка точка щета, която роботът ти нанесе на Ядрото, се брои за клана ти. Кланът с най-много щета при изтичане на времето печели сезона.",
+    "joinClanFirst": "Само членове на клан могат да атакуват Ядрото. Първо влез в клан или създай свой:",
+    "myDamage": "Твоята щета този сезон",
+    "tavernActive": "Кръчмата е активна: +{percent}% щета",
+    "attack": "Атакувай ({energy} енергия)",
+    "attackCooldown": "Презарежда… {seconds} сек",
+    "lastAttack": "Последна атака",
+    "lastAttackSummary": "Нанесе {damage} щета и издържа {rounds}/{maxRounds} рунда (пое {taken} щета).",
+    "standings": "Класиране на клановете",
+    "noStandings": "Още нито един клан не е нанесъл щета на Ядрото.",
+    "attackError": "Атаката не успя.",
+    "errorNotOpen": "Ядрото не е отворено в момента.",
+    "errorNotInClan": "Трябва да си в клан, за да атакуваш Ядрото.",
+    "errorNotEnoughEnergy": "Нямаш достатъчно енергия.",
+    "errorCooldown": "Роботът още се презарежда — опитай след няколко секунди.",
+    "errorExpedition": "Не можеш да атакуваш, докато си на експедиция.",
+    "topPlayers": "Най-голям принос",
+    "noPlayerDamage": "Още няма нанесена щета."
   }
 }

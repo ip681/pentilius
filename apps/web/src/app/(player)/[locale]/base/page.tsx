@@ -1,10 +1,11 @@
 'use client';
 
-import type { BaseResponseDto, BuildingStateDto, InventoryItemDto } from '@pentilius/shared';
+import type { BaseResponseDto, BuildingStateDto, InventoryItemDto, ResourcesDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
+import { BottomSheet } from '@/components/BottomSheet';
 import { GameLayout } from '@/components/GameLayout';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, consumeItem, getBase, getInventory, upgradeBuilding } from '@/lib/api-client';
@@ -31,13 +32,30 @@ function buildingProgress(building: BuildingStateDto): { active: boolean; percen
   return { active: true, percent, secondsLeft };
 }
 
+// Drawn as parts of the wall frame instead of tiles on the terrain:
+// the 4 corner towers and the 4 wall segments.
+const DEFENSE_SYSTEM_KEY = 'defense_system';
+const DEFENSIVE_WALL_KEY = 'defensive_wall';
+const FRAME_BUILDING_KEYS = [DEFENSE_SYSTEM_KEY, DEFENSIVE_WALL_KEY];
+
+function canAffordUpgrade(building: BuildingStateDto, resources: ResourcesDto): boolean {
+  return !!building.nextLevelCost && resources.metal >= building.nextLevelCost.metalCost && resources.crystal >= building.nextLevelCost.crystalCost;
+}
+
+/**
+ * The base as a fortress (owner decision, 2026-10-12): buildings sit as tiles
+ * on terrain inside a wall frame — picture, then "Name (level)" — and open a
+ * sheet with effect, cost and actions on click, the same pattern as the clan
+ * buildings. The walls and corner towers are only a frame for now; they are
+ * planned to become buildings of their own later.
+ */
 export default function BasePage() {
   useRequireAuth();
   const t = useTranslations();
   const [data, setData] = useState<BaseResponseDto | null>(null);
   const [speedupItems, setSpeedupItems] = useState<InventoryItemDto[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [wallHover, setWallHover] = useState(false);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -49,14 +67,22 @@ export default function BasePage() {
     }
   }
 
+  // 1s re-render so construction countdowns tick smoothly between the 3s data refreshes.
+  const [, setTick] = useState(0);
+
   useEffect(() => {
     load();
     const interval = setInterval(load, 3000);
-    return () => clearInterval(interval);
+    const clock = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(clock);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleUpgrade(key: string) {
+    setError(null);
     try {
       await upgradeBuilding(key);
       notifyProfileChanged();
@@ -73,6 +99,7 @@ export default function BasePage() {
   }
 
   async function handleUseSpeedup(itemInstanceId: string, buildingKey: string) {
+    setError(null);
     try {
       await consumeItem(itemInstanceId, buildingKey);
       await load();
@@ -81,56 +108,30 @@ export default function BasePage() {
     }
   }
 
-  // Temporary base-grid mockup — the wall is 4 separate bar/corner elements
-  // laid out via CSS grid (not a padded border around the terrain)
-  // specifically so the hover/click color-change only fires on the wall
-  // segments themselves, never on the terrain rectangle between them.
-  // Real art from the owner: public/assets/buildings/defensive_wall.png
-  // (128x256, portrait — tiles top-to-bottom for the vertical bars as-is)
-  // and guard_tower.png (128x128 — reused for all 4 corners via rotation).
-  const wallThickness = 'clamp(22px, 5vw, 36px)';
-  const wallFilter = wallHover ? 'brightness(1.35)' : 'brightness(1)';
-  const wallGlow = wallHover ? '0 0 14px 2px rgba(93,234,255,0.55)' : 'none';
-  const wallTransition = { transition: 'filter 200ms, box-shadow 200ms' };
-  const wallSegmentProps = {
-    onMouseEnter: () => setWallHover(true),
-    onMouseLeave: () => setWallHover(false),
-    onClick: () => setWallHover((v) => v),
-    className: 'relative cursor-pointer',
-  };
-  function cornerStyle(rotateDeg: number): CSSProperties {
-    return {
-      backgroundImage: 'url(/assets/buildings/guard_tower.png)',
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      transform: `rotate(${rotateDeg}deg)`,
-      filter: wallFilter,
-      boxShadow: wallGlow,
-      ...wallTransition,
-    };
+  function closeSheet() {
+    setSelectedKey(null);
+    setError(null);
   }
-  const verticalStyle: CSSProperties = {
-    backgroundImage: 'url(/assets/buildings/defensive_wall.png)',
-    backgroundRepeat: 'repeat-y',
-    backgroundSize: `${wallThickness} auto`,
-    filter: wallFilter,
-    boxShadow: wallGlow,
-    ...wallTransition,
-  };
-  // defensive_wall.png is a portrait tile — the top/bottom bars reuse it
-  // rotated 90°. A plain CSS background can't rotate independently of its
-  // element, so the fill lives in an oversized (100vw-tall) absolutely
-  // positioned child that gets rotated and clipped by the parent's own
-  // overflow-hidden, instead of needing a second horizontal-oriented asset.
-  const horizontalOuterStyle: CSSProperties = { filter: wallFilter, boxShadow: wallGlow, ...wallTransition };
-  const horizontalFillStyle: CSSProperties = {
-    width: wallThickness,
-    height: '100vw',
-    backgroundImage: 'url(/assets/buildings/defensive_wall.png)',
-    backgroundRepeat: 'repeat-y',
-    backgroundSize: `${wallThickness} auto`,
-    transform: 'translate(-50%, -50%) rotate(90deg)',
-  };
+
+  const anyUnderConstruction = data?.buildings.some((b) => buildingProgress(b).active) ?? false;
+  const selected = data?.buildings.find((b) => b.key === selectedKey) ?? null;
+  const defenseSystem = data?.buildings.find((b) => b.key === DEFENSE_SYSTEM_KEY) ?? null;
+  const defensiveWall = data?.buildings.find((b) => b.key === DEFENSIVE_WALL_KEY) ?? null;
+  const terrainBuildings = data?.buildings.filter((b) => !FRAME_BUILDING_KEYS.includes(b.key)) ?? [];
+  const toFramePart = (building: BuildingStateDto | null): FortressPart | null =>
+    building && data
+      ? {
+          label: `${t(building.nameKey)} (${building.level})`,
+          level: building.level,
+          constructing: buildingProgress(building).active,
+          upgradeReady: !anyUnderConstruction && canAffordUpgrade(building, data.resources),
+          upgradeReadyLabel: t('base.upgradeAvailable'),
+          onClick: () => setSelectedKey(building.key),
+        }
+      : null;
+  // Only one base building can be under construction at a time.
+  const constructing = data?.buildings.find((b) => buildingProgress(b).active) ?? null;
+  const constructingProgress = constructing ? buildingProgress(constructing) : null;
 
   return (
     <GameLayout>
@@ -139,216 +140,402 @@ export default function BasePage() {
         <p className="text-xs text-textMuted">{t('base.subtitle')}</p>
       </div>
 
-      {error && <p className="mb-4 text-red-400">{error}</p>}
+      {error && !selected && <p className="mb-4 text-xs text-danger">{error}</p>}
+
+      {/* Construction banner — the only place progress is visible for buildings without a tile (the corner towers and walls). */}
+      {constructing && constructingProgress && (
+        <button
+          type="button"
+          onClick={() => setSelectedKey(constructing.key)}
+          className="mb-4 block w-full rounded-lg border border-panelBorder bg-panel px-4 py-3 text-left hover:border-accent"
+        >
+          <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
+            <span>
+              {t('base.constructing', { building: t(constructing.nameKey), level: constructing.level + 1 })}
+            </span>
+            <span className="tabular-nums text-textMuted">{formatDuration(constructingProgress.secondsLeft)}</span>
+          </div>
+          <div className="h-[6px] overflow-hidden rounded-full bg-wellBorder">
+            <div className="h-full bg-accent transition-all" style={{ width: `${constructingProgress.percent}%` }} />
+          </div>
+        </button>
+      )}
 
       {data && (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          {data.buildings.map((building) => {
-            const progress = buildingProgress(building);
-            const anotherActive = !progress.active && data.buildings.some((b) => buildingProgress(b).active);
-            return (
-              <section key={building.key} className="overflow-hidden rounded-lg border border-panelBorder bg-panel">
-                <div className="flex items-center justify-between border-b border-panelBorder bg-panelHeader px-4 py-3">
-                  <span className="text-sm font-semibold">{t(building.nameKey)}</span>
-                  <span className="text-[10px] uppercase text-textFaint">
-                    {t('base.level')} {building.level}
-                  </span>
-                </div>
-
-                <div className="p-5">
-                  <div className="mb-4 flex h-[90px] items-center justify-center rounded-md border border-panelBorder bg-well">
-                    <AssetIcon
-                      assetId={building.iconAssetId}
-                      alt={t(building.nameKey)}
-                      className="h-full w-full object-contain p-3"
-                      fallback={<div className="h-12 w-16 rounded-sm bg-accent opacity-80" />}
-                    />
-                  </div>
-
-                  {building.currentProduction ||
-                  building.nextLevelProduction ||
-                  building.currentCapacityBonus !== null ||
-                  building.nextLevelCapacityBonus !== null ||
-                  building.currentMarketSlotBonus !== null ||
-                  building.nextLevelMarketSlotBonus !== null ? (
-                    <div className="mb-4 rounded border border-wellBorder bg-well p-2.5 text-[11px]">
-                      {building.currentProduction ? (
-                        <div className="flex justify-between">
-                          <span className="text-textFaint">{t('base.currentEffect')}</span>
-                          <span>
-                            +{building.currentProduction.perHour} {t(`resource.${building.currentProduction.resourceType}`)}/{t('base.perHour')}
-                          </span>
-                        </div>
-                      ) : building.currentCapacityBonus !== null ? (
-                        <div className="flex justify-between">
-                          <span className="text-textFaint">{t('base.currentEffect')}</span>
-                          <span>
-                            +{building.currentCapacityBonus} {t('base.inventorySlots')}
-                          </span>
-                        </div>
-                      ) : building.currentMarketSlotBonus !== null ? (
-                        <div className="flex justify-between">
-                          <span className="text-textFaint">{t('base.currentEffect')}</span>
-                          <span>
-                            +{building.currentMarketSlotBonus} {t('base.marketSlots')}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex justify-between text-textFaint">
-                          <span>{t('base.currentEffect')}</span>
-                          <span>{t('base.noEffect')}</span>
-                        </div>
-                      )}
-                      {building.nextLevelProduction ? (
-                        <div className="mt-1 flex justify-between text-positive">
-                          <span className="text-textFaint">{t('base.nextEffect')}</span>
-                          <span>
-                            +{building.nextLevelProduction.perHour} {t(`resource.${building.nextLevelProduction.resourceType}`)}/{t('base.perHour')}
-                          </span>
-                        </div>
-                      ) : building.nextLevelCapacityBonus !== null ? (
-                        <div className="mt-1 flex justify-between text-positive">
-                          <span className="text-textFaint">{t('base.nextEffect')}</span>
-                          <span>
-                            +{building.nextLevelCapacityBonus} {t('base.inventorySlots')}
-                          </span>
-                        </div>
-                      ) : (
-                        building.nextLevelMarketSlotBonus !== null && (
-                          <div className="mt-1 flex justify-between text-positive">
-                            <span className="text-textFaint">{t('base.nextEffect')}</span>
-                            <span>
-                              +{building.nextLevelMarketSlotBonus} {t('base.marketSlots')}
-                            </span>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  ) : (
-                    <p className="mb-4 text-[10px] text-textFaint">{t('base.noEffect')}</p>
+        <FortressFrame corners={toFramePart(defenseSystem)} walls={toFramePart(defensiveWall)}>
+          <div className="grid justify-center gap-x-4 gap-y-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 140px))' }}>
+            {terrainBuildings.map((building) => {
+              const progress = buildingProgress(building);
+              const upgradeReady = !anyUnderConstruction && canAffordUpgrade(building, data.resources);
+              return (
+                <button
+                  key={building.key}
+                  type="button"
+                  onClick={() => setSelectedKey(building.key)}
+                  className="relative flex flex-col items-center gap-1 rounded-lg p-1 transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-accent"
+                >
+                  {upgradeReady && (
+                    <span className="absolute right-2 top-1 z-10 h-2.5 w-2.5 rounded-full bg-positive" title={t('base.upgradeAvailable')} />
                   )}
-
-                  {progress.active ? (
-                    <>
-                      <div className="mb-1 flex justify-between text-[10px] text-textMuted">
-                        <span>{t('base.underConstruction')}</span>
-                        <span className="tabular-nums">{formatDuration(progress.secondsLeft)}</span>
+                  {/* Production as an overlay in the top-left corner, so it doesn't make the tile taller. */}
+                  {building.currentProduction && (
+                    <span className="absolute left-0 top-0 z-10 flex items-center gap-1 rounded bg-black/35 px-1.5 py-0.5 text-[10px] tabular-nums text-positive">
+                      <ResourceIcon type={building.currentProduction.resourceType} className="h-3 w-3" />+{building.currentProduction.perHour}/
+                      {t('base.perHour')}
+                    </span>
+                  )}
+                  <AssetIcon
+                    assetId={building.iconAssetId}
+                    alt={t(building.nameKey)}
+                    className={`h-20 w-20 object-contain drop-shadow-lg sm:h-28 sm:w-28 ${building.level > 0 ? '' : 'opacity-40 grayscale'}`}
+                    fallback={
+                      <div
+                        className={`flex h-20 w-20 items-center justify-center rounded-sm bg-accent text-2xl font-semibold text-textMuted drop-shadow-lg sm:h-28 sm:w-28 ${building.level > 0 ? 'opacity-80' : 'opacity-30'}`}
+                      >
+                        {t(building.nameKey).charAt(0)}
                       </div>
-                      <div className="mb-4 h-[7px] overflow-hidden rounded-full bg-wellBorder">
+                    }
+                  />
+                  <span className="rounded bg-black/30 px-1.5 py-0.5 text-[10px] font-semibold text-white sm:text-xs">
+                    {t(building.nameKey)} <span className="text-white/60">({building.level})</span>
+                  </span>
+
+
+                  {progress.active && (
+                    <div className="w-full max-w-[110px]">
+                      <div className="h-[4px] overflow-hidden rounded-full bg-black/50">
                         <div className="h-full bg-accent transition-all" style={{ width: `${progress.percent}%` }} />
                       </div>
-                      {speedupItems.length > 0 && (
-                        <div className="mb-4 flex flex-wrap gap-2">
-                          {speedupItems.map((item) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              title={t(item.descriptionKey)}
-                              onClick={() => handleUseSpeedup(item.id, building.key)}
-                              className="flex items-center gap-1.5 rounded border border-accent bg-accentBg px-2 py-1 text-[9px] uppercase hover:bg-accentBgHover"
-                            >
-                              <AssetIcon assetId={item.iconAssetId} alt={t(item.nameKey)} className="h-4 w-4 object-contain" fallback={null} />
-                              {t(item.nameKey)} (×{item.quantity})
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  ) : building.nextLevelCost ? (
-                    <div className="mb-4 grid grid-cols-2 gap-2">
-                      <div className="rounded border border-wellBorder bg-well p-2.5">
-                        <div className="mb-1 text-[8px] uppercase text-textFaint">{t('base.nextLevelCost')}</div>
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <ResourceIcon type="METAL" className="h-4 w-4" />
-                          {building.nextLevelCost.metalCost}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <ResourceIcon type="CRYSTAL" className="h-4 w-4" />
-                          {building.nextLevelCost.crystalCost}
-                        </div>
-                      </div>
-                      <div className="rounded border border-wellBorder bg-well p-2.5">
-                        <div className="mb-1 text-[8px] uppercase text-textFaint">{t('base.buildTime')}</div>
-                        <div className="text-sm tabular-nums">{formatDuration(building.nextLevelCost.constructionSeconds)}</div>
-                      </div>
+                      <span className="mt-0.5 block text-[10px] tabular-nums text-white/80">{formatDuration(progress.secondsLeft)}</span>
                     </div>
-                  ) : (
-                    <p className="mb-4 text-xs text-textMuted">{t('base.maxLevel')}</p>
                   )}
+                </button>
+              );
+            })}
+          </div>
+        </FortressFrame>
+      )}
 
-                  <button
-                    type="button"
-                    disabled={progress.active || !building.nextLevelCost}
-                    aria-disabled={anotherActive}
-                    onClick={() => handleUpgrade(building.key)}
-                    className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
-                  >
-                    {t('base.upgrade')}
-                  </button>
-                </div>
-              </section>
-            );
-          })}
+      {/* Compact list of every base building — "(level) Name" — opening the same sheet.
+          Mainly so the frame buildings (corner towers, walls), which have no label of
+          their own, are listed by name too. Owner trial (2026-10-12): may be removed. */}
+      {data && (
+        <div className="mt-4 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+          {data.buildings.map((building) => (
+            <button
+              key={building.key}
+              type="button"
+              onClick={() => setSelectedKey(building.key)}
+              className="flex items-center gap-2 rounded-md border border-wellBorder bg-well px-2.5 py-1.5 text-left text-xs hover:border-accent"
+            >
+              <AssetIcon
+                assetId={building.iconAssetId}
+                alt={t(building.nameKey)}
+                className={`h-6 w-6 shrink-0 object-contain ${building.level > 0 ? '' : 'opacity-40 grayscale'}`}
+                fallback={<span className="flex h-6 w-6 shrink-0 items-center justify-center text-[10px] font-semibold text-textMuted">{t(building.nameKey).charAt(0)}</span>}
+              />
+              <span className="tabular-nums text-textMuted">({building.level})</span>
+              <span className="truncate">{t(building.nameKey)}</span>
+            </button>
+          ))}
         </div>
       )}
 
-      {data && (
-        <div className="mt-10">
-          <p className="mb-3 text-xs text-textFaint">
-            Временен визуален макет — сградите, положени директно върху терен, без квадратчета (не е свързано с нищо, само за преглед):
-          </p>
-          <div
-            className="grid overflow-hidden rounded-xl"
-            style={{ gridTemplateColumns: `${wallThickness} 1fr ${wallThickness}`, gridTemplateRows: `${wallThickness} 1fr ${wallThickness}` }}
-          >
-            <div {...wallSegmentProps} style={cornerStyle(0)} />
-            <div {...wallSegmentProps} style={horizontalOuterStyle}>
-              <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute left-1/2 top-1/2" style={horizontalFillStyle} />
-              </div>
-            </div>
-            <div {...wallSegmentProps} style={cornerStyle(90)} />
+      <BottomSheet open={!!selected} onClose={closeSheet}>
+        {selected && data && (
+          <BuildingDetails
+            building={selected}
+            anotherActive={!buildingProgress(selected).active && anyUnderConstruction}
+            speedupItems={speedupItems}
+            error={error}
+            onUpgrade={() => handleUpgrade(selected.key)}
+            onUseSpeedup={(itemId) => handleUseSpeedup(itemId, selected.key)}
+            onClose={closeSheet}
+          />
+        )}
+      </BottomSheet>
+    </GameLayout>
+  );
+}
 
-            <div {...wallSegmentProps} style={verticalStyle} />
-            <div className="overflow-hidden p-4 sm:p-6" style={{ background: 'radial-gradient(ellipse at 50% 30%, #1b232c 0%, rgb(16, 23, 30) 100%)' }}>
-              <div className="grid justify-center gap-x-4 gap-y-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 120px))' }}>
-                {[
-                  ...data.buildings.map((b) => ({ key: b.key, label: t(b.nameKey), iconAssetId: b.iconAssetId, built: b.level > 0 })),
-                  // Примерни бъдещи сгради, само за да видим как изглежда грида с повече елементи — не са свързани с нищо
-                  { key: 'mock_command_center', label: 'Команден център', iconAssetId: 'buildings.mock.icon', built: false },
-                  { key: 'mock_hideout', label: 'Скривалище', iconAssetId: 'buildings.mock.icon', built: false },
-                  { key: 'mock_energy_core', label: 'Енергийно ядро', iconAssetId: 'buildings.mock.icon', built: false },
-                  { key: 'mock_research_institute', label: 'Научен институт', iconAssetId: 'buildings.mock.icon', built: false },
-                  { key: 'mock_expedition_hangar', label: 'Експедиционен хангар', iconAssetId: 'buildings.mock.icon', built: false },
-                ].map((building) => (
-                  <div key={building.key} className="flex flex-col items-center gap-1">
-                    <AssetIcon
-                      assetId={building.iconAssetId}
-                      alt={building.label}
-                      className={`h-16 w-16 object-contain drop-shadow-lg sm:h-24 sm:w-24 ${building.built ? '' : 'opacity-40 grayscale'}`}
-                      fallback={
-                        <div
-                          className={`h-14 w-14 rounded-sm bg-accent drop-shadow-lg sm:h-20 sm:w-20 ${building.built ? 'opacity-80' : 'opacity-20'}`}
-                        />
-                      }
-                    />
-                    <span className="rounded bg-black/40 px-1.5 py-0.5 text-[8px] text-white sm:text-[10px]">{building.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div {...wallSegmentProps} style={verticalStyle} />
+function BuildingDetails({
+  building,
+  anotherActive,
+  speedupItems,
+  error,
+  onUpgrade,
+  onUseSpeedup,
+  onClose,
+}: {
+  building: BuildingStateDto;
+  anotherActive: boolean;
+  speedupItems: InventoryItemDto[];
+  error: string | null;
+  onUpgrade: () => void;
+  onUseSpeedup: (itemInstanceId: string) => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations();
+  const progress = buildingProgress(building);
 
-            <div {...wallSegmentProps} style={cornerStyle(270)} />
-            <div {...wallSegmentProps} style={horizontalOuterStyle}>
-              <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute left-1/2 top-1/2" style={horizontalFillStyle} />
-              </div>
+  return (
+    <>
+      <div className="mb-3 flex items-center gap-3">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center">
+          <AssetIcon
+            assetId={building.iconAssetId}
+            alt={t(building.nameKey)}
+            className="h-full w-full object-contain"
+            fallback={<span className="text-2xl font-semibold text-textMuted">{t(building.nameKey).charAt(0)}</span>}
+          />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">{t(building.nameKey)}</h3>
+          <span className="text-[10px] uppercase text-textFaint">
+            {t('base.level')} {building.level}/{building.maxLevel}
+          </span>
+        </div>
+      </div>
+
+      <BuildingEffect building={building} />
+
+      {progress.active ? (
+        <>
+          <div className="mb-1 flex justify-between text-[10px] text-textMuted">
+            <span>{t('base.underConstruction')}</span>
+            <span className="tabular-nums">{formatDuration(progress.secondsLeft)}</span>
+          </div>
+          <div className="mb-3 h-[7px] overflow-hidden rounded-full bg-wellBorder">
+            <div className="h-full bg-accent transition-all" style={{ width: `${progress.percent}%` }} />
+          </div>
+          {speedupItems.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {speedupItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  title={t(item.descriptionKey)}
+                  onClick={() => onUseSpeedup(item.id)}
+                  className="flex items-center gap-1.5 rounded border border-accent bg-accentBg px-2 py-1 text-[9px] uppercase hover:bg-accentBgHover"
+                >
+                  <AssetIcon assetId={item.iconAssetId} alt={t(item.nameKey)} className="h-4 w-4 object-contain" fallback={null} />
+                  {t(item.nameKey)} (×{item.quantity})
+                </button>
+              ))}
             </div>
-            <div {...wallSegmentProps} style={cornerStyle(180)} />
+          )}
+        </>
+      ) : building.nextLevelCost ? (
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <div className="rounded border border-wellBorder bg-well p-2.5">
+            <div className="mb-1 text-[8px] uppercase text-textFaint">{t('base.nextLevelCost')}</div>
+            <div className="flex items-center gap-1.5 text-sm">
+              <ResourceIcon type="METAL" className="h-4 w-4" />
+              {building.nextLevelCost.metalCost}
+            </div>
+            <div className="flex items-center gap-1.5 text-sm">
+              <ResourceIcon type="CRYSTAL" className="h-4 w-4" />
+              {building.nextLevelCost.crystalCost}
+            </div>
+          </div>
+          <div className="rounded border border-wellBorder bg-well p-2.5">
+            <div className="mb-1 text-[8px] uppercase text-textFaint">{t('base.buildTime')}</div>
+            <div className="text-sm tabular-nums">{formatDuration(building.nextLevelCost.constructionSeconds)}</div>
           </div>
         </div>
+      ) : (
+        <p className="mb-3 text-xs text-textMuted">{t('base.maxLevel')}</p>
       )}
-    </GameLayout>
+
+      <button
+        type="button"
+        disabled={progress.active || !building.nextLevelCost}
+        aria-disabled={anotherActive}
+        onClick={onUpgrade}
+        className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
+      >
+        {t('base.upgrade')}
+      </button>
+
+      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
+
+      <button type="button" onClick={onClose} className="mt-4 w-full text-center text-xs text-textFaint underline">
+        {t('common.close')}
+      </button>
+    </>
+  );
+}
+
+type EffectSide = 'current' | 'next';
+
+/** One building's effect at its current or next level, as display text — or null if none. A building has exactly one kind of effect. */
+function describeEffect(building: BuildingStateDto, side: EffectSide, t: ReturnType<typeof useTranslations>): string | null {
+  const production = side === 'current' ? building.currentProduction : building.nextLevelProduction;
+  const capacity = side === 'current' ? building.currentCapacityBonus : building.nextLevelCapacityBonus;
+  const marketSlots = side === 'current' ? building.currentMarketSlotBonus : building.nextLevelMarketSlotBonus;
+  const defense = side === 'current' ? building.currentDefenseBonusPercent : building.nextLevelDefenseBonusPercent;
+  const protection = side === 'current' ? building.currentPvpProtectionMinutes : building.nextLevelPvpProtectionMinutes;
+  const hidden = side === 'current' ? building.currentProtectedResources : building.nextLevelProtectedResources;
+
+  if (production) return `+${production.perHour} ${t(`resource.${production.resourceType}`)}/${t('base.perHour')}`;
+  if (capacity !== null) return `+${capacity} ${t('base.inventorySlots')}`;
+  if (marketSlots !== null) return `+${marketSlots} ${t('base.marketSlots')}`;
+  if (defense !== null) return t('base.defenseBonus', { percent: defense });
+  if (protection !== null) return t('base.pvpProtectionBonus', { minutes: protection });
+  if (hidden) return t('base.protectedResources', { metal: hidden.metal, crystal: hidden.crystal, credits: hidden.credits });
+  return null;
+}
+
+/** Defense-only buildings get a one-line note on when their effect applies. */
+function effectNoteKey(building: BuildingStateDto): string | null {
+  if (building.currentDefenseBonusPercent !== null || building.nextLevelDefenseBonusPercent !== null) return 'base.defenseBonusNote';
+  if (building.currentPvpProtectionMinutes !== null || building.nextLevelPvpProtectionMinutes !== null) return 'base.pvpProtectionNote';
+  if (building.currentProtectedResources || building.nextLevelProtectedResources) return 'base.protectedResourcesNote';
+  return null;
+}
+
+/** Current vs. next-level effect. */
+function BuildingEffect({ building }: { building: BuildingStateDto }) {
+  const t = useTranslations();
+  const current = describeEffect(building, 'current', t);
+  const next = describeEffect(building, 'next', t);
+  if (!current && !next) {
+    return <p className="mb-3 text-[10px] text-textFaint">{t('base.noEffect')}</p>;
+  }
+  const noteKey = effectNoteKey(building);
+
+  return (
+    <div className="mb-3 rounded border border-wellBorder bg-well p-2.5 text-[11px]">
+      <div className="flex justify-between gap-3">
+        <span className="shrink-0 text-textFaint">{t('base.currentEffect')}</span>
+        <span className={`text-right ${current ? '' : 'text-textFaint'}`}>{current ?? t('base.noEffect')}</span>
+      </div>
+      {next && (
+        <div className="mt-1 flex justify-between gap-3 text-positive">
+          <span className="shrink-0 text-textFaint">{t('base.nextEffect')}</span>
+          <span className="text-right">{next}</span>
+        </div>
+      )}
+      {noteKey && <p className="mt-2 text-[10px] text-textFaint">{t(noteKey)}</p>}
+    </div>
+  );
+}
+
+interface FortressPart {
+  label: string;
+  level: number;
+  constructing: boolean;
+  upgradeReady: boolean;
+  upgradeReadyLabel: string;
+  onClick: () => void;
+}
+
+/**
+ * Walls + corner towers around the terrain. Built as 4 separate bar/corner
+ * cells on a CSS grid (not a padded border) so each wall segment and corner
+ * is its own element — they're planned to become buildings later (owner
+ * decision), and can then get their own click handler/sheet without touching
+ * the terrain. Both are buildings (owner decision, 2026-10-12): the 4 corner
+ * towers are the Defense System, the 4 wall segments the Defensive Wall —
+ * each part clickable, level in the tooltip and sheet only.
+ * Art: public/assets/buildings/defensive_wall.png (128x256 portrait tile) and
+ * guard_tower.png (128x128, reused for all 4 corners via rotation).
+ */
+function FortressFrame({ children, corners, walls }: { children: React.ReactNode; corners?: FortressPart | null; walls?: FortressPart | null }) {
+  const wallThickness = 'clamp(22px, 5vw, 36px)';
+  const corner = (rotateDeg: number): CSSProperties => ({
+    backgroundImage: 'url(/assets/buildings/guard_tower.png)',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    transform: `rotate(${rotateDeg}deg)`,
+  });
+  const vertical: CSSProperties = {
+    backgroundImage: 'url(/assets/buildings/defensive_wall.png)',
+    backgroundRepeat: 'repeat-y',
+    backgroundSize: `${wallThickness} auto`,
+  };
+  // The wall tile is portrait — top/bottom bars reuse it rotated 90°. A CSS
+  // background can't rotate on its own, so the fill is an oversized
+  // (100vw-tall) child that's rotated and clipped by its parent.
+  const horizontalFill: CSSProperties = {
+    width: wallThickness,
+    height: '100vw',
+    backgroundImage: 'url(/assets/buildings/defensive_wall.png)',
+    backgroundRepeat: 'repeat-y',
+    backgroundSize: `${wallThickness} auto`,
+    transform: 'translate(-50%, -50%) rotate(90deg)',
+  };
+  const cornerCell = (rotateDeg: number, showDot: boolean) =>
+    corners ? (
+      <button
+        type="button"
+        onClick={corners.onClick}
+        title={corners.label}
+        aria-label={corners.label}
+        className="relative transition-[filter] hover:brightness-125 focus-visible:outline focus-visible:outline-accent"
+      >
+        {/* Rotated background in its own layer, so the upgrade dot on top isn't rotated with it. Level is in the tooltip/sheet only. */}
+        <span
+          className={`absolute inset-0 ${corners.level > 0 ? '' : 'opacity-60 grayscale'} ${corners.constructing ? 'animate-pulse' : ''}`}
+          style={corner(rotateDeg)}
+        />
+        {showDot && corners.upgradeReady && (
+          <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-positive" title={corners.upgradeReadyLabel} />
+        )}
+      </button>
+    ) : (
+      <div style={corner(rotateDeg)} />
+    );
+  // A wall segment: the clickable Defensive Wall when present, else plain decoration.
+  const wallCell = (fill: React.ReactNode, style?: CSSProperties) =>
+    walls ? (
+      <button
+        type="button"
+        onClick={walls.onClick}
+        title={walls.label}
+        aria-label={walls.label}
+        className={`relative transition-[filter] hover:brightness-125 focus-visible:outline focus-visible:outline-accent ${walls.level > 0 ? '' : 'opacity-60 grayscale'} ${walls.constructing ? 'animate-pulse' : ''}`}
+        style={style}
+      >
+        {fill}
+      </button>
+    ) : (
+      <div className="relative" style={style}>
+        {fill}
+      </div>
+    );
+  const horizontalFillLayer = (
+    <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute left-1/2 top-1/2" style={horizontalFill} />
+    </div>
+  );
+  const wallDot = walls?.upgradeReady ? (
+    <span className="absolute left-1/2 top-0.5 h-2 w-2 -translate-x-1/2 rounded-full bg-positive" title={walls.upgradeReadyLabel} />
+  ) : null;
+
+  return (
+    <div
+      className="grid overflow-hidden rounded-xl"
+      style={{ gridTemplateColumns: `${wallThickness} 1fr ${wallThickness}`, gridTemplateRows: `${wallThickness} 1fr ${wallThickness}` }}
+    >
+      {cornerCell(0, true)}
+      {wallCell(
+        <>
+          {horizontalFillLayer}
+          {wallDot}
+        </>,
+      )}
+      {cornerCell(90, false)}
+
+      {wallCell(null, vertical)}
+      <div className="overflow-hidden p-4 sm:p-6" style={{ background: 'radial-gradient(ellipse at 50% 30%, #1b232c 0%, rgb(16, 23, 30) 100%)' }}>
+        {children}
+      </div>
+      {wallCell(null, vertical)}
+
+      {cornerCell(270, false)}
+      {wallCell(horizontalFillLayer)}
+      {cornerCell(180, false)}
+    </div>
   );
 }

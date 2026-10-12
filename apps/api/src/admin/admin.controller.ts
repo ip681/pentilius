@@ -11,6 +11,7 @@ import { GrantItemDto } from './dto/grant-item.dto';
 import { GrantResourceDto } from './dto/grant-resource.dto';
 import { RenamePlayerDto } from './dto/rename-player.dto';
 import { UnbanPlayerDto } from './dto/unban-player.dto';
+import { UpdateSeasonSettingsDto } from './dto/update-season-settings.dto';
 import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 import { AdminJwtPayload } from './admin-jwt-payload.interface';
 
@@ -104,6 +105,18 @@ export class AdminController {
     const filePath = await this.adminService.getBackupFilePath(filename);
     res.set({ 'Content-Disposition': `attachment; filename="${filename}"`, 'Content-Type': 'application/octet-stream' });
     return new StreamableFile(createReadStream(filePath));
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('season')
+  getSeasonSettings() {
+    return this.adminService.getSeasonSettings();
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('season')
+  updateSeasonSettings(@Body() dto: UpdateSeasonSettingsDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminService.updateSeasonSettings(dto, admin);
   }
 
   @UseGuards(AdminJwtAuthGuard)

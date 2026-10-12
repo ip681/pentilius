@@ -39,6 +39,11 @@ export interface CombatOpponent {
   damageReflect?: number;
 }
 
+export interface CombatContextOptions {
+  bossOrCore?: boolean;
+  defending?: boolean;
+}
+
 export interface CombatResult {
   won: boolean;
   damageDealt: number;
@@ -103,12 +108,29 @@ export class CombatService {
     private readonly clanBonus: ClanBonusService,
   ) {}
 
-  async computePlayerStats(playerId: string, tx: Prisma.TransactionClient | PrismaService = this.prisma): Promise<CombatStats> {
-    const breakdown = await this.computeCombatBreakdown(playerId, tx);
+  async computePlayerStats(
+    playerId: string,
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+    options: CombatContextOptions = {},
+  ): Promise<CombatStats> {
+    const breakdown = await this.computeCombatBreakdown(playerId, tx, options);
     return combineBreakdown(breakdown);
   }
 
-  async computeCombatBreakdown(playerId: string, tx: Prisma.TransactionClient | PrismaService = this.prisma): Promise<PlayerCombatBreakdown> {
+  /**
+   * `options.bossOrCore` adds the clan Tavern's bonus (active Taverns only) to
+   * attackFactor — boss formations and Core attacks pass it, every other fight
+   * (PvE/PvP/Clan War) doesn't.
+   * `options.defending` adds the player's Defense System building bonus to
+   * defenseFactor — ONLY when this player is the one being attacked (PvP /
+   * clan-war defender, and the scout/target previews of them). Never pass it
+   * for the attacking side (owner decision: the bonus is defense-only).
+   */
+  async computeCombatBreakdown(
+    playerId: string,
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+    options: CombatContextOptions = {},
+  ): Promise<PlayerCombatBreakdown> {
     const [player, equipped] = await Promise.all([
       tx.player.findUniqueOrThrow({ where: { id: playerId } }),
       tx.itemInstance.findMany({
@@ -159,12 +181,15 @@ export class CombatService {
       this.economy.getResearchMultiplier(playerId, ResearchBonusType.COMBAT_HP, tx),
       this.clanBonus.getBonus(playerId, 'COMBAT_BONUS', tx),
     ]);
+    const tavernBonus = options.bossOrCore ? await this.clanBonus.getTavernBonus(playerId, tx) : 0;
+    const defenseSystemBonus = options.defending ? await getDefenseSystemBonus(playerId, tx) : 0;
 
     return {
       base,
-      attackFactor: researchAttackMultiplier + clanCombatBonus,
-      // No personal research targets defense yet — only the clan's Clan Forge does.
-      defenseFactor: 1 + clanCombatBonus,
+      attackFactor: researchAttackMultiplier + clanCombatBonus + tavernBonus,
+      // No personal research targets defense yet — only the clan's Clan Forge,
+      // plus the Defense System building while defending.
+      defenseFactor: 1 + clanCombatBonus + defenseSystemBonus,
       hpFactor: hpMultiplier,
       optionTotals: {
         increaseDamage: equippedStats.increaseDamage,
@@ -177,7 +202,7 @@ export class CombatService {
     };
   }
 
-  simulate(player: CombatStats, pentili: CombatOpponent): CombatResult {
+  simulate(player: CombatStats, pentili: CombatOpponent, maxRounds: number = GAME_BALANCE.combat.maxRounds): CombatResult {
     const playerMaxHp = Math.round(player.hp);
     const pentiliMaxHp = pentili.maxHp;
 
@@ -187,7 +212,7 @@ export class CombatService {
     let totalDamageTaken = 0;
     const rounds: CombatRoundDto[] = [];
 
-    for (let round = 1; round <= GAME_BALANCE.combat.maxRounds; round += 1) {
+    for (let round = 1; round <= maxRounds; round += 1) {
       const pentiliDodged = Math.random() < (pentili.evasion ?? 0);
       const playerHit = pentiliDodged ? NO_HIT : resolveHit(player, pentili);
       pentiliHp = Math.max(0, pentiliHp - playerHit.damage);
@@ -232,6 +257,15 @@ export class CombatService {
       pentiliMaxHp,
     };
   }
+}
+
+/** Defense System (base building) bonus fraction for a defending player, or 0 if unbuilt. */
+async function getDefenseSystemBonus(playerId: string, tx: Prisma.TransactionClient | PrismaService): Promise<number> {
+  const building = await tx.playerBuilding.findFirst({
+    where: { playerId, level: { gt: 0 }, buildingType: { defenseBonusPerLevel: { not: null } } },
+    include: { buildingType: true },
+  });
+  return building ? building.level * (building.buildingType.defenseBonusPerLevel ?? 0) : 0;
 }
 
 /** Reproduces computePlayerStats' original combine formula exactly, bit-for-bit — solo combat only. */

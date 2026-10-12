@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { LootResultEntryDto, PvpBattleReportDto, PvpScoutDto, PvpStatusDto, ResourceType } from '@pentilius/shared';
 import { Player, Prisma, PvpBattleReport } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
+import { getHideoutProtection, getWallProtectionMinutes, stealableAmount } from '../player/base-defense';
 import { CombatService, toStatsDto } from '../pve/combat.service';
 import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { EconomyService } from '../player/economy.service';
@@ -64,7 +65,7 @@ export class PvpService {
 
     const [myStats, opponentStats, opponentMembership] = await Promise.all([
       this.combat.computePlayerStats(playerId, this.prisma),
-      this.combat.computePlayerStats(opponent.id, this.prisma),
+      this.combat.computePlayerStats(opponent.id, this.prisma, { defending: true }),
       this.prisma.clanMembership.findUnique({ where: { playerId: opponent.id }, include: { clan: true } }),
     ]);
 
@@ -108,7 +109,7 @@ export class PvpService {
 
       const [attackerStats, defenderStats] = await Promise.all([
         this.combat.computePlayerStats(attackerId, tx),
-        this.combat.computePlayerStats(defender.id, tx),
+        this.combat.computePlayerStats(defender.id, tx, { defending: true }),
       ]);
 
       const result = this.combat.simulate(attackerStats, {
@@ -122,9 +123,12 @@ export class PvpService {
 
       if (result.won) {
         const stealMultiplier = computeStealMultiplier(attacker.level, defender.level);
+        // The defender's Hideout keeps a fixed amount of each resource out of reach.
+        const hideout = await getHideoutProtection(defender.id, tx);
         for (const resourceType of STEALABLE_RESOURCES) {
           const field = RESOURCE_FIELD[resourceType];
-          const quantity = Math.floor(settledDefender[field] * GAME_BALANCE.pvp.resourceStealPercentage * stealMultiplier);
+          const exposed = stealableAmount(settledDefender[field], hideout[field]);
+          const quantity = Math.floor(exposed * GAME_BALANCE.pvp.resourceStealPercentage * stealMultiplier);
           if (quantity <= 0) continue;
 
           await tx.player.update({ where: { id: attackerId }, data: { [field]: { increment: quantity } } });
@@ -134,7 +138,12 @@ export class PvpService {
 
         await tx.player.update({
           where: { id: defender.id },
-          data: { pvpProtectedUntil: new Date(Date.now() + GAME_BALANCE.pvp.revengeProtectionMinutes * 60_000) },
+          // Base revenge protection plus the defender's Defensive Wall bonus.
+          data: {
+            pvpProtectedUntil: new Date(
+              Date.now() + (GAME_BALANCE.pvp.revengeProtectionMinutes + (await getWallProtectionMinutes(defender.id, tx))) * 60_000,
+            ),
+          },
         });
       }
 

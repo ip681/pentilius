@@ -20,11 +20,11 @@ Pentilius contains dangerous native creatures called **Pentili**.
 
 Deep within the planet exists an ancient system connected to maintaining the current atmosphere/ecosystem. It was not built for humans and is not a convenient terraforming machine.
 
-Humans discover that they can influence this system through a massive human-built megastructure called **the Core**.
+Humans discover that they can influence this system through **the Core**. (Owner decision, 2026-10-12: the Core is no longer something clans build — the earlier "human-built megastructure" concept was dropped. Its exact lore is **UNDEFINED**.)
 
-As the Core progresses toward activation, Pentili behavior changes: migrations increase, attacks intensify and stronger Pentili appear.
+As the race for the Core intensifies, Pentili behavior may change: migrations increase, attacks intensify and stronger Pentili appear (not built yet — see `instructions/OPEN_DECISIONS.md`).
 
-The first clan to complete, defend and successfully activate the Core wins the season.
+Clans compete by attacking the Core; the clan that has dealt the most damage when the Core window closes wins the season.
 
 A new season restarts the same competitive race.
 
@@ -83,7 +83,7 @@ The base is defined by its buildings and development.
 ## Seasons — LOCKED
 The game is seasonal.
 
-Successful activation of the Core ends the season.
+The season is decided when the Core window closes (see `instructions/GAME_SYSTEMS.md`'s Core / Endgame section).
 
 The next season restarts the same race.
 

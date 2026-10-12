@@ -223,16 +223,25 @@ export default function ClanDetailPage() {
             </div>
           </BottomSheet>
 
-          <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {/* Same tile look as the own-clan page (picture, then "Name (level)"), read-only — description on hover. */}
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {clan.buildings.map((building) => (
-              <div key={building.key} className="rounded-md border border-wellBorder bg-well p-3">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-xs font-semibold">{t(building.nameKey)}</span>
-                  <span className="text-[9px] uppercase text-textFaint">
-                    {t('clans.buildingLevel')} {building.level}/{building.maxLevel}
-                  </span>
+              <div
+                key={building.key}
+                title={t(building.descriptionKey)}
+                className="flex flex-col items-center rounded-lg border border-wellBorder bg-well p-3 text-center"
+              >
+                <div className="mb-2 flex h-20 w-20 items-center justify-center sm:h-24 sm:w-24">
+                  <AssetIcon
+                    assetId={`clanBuildings.${building.key}.icon`}
+                    alt={t(building.nameKey)}
+                    className={`h-full w-full object-contain ${building.level > 0 ? '' : 'opacity-40 grayscale'}`}
+                    fallback={<span className="text-3xl font-semibold text-textMuted">{t(building.nameKey).charAt(0)}</span>}
+                  />
                 </div>
-                <p className="text-[10px] text-textMuted">{t(building.descriptionKey)}</p>
+                <span className="text-xs font-semibold">
+                  {t(building.nameKey)} <span className="text-textMuted">({building.level})</span>
+                </span>
               </div>
             ))}
           </div>

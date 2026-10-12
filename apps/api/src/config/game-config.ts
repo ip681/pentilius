@@ -251,6 +251,44 @@ export const GAME_BALANCE = {
     conquestTreasuryStealPercentage: 0.15,
     decisionTreasuryStealPercentage: 0.05,
   },
+  core: {
+    // Seasons and the Core (owner decision, 2026-10-12): any clan member
+    // attacks the Core; damage dealt = points for their clan. When it opens
+    // and how long it stays open live in the Season row (godmaster Settings),
+    // not here — this block is only the per-attack combat/cost values.
+    attackCostEnergy: 1,
+    // Anti-flood gap between two attacks by the same player (owner-specified
+    // starting value, expected to be retuned).
+    attackCooldownSeconds: 10,
+    // The Core fights back so every stat matters (owner decision): the fight
+    // lasts until the robot falls or maxRounds pass. The Core itself never
+    // falls — its HP is not a thing. Placeholder stats, roughly between the
+    // first and second boss — not tuned against real play yet.
+    attack: 180,
+    defense: 90,
+    maxRounds: 20,
+    // Sliders show this many clans plus the viewer's own (owner decision).
+    standingsTopN: 10,
+    // Both player rankings (own clan / whole server) are paged at this many
+    // rows, with the viewer's own place shown above the list (owner decision).
+    playerRankingPageSize: 10,
+  },
+  clanTavern: {
+    // Tavern clan building (owner decision, 2026-10-12): +1%/level damage vs
+    // bosses and the Core, no level cap — rising cost is the natural ceiling.
+    // The +1%/level and the per-level build costs are seeded content
+    // (seed.ts's Tavern block), like every other building — only the
+    // activation rules live here.
+    //
+    // Bonus only applies while active. One activation lasts activationHours
+    // and is NOT renewed automatically (owner decision) — afterwards a
+    // leader/officer has to activate it again by hand. Activation cost = level × the per-level amounts below (owner decision:
+    // cost grows with level). Placeholder amounts.
+    activationHours: 12,
+    activationMetalPerLevel: 150,
+    activationCrystalPerLevel: 60,
+    activationCreditsPerLevel: 0,
+  },
   presence: {
     // No real-time system (instructions/ARCHITECTURE.md prefers elapsed-time
     // computation over a background job/socket per player) — "online" is just

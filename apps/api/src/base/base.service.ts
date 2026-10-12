@@ -141,6 +141,12 @@ function toBuildingStateDto(building: BuildingWithType): BuildingStateDto {
     nextLevelCapacityBonus: nextLevelCost ? toBonusDto(building.level + 1, building.buildingType.capacityBonusPerLevel) : null,
     currentMarketSlotBonus: toBonusDto(building.level, building.buildingType.marketSlotBonusPerLevel),
     nextLevelMarketSlotBonus: nextLevelCost ? toBonusDto(building.level + 1, building.buildingType.marketSlotBonusPerLevel) : null,
+    currentDefenseBonusPercent: toPercentDto(building.level, building.buildingType.defenseBonusPerLevel),
+    nextLevelDefenseBonusPercent: nextLevelCost ? toPercentDto(building.level + 1, building.buildingType.defenseBonusPerLevel) : null,
+    currentPvpProtectionMinutes: toBonusDto(building.level, building.buildingType.pvpProtectionMinutesPerLevel),
+    nextLevelPvpProtectionMinutes: nextLevelCost ? toBonusDto(building.level + 1, building.buildingType.pvpProtectionMinutesPerLevel) : null,
+    currentProtectedResources: toProtectedDto(building.level, building.buildingType),
+    nextLevelProtectedResources: nextLevelCost ? toProtectedDto(building.level + 1, building.buildingType) : null,
   };
 }
 
@@ -149,6 +155,24 @@ function toProductionDto(levelCost: BuildingLevelCost | undefined): BuildingProd
     return null;
   }
   return { resourceType: levelCost.producesResourceType, perHour: levelCost.producesPerHour };
+}
+
+function toProtectedDto(level: number, type: BuildingType): ResourcesDto | null {
+  if (!type.protectedMetalPerLevel || level <= 0) {
+    return null;
+  }
+  return {
+    metal: level * (type.protectedMetalPerLevel ?? 0),
+    crystal: level * (type.protectedCrystalPerLevel ?? 0),
+    credits: level * (type.protectedCreditsPerLevel ?? 0),
+  };
+}
+
+function toPercentDto(level: number, fractionPerLevel: number | null): number | null {
+  if (!fractionPerLevel || level <= 0) {
+    return null;
+  }
+  return Math.round(level * fractionPerLevel * 1000) / 10;
 }
 
 function toBonusDto(level: number, bonusPerLevel: number | null): number | null {

@@ -271,7 +271,7 @@ export class BossFormationsService {
       return;
     }
 
-    const breakdowns = await Promise.all(filledSlots.map((s) => this.combat.computeCombatBreakdown(s.playerId!, tx)));
+    const breakdowns = await Promise.all(filledSlots.map((s) => this.combat.computeCombatBreakdown(s.playerId!, tx, { bossOrCore: true })));
     const formationStats = aggregateFormationCombatStats(breakdowns);
     const combatResult = this.combat.simulate(formationStats, boss);
 

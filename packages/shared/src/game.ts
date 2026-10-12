@@ -192,6 +192,16 @@ export interface BuildingStateDto {
   // mutually-exclusive-effect pattern as currentCapacityBonus above.
   currentMarketSlotBonus: number | null;
   nextLevelMarketSlotBonus: number | null;
+  // Defense System only (owner decision, 2026-10-12): +% defense, applied only
+  // while this player is being attacked (PvP / clan-war defender).
+  currentDefenseBonusPercent: number | null;
+  nextLevelDefenseBonusPercent: number | null;
+  // Defensive Wall only: extra minutes of PvP protection after a lost defense.
+  currentPvpProtectionMinutes: number | null;
+  nextLevelPvpProtectionMinutes: number | null;
+  // Hideout only: amount of each resource that can't be stolen.
+  currentProtectedResources: ResourcesDto | null;
+  nextLevelProtectedResources: ResourcesDto | null;
 }
 
 export interface BaseResponseDto {
@@ -687,7 +697,7 @@ export interface ClanMemberDto {
   lastActiveAt: string;
 }
 
-export type ClanBuildingBonusType = 'MEMBER_CAPACITY' | 'COMBAT_BONUS' | 'PRODUCTION_BONUS';
+export type ClanBuildingBonusType = 'MEMBER_CAPACITY' | 'COMBAT_BONUS' | 'PRODUCTION_BONUS' | 'BOSS_CORE_DAMAGE';
 
 export interface ClanBuildingCostDto {
   metalCost: number;
@@ -707,6 +717,17 @@ export interface ClanBuildingStateDto {
   maxLevel: number;
   constructionEndsAt: string | null;
   nextLevelCost: ClanBuildingCostDto | null;
+  // Activatable buildings only (the Tavern) — null for every other building.
+  activation: ClanBuildingActivationDto | null;
+}
+
+// Tavern activation state (owner decision, 2026-10-12). activeUntil null =
+// inactive. One activation costs `cost` (scales with level) and lasts
+// durationHours; it is never renewed automatically — someone re-activates it.
+export interface ClanBuildingActivationDto {
+  activeUntil: string | null;
+  durationHours: number;
+  cost: { metal: number; crystal: number; credits: number };
 }
 
 // Treasury is null unless the viewer is a member of this clan (owner
@@ -933,4 +954,97 @@ export interface MarketListingDto {
 export interface MyMarketListingsDto {
   listings: MarketListingDto[];
   capacity: number;
+}
+
+// --- Seasons and the Core (owner decision, 2026-10-12) ---
+
+// NOT_SCHEDULED: no opening time set yet. SCHEDULED: opening time set, not
+// reached. OPEN: attacks allowed until endsAt. ENDED: final standings frozen.
+export type CoreStatus = 'NOT_SCHEDULED' | 'SCHEDULED' | 'OPEN' | 'ENDED';
+
+export interface CoreStandingDto {
+  rank: number;
+  clanId: string | null;
+  clanName: string;
+  clanTag: string;
+  damage: number;
+  // Relative to the leading clan, which is always 100 (owner decision).
+  percentOfLeader: number;
+  isMyClan: boolean;
+}
+
+// One player's Core damage this season. rank is null only for a clan member
+// who hasn't attacked yet (owner decision: every current member is listed,
+// zero-damage members last, so leaders can see who isn't taking part).
+export interface CorePlayerStandingDto {
+  rank: number | null;
+  playerId: string;
+  username: string;
+  race: Race;
+  clanTag: string | null;
+  damage: number;
+  isCurrentPlayer: boolean;
+}
+
+export interface CoreTavernStatusDto {
+  level: number;
+  bonusPercent: number;
+  active: boolean;
+  activeUntil: string | null;
+}
+
+export interface CoreStateDto {
+  seasonId: number;
+  status: CoreStatus;
+  opensAt: string | null;
+  endsAt: string | null;
+  durationDays: number;
+  serverNow: string;
+  // Top N clans (GAME_BALANCE.core.standingsTopN), then the viewer's own
+  // clan separately if it isn't already in that list.
+  standings: CoreStandingDto[];
+  myClanStanding: CoreStandingDto | null;
+  inClan: boolean;
+  // The viewer's clan — titles the own-clan player ranking. Null if not in a clan.
+  myClan: { id: string; name: string; tag: string } | null;
+  myDamage: number;
+  nextAttackAt: string | null;
+  attackCostEnergy: number;
+  tavern: CoreTavernStatusDto | null;
+}
+
+// 'clan': every current member of the viewer's clan, by damage dealt FOR THIS
+// CLAN (damage from a previous clan stays there), zero-damage members last.
+// 'server': every player with damage this season, by total personal damage
+// across any clan. Paged (GAME_BALANCE.core.playerRankingPageSize per page);
+// viewerEntry is the viewer's own row wherever it falls, shown above the list
+// (rank null / damage 0 if they haven't attacked; null only outside a clan
+// for the 'clan' scope).
+export type CorePlayerRankingScope = 'clan' | 'server';
+
+export interface CorePlayerRankingPageDto {
+  scope: CorePlayerRankingScope;
+  entries: CorePlayerStandingDto[];
+  page: number;
+  pageSize: number;
+  total: number;
+  viewerEntry: CorePlayerStandingDto | null;
+}
+
+export interface CoreAttackResultDto {
+  damageDealt: number;
+  damageTaken: number;
+  playerMaxHp: number;
+  roundsSurvived: number;
+  maxRounds: number;
+  rounds: CombatRoundDto[];
+  state: CoreStateDto;
+}
+
+export interface SeasonResultDto {
+  seasonId: number;
+  rank: number;
+  clanName: string;
+  clanTag: string;
+  damage: number;
 }

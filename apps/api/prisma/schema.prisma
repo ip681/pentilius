@@ -156,6 +156,9 @@ model Player {
   // timestamp-cooldown shape as pvpProtectedUntil/clanWarProtectedUntil above.
   nextBossFormationActionAt DateTime?
 
+  // Anti-flood gap between two Core attacks (GAME_BALANCE.core.attackCooldownSeconds).
+  lastCoreAttackAt DateTime?
+
   // Admin-issued suspension (godmaster panel) — null means not banned. Login
   // rejects with the remaining time while now < bannedUntil; the ban simply
   // expires on its own afterward, no separate "unban" state to clean up
@@ -211,6 +214,7 @@ model Player {
   marketListingsSold     MarketListing[] @relation("MarketListingsSold")
   marketListingsBought   MarketListing[] @relation("MarketListingsBought")
   adminActionLogs        AdminActionLog[]
+  coreAttacks            CoreAttack[]
 
   @@map("players")
 }
@@ -359,6 +363,22 @@ model BuildingType {
   // Market capacity is 0 — a player can't list anything until this reaches
   // level 1.
   marketSlotBonusPerLevel Int?
+  // Only the Defense System sets this (owner decision, 2026-10-12): +defense
+  // fraction per level (0.01 = +1%/level), applied ONLY while this player is
+  // the one being attacked (PvP / clan-war defender) — never on their own
+  // attacks. See CombatService.computeCombatBreakdown's `defending` option.
+  defenseBonusPerLevel Float?
+  // Only the Defensive Wall sets this (owner decision, 2026-10-12): extra
+  // minutes per level added to the regular-PvP revenge protection a player
+  // gets after LOSING a defense (GAME_BALANCE.pvp.revengeProtectionMinutes).
+  // Regular PvP only — clan-war protection is unaffected on purpose.
+  pvpProtectionMinutesPerLevel Int?
+  // Only the Hideout sets these (owner decision, 2026-10-12): this much of
+  // each resource per level can't be stolen when the player loses a defense
+  // (PvP and clan-war duels) — steals are taken from the amount above it.
+  protectedMetalPerLevel   Int?
+  protectedCrystalPerLevel Int?
+  protectedCreditsPerLevel Int?
 
   levelCosts      BuildingLevelCost[]
   playerBuildings PlayerBuilding[]
@@ -868,6 +888,8 @@ model Clan {
   members   ClanMembership[]
   buildings ClanBuilding[]
   messages  ClanMessage[]
+  coreScores     ClanCoreScore[]
+  seasonResults  SeasonClanResult[]
   warsAsAttacker ClanWar[] @relation("ClanWarsAsAttacker")
   warsAsDefender ClanWar[] @relation("ClanWarsAsDefender")
 
@@ -888,6 +910,10 @@ enum ClanBuildingBonusType {
   MEMBER_CAPACITY
   COMBAT_BONUS
   PRODUCTION_BONUS
+  // Tavern (owner decision, 2026-10-12): +damage vs bosses and the Core only
+  // (Clan Forge stays the general-purpose combat bonus). Applies only while
+  // ClanBuilding.activeUntil is in the future — see clans/clan-tavern.ts.
+  BOSS_CORE_DAMAGE
 }
 
 model ClanBuildingType {
@@ -927,6 +953,10 @@ model ClanBuilding {
   clanBuildingTypeId String
   level              Int       @default(0)
   constructionEndsAt DateTime?
+  // Only meaningful for activatable buildings (the Tavern, BOSS_CORE_DAMAGE).
+  // Null or in the past = inactive. Set to now + GAME_BALANCE.clanTavern.
+  // activationHours by a manual (paid) activation; never renewed automatically.
+  activeUntil        DateTime?
 
   clan             Clan             @relation(fields: [clanId], references: [id])
   clanBuildingType ClanBuildingType @relation(fields: [clanBuildingTypeId], references: [id])
@@ -1105,6 +1135,7 @@ enum AdminActionType {
   BAN_PLAYER
   UNBAN_PLAYER
   RENAME_PLAYER
+  UPDATE_SEASON_SETTINGS
 }
 
 // Audit trail for every godmaster mutation (owner decision, 2026-09-12) —
@@ -1130,4 +1161,90 @@ model AdminActionLog {
 
   @@index([targetPlayerId])
   @@map("admin_action_logs")
+}
+
+// Seasons and the Core (owner decision, 2026-10-12 — replaces the earlier
+// "clans build the Core" concept). The Core is not built: once it opens,
+// any clan member may attack it (1 Action Energy per attack) and every point
+// of damage dealt is credited to their clan's ClanCoreScore for this season.
+// After coreDurationDays the clan with the most damage wins. Both values are
+// set from the godmaster Settings tab and lock once coreOpensAt passes —
+// neither can be changed (or postponed) after the Core has opened.
+// The current season is simply the row with the highest id.
+model Season {
+  id               Int       @id @default(autoincrement())
+  coreOpensAt      DateTime?
+  coreDurationDays Int       @default(14)
+  // Set once the Core window has closed and SeasonClanResult rows were
+  // snapshotted (lazily, on the first read after the deadline).
+  finalizedAt      DateTime?
+  createdAt        DateTime  @default(now())
+
+  clanScores  ClanCoreScore[]
+  coreAttacks CoreAttack[]
+  clanResults SeasonClanResult[]
+
+  @@map("seasons")
+}
+
+// Live per-clan damage total for one season — what the sliders read.
+// BigInt because a whole clan's 14-day total can exceed a 32-bit Int.
+// updatedAt doubles as the tie-break: on equal damage, whoever reached the
+// total first (older updatedAt) ranks higher.
+model ClanCoreScore {
+  id        String   @id @default(uuid())
+  seasonId  Int
+  clanId    String
+  damage    BigInt   @default(0)
+  updatedAt DateTime @updatedAt
+
+  season Season @relation(fields: [seasonId], references: [id])
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, clanId])
+  @@index([seasonId, damage])
+  @@map("clan_core_scores")
+}
+
+// One Core attack. clanId is a plain snapshot (not a relation) — points stay
+// with the clan the player was in at attack time even if they later leave
+// (owner decision), and the row survives the clan being disbanded.
+model CoreAttack {
+  id          String   @id @default(uuid())
+  seasonId    Int
+  playerId    String
+  clanId      String
+  damageDealt Int
+  damageTaken Int
+  rounds      Json
+  playerMaxHp Int
+  createdAt   DateTime @default(now())
+
+  season Season @relation(fields: [seasonId], references: [id])
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([seasonId, clanId])
+  @@index([playerId, createdAt])
+  @@map("core_attacks")
+}
+
+// Final standings snapshot, written once when the season's Core window
+// closes — kept forever so a player's profile can show where their clan
+// finished in past seasons. Name/tag are denormalized so history survives
+// renames and disbanding (clanId is then nulled).
+model SeasonClanResult {
+  id       String  @id @default(uuid())
+  seasonId Int
+  clanId   String?
+  clanName String
+  clanTag  String
+  rank     Int
+  damage   BigInt
+
+  season Season @relation(fields: [seasonId], references: [id])
+  clan   Clan?  @relation(fields: [clanId], references: [id], onDelete: SetNull)
+
+  @@unique([seasonId, rank])
+  @@index([clanId])
+  @@map("season_clan_results")
 }

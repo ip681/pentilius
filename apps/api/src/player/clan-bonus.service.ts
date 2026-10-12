@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ClanBuildingBonusType, Prisma } from '@prisma/client';
+import { findTavern, isTavernActive } from '../clans/clan-tavern';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
@@ -33,5 +34,24 @@ export class ClanBonusService {
     }
 
     return building.level * building.clanBuildingType.bonusPerLevel;
+  }
+
+  /**
+   * Tavern bonus (BOSS_CORE_DAMAGE) — boss and Core fights only, and only
+   * while the Tavern is active (activated by hand, never auto-renewed).
+   */
+  async getTavernBonus(playerId: string, tx: Tx = this.prisma): Promise<number> {
+    const membership = await tx.clanMembership.findUnique({ where: { playerId } });
+    if (!membership) {
+      return 0;
+    }
+
+    const tavern = await findTavern(membership.clanId, tx);
+    if (!tavern || !isTavernActive(tavern)) {
+      return 0;
+    }
+
+    const type = await tx.clanBuildingType.findUniqueOrThrow({ where: { id: tavern.clanBuildingTypeId } });
+    return tavern.level * type.bonusPerLevel;
   }
 }

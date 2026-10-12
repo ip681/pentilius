@@ -94,12 +94,12 @@ Planned:
 
 ## Milestone 6 — Seasons and Core
 Planned:
-- seasonal state;
-- Core construction;
-- Core phases;
+- seasonal state (built 2026-10-12);
+- Core attacks and live clan standings (built 2026-10-12);
+- Tavern clan building (built 2026-10-12);
+- season winner and frozen final standings (built 2026-10-12);
+- showing past-season placements on profiles;
 - increasing Pentili reaction;
-- final activation/defense;
-- season winner;
-- reset/persistence logic.
+- season reset (accounts kept, all progress reset).
 
 Do not implement later milestones until the earlier loop is stable and approved.

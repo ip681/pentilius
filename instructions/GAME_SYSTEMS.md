@@ -164,6 +164,15 @@ Discussed examples:
 - power generation;
 - research.
 
+**Defense System (owner decision, 2026-10-12):** shown as the 4 corner towers of the base's wall frame. It gives +1% defense per level, up to level 10, and applies **only while another player attacks you**: as the PvP defender, or as the defender in a clan-war duel. It never applies to your own attacks, and never against Pentili, bosses or the Core. Costs are **PROVISIONAL** (`seed.ts`). **Defensive Wall (owner decision, same date):** the wall segments between the towers. +5 minutes per level, up to level 10, added to the regular-PvP revenge protection you get after **losing** a defense: a base of 10 minutes, so 60 minutes at level 10. Regular PvP only; clan-war protection is deliberately unaffected, so wars can't be stalled.
+
+**Hideout (owner decision, same date):** a terrain building. A fixed amount of each resource per level can't be stolen when another player defeats you, in PvP and in clan-war duels; the steal percentage is taken only from the amount above it. Placeholder amounts per level are 500 Metal, 200 Crystal and 100 Credits. A fixed amount was chosen over a percentage on purpose, because it protects small and weaker players most.
+
+The three defense buildings each have one role:
+- the towers help you **win** the fight;
+- the Hideout limits what you **lose**;
+- the Wall gives you **time** before the next attack.
+
 Final building list and costs are **UNDEFINED**.
 
 ## Resources — PROVISIONAL
@@ -247,13 +256,22 @@ Planned clan systems:
 Exact member cap is **UNDEFINED**.
 
 ## Core / Endgame
-**LOCKED:**
-- The Core is human-built.
-- It interfaces with/influences the ancient planetary system.
-- It is the clan endgame.
-- Pentili react more strongly as the Core advances.
-- 100% construction leads to a final activation/defense phase.
-- Rival clans can try to stop the leading clan.
-- Successful activation ends the season.
+**LOCKED (owner decision, 2026-10-12 — replaces the earlier "clans build the Core, then activate/defend it" concept, which was dropped entirely):**
+- The Core is the clan endgame and is **attacked, not built**.
+- It opens at a time set from the godmaster **Settings** tab and stays open for a configurable number of days (default 14). Once it has opened, neither value can be changed — no postponing, shortening or extending.
+- Only clan members can attack it. No minimum level.
+- One attack costs 1 Action Energy. Points = the damage dealt.
+- The Core fights back, so every combat stat matters: the fight lasts until the robot falls or a round cap passes. The Core itself never falls — damage just accumulates.
+- A per-player anti-flood gap between attacks (10 s to start, tunable).
+- Points belong to the clan the player was in at attack time — they stay with that clan if the player leaves. No waiting period after switching clans.
+- When the window closes, the clan with the most damage wins. On equal damage, whoever reached that total first ranks higher.
+- Live sliders show the top 10 clans plus the viewer's own, each relative to the leading clan (always 100%). Top-10 is provisional.
+- Below the clan standings (the more important block), two player rankings sit side by side, each paged 10 per page with the viewer's own place shown above the list:
+  - **your clan:** every current member, ranked by damage dealt *for this clan*. Members who haven't attacked are listed last, unranked, so leaders can see who isn't taking part.
+  - **the server:** every player with damage this season, ranked by total personal damage across any clan.
+- There are no season rewards. Each clan's final placement is recorded permanently so it can be shown on profiles later.
+- At a new season player accounts are kept, but all progress resets. The reset itself is not built yet.
 
-Exact phases, costs, activation time, attack rules and Pentili waves are **UNDEFINED**.
+**Tavern (clan building, LOCKED direction, same date):** +1% damage per level against bosses and the Core only (Clan Forge stays the general combat bonus). No designed level cap — rising cost is the natural ceiling. The bonus only applies while the Tavern is **active**: a leader/officer activates it from the treasury for 12 h. It is **not** renewed automatically — once it expires, a leader/officer has to activate it again by hand (owner decision, revised the same day from an initial auto-renew design). The activation cost grows with level. While active, the Tavern and its countdown are shown in every member's Command Center. An inactive Tavern shows nothing there, to avoid noise. Called "Кръчма" in Bulgarian and "Cantina" in English.
+
+Core combat stats, round cap, Tavern costs and activation cost are **PROVISIONAL** (`apps/api/src/config/game-config.ts`'s `core`/`clanTavern` blocks; Tavern level costs are in `seed.ts`). Pentili escalation as the season advances is still **UNDEFINED**.

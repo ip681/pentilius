@@ -1,6 +1,7 @@
 'use client';
 
 import type {
+  ClanBuildingActivationDto,
   ClanBuildingStateDto,
   ClanDetailDto,
   ClanMemberDto,
@@ -48,6 +49,7 @@ import {
   updateClan,
   updateClanJoinRequirements,
   upgradeClanBuilding,
+  activateClanBuilding,
 } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
@@ -225,6 +227,8 @@ export default function ClansPage() {
         TARGET_TOO_SMALL: t('clans.war.errorTargetTooSmall'),
         REMATCH_COOLDOWN: t('clans.war.errorRematchCooldown'),
         JOIN_REQUIREMENTS_NOT_MET: t('clans.errorRequirementsNotMet'),
+        ALREADY_ACTIVE: t('clans.tavern.errorAlreadyActive'),
+        BUILDING_NOT_BUILT: t('clans.tavern.errorNotBuilt'),
       };
       if (err.code && map[err.code]) return map[err.code];
     }
@@ -412,6 +416,20 @@ export default function ClansPage() {
       await load();
     } catch (err) {
       setError(errorMessage(err, t('clans.upgradeError')));
+    }
+  }
+
+  async function handleActivateBuilding(key: string, canAfford: boolean) {
+    setError(null);
+    if (!canAfford) {
+      setError(t('clans.errorNotEnoughTreasury'));
+      return;
+    }
+    try {
+      await activateClanBuilding(key);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, t('clans.tavern.activateError')));
     }
   }
 
@@ -822,80 +840,14 @@ export default function ClansPage() {
             </form>
           </div>
 
-          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-            {myClan.buildings.map((building) => {
-              const progress = buildingProgress(building);
-              const canManage = myClan.myRole === 'LEADER' || myClan.myRole === 'OFFICER';
-              const bonus = bonusLabel(building);
-              const canAfford =
-                !building.nextLevelCost ||
-                (myClan.treasury!.metal >= building.nextLevelCost.metalCost &&
-                  myClan.treasury!.crystal >= building.nextLevelCost.crystalCost &&
-                  myClan.treasury!.credits >= building.nextLevelCost.creditsCost);
-              return (
-                <div key={building.key} className="rounded-md border border-wellBorder bg-well p-3">
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-xs font-semibold">
-                      <AssetIcon
-                        assetId={`clanBuildings.${building.key}.icon`}
-                        alt={t(building.nameKey)}
-                        className="h-6 w-6 object-contain"
-                        fallback={<span className="text-xs font-semibold text-textMuted">{t(building.nameKey).charAt(0)}</span>}
-                      />
-                      {t(building.nameKey)}
-                    </span>
-                    <span className="text-[9px] uppercase text-textFaint">
-                      {t('clans.buildingLevel')} {building.level}/{building.maxLevel}
-                    </span>
-                  </div>
-                  <p className="mb-1 text-[10px] text-textMuted">{t(building.descriptionKey)}</p>
-                  <p className="mb-2 text-[10px] text-accent">
-                    <NextLevelValue current={bonus.current} next={bonus.next} />
-                  </p>
-
-                  {progress.active ? (
-                    <>
-                      <div className="mb-1 flex justify-between text-[9px] text-textMuted">
-                        <span>{t('clans.buildingInProgress')}</span>
-                        <span className="tabular-nums">{formatDuration(progress.secondsLeft)}</span>
-                      </div>
-                      <div className="mb-2 h-[6px] overflow-hidden rounded-full bg-wellBorder">
-                        <div className="h-full bg-accent transition-all" style={{ width: `${progress.percent}%` }} />
-                      </div>
-                    </>
-                  ) : building.nextLevelCost ? (
-                    <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
-                      <span className="flex items-center gap-1">
-                        <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
-                        {building.nextLevelCost.metalCost}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
-                        {building.nextLevelCost.crystalCost}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
-                        {building.nextLevelCost.creditsCost}
-                      </span>
-                      <span>· {formatDuration(building.nextLevelCost.constructionSeconds)}</span>
-                    </p>
-                  ) : (
-                    <p className="mb-2 text-[10px] text-textFaint">{t('clans.buildingMaxLevel')}</p>
-                  )}
-
-                  <button
-                    type="button"
-                    disabled={!canManage || progress.active || !building.nextLevelCost}
-                    aria-disabled={!canAfford}
-                    onClick={() => handleUpgradeBuilding(building.key, canAfford)}
-                    className="w-full rounded-md border border-accent bg-accentBg py-1.5 text-[10px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
-                  >
-                    {t('clans.upgradeBuilding')}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+          <ClanBuildingsGrid
+            buildings={myClan.buildings}
+            treasury={myClan.treasury!}
+            canManage={myClan.myRole === 'LEADER' || myClan.myRole === 'OFFICER'}
+            onUpgrade={handleUpgradeBuilding}
+            onActivate={handleActivateBuilding}
+            error={error}
+          />
 
           <div className="mb-4 overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -1155,5 +1107,274 @@ export default function ClansPage() {
         </section>
       )}
     </GameLayout>
+  );
+}
+
+function TavernActivation({
+  activation,
+  treasury,
+  canManage,
+  onActivate,
+}: {
+  activation: ClanBuildingActivationDto;
+  treasury: { metal: number; crystal: number; credits: number };
+  canManage: boolean;
+  onActivate: (canAfford: boolean) => void;
+}) {
+  const t = useTranslations();
+  const activeUntilMs = activation.activeUntil ? new Date(activation.activeUntil).getTime() : 0;
+  const secondsLeft = Math.max(0, Math.ceil((activeUntilMs - Date.now()) / 1000));
+  const active = secondsLeft > 0;
+  const canAfford =
+    treasury.metal >= activation.cost.metal && treasury.crystal >= activation.cost.crystal && treasury.credits >= activation.cost.credits;
+
+  return (
+    <div className="mt-3 border-t border-wellBorder pt-2">
+      <div className="mb-1 flex items-center justify-between text-[10px]">
+        <span className={active ? 'font-semibold uppercase text-positive' : 'font-semibold uppercase text-danger'}>
+          {active ? t('clans.tavern.active') : t('clans.tavern.inactive')}
+        </span>
+        {active && <span className="tabular-nums text-textMuted">{formatDuration(secondsLeft)}</span>}
+      </div>
+      <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
+        <span>{t('clans.tavern.costPer', { hours: activation.durationHours })}</span>
+        <span className="flex items-center gap-1">
+          <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
+          {activation.cost.metal}
+        </span>
+        <span className="flex items-center gap-1">
+          <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
+          {activation.cost.crystal}
+        </span>
+        {activation.cost.credits > 0 && (
+          <span className="flex items-center gap-1">
+            <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
+            {activation.cost.credits}
+          </span>
+        )}
+      </p>
+      {!active && (
+        <button
+          type="button"
+          disabled={!canManage}
+          aria-disabled={!canAfford}
+          onClick={() => onActivate(canAfford)}
+          className="w-full rounded-md border border-gold bg-accentBg py-1.5 text-[10px] uppercase text-gold hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
+        >
+          {t('clans.tavern.activate')}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function canAffordCost(treasury: { metal: number; crystal: number; credits: number }, cost: { metalCost: number; crystalCost: number; creditsCost: number }): boolean {
+  return treasury.metal >= cost.metalCost && treasury.crystal >= cost.crystalCost && treasury.credits >= cost.creditsCost;
+}
+
+/**
+ * Clan buildings as a grid of large tiles — picture, then "Name (level)" —
+ * with only at-a-glance state on the tile itself (construction countdown,
+ * Tavern active/inactive, an "upgrade affordable" dot for leader/officers).
+ * Clicking a tile opens a sheet with the description, bonus, cost and the
+ * upgrade/activate actions (owner decision, 2026-10-12).
+ */
+function ClanBuildingsGrid({
+  buildings,
+  treasury,
+  canManage,
+  onUpgrade,
+  onActivate,
+  error,
+}: {
+  buildings: ClanBuildingStateDto[];
+  treasury: { metal: number; crystal: number; credits: number };
+  canManage: boolean;
+  onUpgrade: (key: string, canAfford: boolean) => Promise<void>;
+  onActivate: (key: string, canAfford: boolean) => Promise<void>;
+  // Page-level action error — repeated inside the sheet, which covers the page's own error line.
+  error: string | null;
+}) {
+  const t = useTranslations();
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  // Own 1s clock so construction/activation countdowns tick between data refreshes.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const clock = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(clock);
+  }, []);
+
+  const selected = buildings.find((b) => b.key === selectedKey) ?? null;
+
+  return (
+    <>
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {buildings.map((building) => {
+          const progress = buildingProgress(building);
+          const upgradeReady = canManage && !progress.active && !!building.nextLevelCost && canAffordCost(treasury, building.nextLevelCost);
+          const tavernSecondsLeft = building.activation?.activeUntil
+            ? Math.max(0, Math.ceil((new Date(building.activation.activeUntil).getTime() - Date.now()) / 1000))
+            : 0;
+          return (
+            <button
+              key={building.key}
+              type="button"
+              onClick={() => setSelectedKey(building.key)}
+              className="relative flex flex-col items-center rounded-lg border border-wellBorder bg-well p-3 text-center transition-all hover:-translate-y-0.5 hover:border-accent"
+            >
+              {upgradeReady && (
+                <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-positive" title={t('clans.buildingUpgradeAvailable')} />
+              )}
+              <div className="mb-2 flex h-24 w-24 items-center justify-center sm:h-28 sm:w-28">
+                <AssetIcon
+                  assetId={`clanBuildings.${building.key}.icon`}
+                  alt={t(building.nameKey)}
+                  className={`h-full w-full object-contain ${building.level > 0 ? '' : 'opacity-40 grayscale'}`}
+                  fallback={<span className="text-3xl font-semibold text-textMuted">{t(building.nameKey).charAt(0)}</span>}
+                />
+              </div>
+              <span className="text-xs font-semibold">
+                {t(building.nameKey)} <span className="text-textMuted">({building.level})</span>
+              </span>
+
+              {progress.active && (
+                <div className="mt-2 w-full">
+                  <div className="h-[4px] overflow-hidden rounded-full bg-wellBorder">
+                    <div className="h-full bg-accent transition-all" style={{ width: `${progress.percent}%` }} />
+                  </div>
+                  <span className="mt-1 block text-[10px] tabular-nums text-textMuted">{formatDuration(progress.secondsLeft)}</span>
+                </div>
+              )}
+              {/* Active Tavern: time left on this activation. Inactive: nothing on the tile (details in the sheet). */}
+              {tavernSecondsLeft > 0 && (
+                <span className="mt-1 text-[10px] font-semibold tabular-nums text-positive" title={t('clans.tavern.active')}>
+                  {formatDuration(tavernSecondsLeft)}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <BottomSheet open={!!selected} onClose={() => setSelectedKey(null)}>
+        {selected && (
+          <ClanBuildingDetails
+            building={selected}
+            treasury={treasury}
+            canManage={canManage}
+            onUpgrade={onUpgrade}
+            onActivate={onActivate}
+            onClose={() => setSelectedKey(null)}
+            error={error}
+          />
+        )}
+      </BottomSheet>
+    </>
+  );
+}
+
+function ClanBuildingDetails({
+  building,
+  treasury,
+  canManage,
+  onUpgrade,
+  onActivate,
+  onClose,
+  error,
+}: {
+  building: ClanBuildingStateDto;
+  treasury: { metal: number; crystal: number; credits: number };
+  canManage: boolean;
+  onUpgrade: (key: string, canAfford: boolean) => Promise<void>;
+  onActivate: (key: string, canAfford: boolean) => Promise<void>;
+  onClose: () => void;
+  error: string | null;
+}) {
+  const t = useTranslations();
+  const progress = buildingProgress(building);
+  const bonus = bonusLabel(building);
+  const canAfford = !building.nextLevelCost || canAffordCost(treasury, building.nextLevelCost);
+
+  return (
+    <>
+      <div className="mb-3 flex items-center gap-3">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center">
+          <AssetIcon
+            assetId={`clanBuildings.${building.key}.icon`}
+            alt={t(building.nameKey)}
+            className="h-full w-full object-contain"
+            fallback={<span className="text-2xl font-semibold text-textMuted">{t(building.nameKey).charAt(0)}</span>}
+          />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">{t(building.nameKey)}</h3>
+          <span className="text-[10px] uppercase text-textFaint">
+            {t('clans.buildingLevel')} {building.level}
+            {/* Activatable buildings (the Tavern) have no designed level cap — its seeded maxLevel is only a technical ceiling. */}
+            {!building.activation && `/${building.maxLevel}`}
+          </span>
+        </div>
+      </div>
+
+      <p className="mb-2 text-xs text-textMuted">{t(building.descriptionKey)}</p>
+      <p className="mb-3 text-xs text-accent">
+        <NextLevelValue current={bonus.current} next={bonus.next} />
+      </p>
+
+      {progress.active ? (
+        <>
+          <div className="mb-1 flex justify-between text-[10px] text-textMuted">
+            <span>{t('clans.buildingInProgress')}</span>
+            <span className="tabular-nums">{formatDuration(progress.secondsLeft)}</span>
+          </div>
+          <div className="mb-3 h-[6px] overflow-hidden rounded-full bg-wellBorder">
+            <div className="h-full bg-accent transition-all" style={{ width: `${progress.percent}%` }} />
+          </div>
+        </>
+      ) : building.nextLevelCost ? (
+        <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-textFaint">
+          <span className="flex items-center gap-1">
+            <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
+            {building.nextLevelCost.metalCost}
+          </span>
+          <span className="flex items-center gap-1">
+            <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
+            {building.nextLevelCost.crystalCost}
+          </span>
+          <span className="flex items-center gap-1">
+            <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
+            {building.nextLevelCost.creditsCost}
+          </span>
+          <span>· {formatDuration(building.nextLevelCost.constructionSeconds)}</span>
+        </p>
+      ) : (
+        <p className="mb-3 text-[11px] text-textFaint">{t('clans.buildingMaxLevel')}</p>
+      )}
+
+      <button
+        type="button"
+        disabled={!canManage || progress.active || !building.nextLevelCost}
+        aria-disabled={!canAfford}
+        onClick={() => onUpgrade(building.key, canAfford)}
+        className="w-full rounded-md border border-accent bg-accentBg py-2 text-[11px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
+      >
+        {t('clans.upgradeBuilding')}
+      </button>
+
+      {building.activation && building.level > 0 && (
+        <TavernActivation
+          activation={building.activation}
+          treasury={treasury}
+          canManage={canManage}
+          onActivate={(canAffordActivation) => onActivate(building.key, canAffordActivation)}
+        />
+      )}
+
+      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
+
+      <button type="button" onClick={onClose} className="mt-4 w-full text-center text-xs text-textFaint underline">
+        {t('common.close')}
+      </button>
+    </>
   );
 }

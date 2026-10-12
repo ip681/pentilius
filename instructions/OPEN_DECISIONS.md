@@ -68,7 +68,7 @@ touching application code. Full rationale: `instructions/DECISIONS_LOG.md`.
 - final building list
 - max building levels
 - construction costs/times
-- hideout rules
+- Hideout protected amounts and Defense System / Defensive Wall / Hideout costs (placeholders in `seed.ts`; the mechanics were decided 2026-10-12)
 
 ## Research
 - final branch/technology list beyond the current 4 (see Milestone 1 placeholders above)
@@ -103,14 +103,13 @@ specifics exist yet — task list, unlock sequencing, reward values, and how a
 think this through properly later, discussed 2026-09-10).
 
 ## Seasons/Core
-- season length
-- Core unlock condition
-- Core stages
-- Core costs
-- Pentili escalation
-- activation duration
-- how rival clans interfere
-- what persists after season reset
+The attacked-Core model was decided on 2026-10-12 (see `instructions/GAME_SYSTEMS.md`'s Core / Endgame section). Still open:
+- the Core's lore now that it isn't human-built
+- Core combat stats and round cap (placeholders: `game-config.ts`'s `core` block)
+- Tavern level-cost curve and activation cost (placeholders: `seed.ts`'s Tavern block, `game-config.ts`'s `clanTavern` block)
+- which clan's placement a player's profile shows if they switched clans during the season
+- Pentili escalation as the season advances
+- the season reset itself: accounts are kept and all progress resets — the exact list of what gets wiped vs. kept (cosmetics? friends? past-season results are kept) and how the next season is started from godmaster
 
 ## Monetization
 - VIP tiers

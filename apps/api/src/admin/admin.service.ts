@@ -1,14 +1,16 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { AdminActionType, Prisma } from '@prisma/client';
 import { grantItem } from '../inventory/inventory-capacity';
 import { PrismaService } from '../prisma/prisma.service';
+import { coreEndsAt, coreStatus, getCurrentSeason } from '../season/season.service';
 import { AdminJwtPayload } from './admin-jwt-payload.interface';
 import { BanPlayerDto } from './dto/ban-player.dto';
 import { GrantItemDto } from './dto/grant-item.dto';
 import { GrantResourceDto } from './dto/grant-resource.dto';
 import { RenamePlayerDto } from './dto/rename-player.dto';
 import { UnbanPlayerDto } from './dto/unban-player.dto';
+import { UpdateSeasonSettingsDto } from './dto/update-season-settings.dto';
 
 type Tx = PrismaService | Prisma.TransactionClient;
 
@@ -263,6 +265,67 @@ export class AdminService {
         createdAt: entry.createdAt,
       })),
     };
+  }
+
+  async getSeasonSettings(): Promise<{
+    seasonId: number;
+    status: string;
+    coreOpensAt: Date | null;
+    coreDurationDays: number;
+    coreEndsAt: Date | null;
+    locked: boolean;
+  }> {
+    const season = await getCurrentSeason(this.prisma);
+    const status = coreStatus(season);
+    return {
+      seasonId: season.id,
+      status,
+      coreOpensAt: season.coreOpensAt,
+      coreDurationDays: season.coreDurationDays,
+      coreEndsAt: coreEndsAt(season),
+      locked: status === 'OPEN' || status === 'ENDED',
+    };
+  }
+
+  /**
+   * Owner decision (2026-10-12): the Core's opening time and duration are set
+   * here, and both lock the moment the Core opens — no postponing, shortening
+   * or extending once attacks have started. ADMIN only, not MODERATOR.
+   */
+  async updateSeasonSettings(dto: UpdateSeasonSettingsDto, admin: AdminJwtPayload): Promise<Awaited<ReturnType<AdminService['getSeasonSettings']>>> {
+    if (admin.role !== 'ADMIN') {
+      throw new ForbiddenException('ADMIN_ROLE_REQUIRED');
+    }
+    const opensAt = new Date(dto.coreOpensAt);
+    if (opensAt.getTime() <= Date.now()) {
+      throw new BadRequestException('OPENING_TIME_MUST_BE_IN_FUTURE');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const season = await getCurrentSeason(tx);
+      // Compare-and-swap on the values just read, so the lock can't be
+      // dodged by racing the opening moment.
+      const updated = await tx.season.updateMany({
+        where: {
+          id: season.id,
+          coreOpensAt: season.coreOpensAt,
+          OR: [{ coreOpensAt: null }, { coreOpensAt: { gt: new Date() } }],
+        },
+        data: { coreOpensAt: opensAt, coreDurationDays: dto.coreDurationDays },
+      });
+      if (updated.count === 0) {
+        throw new ConflictException('SEASON_SETTINGS_LOCKED');
+      }
+      await this.logAction(tx, admin, 'UPDATE_SEASON_SETTINGS', null, {
+        seasonId: season.id,
+        oldCoreOpensAt: season.coreOpensAt?.toISOString() ?? null,
+        newCoreOpensAt: opensAt.toISOString(),
+        oldCoreDurationDays: season.coreDurationDays,
+        newCoreDurationDays: dto.coreDurationDays,
+      });
+    });
+
+    return this.getSeasonSettings();
   }
 
   private async logAction(

@@ -138,12 +138,32 @@ async function main() {
       // owner decision, 2026-09-11 (see schema.prisma's comment on
       // BuildingType.marketSlotBonusPerLevel).
       { key: 'trading_post', nameKey: 'buildings.trading_post.name', maxLevel: 10, iconAssetId: 'buildings.trading_post.icon', marketSlotBonusPerLevel: 1 },
+      // Defense System (owner decision, 2026-10-12): drawn as the 4 corner
+      // towers of the base's wall frame, reusing the existing guard_tower art.
+      // +1% defense per level, only while this player is being attacked.
+      { key: 'defense_system', nameKey: 'buildings.defense_system.name', maxLevel: 10, iconAssetId: 'buildings.guard_tower.icon', defenseBonusPerLevel: 0.01 },
+      // Defensive Wall (owner decision, 2026-10-12): drawn as the wall segments
+      // of the frame. +5 min/level of regular-PvP revenge protection after a
+      // lost defense (base 10 min -> 60 min at level 10). PvP only, not clan war.
+      { key: 'defensive_wall', nameKey: 'buildings.defensive_wall.name', maxLevel: 10, iconAssetId: 'buildings.defensive_wall.icon', pvpProtectionMinutesPerLevel: 5 },
+      // Hideout (owner decision, 2026-10-12): this much per level of each
+      // resource can't be stolen when losing a defense (PvP and clan-war
+      // duels). Placeholder amounts, not tuned against real income yet.
+      {
+        key: 'hideout',
+        nameKey: 'buildings.hideout.name',
+        maxLevel: 10,
+        iconAssetId: 'buildings.hideout.icon',
+        protectedMetalPerLevel: 500,
+        protectedCrystalPerLevel: 200,
+        protectedCreditsPerLevel: 100,
+      },
       // update: data (not {}) — capacityBonusPerLevel/marketSlotBonusPerLevel
       // must follow this list when it changes, not freeze at whatever an
       // existing row already has.
     ].map((data) => prisma.buildingType.upsert({ where: { key: data.key }, update: data, create: data })),
   );
-  const [metalMine, crystalExtractor, warehouse, tradingPost] = buildingTypes;
+  const [metalMine, crystalExtractor, warehouse, tradingPost, defenseSystem, defensiveWall, hideout] = buildingTypes;
 
   const levelCosts = [
     { buildingTypeId: metalMine.id, level: 1, metalCost: 0, crystalCost: 50, constructionSeconds: 60, producesResourceType: 'METAL' as const, producesPerHour: 100 },
@@ -189,6 +209,38 @@ async function main() {
     { buildingTypeId: tradingPost.id, level: 8, metalCost: 5800, crystalCost: 2300, constructionSeconds: 12000 },
     { buildingTypeId: tradingPost.id, level: 9, metalCost: 10000, crystalCost: 4100, constructionSeconds: 24000 },
     { buildingTypeId: tradingPost.id, level: 10, metalCost: 18000, crystalCost: 7300, constructionSeconds: 48000 },
+    // Defense System — placeholder curve (~1.8x cost, 2x time per level), not tuned yet.
+    { buildingTypeId: defenseSystem.id, level: 1, metalCost: 100, crystalCost: 50, constructionSeconds: 120 },
+    { buildingTypeId: defenseSystem.id, level: 2, metalCost: 180, crystalCost: 90, constructionSeconds: 240 },
+    { buildingTypeId: defenseSystem.id, level: 3, metalCost: 320, crystalCost: 160, constructionSeconds: 480 },
+    { buildingTypeId: defenseSystem.id, level: 4, metalCost: 580, crystalCost: 290, constructionSeconds: 960 },
+    { buildingTypeId: defenseSystem.id, level: 5, metalCost: 1050, crystalCost: 520, constructionSeconds: 1920 },
+    { buildingTypeId: defenseSystem.id, level: 6, metalCost: 1900, crystalCost: 950, constructionSeconds: 3840 },
+    { buildingTypeId: defenseSystem.id, level: 7, metalCost: 3400, crystalCost: 1700, constructionSeconds: 7680 },
+    { buildingTypeId: defenseSystem.id, level: 8, metalCost: 6100, crystalCost: 3050, constructionSeconds: 15360 },
+    { buildingTypeId: defenseSystem.id, level: 9, metalCost: 11000, crystalCost: 5500, constructionSeconds: 30720 },
+    { buildingTypeId: defenseSystem.id, level: 10, metalCost: 19800, crystalCost: 9900, constructionSeconds: 61440 },
+    // Defensive Wall and Hideout — same placeholder curve as the Defense System, not tuned yet.
+    { buildingTypeId: defensiveWall.id, level: 1, metalCost: 100, crystalCost: 50, constructionSeconds: 120 },
+    { buildingTypeId: defensiveWall.id, level: 2, metalCost: 180, crystalCost: 90, constructionSeconds: 240 },
+    { buildingTypeId: defensiveWall.id, level: 3, metalCost: 320, crystalCost: 160, constructionSeconds: 480 },
+    { buildingTypeId: defensiveWall.id, level: 4, metalCost: 580, crystalCost: 290, constructionSeconds: 960 },
+    { buildingTypeId: defensiveWall.id, level: 5, metalCost: 1050, crystalCost: 520, constructionSeconds: 1920 },
+    { buildingTypeId: defensiveWall.id, level: 6, metalCost: 1900, crystalCost: 950, constructionSeconds: 3840 },
+    { buildingTypeId: defensiveWall.id, level: 7, metalCost: 3400, crystalCost: 1700, constructionSeconds: 7680 },
+    { buildingTypeId: defensiveWall.id, level: 8, metalCost: 6100, crystalCost: 3050, constructionSeconds: 15360 },
+    { buildingTypeId: defensiveWall.id, level: 9, metalCost: 11000, crystalCost: 5500, constructionSeconds: 30720 },
+    { buildingTypeId: defensiveWall.id, level: 10, metalCost: 19800, crystalCost: 9900, constructionSeconds: 61440 },
+    { buildingTypeId: hideout.id, level: 1, metalCost: 100, crystalCost: 50, constructionSeconds: 120 },
+    { buildingTypeId: hideout.id, level: 2, metalCost: 180, crystalCost: 90, constructionSeconds: 240 },
+    { buildingTypeId: hideout.id, level: 3, metalCost: 320, crystalCost: 160, constructionSeconds: 480 },
+    { buildingTypeId: hideout.id, level: 4, metalCost: 580, crystalCost: 290, constructionSeconds: 960 },
+    { buildingTypeId: hideout.id, level: 5, metalCost: 1050, crystalCost: 520, constructionSeconds: 1920 },
+    { buildingTypeId: hideout.id, level: 6, metalCost: 1900, crystalCost: 950, constructionSeconds: 3840 },
+    { buildingTypeId: hideout.id, level: 7, metalCost: 3400, crystalCost: 1700, constructionSeconds: 7680 },
+    { buildingTypeId: hideout.id, level: 8, metalCost: 6100, crystalCost: 3050, constructionSeconds: 15360 },
+    { buildingTypeId: hideout.id, level: 9, metalCost: 11000, crystalCost: 5500, constructionSeconds: 30720 },
+    { buildingTypeId: hideout.id, level: 10, metalCost: 19800, crystalCost: 9900, constructionSeconds: 61440 },
   ];
   for (const cost of levelCosts) {
     await prisma.buildingLevelCost.upsert({
@@ -796,6 +848,64 @@ async function main() {
       update: cost,
       create: cost,
     });
+  }
+
+  // Tavern (owner decision, 2026-10-12): +1% damage per level vs bosses and
+  // the Core, only while activated (activation rules: game-config.ts's
+  // clanTavern block). No designed level cap — costs grow geometrically and
+  // rows are generated until the next level's cost would overflow a 32-bit
+  // Int, which becomes maxLevel; in practice the cost stops clans far earlier.
+  // Placeholder curve, not tuned against real clan income yet.
+  const tavernCurve = {
+    baseMetal: 1000,
+    baseCrystal: 400,
+    baseCredits: 200,
+    costGrowth: 1.15,
+    baseConstructionSeconds: 600,
+    constructionGrowth: 1.1,
+    maxConstructionSeconds: 7 * 24 * 3600,
+  };
+  const intLimit = 2_000_000_000;
+  const tavernLevelCosts: { level: number; metalCost: number; crystalCost: number; creditsCost: number; constructionSeconds: number }[] = [];
+  for (let level = 1; ; level += 1) {
+    const factor = tavernCurve.costGrowth ** (level - 1);
+    const metalCost = Math.round(tavernCurve.baseMetal * factor);
+    if (metalCost > intLimit) break;
+    tavernLevelCosts.push({
+      level,
+      metalCost,
+      crystalCost: Math.round(tavernCurve.baseCrystal * factor),
+      creditsCost: Math.round(tavernCurve.baseCredits * factor),
+      constructionSeconds: Math.min(
+        tavernCurve.maxConstructionSeconds,
+        Math.round(tavernCurve.baseConstructionSeconds * tavernCurve.constructionGrowth ** (level - 1)),
+      ),
+    });
+  }
+  const tavernData = {
+    key: 'clan_tavern',
+    nameKey: 'clanBuildings.clan_tavern.name',
+    descriptionKey: 'clanBuildings.clan_tavern.description',
+    bonusType: 'BOSS_CORE_DAMAGE' as const,
+    bonusPerLevel: 0.01,
+    maxLevel: tavernLevelCosts.length,
+    iconAssetId: 'clanBuildings.clan_tavern.icon',
+  };
+  const tavernType = await prisma.clanBuildingType.upsert({ where: { key: tavernData.key }, update: tavernData, create: tavernData });
+  for (const cost of tavernLevelCosts) {
+    const row = { clanBuildingTypeId: tavernType.id, ...cost };
+    await prisma.clanBuildingLevelCost.upsert({
+      where: { clanBuildingTypeId_level: { clanBuildingTypeId: tavernType.id, level: cost.level } },
+      update: row,
+      create: row,
+    });
+  }
+
+  // Season 1 (owner decision, 2026-10-12): created unscheduled — the Core's
+  // opening time is set later from the godmaster Settings tab. Only created if
+  // no season exists yet, never touches a live one.
+  if ((await prisma.season.count()) === 0) {
+    await prisma.season.create({ data: {} });
   }
 
   // Selectable profile-picture cosmetics (owner decision, 2026-09-09) — all 6

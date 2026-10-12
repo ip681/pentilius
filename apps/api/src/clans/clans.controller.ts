@@ -75,6 +75,11 @@ export class ClansController {
     return this.clansService.upgradeClanBuilding(currentPlayer.sub, key);
   }
 
+  @Post('buildings/:key/activate')
+  activateBuilding(@CurrentPlayer() currentPlayer: JwtPayload, @Param('key') key: string) {
+    return this.clansService.activateClanBuilding(currentPlayer.sub, key);
+  }
+
   @Post('members/:playerId/kick')
   kickMember(@CurrentPlayer() currentPlayer: JwtPayload, @Param('playerId') playerId: string) {
     return this.clansService.kickMember(currentPlayer.sub, playerId);

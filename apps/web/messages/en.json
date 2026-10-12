@@ -110,7 +110,10 @@
     "atWarWith": "At war with {clan}",
     "activeOperations": "Active Operations",
     "noActiveOperations": "Nothing is running right now — start a build, research or expedition to make use of your time.",
-    "quickAccess": "Quick Access"
+    "quickAccess": "Quick Access",
+    "coreOpensIn": "The Core opens in",
+    "coreOpenEndsIn": "The Core is open — time left",
+    "tavernActive": "Tavern active (+{percent}% vs bosses and the Core)"
   },
   "base": {
     "title": "Base",
@@ -131,7 +134,15 @@
     "perHour": "hour",
     "noEffect": "No effect yet",
     "inventorySlots": "Inventory Slots",
-    "marketSlots": "Market Listing Slots"
+    "marketSlots": "Market Listing Slots",
+    "upgradeAvailable": "Enough resources to upgrade",
+    "defenseBonus": "+{percent}% defense",
+    "defenseBonusNote": "Applies only when another player attacks you (PvP and clan-war duels), never to your own attacks.",
+    "constructing": "Under construction: {building} → level {level}",
+    "pvpProtectionBonus": "+{minutes} min protection after a lost PvP defense",
+    "pvpProtectionNote": "Regular PvP only: after another player defeats you, nobody can attack you again for this much longer. Does not apply to clan wars.",
+    "protectedResources": "{metal} Metal, {crystal} Crystal, {credits} Credits safe",
+    "protectedResourcesNote": "When another player defeats you (PvP or clan-war duel), this much of each resource can't be stolen."
   },
   "robot": {
     "title": "Robot",
@@ -211,7 +222,11 @@
     "coreComingSoon": "Coming soon",
     "selectHint": "Pick a zone on the planet",
     "bossOpenFormations": "{count} open formations",
-    "bossNoFormations": "No open formations"
+    "bossNoFormations": "No open formations",
+    "enterCore": "Enter the Core",
+    "coreTimeLeft": "Time left: {time}",
+    "coreCallToAction": "The time has come to seize the Core and lay the foundations of a new civilization.",
+    "coreStandings": "Standings"
   },
   "pve": {
     "title": "Combat",
@@ -489,6 +504,7 @@
     "buildingLevel": "Lv.",
     "buildingInProgress": "Under construction",
     "buildingMaxLevel": "Max level reached",
+    "buildingUpgradeAvailable": "Enough in the treasury to upgrade",
     "upgradeBuilding": "Upgrade",
     "upgradeError": "Could not upgrade this building.",
     "promote": "Promote",
@@ -581,12 +597,25 @@
       "damage": "DMG",
       "defense": "DEF",
       "evasion": "EVA"
+    },
+    "tavern": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "costPer": "Cost per {hours}h:",
+      "activate": "Activate",
+      "activateError": "Could not activate the Tavern.",
+      "errorAlreadyActive": "The Tavern is already active.",
+      "errorNotBuilt": "Build the Tavern first."
     }
   },
   "clanBuildings": {
     "member_hall": { "name": "Member Hall", "description": "Raises the clan's maximum member count." },
     "clan_forge": { "name": "Clan Forge", "description": "Grants every member a combat attack and defense bonus." },
-    "clan_depot": { "name": "Clan Production", "description": "Grants every member a Metal and Crystal production bonus." }
+    "clan_depot": { "name": "Clan Production", "description": "Grants every member a Metal and Crystal production bonus." },
+    "clan_tavern": {
+      "name": "Cantina",
+      "description": "While active, grants every member bonus damage against bosses and the Core."
+    }
   },
   "pvp": {
     "title": "PvP Combat",
@@ -668,9 +697,12 @@
   },
   "buildings": {
     "metal_mine": { "name": "Metal Mine" },
-    "crystal_extractor": { "name": "Crystal Extractor" },
+    "crystal_extractor": { "name": "Crystal Mine" },
     "warehouse": { "name": "Warehouse" },
-    "trading_post": { "name": "Trading Post" }
+    "trading_post": { "name": "Trading Post" },
+    "defense_system": { "name": "Defense System" },
+    "defensive_wall": { "name": "Defensive Wall" },
+    "hideout": { "name": "Hideout" }
   },
   "items": {
     "pioneer_head_scanner": { "name": "Pioneer Head Scanner", "description": "A basic targeting sensor." },
@@ -707,5 +739,34 @@
     "energy_pack_large": { "name": "Large Energy Pack", "description": "Instantly restores 10 Action Energy." },
     "construction_speedup_small": { "name": "Small Construction Kit", "description": "Reduces a building's remaining construction time by 5 minutes." },
     "construction_speedup_large": { "name": "Large Construction Kit", "description": "Reduces a building's remaining construction time by 10 minutes." }
+  },
+  "core": {
+    "title": "The Core",
+    "seasonLabel": "Season {season}",
+    "loading": "Loading…",
+    "loadError": "Could not load the Core.",
+    "notScheduled": "The Core has no opening date yet.",
+    "opensIn": "The Core opens in {time}",
+    "endsIn": "The Core is open — {time} left (of {days} days)",
+    "endedWinner": "The season is over. Winner: {clan}",
+    "endedNoWinner": "The season is over. No clan attacked the Core.",
+    "rulesSummary": "Every point of damage your robot deals to the Core counts for your clan. The clan with the most damage when time runs out wins the season.",
+    "joinClanFirst": "Only clan members can attack the Core. Join or create a clan first:",
+    "myDamage": "Your damage this season",
+    "tavernActive": "Tavern active: +{percent}% damage",
+    "attack": "Attack ({energy} energy)",
+    "attackCooldown": "Recharging… {seconds}s",
+    "lastAttack": "Last attack",
+    "lastAttackSummary": "You dealt {damage} damage and lasted {rounds}/{maxRounds} rounds (took {taken} damage).",
+    "standings": "Clan standings",
+    "noStandings": "No clan has damaged the Core yet.",
+    "attackError": "The attack failed.",
+    "errorNotOpen": "The Core is not open right now.",
+    "errorNotInClan": "You need to be in a clan to attack the Core.",
+    "errorNotEnoughEnergy": "Not enough Action Energy.",
+    "errorCooldown": "Your robot is still recharging — try again in a few seconds.",
+    "errorExpedition": "You cannot attack while on an expedition.",
+    "topPlayers": "Biggest contribution",
+    "noPlayerDamage": "No damage dealt yet."
   }
 }

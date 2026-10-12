@@ -1,13 +1,14 @@
 'use client';
 
-import type { BossDto, ZoneDto } from '@pentilius/shared';
+import type { BossDto, CoreStateDto, ZoneDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
 import { Link, useRouter } from '@/i18n/navigation';
-import { ApiError, attackPentili, getBossFormations, getZones } from '@/lib/api-client';
+import { ApiError, attackPentili, getBossFormations, getCoreState, getZones } from '@/lib/api-client';
 import { assetUrl } from '@/lib/assets';
+import { formatDuration } from '@/lib/format-duration';
 import { setPendingBattle } from '@/lib/pending-battle';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -92,6 +93,8 @@ export default function ZonesPage() {
   const router = useRouter();
   const [zones, setZones] = useState<ZoneDto[] | null>(null);
   const [bosses, setBosses] = useState<BossDto[] | null>(null);
+  const [core, setCore] = useState<CoreStateDto | null>(null);
+  const [, setTick] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedPentiliId, setSelectedPentiliId] = useState<string | null>(null);
@@ -140,6 +143,9 @@ export default function ZonesPage() {
         setBosses(res.bosses);
       })
       .catch(() => {});
+    getCoreState()
+      .then(setCore)
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -158,6 +164,18 @@ export default function ZonesPage() {
   }, [selectedId, zones]);
 
   const selected = zones?.find((z) => z.id === selectedId) ?? null;
+
+  // Ticks the Core card's countdown once a second — only while it's on screen and open.
+  const showCoreCountdown = selectedId === CORE_ID && core?.status === 'OPEN';
+  useEffect(() => {
+    if (!showCoreCountdown) return;
+    const clock = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(clock);
+  }, [showCoreCountdown]);
+  // The Core is only enterable while open, or after the season ended (final standings).
+  const coreOpen = core?.status === 'OPEN';
+  const coreEnded = core?.status === 'ENDED';
+  const coreSecondsLeft = coreOpen && core?.endsAt ? Math.max(0, Math.ceil((new Date(core.endsAt).getTime() - Date.now()) / 1000)) : 0;
   const selectedBoss = selected ? (bosses?.find((b) => b.zoneId === selected.id) ?? null) : null;
   const openFormationCount = selectedBoss?.formations.filter((f) => f.status === 'OPEN').length ?? 0;
   const step = 360 / Math.max(1, zones?.length ?? 1);
@@ -232,8 +250,8 @@ export default function ZonesPage() {
               );
             })}
 
-            {/* Core — placeholder, not yet a real feature, but still selectable so its
-                details card (below the planet) can preview what's coming. */}
+            {/* Core (owner decision, 2026-10-12) — selecting it shows a card below the
+                planet, like a zone: "Attack the Core" while open, "Coming soon" otherwise. */}
             <g
               role="button"
               tabIndex={0}
@@ -251,16 +269,18 @@ export default function ZonesPage() {
                 height={INNER_R * 2}
                 preserveAspectRatio="xMidYMid slice"
                 clipPath="url(#core-clip)"
-                className="opacity-35 grayscale"
+                className="opacity-80"
               />
               {/* Readability backdrop — the image behind the text can be bright/busy */}
               <rect x={CENTER - INNER_R + 6} y={CENTER - 16} width={(INNER_R - 6) * 2} height={32} rx={6} className="fill-black/45" />
               <text x={CENTER} y={CENTER - 6} textAnchor="middle" className="select-none fill-white text-[10px] font-semibold uppercase">
                 {t('zones.core')}
               </text>
-              <text x={CENTER} y={CENTER + 10} textAnchor="middle" className="select-none fill-white/80 text-[8px]">
-                {t('zones.coreComingSoon')}
-              </text>
+              {!coreOpen && !coreEnded && (
+                <text x={CENTER} y={CENTER + 10} textAnchor="middle" className="select-none fill-white/80 text-[8px]">
+                  {t('zones.coreComingSoon')}
+                </text>
+              )}
             </g>
 
             {/* Structural lines — drawn once on top of every image/clip, shared
@@ -444,20 +464,38 @@ export default function ZonesPage() {
           )}
 
           {selectedId === CORE_ID && (
-            <div className="w-full max-w-sm sm:max-w-md md:max-w-xl lg:max-w-2xl rounded-lg border border-panelBorder bg-panel p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-well opacity-50">
-                  <AssetIcon
-                    assetId="zones.core"
-                    alt={t('zones.core')}
-                    className="h-full w-full object-cover"
-                    fallback={<div className="flex h-full w-full items-center justify-center text-sm font-semibold text-textMuted">{t('zones.core').charAt(0)}</div>}
-                  />
-                </div>
+            <div className="relative w-full max-w-sm overflow-hidden rounded-lg border border-panelBorder sm:max-w-md md:max-w-xl lg:max-w-2xl">
+              {/* Core art as the card background — same treatment as a zone card. */}
+              <div className="absolute inset-0">
+                <AssetIcon assetId="zones.core" alt={t('zones.core')} className="h-full w-full object-cover" fallback={<div className="h-full w-full bg-well" />} />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/55 to-black/85" />
+              </div>
+
+              <div className="relative z-10 flex min-h-[120px] items-center gap-3 p-4">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">{t('zones.core')}</p>
-                  <p className="text-xs text-textMuted">{t('zones.coreComingSoon')}</p>
+                  <p className="inline-block rounded bg-black/55 px-1.5 py-0.5 font-medium text-white">{t('zones.core')}</p>
+                  {!coreOpen && !coreEnded && (
+                    <p className="mt-1 block w-fit rounded bg-black/55 px-1.5 py-0.5 text-xs text-white/70">{t('zones.coreComingSoon')}</p>
+                  )}
+                  {coreOpen && (
+                    <>
+                      <p className="mt-1 block w-fit rounded bg-black/55 px-1.5 py-0.5 text-xs tabular-nums text-gold">
+                        {t('zones.coreTimeLeft', { time: formatDuration(coreSecondsLeft) })}
+                      </p>
+                      <p className="mt-2 max-w-md rounded bg-black/55 px-1.5 py-1 text-xs text-white/80">{t('zones.coreCallToAction')}</p>
+                    </>
+                  )}
                 </div>
+                {coreOpen && (
+                  <Link href="/core" className="shrink-0 rounded-md border border-gold bg-accentBg px-4 py-2 text-xs uppercase text-gold hover:bg-accentBgHover">
+                    {t('zones.enterCore')}
+                  </Link>
+                )}
+                {coreEnded && (
+                  <Link href="/core" className="shrink-0 rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover">
+                    {t('zones.coreStandings')}
+                  </Link>
+                )}
               </div>
             </div>
           )}

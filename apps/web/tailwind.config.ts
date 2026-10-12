@@ -23,6 +23,11 @@ const config: Config = {
         positive: '#7fc7a0',
         danger: '#a56e6e',
         gold: '#c5a873',
+        // Podium colors (Core clan standings) — a brighter, more metallic gold
+        // than the muted UI `gold` above, which stays as-is everywhere else.
+        podiumGold: '#e8b923',
+        silver: '#c0c7cf',
+        bronze: '#c27c45',
         // EPIC item quality (2 Excellent options) — distinct from RARE's green
         // (positive above), so the two are never confused at a glance.
         epic: '#b5712c',

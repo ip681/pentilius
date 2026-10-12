@@ -264,3 +264,67 @@ candidate new buildings and ruled out an Oxygen Processor on these grounds.
 Owner-specified, not placeholder guesses: 60/300/600 minute durations
 (`GAME_SYSTEMS.md`'s own example) and a 70% early-cancel payout
 (`expeditions.earlyCancelPercentage`).
+
+## Seasons and the Core (2026-10-12)
+
+The earlier "clans build the Core, then activate and defend it" concept was
+dropped by the owner. It was replaced by an **attacked** Core: any clan
+member attacks it for 1 Action Energy, and the damage dealt becomes points
+for their clan. When a configurable window closes (default 14 days), the clan
+with the most damage wins the season. Discussed alternatives:
+- a shared Core HP pool, where the last hit or the most damage wins;
+- per-clan 0-100% progress bars, where the first to 100% wins.
+
+The plain cumulative total was chosen as the most predictable and calm
+competition. "Tug-of-war" (attacks lowering other clans' totals) was raised
+but not adopted.
+
+Key owner decisions and why:
+- **Opening time and duration are set from a godmaster Settings tab**, not
+  hard-coded, and both lock once the Core opens. Postponing or changing the
+  rules mid-race would be unfair to the clans already competing.
+- **The Core fights back** (the fight ends when the robot falls or the round
+  cap passes) so every stat matters: Defense, HP, Evasion and Reflect, not
+  just Attack. A Core that only took hits would make pure-damage builds
+  the only viable option.
+- **1 energy per attack, points = damage**: equal attack budgets for
+  everyone, so strength comes from the robot rather than from playtime.
+- **Clan members only, no minimum level**: the ranking is per clan.
+- **Clan switching**: there is no waiting period, and points stay with the
+  clan the player was in when they attacked. Late clan-hopping can only
+  bring the new clan at most one energy bar's worth of attacks.
+- **10 s anti-flood gap** between a player's attacks.
+- **Sliders show the top 10 plus your own clan**, relative to the leader
+  (100%). The leader-relative view shows "how far behind first place" more
+  clearly than a share of total damage.
+- **No season rewards.** Final placements are snapshotted permanently
+  (`SeasonClanResult`) for future profile display.
+- **Accounts persist across seasons, but everything else resets.** The reset
+  itself is not built yet.
+
+**Tavern ("Кръчма" in Bulgarian, "Cantina" in English).** Lore: soldiers get
+braver. It is a new clan building giving +1% damage per level against
+**bosses and the Core only**. That keeps it useful all season, through
+bosses, and keeps it distinct from Clan Forge's general bonus. There is no
+level cap; rising cost limits it naturally, so players don't feel an
+artificial wall. Rows are seeded up to the 32-bit cost limit (level 104).
+The bonus only applies while the Tavern is **active**: a leader or officer
+activates it from the treasury for 12 h, at a cost that grows with level. It
+was first built with auto-renewal from the treasury. The owner reversed that
+the same day: it must **not** renew on its own. Once it expires, someone has to
+activate it again by hand, so the bonus is a deliberate, recurring clan
+decision rather than a passive drain. This keeps Metal and Crystal meaningful
+late in the season, which was the original worry: resources going dead once
+research and gear max out.
+
+## Base as a fortress, Defense System (2026-10-12)
+
+The Base page was reworked to match the clan buildings:
+- buildings are tiles (picture, "Name (level)") inside the wall-and-tower frame, which was previously a "visual mockup only";
+- details and actions open in a sheet on click;
+- the old per-building cards were removed.
+
+The owner wants the frame itself to become buildings. The **corner towers are the Defense System**: +1% defense per level, max level 10 for now. It is deliberately **defense-only**: it applies when another player attacks you (PvP, and clan-war duels where you are the defender) and also shows in the attacker's scout/target preview of you, but never on your own attacks. Max level 10 and +1% were kept as the owner's first-pass values, and real play will show whether +1%/level is too subtle. Later the same day the walls became the **Defensive Wall**: longer regular-PvP protection after a lost defense, +5 min per level. It deliberately does not apply to clan wars, where long protection could stall a whole war. Resource protection went into a separate **Hideout** building instead of the wall, at the owner's suggestion. The Hideout is the classic genre model: a fixed amount per level can't be stolen, in both PvP and clan-war duels. That favors small and weak players, whereas a percentage would protect the rich equally.
+
+The Crystal Extractor's display name became "Кристална мина" / "Crystal Mine", for symmetry with the Metal Mine. Only the translation changed; the stable key `crystal_extractor` stays.
+

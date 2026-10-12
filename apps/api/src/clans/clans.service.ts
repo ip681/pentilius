@@ -11,6 +11,7 @@ import {
 } from '@pentilius/shared';
 import { Clan, ClanBuilding, ClanBuildingLevelCost, ClanBuildingType, ClanMembership, ClanMessage, Player, Prisma } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
+import { chargeTavernActivation, findTavern, isTavernActive, TAVERN_ACTIVATION_MS, tavernActivationCost } from './clan-tavern';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClanLeaderboardQueryDto } from './dto/clan-leaderboard-query.dto';
@@ -452,6 +453,55 @@ export class ClansService {
     return this.getClan(acting.clanId, actingPlayerId);
   }
 
+  /**
+   * Tavern activation (owner decision, 2026-10-12) — leader/officer only,
+   * like every other clan-building action. Pays for one activation from the
+   * treasury. It is never renewed automatically (owner decision) — once it
+   * expires, someone has to activate it again.
+   */
+  async activateClanBuilding(actingPlayerId: string, buildingKey: string): Promise<ClanDetailDto> {
+    const acting = await this.prisma.clanMembership.findUnique({ where: { playerId: actingPlayerId } });
+    if (!acting || acting.role === 'MEMBER') {
+      throw new ForbiddenException('Only the leader or an officer may activate clan buildings');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.ensureClanBuildingsExist(acting.clanId, tx);
+      await this.finalizeCompletedClanBuildings(acting.clanId, tx);
+
+      const buildingType = await tx.clanBuildingType.findUnique({ where: { key: buildingKey } });
+      if (!buildingType) {
+        throw new NotFoundException('Unknown clan building');
+      }
+      if (buildingType.bonusType !== 'BOSS_CORE_DAMAGE') {
+        throw new BadRequestException('BUILDING_NOT_ACTIVATABLE');
+      }
+
+      const tavern = await findTavern(acting.clanId, tx);
+      if (!tavern || tavern.level < 1) {
+        throw new BadRequestException('BUILDING_NOT_BUILT');
+      }
+      if (isTavernActive(tavern)) {
+        throw new BadRequestException('ALREADY_ACTIVE');
+      }
+
+      // Claim first (still inactive), then pay — a concurrent second
+      // activation finds it already active and charges nothing.
+      const claimed = await tx.clanBuilding.updateMany({
+        where: { id: tavern.id, OR: [{ activeUntil: null }, { activeUntil: { lte: new Date() } }] },
+        data: { activeUntil: new Date(Date.now() + TAVERN_ACTIVATION_MS) },
+      });
+      if (claimed.count === 0) {
+        throw new BadRequestException('ALREADY_ACTIVE');
+      }
+      if (!(await chargeTavernActivation(acting.clanId, tavern.level, tx))) {
+        throw new BadRequestException('NOT_ENOUGH_TREASURY');
+      }
+    });
+
+    return this.getClan(acting.clanId, actingPlayerId);
+  }
+
   async getMessages(clanId: string, playerId: string): Promise<ClanMessageDto[]> {
     await this.assertMembership(clanId, playerId);
 
@@ -584,6 +634,14 @@ function toBuildingStateDto(building: BuildingWithType): ClanBuildingStateDto {
           constructionSeconds: nextLevelCost.constructionSeconds,
         }
       : null,
+    activation:
+      building.clanBuildingType.bonusType === 'BOSS_CORE_DAMAGE'
+        ? {
+            activeUntil: isTavernActive(building) ? building.activeUntil!.toISOString() : null,
+            durationHours: GAME_BALANCE.clanTavern.activationHours,
+            cost: tavernActivationCost(Math.max(1, building.level)),
+          }
+        : null,
   };
 }
 

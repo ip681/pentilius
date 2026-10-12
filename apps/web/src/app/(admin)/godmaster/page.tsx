@@ -153,6 +153,7 @@ const TABS = [
   { key: 'server', label: 'Сървър' },
   { key: 'players', label: 'Играчи' },
   { key: 'admins', label: 'Админи' },
+  { key: 'settings', label: 'Настройки' },
 ] as const;
 type AdminTab = (typeof TABS)[number]['key'];
 
@@ -227,6 +228,8 @@ function AdminPanel({ onLogout, role }: { onLogout: () => void; role: string | n
       )}
 
       {tab === 'admins' && role === 'ADMIN' && <AdminAccountsPanel />}
+
+      {tab === 'settings' && <SeasonSettingsPanel canEdit={role === 'ADMIN'} />}
     </div>
   );
 }
@@ -256,6 +259,7 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
   BAN_PLAYER: 'Наказан',
   UNBAN_PLAYER: 'Наказанието премахнато',
   RENAME_PLAYER: 'Преименуван',
+  UPDATE_SEASON_SETTINGS: 'Настройки на сезона',
 };
 
 function PlayerDetailView({ detail, onReload }: { detail: PlayerDetail; onReload: (username: string) => void }) {
@@ -1186,6 +1190,146 @@ function AdminAccountsPanel() {
           Създаден {createdPassword.username} — парола (записва се само сега): <span className="font-mono">{createdPassword.password}</span>
         </p>
       )}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+    </section>
+  );
+}
+
+interface SeasonSettings {
+  seasonId: number;
+  status: 'NOT_SCHEDULED' | 'SCHEDULED' | 'OPEN' | 'ENDED';
+  coreOpensAt: string | null;
+  coreDurationDays: number;
+  coreEndsAt: string | null;
+  locked: boolean;
+}
+
+const SEASON_STATUS_LABEL: Record<SeasonSettings['status'], string> = {
+  NOT_SCHEDULED: 'Ядрото няма зададена дата',
+  SCHEDULED: 'Ядрото предстои да се отвори',
+  OPEN: 'Ядрото е отворено — атаките текат',
+  ENDED: 'Ядрото е затворено — класирането е замразено',
+};
+
+const SEASON_ERROR_LABEL: Record<string, string> = {
+  SEASON_SETTINGS_LOCKED: 'Ядрото вече е отворено — настройките не могат да се променят.',
+  OPENING_TIME_MUST_BE_IN_FUTURE: 'Часът на отваряне трябва да е в бъдещето.',
+  ADMIN_ROLE_REQUIRED: 'Само ADMIN може да променя настройките.',
+};
+
+/** `<input type="datetime-local">` value (browser-local time) for a UTC ISO string. */
+function toLocalInputValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * Season settings (owner decision, 2026-10-12): when the Core opens and how
+ * many days attacks last. Both lock the moment the Core opens — the backend
+ * enforces this, the form just mirrors it. Times are entered in this browser's
+ * local time and stored as UTC.
+ */
+function SeasonSettingsPanel({ canEdit }: { canEdit: boolean }) {
+  const [settings, setSettings] = useState<SeasonSettings | null>(null);
+  const [opensAt, setOpensAt] = useState('');
+  const [durationDays, setDurationDays] = useState(14);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  function apply(res: SeasonSettings) {
+    setSettings(res);
+    setOpensAt(res.coreOpensAt ? toLocalInputValue(res.coreOpensAt) : '');
+    setDurationDays(res.coreDurationDays);
+  }
+
+  useEffect(() => {
+    adminFetch<SeasonSettings>('/admin/season')
+      .then(apply)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }, []);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSaved(false);
+    if (!opensAt) {
+      setError('Избери дата и час на отваряне.');
+      return;
+    }
+    try {
+      const res = await adminFetch<SeasonSettings>('/admin/season', {
+        method: 'POST',
+        body: { coreOpensAt: new Date(opensAt).toISOString(), coreDurationDays: durationDays },
+      });
+      apply(res);
+      setSaved(true);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      setError(SEASON_ERROR_LABEL[code] ?? (code || 'Грешка'));
+    }
+  }
+
+  const formatted = (iso: string | null) => (iso ? new Date(iso).toLocaleString('bg-BG') : '—');
+  const editable = canEdit && !!settings && !settings.locked;
+
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <h2 className="mb-3 text-sm font-semibold">Сезон и Ядро</h2>
+
+      {settings && (
+        <div className="mb-4 grid grid-cols-1 gap-1 text-xs sm:grid-cols-2">
+          <span className="text-textFaint">Сезон</span>
+          <span>#{settings.seasonId}</span>
+          <span className="text-textFaint">Статус</span>
+          <span className={settings.status === 'OPEN' ? 'text-positive' : ''}>{SEASON_STATUS_LABEL[settings.status]}</span>
+          <span className="text-textFaint">Отваря се</span>
+          <span>{formatted(settings.coreOpensAt)}</span>
+          <span className="text-textFaint">Продължителност</span>
+          <span>{settings.coreDurationDays} дни</span>
+          <span className="text-textFaint">Край (определя се победителят)</span>
+          <span>{formatted(settings.coreEndsAt)}</span>
+        </div>
+      )}
+
+      {settings?.locked ? (
+        <p className="text-xs text-textMuted">Ядрото вече е отворено, затова датата и продължителността са заключени.</p>
+      ) : (
+        <form onSubmit={handleSave} className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+            отваряне на Ядрото (местно време)
+            <input
+              type="datetime-local"
+              value={opensAt}
+              disabled={!editable}
+              onChange={(e) => setOpensAt(e.target.value)}
+              className="rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+            дни за атаки
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={durationDays}
+              disabled={!editable}
+              onChange={(e) => setDurationDays(Number(e.target.value))}
+              className="w-24 rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={!editable}
+            className="rounded-md border border-accent bg-accentBg px-3 py-2 text-sm hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            Запази
+          </button>
+        </form>
+      )}
+      {!canEdit && <p className="mt-2 text-xs text-textFaint">Само ADMIN може да променя тези настройки.</p>}
+      <p className="mt-2 text-[10px] text-textFaint">След отварянето на Ядрото нито датата, нито продължителността могат да се променят.</p>
+      {saved && <p className="mt-2 text-xs text-positive">Запазено.</p>}
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}
     </section>
   );
