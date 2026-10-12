@@ -9,6 +9,14 @@ import { EquipmentSlot, ItemOption, ItemQuality, ItemTier } from '@prisma/client
  * instructions/OPEN_DECISIONS.md for the list of what is still placeholder.
  */
 export const GAME_BALANCE = {
+  // What a player starts with — on registration (Player's schema defaults,
+  // keep both in sync) and again after every season reset.
+  newPlayer: {
+    metal: 500,
+    crystal: 100,
+    credits: 50,
+    actionEnergy: 10,
+  },
   actionEnergy: {
     // Regeneration rate is UNDEFINED in GAME_SYSTEMS.md — owner-specified at
     // 15 minutes per point (not a placeholder guess).

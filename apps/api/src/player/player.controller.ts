@@ -3,6 +3,7 @@ import { CurrentPlayer } from '../auth/decorators/current-player.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/jwt-payload.interface';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ChooseRaceDto } from './dto/choose-race.dto';
 import { ListPlayersDto } from './dto/list-players.dto';
 import { UpdateAvatarDto } from './dto/update-avatar.dto';
 import { UpdateBioDto } from './dto/update-bio.dto';
@@ -38,6 +39,11 @@ export class PlayerController {
   @Post('me/locale')
   updateLocale(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: UpdateLocaleDto) {
     return this.playerService.updatePreferredLocale(currentPlayer.sub, dto.locale);
+  }
+
+  @Post('me/race')
+  chooseRace(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: ChooseRaceDto) {
+    return this.playerService.chooseRace(currentPlayer.sub, dto.race);
   }
 
   @Get('cosmetics')

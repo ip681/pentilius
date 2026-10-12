@@ -44,6 +44,13 @@ export interface PlayerProfileDto {
   selectedFrameKey: string;
   // Set while an account deletion is pending — the player can cancel until then.
   deletionScheduledFor: string | null;
+  // True after a season reset until the player picks a race for the new season.
+  needsRaceSelection: boolean;
+  // Current season number ("Започна Сезон N!").
+  seasonNumber: number;
+  // Once the Core has closed: when the season resets — the client counts down to it
+  // on every page and, at zero, moves the player to the new season's race picker.
+  seasonResetAt: string | null;
 }
 
 export interface AvatarDto {
@@ -162,6 +169,20 @@ export interface PlayerPublicProfileDto {
   clan: PublicProfileClanDto | null;
   selectedAvatarKey: string;
   selectedFrameKey: string;
+  // Past seasons, newest first (owner decision, 2026-10-13).
+  seasonHistory: SeasonHistoryEntryDto[];
+}
+
+export interface SeasonHistoryEntryDto {
+  seasonId: number;
+  race: Race;
+  level: number;
+  clanName: string | null;
+  clanTag: string | null;
+  clanRole: ClanRole | null;
+  clanRank: number | null;
+  coreDamage: number;
+  coreDamageRank: number | null;
 }
 
 export interface BuildingCostDto {
@@ -1013,6 +1034,8 @@ export interface CoreStateDto {
   nextAttackAt: string | null;
   attackCostEnergy: number;
   tavern: CoreTavernStatusDto | null;
+  // Once the Core has closed: when the season resets (progress wiped, new season starts).
+  resetAt: string | null;
 }
 
 // 'clan': every current member of the viewer's clan, by damage dealt FOR THIS

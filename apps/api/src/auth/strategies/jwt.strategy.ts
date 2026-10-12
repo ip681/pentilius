@@ -1,10 +1,14 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+import type { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { GAME_BALANCE } from '../../config/game-config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '../jwt-payload.interface';
+
+// Requests still allowed while a new-season race choice is pending.
+const RACE_SELECTION_ALLOWED = ['/player/me/race', '/player/me/deletion', '/player/me/deletion/code', '/player/me/deletion/cancel', '/core/season-check'];
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -16,19 +20,30 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('jwt.accessSecret')!,
+      passReqToCallback: true,
     });
   }
 
-  async validate(payload: JwtPayload): Promise<JwtPayload> {
+  async validate(request: Request, payload: JwtPayload): Promise<JwtPayload> {
     // Checked on every authenticated request (not just login) so an
     // admin-issued ban takes effect immediately against an already-active
     // session, not only against a future login attempt.
-    const player = await this.prisma.player.findUnique({ where: { id: payload.sub }, select: { bannedUntil: true, deletedAt: true } });
+    const player = await this.prisma.player.findUnique({
+      where: { id: payload.sub },
+      select: { bannedUntil: true, deletedAt: true, needsRaceSelection: true },
+    });
     if (!player || player.deletedAt) {
       throw new UnauthorizedException('ACCOUNT_DELETED');
     }
     if (player.bannedUntil && player.bannedUntil > new Date()) {
       throw new UnauthorizedException('PLAYER_BANNED');
+    }
+
+    // New season (owner decision, 2026-10-13): until the race is picked, every
+    // state-changing request is refused — reading (GET) still works so the
+    // client can load the profile and show the race picker.
+    if (player.needsRaceSelection && request.method !== 'GET' && !RACE_SELECTION_ALLOWED.some((path) => request.path.endsWith(path))) {
+      throw new ForbiddenException('RACE_SELECTION_REQUIRED');
     }
 
     await this.touchLastActive(payload.sub).catch(() => undefined);

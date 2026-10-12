@@ -152,6 +152,13 @@ export default function DashboardPage() {
       secondsLeft: Math.max(0, Math.ceil((new Date(core.opensAt).getTime() - now) / 1000)),
       href: '/core',
     });
+  } else if (core?.status === 'ENDED' && core.resetAt) {
+    operations.push({
+      key: 'season-reset',
+      label: t('dashboard.seasonResetIn'),
+      secondsLeft: Math.max(0, Math.ceil((new Date(core.resetAt).getTime() - now) / 1000)),
+      href: '/core',
+    });
   } else if (core?.status === 'OPEN' && core.endsAt) {
     operations.push({
       key: 'core',

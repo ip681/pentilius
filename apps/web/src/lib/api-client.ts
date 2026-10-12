@@ -168,6 +168,16 @@ export function login(payload: LoginRequest): Promise<AuthResponse> {
   return request<AuthResponse>('/auth/login', { method: 'POST', body: payload });
 }
 
+/** Asks the server to start the new season now if (by its clock) it's due — see SeasonController.seasonCheck. */
+export function checkSeason(): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/core/season-check', { method: 'POST', auth: true });
+}
+
+/** New season: pick the race after a season reset (only while profile.needsRaceSelection). */
+export function chooseRace(race: Race): Promise<PlayerProfileDto> {
+  return request<PlayerProfileDto>('/player/me/race', { method: 'POST', auth: true, body: { race } });
+}
+
 export function getRaceCounts(): Promise<RaceCountsDto> {
   return request<RaceCountsDto>('/auth/race-counts');
 }

@@ -50,6 +50,26 @@ function getRememberedPentili(zoneId: string): string | null {
   }
 }
 
+// The last selected zone (or the Core) is remembered per browser, same as the
+// last Pentili per zone above — so the planet reopens where the player left off.
+const SELECTED_ZONE_STORAGE_KEY = 'zones.selected';
+
+function rememberSelectedZone(id: string): void {
+  try {
+    localStorage.setItem(SELECTED_ZONE_STORAGE_KEY, id);
+  } catch {
+    // ignore
+  }
+}
+
+function getRememberedSelectedZone(): string | null {
+  try {
+    return localStorage.getItem(SELECTED_ZONE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 function polarToXY(r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
   return { x: CENTER + r * Math.cos(rad), y: CENTER + r * Math.sin(rad) };
@@ -131,7 +151,13 @@ export default function ZonesPage() {
     getZones()
       .then((res) => {
         setZones(res);
-        setSelectedId((current) => current ?? res.find((z) => z.unlocked)?.id ?? res[0]?.id ?? null);
+        setSelectedId((current) => {
+          if (current) return current;
+          // Reopen on the last selection if it still exists and is reachable.
+          const remembered = getRememberedSelectedZone();
+          if (remembered === CORE_ID || res.some((z) => z.id === remembered && z.unlocked)) return remembered;
+          return res.find((z) => z.unlocked)?.id ?? res[0]?.id ?? null;
+        });
       })
       .catch(() => setError(t('zones.loadError')));
     // Bosses nav button was removed (owner decision, 2026-10-11) now that each
@@ -165,8 +191,12 @@ export default function ZonesPage() {
 
   const selected = zones?.find((z) => z.id === selectedId) ?? null;
 
-  // Ticks the Core card's countdown once a second — only while it's on screen and open.
-  const showCoreCountdown = selectedId === CORE_ID && core?.status === 'OPEN';
+  useEffect(() => {
+    if (selectedId) rememberSelectedZone(selectedId);
+  }, [selectedId]);
+
+  // Ticks the Core countdowns (planet centre + Core card) once a second while the Core is open.
+  const showCoreCountdown = core?.status === 'OPEN';
   useEffect(() => {
     if (!showCoreCountdown) return;
     const clock = setInterval(() => setTick((n) => n + 1), 1000);
@@ -176,6 +206,22 @@ export default function ZonesPage() {
   const coreOpen = core?.status === 'OPEN';
   const coreEnded = core?.status === 'ENDED';
   const coreSecondsLeft = coreOpen && core?.endsAt ? Math.max(0, Math.ceil((new Date(core.endsAt).getTime() - Date.now()) / 1000)) : 0;
+  // After the season: the clan that took the Core (top of the frozen standings), if any clan dealt damage.
+  const coreWinner = coreEnded ? (core?.standings[0] ?? null) : null;
+  const coreWinnerLabel = coreWinner ? `[${coreWinner.clanTag}] ${coreWinner.clanName}` : null;
+
+  // The moment the countdown hits zero the server has closed the Core — fetch the final state
+  // (winner) instead of sitting on 00:00:00.
+  const coreJustClosed = coreOpen && coreSecondsLeft === 0;
+  useEffect(() => {
+    if (!coreJustClosed) return;
+    const timeout = setTimeout(() => {
+      getCoreState()
+        .then(setCore)
+        .catch(() => {});
+    }, 1500);
+    return () => clearTimeout(timeout);
+  }, [coreJustClosed]);
   const selectedBoss = selected ? (bosses?.find((b) => b.zoneId === selected.id) ?? null) : null;
   const openFormationCount = selectedBoss?.formations.filter((f) => f.status === 'OPEN').length ?? 0;
   const step = 360 / Math.max(1, zones?.length ?? 1);
@@ -269,16 +315,38 @@ export default function ZonesPage() {
                 height={INNER_R * 2}
                 preserveAspectRatio="xMidYMid slice"
                 clipPath="url(#core-clip)"
-                className="opacity-80"
+                className={coreOpen || coreEnded ? 'opacity-80' : 'opacity-35 grayscale'}
               />
               {/* Readability backdrop — the image behind the text can be bright/busy */}
-              <rect x={CENTER - INNER_R + 6} y={CENTER - 16} width={(INNER_R - 6) * 2} height={32} rx={6} className="fill-black/45" />
-              <text x={CENTER} y={CENTER - 6} textAnchor="middle" className="select-none fill-white text-[10px] font-semibold uppercase">
+              <rect
+                x={CENTER - INNER_R + 6}
+                y={coreWinnerLabel ? CENTER - 22 : CENTER - 16}
+                width={(INNER_R - 6) * 2}
+                height={coreWinnerLabel ? 44 : 32}
+                rx={6}
+                className="fill-black/45"
+              />
+              <text x={CENTER} y={coreWinnerLabel ? CENTER - 10 : CENTER - 6} textAnchor="middle" className="select-none fill-white text-[10px] font-semibold uppercase">
                 {t('zones.core')}
               </text>
+              {coreWinnerLabel && (
+                <>
+                  <text x={CENTER} y={CENTER + 3} textAnchor="middle" className="select-none fill-white/80 text-[7px]">
+                    {t('zones.coreTakenBy')}
+                  </text>
+                  <text x={CENTER} y={CENTER + 14} textAnchor="middle" className="select-none fill-white text-[8px] font-semibold">
+                    {coreWinnerLabel.length > 18 ? `${coreWinnerLabel.slice(0, 17)}…` : coreWinnerLabel}
+                  </text>
+                </>
+              )}
               {!coreOpen && !coreEnded && (
                 <text x={CENTER} y={CENTER + 10} textAnchor="middle" className="select-none fill-white/80 text-[8px]">
                   {t('zones.coreComingSoon')}
+                </text>
+              )}
+              {coreOpen && (
+                <text x={CENTER} y={CENTER + 10} textAnchor="middle" className="select-none fill-white text-[8px] font-semibold tabular-nums">
+                  {formatDuration(coreSecondsLeft)}
                 </text>
               )}
             </g>
@@ -476,6 +544,11 @@ export default function ZonesPage() {
                   <p className="inline-block rounded bg-black/55 px-1.5 py-0.5 font-medium text-white">{t('zones.core')}</p>
                   {!coreOpen && !coreEnded && (
                     <p className="mt-1 block w-fit rounded bg-black/55 px-1.5 py-0.5 text-xs text-white/70">{t('zones.coreComingSoon')}</p>
+                  )}
+                  {coreWinnerLabel && (
+                    <p className="mt-1 block w-fit rounded bg-black/55 px-1.5 py-0.5 text-xs text-white">
+                      {t('zones.coreTakenByClan', { clan: coreWinnerLabel })}
+                    </p>
                   )}
                   {coreOpen && (
                     <>

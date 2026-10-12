@@ -116,7 +116,8 @@
     "quickAccess": "Quick Access",
     "coreOpensIn": "The Core opens in",
     "coreOpenEndsIn": "The Core is open — time left",
-    "tavernActive": "Tavern active (+{percent}% vs bosses and the Core)"
+    "tavernActive": "Tavern active (+{percent}% vs bosses and the Core)",
+    "seasonResetIn": "New season starts in"
   },
   "base": {
     "title": "Base",
@@ -229,7 +230,9 @@
     "enterCore": "Enter the Core",
     "coreTimeLeft": "Time left: {time}",
     "coreCallToAction": "The time has come to seize the Core and lay the foundations of a new civilization.",
-    "coreStandings": "Standings"
+    "coreStandings": "Standings",
+    "coreTakenBy": "taken by",
+    "coreTakenByClan": "Taken by {clan}"
   },
   "pve": {
     "title": "Combat",
@@ -395,7 +398,14 @@
     "declineFriendRequest": "Decline",
     "sendMessage": "Send Message",
     "removeFriend": "Remove Friend",
-    "friendActionError": "That action failed."
+    "friendActionError": "That action failed.",
+    "seasonHistory": "Past seasons",
+    "seasonLabel": "Season {season}",
+    "seasonClanRank": "#{rank} with {clan}",
+    "seasonClan": "with {clan}",
+    "seasonLevel": "Level {level}",
+    "seasonCoreRank": "Core: {damage} damage (#{rank})",
+    "seasonCoreNone": "Core: no damage"
   },
   "friends": {
     "title": "Friends",
@@ -770,7 +780,8 @@
     "errorCooldown": "Your robot is still recharging — try again in a few seconds.",
     "errorExpedition": "You cannot attack while on an expedition.",
     "topPlayers": "Biggest contribution",
-    "noPlayerDamage": "No damage dealt yet."
+    "noPlayerDamage": "No damage dealt yet.",
+    "resetIn": "A new season starts in {time} — everyone's progress will be reset and all clans disbanded."
   },
   "moderation": {
     "block": "Block",
@@ -1130,5 +1141,11 @@
         }
       ]
     }
+  },
+  "newSeason": {
+    "title": "Season {season} has begun!",
+    "chooseRace": "Everything starts over. Choose your race for this season — keep the same one or try a new one.",
+    "confirm": "Start the season",
+    "error": "Your choice could not be saved. Please try again."
   }
 }

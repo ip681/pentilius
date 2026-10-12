@@ -4,13 +4,14 @@ import type { PlayerProfileDto } from '@pentilius/shared';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { usePathname, useRouter } from '@/i18n/navigation';
-import { cancelAccountDeletion, getProfile } from '@/lib/api-client';
+import { cancelAccountDeletion, checkSeason, getProfile } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format-datetime';
 import { clearTokens, isAuthenticated } from '@/lib/auth';
 import { onProfileChanged } from '@/lib/profile-events';
 import { getCachedProfile, setCachedProfile } from '@/lib/profile-cache';
 import { useFriendsUnread } from '@/lib/use-friends-unread';
 import { BottomNav } from './BottomNav';
+import { RaceSelectModal } from './RaceSelectModal';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 
@@ -75,6 +76,29 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.energy.nextRegenAt]);
 
+  // Season reset (owner decision, 2026-10-13): count down on every page; at
+  // zero ask the server to start the new season (it checks its own clock) and
+  // reload the profile — needsRaceSelection then sends the player below.
+  useEffect(() => {
+    if (!profile?.seasonResetAt) return;
+    const delayMs = Math.max(0, new Date(profile.seasonResetAt).getTime() - Date.now()) + 1000;
+    const timeout = setTimeout(() => {
+      checkSeason()
+        .catch(() => undefined)
+        .finally(loadProfile);
+    }, delayMs);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.seasonResetAt]);
+
+  // New season: the race picker lives on the Command Center — any other page sends the player there.
+  useEffect(() => {
+    if (profile?.needsRaceSelection && pathname !== '/dashboard') {
+      router.replace('/dashboard');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.needsRaceSelection, pathname]);
+
   // "Always opens in that language until changed" (Settings) — every load
   // lands on the saved preference, not just right after login. A no-op once
   // the URL locale already matches, so this can't loop.
@@ -108,6 +132,8 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       {loggedIn && <BottomNav hasUnreadFriends={hasUnreadFriends} />}
+      {/* After a season reset everyone re-picks their race before playing on (owner decision, 2026-10-13). */}
+      {profile?.needsRaceSelection && pathname === '/dashboard' && <RaceSelectModal seasonNumber={profile.seasonNumber} onChosen={loadProfile} />}
     </div>
   );
 }

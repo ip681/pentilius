@@ -277,6 +277,37 @@ export default function PlayerProfilePage() {
             />
           )}
 
+          {/* Past seasons (owner decision, 2026-10-13), newest first. */}
+          {profile.seasonHistory.length > 0 && (
+            <div className="mb-4 rounded-md border border-wellBorder bg-well p-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-textFaint">{t('profile.seasonHistory')}</h3>
+              <div className="flex flex-col gap-1.5 text-xs">
+                {profile.seasonHistory.map((entry) => (
+                  <p key={entry.seasonId} className="text-textMuted">
+                    <span className="font-semibold text-text">{t('profile.seasonLabel', { season: entry.seasonId })}</span>
+                    {' · '}
+                    {t(`race.${entry.race}.name`)}
+                    {entry.clanTag && (
+                      <>
+                        {' · '}
+                        {entry.clanRank
+                          ? t('profile.seasonClanRank', { rank: entry.clanRank, clan: `[${entry.clanTag}] ${entry.clanName}` })
+                          : t('profile.seasonClan', { clan: `[${entry.clanTag}] ${entry.clanName}` })}
+                        {entry.clanRole && ` (${t(`clans.roleLabel.${entry.clanRole}`)})`}
+                      </>
+                    )}
+                    {' · '}
+                    {t('profile.seasonLevel', { level: entry.level })}
+                    {' · '}
+                    {entry.coreDamageRank
+                      ? t('profile.seasonCoreRank', { damage: entry.coreDamage.toLocaleString(), rank: entry.coreDamageRank })
+                      : t('profile.seasonCoreNone')}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="rounded-md border border-wellBorder bg-well p-4">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-textFaint">{t('profile.bio')}</h3>

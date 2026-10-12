@@ -107,9 +107,8 @@ The attacked-Core model was decided on 2026-10-12 (see `instructions/GAME_SYSTEM
 - the Core's lore now that it isn't human-built
 - Core combat stats and round cap (placeholders: `game-config.ts`'s `core` block)
 - Tavern level-cost curve and activation cost (placeholders: `seed.ts`'s Tavern block, `game-config.ts`'s `clanTavern` block)
-- which clan's placement a player's profile shows if they switched clans during the season
 - Pentili escalation as the season advances
-- the season reset itself: accounts are kept and all progress resets — the exact list of what gets wiped vs. kept (cosmetics? friends? past-season results are kept) and how the next season is started from godmaster
+- the season reset is built (2026-10-13, see `instructions/DECISIONS_LOG.md`). Still open: Pentili escalation, and the Core's lore
 
 ## Monetization
 - VIP tiers

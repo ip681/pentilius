@@ -344,6 +344,7 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
   RENAME_PLAYER: 'Преименуван',
   UPDATE_SEASON_SETTINGS: 'Настройки на сезона',
   UPDATE_GAME_SETTINGS: 'Настройки на играта',
+  RESET_SEASON: 'Нулиран сезон',
   ADD_BANNED_WORD: 'Добавена забранена дума',
   REMOVE_BANNED_WORD: 'Премахната забранена дума',
   RESOLVE_REPORT: 'Доклад — решен',
@@ -1347,6 +1348,7 @@ interface SeasonSettings {
   coreDurationDays: number;
   coreEndsAt: string | null;
   locked: boolean;
+  resetAt: string | null;
 }
 
 const SEASON_STATUS_LABEL: Record<SeasonSettings['status'], string> = {
@@ -1434,8 +1436,16 @@ function SeasonSettingsPanel({ canEdit }: { canEdit: boolean }) {
           <span>{settings.coreDurationDays} дни</span>
           <span className="text-textFaint">Край (определя се победителят)</span>
           <span>{formatted(settings.coreEndsAt)}</span>
+          {settings.resetAt && (
+            <>
+              <span className="text-textFaint">Нулиране и нов сезон</span>
+              <span className="text-danger">{formatted(settings.resetAt)}</span>
+            </>
+          )}
         </div>
       )}
+
+      {settings?.status === 'ENDED' && canEdit && <ResetSeasonNow currentSeasonId={settings.seasonId} onDone={(res) => apply(res)} />}
 
       {settings?.locked ? (
         <p className="text-xs text-textMuted">Ядрото вече е отворено, затова датата и продължителността са заключени.</p>
@@ -1915,26 +1925,31 @@ function OwnPasswordPanel({ onTokenChange }: { onTokenChange: (token: string) =>
 /** Global (non-seasonal) game settings (owner decision, 2026-10-12). ADMIN edits, MODERATOR views. */
 function GameSettingsPanel({ canEdit }: { canEdit: boolean }) {
   const [graceDays, setGraceDays] = useState<number | null>(null);
+  const [resetDelayDays, setResetDelayDays] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    adminFetch<{ accountDeletionGraceDays: number }>('/admin/game-settings')
-      .then((res) => setGraceDays(res.accountDeletionGraceDays))
+    adminFetch<{ accountDeletionGraceDays: number; seasonResetDelayDays: number }>('/admin/game-settings')
+      .then((res) => {
+        setGraceDays(res.accountDeletionGraceDays);
+        setResetDelayDays(res.seasonResetDelayDays);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
   }, []);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (graceDays === null) return;
+    if (graceDays === null || resetDelayDays === null) return;
     setError(null);
     setSaved(false);
     try {
-      const res = await adminFetch<{ accountDeletionGraceDays: number }>('/admin/game-settings', {
+      const res = await adminFetch<{ accountDeletionGraceDays: number; seasonResetDelayDays: number }>('/admin/game-settings', {
         method: 'POST',
-        body: { accountDeletionGraceDays: graceDays },
+        body: { accountDeletionGraceDays: graceDays, seasonResetDelayDays: resetDelayDays },
       });
       setGraceDays(res.accountDeletionGraceDays);
+      setResetDelayDays(res.seasonResetDelayDays);
       setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Грешка');
@@ -1957,6 +1972,18 @@ function GameSettingsPanel({ canEdit }: { canEdit: boolean }) {
             className="w-24 rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
           />
         </label>
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          дни след края на сезона до нулирането
+          <input
+            type="number"
+            min={0}
+            max={30}
+            value={resetDelayDays ?? ''}
+            disabled={!canEdit || resetDelayDays === null}
+            onChange={(e) => setResetDelayDays(Number(e.target.value))}
+            className="w-24 rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
+          />
+        </label>
         <button
           type="submit"
           disabled={!canEdit}
@@ -1966,7 +1993,7 @@ function GameSettingsPanel({ canEdit }: { canEdit: boolean }) {
         </button>
       </form>
       <p className="mt-2 text-[10px] text-textFaint">
-        Важи за заявките за изтриване, подадени отсега нататък. Вече насрочените запазват датата си.
+        Дните за изтриване важат за заявките, подадени отсега нататък. Нулирането на сезона става автоматично толкова дни след затварянето на Ядрото.
       </p>
       {!canEdit && <p className="mt-2 text-xs text-textFaint">Само ADMIN може да променя тези настройки.</p>}
       {saved && <p className="mt-2 text-xs text-positive">Запазено.</p>}
@@ -2145,6 +2172,81 @@ function ContentFilterPanel() {
         {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       </section>
     </>
+  );
+}
+
+/**
+ * "Reset now" (owner decision, 2026-10-13) — ADMIN only, once the Core has
+ * closed. Otherwise the reset happens on its own at resetAt. Confirmed with
+ * the new season's number and the admin's password.
+ */
+function ResetSeasonNow({ currentSeasonId, onDone }: { currentSeasonId: number; onDone: (settings: SeasonSettings) => void }) {
+  const [open, setOpen] = useState(false);
+  const [seasonNumber, setSeasonNumber] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const newSeason = currentSeasonId + 1;
+
+  async function handleReset(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await adminFetch('/admin/season/reset', { method: 'POST', body: { newSeasonNumber: Number(seasonNumber), password } });
+      onDone(await adminFetch<SeasonSettings>('/admin/season'));
+      setOpen(false);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      const map: Record<string, string> = {
+        WRONG_PASSWORD: 'Грешна парола.',
+        WRONG_SEASON_NUMBER: `Въведи ${newSeason} — номера на новия сезон.`,
+        SEASON_NOT_ENDED: 'Сезонът още не е приключил.',
+        SEASON_ALREADY_RESET: 'Сезонът вече е нулиран.',
+        RESET_IN_PROGRESS: 'Нулирането вече тече.',
+      };
+      setError(map[code] ?? (code || 'Грешка'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mb-4 rounded-md border border-panelBorderDanger bg-well px-3 py-2 text-xs text-danger hover:bg-accentBgHover"
+      >
+        Нулирай сега и започни сезон {newSeason}
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={handleReset} className="mb-4 flex flex-col gap-2 rounded-md border border-panelBorderDanger bg-well p-3 text-xs">
+      <p className="text-danger">
+        Всички кланове се разпускат, а прогресът на всички играчи (нива, ресурси, сгради, предмети), историята на битките и клановите чатове се изтриват.
+        Резултатите от сезона остават в профилите. Действието е необратимо — увери се, че има резервно копие.
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          напиши {newSeason}
+          <input type="number" value={seasonNumber} onChange={(e) => setSeasonNumber(e.target.value)} className="w-24 rounded-md border border-wellBorder bg-panel px-3 py-2 text-sm outline-none focus:border-accent" />
+        </label>
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          твоята парола
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-md border border-wellBorder bg-panel px-3 py-2 text-sm outline-none focus:border-accent" />
+        </label>
+        <button type="submit" disabled={busy || !seasonNumber || !password} className="rounded-md border border-panelBorderDanger px-3 py-2 text-sm text-danger hover:bg-accentBgHover disabled:opacity-30">
+          {busy ? 'Нулиране…' : 'Нулирай'}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="rounded-md border border-panelBorder px-3 py-2 text-sm text-textMuted hover:bg-accentBgHover">
+          Отказ
+        </button>
+      </div>
+      {error && <p className="text-danger">{error}</p>}
+    </form>
   );
 }
 

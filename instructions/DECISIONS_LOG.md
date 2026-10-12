@@ -501,3 +501,65 @@ the cache is invalidated, with a 60 s safety TTL.
 - A false-positive check against real names and common words found only
   acceptable hits, e.g. shitake and Penistone.
 
+## Season reset (2026-10-13)
+
+**Timing.** The season resets automatically **N days after the Core closes**
+(`GameSettings.seasonResetDelayDays`, default 1, editable in godmaster
+Settings). Players see a countdown on the Core page and in the Command
+Center. The delay gives time to see the final standings and guarantees a
+nightly backup of the final state. An ADMIN can also "reset now" from
+godmaster Settings, only once the Core has closed, confirmed with the new
+season's number and their password. Both paths are in
+`season-reset.service.ts`.
+
+**Wiped:**
+- **All clans are disbanded** (owner decision: option b), with their
+  buildings, treasury, wars and chat.
+- Every player's progress resets to `GAME_BALANCE.newPlayer`: level, XP,
+  attribute points, resources, energy, buildings, research, expeditions,
+  inventory and market listings.
+- All battle history: PvE, PvP, clan wars, bosses and Core attacks.
+
+**Kept:** accounts, cosmetics, friends, DMs, blocks, reports/bans, and the
+frozen season results.
+
+**Race.** Everyone **re-picks their race** at the start of each season, via a
+blocking modal, using `Player.needsRaceSelection` and `POST /player/me/race`.
+This is an owner decision; `PRODUCT_SPEC.md`'s "chosen once at registration"
+now means once per season.
+
+**Profile season card** (`SeasonPlayerResult`), frozen when the Core
+closes, not at the reset, so a last-day clan switch can't claim a placement.
+It holds:
+- race and final level;
+- the clan the player was in **at the end of the season** (owner decision,
+  not the clan they dealt the most damage for), with its rank and the
+  player's role;
+- personal Core damage and its rank.
+
+It is shown as e.g. "Сезон 1 · Luxari · #3 с [STI] Sim Titans (Офицер) ·
+Ниво 47 · Ядро: 184 520 щета (#12)". PvP/boss stats and podium badges were
+offered and declined.
+
+**At the moment of the reset** (owner decision, refined after live testing):
+- Every page counts down to `profile.seasonResetAt`. At zero it calls
+  `POST /core/season-check`, which resets right away if it is due by the
+  server's clock, so clients can't trigger it early; a 1-minute server timer
+  is the fallback. The page then reloads the profile.
+- `needsRaceSelection` sends the player to the Command Center with the
+  non-closable "Започна Сезон N!" race modal.
+- Until a race is picked, the API refuses every non-GET request except race
+  choice, account deletion and the season check (`RACE_SELECTION_REQUIRED`).
+
+**Before the Core opens:**
+- `/core` redirects to Zones.
+- The planet's Core art is dimmed, with "Очаквайте скоро". It is bright only
+  while open, or after the season shows "превзето от [clan]".
+- Season results are written with skip-duplicates, so a re-run after a manual
+  DB edit can't break the Core page or block the reset.
+
+The reset was verified on a throwaway copy of the local DB. Every listed
+table was emptied, friends and DMs were kept, all 63 players were flagged
+for race selection, and 63 player cards plus 8 clan results were written. A
+second reset is refused.
+

@@ -174,6 +174,11 @@ model Player {
   deletionScheduledFor  DateTime?
   deletedAt             DateTime?
 
+  // Set for everyone by a season reset (owner decision, 2026-10-13): race is
+  // re-chosen every season, so the player must pick one (POST
+  // /player/me/race) before playing on. Cleared once they choose.
+  needsRaceSelection Boolean @default(false)
+
   // When the player accepted the Rules and Privacy Policy (and confirmed the
   // minimum age) at registration — evidence in case of a dispute. Null for
   // accounts created before the checkbox existed (2026-10-12).
@@ -237,6 +242,7 @@ model Player {
   marketListingsBought   MarketListing[] @relation("MarketListingsBought")
   adminActionLogs        AdminActionLog[]
   coreAttacks            CoreAttack[]
+  seasonResults          SeasonPlayerResult[]
   blocksMade             PlayerBlock[]  @relation("BlocksMade")
   blocksReceived         PlayerBlock[]  @relation("BlocksReceived")
   reportsFiled           PlayerReport[] @relation("ReportsFiled")
@@ -1179,6 +1185,7 @@ enum AdminActionType {
   ACTIVATE_ADMIN
   CHANGE_OWN_PASSWORD
   UPDATE_GAME_SETTINGS
+  RESET_SEASON
   ADD_BANNED_WORD
   REMOVE_BANNED_WORD
 }
@@ -1223,11 +1230,16 @@ model Season {
   // Set once the Core window has closed and SeasonClanResult rows were
   // snapshotted (lazily, on the first read after the deadline).
   finalizedAt      DateTime?
+  // Set when this season was wiped and the next one created (owner decision,
+  // 2026-10-13) — GameSettings.seasonResetDelayDays after the Core closes, or
+  // earlier via godmaster's "reset now". Null = not reset yet.
+  resetAt          DateTime?
   createdAt        DateTime  @default(now())
 
   clanScores  ClanCoreScore[]
   coreAttacks CoreAttack[]
   clanResults SeasonClanResult[]
+  playerResults SeasonPlayerResult[]
 
   @@map("seasons")
 }
@@ -1377,6 +1389,10 @@ model GameSettings {
   id                       Int      @id @default(1)
   // Days between requesting account deletion and it actually happening.
   accountDeletionGraceDays Int      @default(3)
+  // Days between the Core closing (season end) and the automatic season
+  // reset — time for players to see the final standings (owner decision,
+  // 2026-10-13). Also guarantees a nightly DB backup of the final state.
+  seasonResetDelayDays     Int      @default(1)
   updatedAt                DateTime @updatedAt
 
   @@map("game_settings")
@@ -1419,5 +1435,33 @@ model BannedWord {
   createdAt  DateTime        @default(now())
 
   @@map("banned_words")
+}
+
+// A player's season, frozen when the Core closes (owner decision, 2026-10-13)
+// and shown on their profile forever, e.g. "Season 1 · Luxari · #3 with
+// [STI] Sim Titans (Officer) · Level 47 · Core: 184,520 damage (#12)". The
+// clan is the one they were in AT THE END of the season (snapshotted then,
+// not at the later reset, so a last-day clan switch can't claim a placement).
+// Clan fields are null if they weren't in a clan; ranks are null when there's
+// nothing to rank (clan/player dealt no Core damage).
+model SeasonPlayerResult {
+  id             String    @id @default(uuid())
+  seasonId       Int
+  playerId       String
+  race           Race
+  level          Int
+  clanName       String?
+  clanTag        String?
+  clanRole       ClanRole?
+  clanRank       Int?
+  coreDamage     Int       @default(0)
+  coreDamageRank Int?
+
+  season Season @relation(fields: [seasonId], references: [id])
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, playerId])
+  @@index([playerId])
+  @@map("season_player_results")
 }
 

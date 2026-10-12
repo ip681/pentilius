@@ -487,17 +487,21 @@ function FortressFrame({ children, corners, walls }: { children: React.ReactNode
       <div style={corner(rotateDeg)} />
     );
   // A wall segment: the clickable Defensive Wall when present, else plain decoration.
-  const wallCell = (fill: React.ReactNode, style?: CSSProperties) =>
+  // Grey-out/pulse go on the art layer only (not the button), so the green
+  // "upgrade affordable" dot on top keeps its colour — same as the corner towers.
+  const wallCell = (fill: React.ReactNode, style?: CSSProperties, dot?: React.ReactNode) =>
     walls ? (
       <button
         type="button"
         onClick={walls.onClick}
         title={walls.label}
         aria-label={walls.label}
-        className={`relative transition-[filter] hover:brightness-125 focus-visible:outline focus-visible:outline-accent ${walls.level > 0 ? '' : 'opacity-60 grayscale'} ${walls.constructing ? 'animate-pulse' : ''}`}
-        style={style}
+        className="relative transition-[filter] hover:brightness-125 focus-visible:outline focus-visible:outline-accent"
       >
-        {fill}
+        <span className={`absolute inset-0 ${walls.level > 0 ? '' : 'opacity-60 grayscale'} ${walls.constructing ? 'animate-pulse' : ''}`} style={style}>
+          {fill}
+        </span>
+        {dot}
       </button>
     ) : (
       <div className="relative" style={style}>
@@ -519,12 +523,7 @@ function FortressFrame({ children, corners, walls }: { children: React.ReactNode
       style={{ gridTemplateColumns: `${wallThickness} 1fr ${wallThickness}`, gridTemplateRows: `${wallThickness} 1fr ${wallThickness}` }}
     >
       {cornerCell(0, true)}
-      {wallCell(
-        <>
-          {horizontalFillLayer}
-          {wallDot}
-        </>,
-      )}
+      {wallCell(horizontalFillLayer, undefined, wallDot)}
       {cornerCell(90, false)}
 
       {wallCell(null, vertical)}

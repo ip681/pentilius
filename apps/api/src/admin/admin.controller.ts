@@ -13,6 +13,7 @@ import { GrantItemDto } from './dto/grant-item.dto';
 import { GrantResourceDto } from './dto/grant-resource.dto';
 import { RenamePlayerDto } from './dto/rename-player.dto';
 import { UnbanPlayerDto } from './dto/unban-player.dto';
+import { ResetSeasonDto } from './dto/reset-season.dto';
 import { ResolveReportsDto } from './dto/resolve-reports.dto';
 import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
 import { SetAdminActiveDto } from './dto/set-admin-active.dto';
@@ -177,6 +178,12 @@ export class AdminController {
   @Post('content-filter/test')
   testContent(@Body() dto: TestContentDto) {
     return this.adminService.testContent(dto.text);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('season/reset')
+  resetSeasonNow(@Body() dto: ResetSeasonDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminService.resetSeasonNow(dto, admin);
   }
 
   @UseGuards(AdminJwtAuthGuard)

@@ -142,6 +142,14 @@ export class SeasonService {
     };
   }
 
+  /** When the season resets: Core close + GameSettings.seasonResetDelayDays. Null until the Core has closed. */
+  async scheduledResetAt(season: Season, tx: Tx = this.prisma): Promise<string | null> {
+    if (!season.coreOpensAt || coreStatus(season) !== 'ENDED') return null;
+    const settings = await tx.gameSettings.findUnique({ where: { id: 1 } });
+    const delayDays = settings?.seasonResetDelayDays ?? 1;
+    return new Date(season.coreOpensAt.getTime() + (season.coreDurationDays + delayDays) * DAY_MS).toISOString();
+  }
+
   /** Every past season's final placement for one clan, newest first. */
   async getClanSeasonResults(clanId: string): Promise<SeasonResultDto[]> {
     const rows = await this.prisma.seasonClanResult.findMany({ where: { clanId }, orderBy: { seasonId: 'desc' } });
@@ -194,6 +202,7 @@ export class SeasonService {
       nextAttackAt: nextAttackMs > Date.now() ? new Date(nextAttackMs).toISOString() : null,
       attackCostEnergy: GAME_BALANCE.core.attackCostEnergy,
       tavern: membership ? await this.getTavernStatus(membership.clanId, tx) : null,
+      resetAt: await this.scheduledResetAt(season, tx),
     };
   }
 
@@ -310,6 +319,44 @@ export class SeasonService {
     };
   }
 
+  /**
+   * Each player's season card (owner decision, 2026-10-13): race, level, the
+   * clan they're in RIGHT NOW (= at the end of the season) with its final
+   * rank and their role, and their own Core damage and rank.
+   */
+  private async snapshotPlayers(seasonId: number, rankedClans: RankedScore[], tx: Tx): Promise<void> {
+    const clanRank = new Map(rankedClans.map((c, i) => [c.clanId, i + 1]));
+    const [players, damage] = await Promise.all([
+      tx.player.findMany({
+        where: { deletedAt: null },
+        select: { id: true, race: true, level: true, clanMembership: { select: { role: true, clan: { select: { id: true, name: true, tag: true } } } } },
+      }),
+      tx.coreAttack.groupBy({ by: ['playerId'], where: { seasonId }, _sum: { damageDealt: true } }),
+    ]);
+    const damageByPlayer = new Map(damage.map((d) => [d.playerId, d._sum.damageDealt ?? 0]));
+    const damageRank = new Map(
+      [...damageByPlayer.entries()]
+        .filter(([, dmg]) => dmg > 0)
+        .sort((a, b) => b[1] - a[1])
+        .map(([id], i) => [id, i + 1]),
+    );
+    await tx.seasonPlayerResult.createMany({
+      data: players.map((p) => ({
+        seasonId,
+        playerId: p.id,
+        race: p.race,
+        level: p.level,
+        clanName: p.clanMembership?.clan.name ?? null,
+        clanTag: p.clanMembership?.clan.tag ?? null,
+        clanRole: p.clanMembership?.role ?? null,
+        clanRank: p.clanMembership ? (clanRank.get(p.clanMembership.clan.id) ?? null) : null,
+        coreDamage: damageByPlayer.get(p.id) ?? 0,
+        coreDamageRank: damageRank.get(p.id) ?? null,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
   /** Damage desc; on a tie, whoever reached that total first (older updatedAt) ranks higher. */
   private async loadLiveStandings(seasonId: number, tx: Tx): Promise<RankedScore[]> {
     const scores = await tx.clanCoreScore.findMany({
@@ -330,6 +377,11 @@ export class SeasonService {
    * the first read after the deadline (no cron). The finalizedAt
    * compare-and-swap makes sure only one caller ever writes the results.
    */
+  /** Freezes the season's results if that hasn't happened yet (the reset calls this first). */
+  async ensureFinalized(season: Season): Promise<Season> {
+    return season.finalizedAt ? season : this.finalize(season);
+  }
+
   private async finalize(season: Season): Promise<Season> {
     await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.season.updateMany({ where: { id: season.id, finalizedAt: null }, data: { finalizedAt: new Date() } });
@@ -346,7 +398,12 @@ export class SeasonService {
           rank: index + 1,
           damage: BigInt(s.damage),
         })),
+        // If the results were already written (e.g. finalizedAt was cleared by a
+        // manual DB edit), keep them instead of failing — a duplicate here would
+        // otherwise break the Core page and block the season reset.
+        skipDuplicates: true,
       });
+      await this.snapshotPlayers(season.id, ranked, tx);
     });
     return this.prisma.season.findUniqueOrThrow({ where: { id: season.id } });
   }

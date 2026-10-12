@@ -6,6 +6,7 @@ import { GAME_BALANCE } from '../config/game-config';
 import { EconomyService } from './economy.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { coreStatus, getCurrentSeason } from '../season/season.service';
 
 const SALT_ROUNDS = 10;
 
@@ -47,6 +48,8 @@ export class PlayerService {
       selectedAvatarKey: player.selectedAvatarKey,
       selectedFrameKey: player.selectedFrameKey,
       deletionScheduledFor: player.deletionScheduledFor?.toISOString() ?? null,
+      needsRaceSelection: player.needsRaceSelection,
+      ...(await this.seasonInfo()),
     };
   }
 
@@ -96,7 +99,7 @@ export class PlayerService {
   async getPublicProfile(playerId: string): Promise<PlayerPublicProfileDto> {
     const player = await this.prisma.player.findUnique({
       where: { id: playerId },
-      include: { clanMembership: { include: { clan: true } } },
+      include: { clanMembership: { include: { clan: true } }, seasonResults: { orderBy: { seasonId: 'desc' } } },
     });
     if (!player) {
       throw new NotFoundException('Player not found');
@@ -114,7 +117,39 @@ export class PlayerService {
         : null,
       selectedAvatarKey: player.selectedAvatarKey,
       selectedFrameKey: player.selectedFrameKey,
+      seasonHistory: player.seasonResults.map((r) => ({
+        seasonId: r.seasonId,
+        race: r.race,
+        level: r.level,
+        clanName: r.clanName,
+        clanTag: r.clanTag,
+        clanRole: r.clanRole,
+        clanRank: r.clanRank,
+        coreDamage: r.coreDamage,
+        coreDamageRank: r.coreDamageRank,
+      })),
     };
+  }
+
+  /** Current season number and, once the Core has closed, when it resets. Plain queries — no SeasonModule dependency. */
+  private async seasonInfo(): Promise<{ seasonNumber: number; seasonResetAt: string | null }> {
+    const season = await getCurrentSeason(this.prisma);
+    if (season.resetAt || !season.coreOpensAt || coreStatus(season) !== 'ENDED') {
+      return { seasonNumber: season.id, seasonResetAt: null };
+    }
+    const settings = await this.prisma.gameSettings.findUnique({ where: { id: 1 } });
+    const delayDays = settings?.seasonResetDelayDays ?? 1;
+    const resetAt = new Date(season.coreOpensAt.getTime() + (season.coreDurationDays + delayDays) * 24 * 3600_000);
+    return { seasonNumber: season.id, seasonResetAt: resetAt.toISOString() };
+  }
+
+  /** After a season reset (owner decision, 2026-10-13): pick the race for the new season — only allowed while needsRaceSelection. */
+  async chooseRace(playerId: string, race: Race): Promise<PlayerProfileDto> {
+    const updated = await this.prisma.player.updateMany({ where: { id: playerId, needsRaceSelection: true }, data: { race, needsRaceSelection: false } });
+    if (updated.count === 0) {
+      throw new BadRequestException('RACE_ALREADY_CHOSEN');
+    }
+    return this.getProfile(playerId);
   }
 
   async updateBio(playerId: string, bio: string): Promise<PlayerPublicProfileDto> {

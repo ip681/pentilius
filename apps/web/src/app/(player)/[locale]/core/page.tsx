@@ -8,7 +8,7 @@ import { ClanLink } from '@/components/ClanLink';
 import { GameLayout } from '@/components/GameLayout';
 import { Pagination } from '@/components/Pagination';
 import { PlayerLink } from '@/components/PlayerLink';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import { ApiError, attackCore, getCorePlayerRanking, getCoreState } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
@@ -28,6 +28,7 @@ const POLL_INTERVAL_MS = 10_000;
 export default function CorePage() {
   useRequireAuth();
   const t = useTranslations();
+  const router = useRouter();
   const { profile, refreshProfile } = usePlayerEnergy();
   const [state, setState] = useState<CoreStateDto | null>(null);
   const [lastAttack, setLastAttack] = useState<CoreAttackResultDto | null>(null);
@@ -40,6 +41,11 @@ export default function CorePage() {
   const clockOffsetRef = useRef(0);
 
   function applyState(next: CoreStateDto) {
+    // Nothing to see before the Core opens (owner decision, 2026-10-13) — Zones shows "Coming soon".
+    if (next.status === 'NOT_SCHEDULED' || next.status === 'SCHEDULED') {
+      router.replace('/zones');
+      return;
+    }
     clockOffsetRef.current = new Date(next.serverNow).getTime() - Date.now();
     setState(next);
     setRefreshTick((tick) => tick + 1);
@@ -72,6 +78,7 @@ export default function CorePage() {
   // A countdown hitting zero means the status changed server-side — refetch once.
   const opensIn = state?.status === 'SCHEDULED' ? secondsUntil(state.opensAt) : null;
   const endsIn = state?.status === 'OPEN' ? secondsUntil(state.endsAt) : null;
+  const resetIn = state?.status === 'ENDED' && state.resetAt ? secondsUntil(state.resetAt) : null;
   useEffect(() => {
     if (opensIn === 0 || endsIn === 0) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,7 +136,7 @@ export default function CorePage() {
         <p className="text-xs text-textMuted">{t('core.loading')}</p>
       ) : (
         <>
-          <StatusBanner state={state} opensIn={opensIn} endsIn={endsIn} />
+          <StatusBanner state={state} opensIn={opensIn} endsIn={endsIn} resetIn={resetIn} />
 
           {state.status === 'OPEN' && (
             <section className="mb-6 rounded-lg border border-panelBorder bg-panel p-4">
@@ -197,7 +204,7 @@ export default function CorePage() {
   );
 }
 
-function StatusBanner({ state, opensIn, endsIn }: { state: CoreStateDto; opensIn: number | null; endsIn: number | null }) {
+function StatusBanner({ state, opensIn, endsIn, resetIn }: { state: CoreStateDto; opensIn: number | null; endsIn: number | null; resetIn: number | null }) {
   const t = useTranslations();
   const winner = state.standings[0];
 
@@ -216,6 +223,9 @@ function StatusBanner({ state, opensIn, endsIn }: { state: CoreStateDto; opensIn
     <div className={`mb-6 rounded-lg border p-4 text-sm ${state.status === 'OPEN' ? 'border-gold/60 bg-panel text-gold' : 'border-panelBorder bg-panel text-text'}`}>
       <p className="tabular-nums">{text}</p>
       {state.status !== 'ENDED' && <p className="mt-1 text-xs text-textMuted">{t('core.rulesSummary')}</p>}
+      {state.status === 'ENDED' && resetIn !== null && (
+        <p className="mt-2 text-xs tabular-nums text-danger">{t('core.resetIn', { time: formatDuration(resetIn) })}</p>
+      )}
     </div>
   );
 }

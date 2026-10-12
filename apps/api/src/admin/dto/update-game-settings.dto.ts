@@ -6,4 +6,10 @@ export class UpdateGameSettingsDto {
   @Min(0)
   @Max(30)
   accountDeletionGraceDays!: number;
+
+  // Days between the Core closing and the automatic season reset.
+  @IsInt()
+  @Min(0)
+  @Max(30)
+  seasonResetDelayDays!: number;
 }

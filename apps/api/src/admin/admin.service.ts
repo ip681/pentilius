@@ -6,7 +6,9 @@ import { normalizeWord } from '../moderation/content-filter';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GAME_BALANCE } from '../config/game-config';
-import { coreEndsAt, coreStatus, getCurrentSeason } from '../season/season.service';
+import { SeasonResetService } from '../season/season-reset.service';
+import { coreEndsAt, coreStatus, getCurrentSeason, SeasonService } from '../season/season.service';
+import * as bcrypt from 'bcryptjs';
 import { AdminJwtPayload } from './admin-jwt-payload.interface';
 import { BanPlayerDto } from './dto/ban-player.dto';
 import { AddBannedWordDto } from './dto/banned-word.dto';
@@ -14,6 +16,7 @@ import { GrantItemDto } from './dto/grant-item.dto';
 import { GrantResourceDto } from './dto/grant-resource.dto';
 import { RenamePlayerDto } from './dto/rename-player.dto';
 import { UnbanPlayerDto } from './dto/unban-player.dto';
+import { ResetSeasonDto } from './dto/reset-season.dto';
 import { ResolveReportsDto } from './dto/resolve-reports.dto';
 import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
 import { UpdateSeasonSettingsDto } from './dto/update-season-settings.dto';
@@ -52,6 +55,8 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly contentFilter: ContentFilterService,
+    private readonly seasonService: SeasonService,
+    private readonly seasonReset: SeasonResetService,
   ) {}
 
   async searchPlayers(query: string): Promise<{ id: string; username: string; level: number }[]> {
@@ -284,6 +289,7 @@ export class AdminService {
     coreDurationDays: number;
     coreEndsAt: Date | null;
     locked: boolean;
+    resetAt: string | null;
   }> {
     const season = await getCurrentSeason(this.prisma);
     const status = coreStatus(season);
@@ -294,7 +300,30 @@ export class AdminService {
       coreDurationDays: season.coreDurationDays,
       coreEndsAt: coreEndsAt(season),
       locked: status === 'OPEN' || status === 'ENDED',
+      resetAt: await this.seasonService.scheduledResetAt(season),
     };
+  }
+
+  /**
+   * "Reset now" (owner decision, 2026-10-13) — ADMIN only, only once the Core
+   * has closed, confirmed with the admin's own password and the number the new
+   * season will get. Otherwise the reset runs on its own at resetAt.
+   */
+  async resetSeasonNow(dto: ResetSeasonDto, admin: AdminJwtPayload): Promise<{ newSeasonId: number }> {
+    if (admin.role !== 'ADMIN') {
+      throw new ForbiddenException('ADMIN_ROLE_REQUIRED');
+    }
+    const staff = await this.prisma.adminUser.findUniqueOrThrow({ where: { id: admin.sub } });
+    if (!(await bcrypt.compare(dto.password, staff.passwordHash))) {
+      throw new BadRequestException('WRONG_PASSWORD');
+    }
+    const season = await getCurrentSeason(this.prisma);
+    if (dto.newSeasonNumber !== season.id + 1) {
+      throw new BadRequestException('WRONG_SEASON_NUMBER');
+    }
+    const result = await this.seasonReset.resetNow(season.id);
+    await this.logAction(this.prisma, admin, 'RESET_SEASON', null, { oldSeasonId: season.id, newSeasonId: result.newSeasonId });
+    return result;
   }
 
   /**
@@ -376,13 +405,13 @@ export class AdminService {
   }
 
   /** Global (non-seasonal) game settings — see schema.prisma's GameSettings. */
-  async getGameSettings(): Promise<{ accountDeletionGraceDays: number }> {
+  async getGameSettings(): Promise<{ accountDeletionGraceDays: number; seasonResetDelayDays: number }> {
     const settings = await this.prisma.gameSettings.findUnique({ where: { id: 1 } });
-    return { accountDeletionGraceDays: settings?.accountDeletionGraceDays ?? 3 };
+    return { accountDeletionGraceDays: settings?.accountDeletionGraceDays ?? 3, seasonResetDelayDays: settings?.seasonResetDelayDays ?? 1 };
   }
 
   /** ADMIN only. Applies to deletions requested from now on — already scheduled ones keep their date. */
-  async updateGameSettings(dto: UpdateGameSettingsDto, admin: AdminJwtPayload): Promise<{ accountDeletionGraceDays: number }> {
+  async updateGameSettings(dto: UpdateGameSettingsDto, admin: AdminJwtPayload): Promise<{ accountDeletionGraceDays: number; seasonResetDelayDays: number }> {
     if (admin.role !== 'ADMIN') {
       throw new ForbiddenException('ADMIN_ROLE_REQUIRED');
     }
@@ -390,12 +419,14 @@ export class AdminService {
       const before = await tx.gameSettings.findUnique({ where: { id: 1 } });
       await tx.gameSettings.upsert({
         where: { id: 1 },
-        update: { accountDeletionGraceDays: dto.accountDeletionGraceDays },
-        create: { id: 1, accountDeletionGraceDays: dto.accountDeletionGraceDays },
+        update: { accountDeletionGraceDays: dto.accountDeletionGraceDays, seasonResetDelayDays: dto.seasonResetDelayDays },
+        create: { id: 1, accountDeletionGraceDays: dto.accountDeletionGraceDays, seasonResetDelayDays: dto.seasonResetDelayDays },
       });
       await this.logAction(tx, admin, 'UPDATE_GAME_SETTINGS', null, {
         oldAccountDeletionGraceDays: before?.accountDeletionGraceDays ?? 3,
         newAccountDeletionGraceDays: dto.accountDeletionGraceDays,
+        oldSeasonResetDelayDays: before?.seasonResetDelayDays ?? 1,
+        newSeasonResetDelayDays: dto.seasonResetDelayDays,
       });
     });
     return this.getGameSettings();
