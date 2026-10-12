@@ -159,6 +159,28 @@ model Player {
   // Anti-flood gap between two Core attacks (GAME_BALANCE.core.attackCooldownSeconds).
   lastCoreAttackAt DateTime?
 
+  // Set automatically when too many of this player's reports get dismissed
+  // (GAME_BALANCE.moderation) — they can't file new reports until it passes.
+  reportingSuspendedUntil DateTime?
+
+  // Account deletion (owner decision, 2026-10-12 — app-store requirement).
+  // Requesting deletion (password + a one-time code shown on screen) sets
+  // deletionScheduledFor = now + GameSettings.accountDeletionGraceDays; the
+  // player can keep playing and cancel until then. A background job
+  // (account-deletion.service.ts) then anonymizes the account: personal data
+  // is wiped, the username becomes a "~deleted~…" marker (shown translated as
+  // "Deleted player"), and deletedAt is set. The row itself stays so every
+  // history record (battles, wars, market, Core points, donations) keeps working.
+  deletionScheduledFor  DateTime?
+  deletedAt             DateTime?
+
+  // When the player accepted the Rules and Privacy Policy (and confirmed the
+  // minimum age) at registration — evidence in case of a dispute. Null for
+  // accounts created before the checkbox existed (2026-10-12).
+  termsAcceptedAt DateTime?
+  deletionCode          String?
+  deletionCodeExpiresAt DateTime?
+
   // Admin-issued suspension (godmaster panel) — null means not banned. Login
   // rejects with the remaining time while now < bannedUntil; the ban simply
   // expires on its own afterward, no separate "unban" state to clean up
@@ -215,6 +237,10 @@ model Player {
   marketListingsBought   MarketListing[] @relation("MarketListingsBought")
   adminActionLogs        AdminActionLog[]
   coreAttacks            CoreAttack[]
+  blocksMade             PlayerBlock[]  @relation("BlocksMade")
+  blocksReceived         PlayerBlock[]  @relation("BlocksReceived")
+  reportsFiled           PlayerReport[] @relation("ReportsFiled")
+  reportsReceived        PlayerReport[] @relation("ReportsReceived")
 
   @@map("players")
 }
@@ -889,6 +915,7 @@ model Clan {
   buildings ClanBuilding[]
   messages  ClanMessage[]
   coreScores     ClanCoreScore[]
+  reports        PlayerReport[]
   seasonResults  SeasonClanResult[]
   warsAsAttacker ClanWar[] @relation("ClanWarsAsAttacker")
   warsAsDefender ClanWar[] @relation("ClanWarsAsDefender")
@@ -1123,6 +1150,13 @@ model AdminUser {
   role         AdminRole @default(ADMIN)
   createdAt    DateTime  @default(now())
   lastLoginAt  DateTime?
+  // Owner decision (2026-10-12): staff accounts are deactivated, never
+  // deleted (keeps the action log readable). Checked on every request by
+  // AdminJwtStrategy, together with tokenVersion — bumping it (new password,
+  // deactivation, role change) instantly invalidates every token already
+  // issued for this account, which is what makes long-lived admin sessions safe.
+  isActive     Boolean   @default(true)
+  tokenVersion Int       @default(0)
 
   actionLogs AdminActionLog[]
 
@@ -1136,6 +1170,17 @@ enum AdminActionType {
   UNBAN_PLAYER
   RENAME_PLAYER
   UPDATE_SEASON_SETTINGS
+  RESOLVE_REPORT
+  DISMISS_REPORT
+  DELETE_CLAN_MESSAGE
+  UPDATE_ADMIN_ROLE
+  RESET_ADMIN_PASSWORD
+  DEACTIVATE_ADMIN
+  ACTIVATE_ADMIN
+  CHANGE_OWN_PASSWORD
+  UPDATE_GAME_SETTINGS
+  ADD_BANNED_WORD
+  REMOVE_BANNED_WORD
 }
 
 // Audit trail for every godmaster mutation (owner decision, 2026-09-12) —
@@ -1248,3 +1293,131 @@ model SeasonClanResult {
   @@index([clanId])
   @@map("season_clan_results")
 }
+
+// Player blocking (owner decision, 2026-10-12 — app-store UGC requirement).
+// One-directional: the blocker stops seeing the blocked player's clan-chat
+// messages, and the two can't be friends (so no DMs, no friend requests) —
+// creating a block deletes any friendship/request between them. Gameplay
+// (PvP, wars, market, rankings) is deliberately unaffected. The blocked
+// player is never told; their attempts just fail with a generic error.
+model PlayerBlock {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker Player @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked Player @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("player_blocks")
+}
+
+enum ReportTargetType {
+  PLAYER
+  CLAN
+  CLAN_MESSAGE
+  DIRECT_MESSAGE
+}
+
+enum ReportReason {
+  HARASSMENT
+  OFFENSIVE_CONTENT
+  SPAM
+  CHEATING
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+// Reports (owner decision, 2026-10-12 — app-store UGC requirement). A report
+// never acts on its own — only a godmaster admin decides. Abuse limits (daily
+// cap, cooldown, account age/level, auto-suspension after too many dismissed
+// reports) live in GAME_BALANCE.moderation. contentSnapshot is captured by the
+// SERVER at report time (message text, or name/bio/description), so the
+// evidence survives later edits, renames or deletions.
+// targetPlayerId = the reported player, or the author of a reported message;
+// null for a reported clan. targetId = the reported entity's own id (player,
+// clan or message) — used to stop duplicate open reports of the same thing.
+model PlayerReport {
+  id              String           @id @default(uuid())
+  reporterId      String
+  targetType      ReportTargetType
+  targetId        String
+  targetPlayerId  String?
+  targetClanId    String?
+  contentSnapshot String
+  reason          ReportReason
+  comment         String?
+  status          ReportStatus     @default(OPEN)
+  createdAt       DateTime         @default(now())
+  resolvedAt      DateTime?
+  resolvedByAdmin String?
+  resolutionNote  String?
+
+  reporter     Player  @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetPlayer Player? @relation("ReportsReceived", fields: [targetPlayerId], references: [id], onDelete: SetNull)
+  targetClan   Clan?   @relation(fields: [targetClanId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([reporterId, createdAt])
+  @@index([targetPlayerId])
+  @@index([targetClanId])
+  @@map("player_reports")
+}
+
+// Global, non-seasonal game settings editable from the godmaster Settings tab
+// (owner decision, 2026-10-12). A single row, id = 1.
+model GameSettings {
+  id                       Int      @id @default(1)
+  // Days between requesting account deletion and it actually happening.
+  accountDeletionGraceDays Int      @default(3)
+  updatedAt                DateTime @updatedAt
+
+  @@map("game_settings")
+}
+
+// Record of completed account deletions — the only place the old username is
+// kept (for support/moderation questions), never shown to players. No FK: the
+// anonymized Player row no longer carries the identity this row describes.
+model AccountDeletionLog {
+  id          String   @id @default(uuid())
+  playerId    String
+  username    String
+  requestedAt DateTime
+  completedAt DateTime @default(now())
+
+  @@index([completedAt])
+  @@map("account_deletion_logs")
+}
+
+// Content filter (owner decision, 2026-10-12 — app-store UGC requirement).
+// Checked on usernames at registration, clan name/tag/description and player
+// bios — not chat or DMs (reports and blocking cover those). Editable from the
+// godmaster "Филтър" tab without a deploy. `normalized` is the word after the
+// same normalization the checker applies to text (moderation/content-filter.ts),
+// so matching is one comparison; `word` keeps what the moderator typed.
+enum BannedWordMatch {
+  // Only as a standalone word — for short words that also occur inside
+  // innocent words.
+  WHOLE_WORD
+  // Anywhere, even glued to other letters — for long, unambiguous words.
+  SUBSTRING
+}
+
+model BannedWord {
+  id         String          @id @default(uuid())
+  word       String
+  normalized String          @unique
+  match      BannedWordMatch @default(SUBSTRING)
+  createdBy  String?
+  createdAt  DateTime        @default(now())
+
+  @@map("banned_words")
+}
+

@@ -26,7 +26,7 @@ describe('Research (e2e)', () => {
 
     const registerRes = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
-      .send({ email, username, password, race: 'ZARYTH' });
+      .send({ email, username, password, race: 'ZARYTH', acceptedTerms: true });
     accessToken = registerRes.body.accessToken;
     playerId = registerRes.body.player.id;
   });

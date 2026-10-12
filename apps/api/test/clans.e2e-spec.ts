@@ -36,13 +36,13 @@ describe('Clans (e2e)', () => {
     const [regA, regB, regC] = await Promise.all([
       request(app.getHttpServer())
         .post('/api/v1/auth/register')
-        .send({ email: `clan-a-${suffix}@example.com`, username: usernameA, password, race: 'LUXARI' }),
+        .send({ email: `clan-a-${suffix}@example.com`, username: usernameA, password, race: 'LUXARI', acceptedTerms: true }),
       request(app.getHttpServer())
         .post('/api/v1/auth/register')
-        .send({ email: `clan-b-${suffix}@example.com`, username: usernameB, password, race: 'VORLUN' }),
+        .send({ email: `clan-b-${suffix}@example.com`, username: usernameB, password, race: 'VORLUN', acceptedTerms: true }),
       request(app.getHttpServer())
         .post('/api/v1/auth/register')
-        .send({ email: `clan-c-${suffix}@example.com`, username: usernameC, password, race: 'ZARYTH' }),
+        .send({ email: `clan-c-${suffix}@example.com`, username: usernameC, password, race: 'ZARYTH', acceptedTerms: true }),
     ]);
     tokenA = regA.body.accessToken;
     tokenB = regB.body.accessToken;
@@ -223,7 +223,7 @@ describe('Clans (e2e)', () => {
     // A dedicated throwaway player: A/B/C are already clan members by this point in the suite.
     const regD = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
-      .send({ email: `clan-d-${suffix}@example.com`, username: `cD_${suffix}`, password, race: 'NEXAR' });
+      .send({ email: `clan-d-${suffix}@example.com`, username: `cD_${suffix}`, password, race: 'NEXAR', acceptedTerms: true });
     const tokenD = regD.body.accessToken;
     const playerDId = regD.body.player.id;
 

@@ -28,7 +28,7 @@ describe('Player public profile (e2e)', () => {
 
     const reg = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
-      .send({ email, username, password, race: 'THALION' });
+      .send({ email, username, password, race: 'THALION', acceptedTerms: true });
     token = reg.body.accessToken;
     playerId = reg.body.player.id;
   });

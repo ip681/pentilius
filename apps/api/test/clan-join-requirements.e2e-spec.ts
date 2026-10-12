@@ -38,16 +38,16 @@ describe('Clan join requirements (e2e)', () => {
     const [regLeader, regOfficer, regMember, regCandidate] = await Promise.all([
       request(app.getHttpServer())
         .post('/api/v1/auth/register')
-        .send({ email: `jr-leader-${suffix}@example.com`, username: `jrL_${suffix}`, password, race: 'LUXARI' }),
+        .send({ email: `jr-leader-${suffix}@example.com`, username: `jrL_${suffix}`, password, race: 'LUXARI', acceptedTerms: true }),
       request(app.getHttpServer())
         .post('/api/v1/auth/register')
-        .send({ email: `jr-officer-${suffix}@example.com`, username: `jrO_${suffix}`, password, race: 'VORLUN' }),
+        .send({ email: `jr-officer-${suffix}@example.com`, username: `jrO_${suffix}`, password, race: 'VORLUN', acceptedTerms: true }),
       request(app.getHttpServer())
         .post('/api/v1/auth/register')
-        .send({ email: `jr-member-${suffix}@example.com`, username: `jrM_${suffix}`, password, race: 'ZARYTH' }),
+        .send({ email: `jr-member-${suffix}@example.com`, username: `jrM_${suffix}`, password, race: 'ZARYTH', acceptedTerms: true }),
       request(app.getHttpServer())
         .post('/api/v1/auth/register')
-        .send({ email: `jr-candidate-${suffix}@example.com`, username: `jrC_${suffix}`, password, race: 'THALION' }),
+        .send({ email: `jr-candidate-${suffix}@example.com`, username: `jrC_${suffix}`, password, race: 'THALION', acceptedTerms: true }),
     ]);
     tokenLeader = regLeader.body.accessToken;
     tokenOfficer = regOfficer.body.accessToken;

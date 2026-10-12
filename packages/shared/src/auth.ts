@@ -5,6 +5,8 @@ export interface RegisterRequest {
   username: string;
   password: string;
   race: Race;
+  // The Rules/Privacy/minimum-age checkbox — the API rejects anything but true.
+  acceptedTerms: boolean;
 }
 
 export interface LoginRequest {

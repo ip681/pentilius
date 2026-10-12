@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 // Plain JSON import — godmaster deliberately has no next-intl setup (see the
 // (admin) layout comment), so item display names are resolved by hand from
 // the same message file the player app uses, not a duplicated translation system.
@@ -19,13 +19,31 @@ function getToken(): string | null {
 // re-checks the role on every admin-account endpoint regardless, so this is
 // never the actual security boundary.
 function decodeAdminRole(token: string): string | null {
+  const payload = decodeTokenPayload(token);
+  return typeof payload?.role === 'string' ? payload.role : null;
+}
+
+/** The signed-in staff account's id — used to mark "(ти)" and hide self-management buttons. */
+function decodeAdminId(token: string | null): string | null {
+  const payload = token ? decodeTokenPayload(token) : null;
+  return typeof payload?.sub === 'string' ? payload.sub : null;
+}
+
+function decodeTokenPayload(token: string): Record<string, unknown> | null {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return typeof payload.role === 'string' ? payload.role : null;
+    return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
   } catch {
     return null;
   }
 }
+
+// Fired by adminFetch on a 401 (expired/revoked session) — the page root
+// listens and drops back to the login form with an explanation.
+const SESSION_EXPIRED_EVENT = 'godmaster:session-expired';
+// Sliding session (owner decision, 2026-10-12): renew the token on load and
+// this often while the page is open, so godmaster never logs the owner out on
+// its own. The server re-checks the account on every request regardless.
+const TOKEN_REFRESH_INTERVAL_MS = 6 * 3600_000;
 
 // Same id -> path convention as apps/web/src/lib/assets.ts, kept as its own
 // tiny copy here rather than importing the player app's helper — godmaster
@@ -52,10 +70,14 @@ async function adminFetch<T>(path: string, options: { method?: string; body?: un
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   if (!response.ok) {
+    if (response.status === 401 && path !== '/admin/login' && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
     const body = await response.json().catch(() => ({}));
     throw new Error(body.message ?? `Заявката се провали (${response.status})`);
   }
-  return response.json();
+  const text = await response.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 /** Downloads a backup file through the authenticated API (a plain <a href> can't carry the Bearer token) — fetches as a Blob, then triggers a save via a throwaway object URL. */
@@ -80,14 +102,41 @@ export default function GodmasterPage() {
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
+  const [sessionExpired, setSessionExpired] = useState(false);
+
   useEffect(() => {
     setToken(getToken());
     setReady(true);
   }, []);
 
+  // Renew on load and periodically while open (sliding session), and drop
+  // back to the login form if the server ever rejects the session.
+  useEffect(() => {
+    if (!token) return;
+    const renew = () =>
+      adminFetch<{ accessToken: string }>('/admin/refresh', { method: 'POST' })
+        .then((res) => handleLogin(res.accessToken))
+        .catch(() => undefined);
+    renew();
+    const interval = setInterval(renew, TOKEN_REFRESH_INTERVAL_MS);
+    const onExpired = () => {
+      window.localStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      setSessionExpired(true);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    };
+    // Re-run only on login/logout, not on every renewed token.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token !== null]);
+
   function handleLogin(newToken: string) {
     window.localStorage.setItem(TOKEN_KEY, newToken);
     setToken(newToken);
+    setSessionExpired(false);
   }
 
   function handleLogout() {
@@ -100,7 +149,12 @@ export default function GodmasterPage() {
   return (
     <main className="mx-auto min-h-screen max-w-4xl px-4 py-10">
       <h1 className="mb-6 text-xl font-semibold">godmaster</h1>
-      {token ? <AdminPanel onLogout={handleLogout} role={decodeAdminRole(token)} /> : <LoginForm onLogin={handleLogin} />}
+      {!token && sessionExpired && <p className="mb-4 text-xs text-danger">Сесията изтече или акаунтът е променен — влез отново.</p>}
+      {token ? (
+        <AdminPanel onLogout={handleLogout} onTokenChange={handleLogin} role={decodeAdminRole(token)} myId={decodeAdminId(token)} />
+      ) : (
+        <LoginForm onLogin={handleLogin} />
+      )}
     </main>
   );
 }
@@ -152,12 +206,24 @@ function LoginForm({ onLogin }: { onLogin: (token: string) => void }) {
 const TABS = [
   { key: 'server', label: 'Сървър' },
   { key: 'players', label: 'Играчи' },
+  { key: 'reports', label: 'Доклади' },
+  { key: 'filter', label: 'Филтър' },
   { key: 'admins', label: 'Админи' },
   { key: 'settings', label: 'Настройки' },
 ] as const;
 type AdminTab = (typeof TABS)[number]['key'];
 
-function AdminPanel({ onLogout, role }: { onLogout: () => void; role: string | null }) {
+function AdminPanel({
+  onLogout,
+  onTokenChange,
+  role,
+  myId,
+}: {
+  onLogout: () => void;
+  onTokenChange: (token: string) => void;
+  role: string | null;
+  myId: string | null;
+}) {
   const [tab, setTab] = useState<AdminTab>('server');
 
   // One selected player for the whole panel — search once here, every form
@@ -182,7 +248,8 @@ function AdminPanel({ onLogout, role }: { onLogout: () => void; role: string | n
       .finally(() => setLoading(false));
   }
 
-  const visibleTabs = TABS.filter((t) => t.key !== 'admins' || role === 'ADMIN');
+  // Every tab is visible to both roles; the Admins tab shows a MODERATOR only their own account.
+  const visibleTabs = TABS;
 
   return (
     <div className="flex flex-col gap-8">
@@ -227,9 +294,25 @@ function AdminPanel({ onLogout, role }: { onLogout: () => void; role: string | n
         </>
       )}
 
-      {tab === 'admins' && role === 'ADMIN' && <AdminAccountsPanel />}
+      {tab === 'admins' && <AdminAccountsPanel myId={myId} isAdmin={role === 'ADMIN'} onTokenChange={onTokenChange} />}
 
-      {tab === 'settings' && <SeasonSettingsPanel canEdit={role === 'ADMIN'} />}
+      {tab === 'filter' && <ContentFilterPanel />}
+
+      {tab === 'settings' && (
+        <>
+          <SeasonSettingsPanel canEdit={role === 'ADMIN'} />
+          <GameSettingsPanel canEdit={role === 'ADMIN'} />
+        </>
+      )}
+
+      {tab === 'reports' && (
+        <ReportsPanel
+          onOpenPlayer={(name) => {
+            setTab('players');
+            loadPlayer(name);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -260,6 +343,12 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
   UNBAN_PLAYER: 'Наказанието премахнато',
   RENAME_PLAYER: 'Преименуван',
   UPDATE_SEASON_SETTINGS: 'Настройки на сезона',
+  UPDATE_GAME_SETTINGS: 'Настройки на играта',
+  ADD_BANNED_WORD: 'Добавена забранена дума',
+  REMOVE_BANNED_WORD: 'Премахната забранена дума',
+  RESOLVE_REPORT: 'Доклад — решен',
+  DISMISS_REPORT: 'Доклад — отхвърлен',
+  DELETE_CLAN_MESSAGE: 'Изтрито съобщение',
 };
 
 function PlayerDetailView({ detail, onReload }: { detail: PlayerDetail; onReload: (username: string) => void }) {
@@ -1107,13 +1196,32 @@ interface AdminAccount {
   id: string;
   username: string;
   role: string;
+  isActive: boolean;
   createdAt: string;
   lastLoginAt: string | null;
 }
 
-/** ADMIN-only (gated in AdminPanel by decoded token role, re-checked server-side too) — create/list staff accounts. */
-function AdminAccountsPanel() {
+const ACCOUNT_ERROR_LABEL: Record<string, string> = {
+  LAST_ACTIVE_ADMIN: 'Трябва да остане поне един активен ADMIN.',
+  CANNOT_MANAGE_YOURSELF: 'Собствения си акаунт не можеш да деактивираш или да му сменяш ролята.',
+  ADMIN_ROLE_REQUIRED: 'Само ADMIN може да управлява акаунти.',
+  WRONG_CURRENT_PASSWORD: 'Текущата парола е грешна.',
+};
+
+function accountError(err: unknown): string {
+  const code = err instanceof Error ? err.message : '';
+  return ACCOUNT_ERROR_LABEL[code] ?? (code || 'Грешка');
+}
+
+/**
+ * Staff accounts as a table. Clicking a row opens its editor: your own row ->
+ * change your password; anyone else's (ADMIN only) -> role, new password,
+ * deactivate. A MODERATOR's list contains only their own account (server-side),
+ * and only an ADMIN sees the create form.
+ */
+function AdminAccountsPanel({ myId, isAdmin, onTokenChange }: { myId: string | null; isAdmin: boolean; onTokenChange: (token: string) => void }) {
   const [admins, setAdmins] = useState<AdminAccount[] | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newUsername, setNewUsername] = useState('');
   const [newRole, setNewRole] = useState<'ADMIN' | 'MODERATOR'>('MODERATOR');
   const [createdPassword, setCreatedPassword] = useState<{ username: string; password: string } | null>(null);
@@ -1146,20 +1254,56 @@ function AdminAccountsPanel() {
 
   return (
     <section className="rounded-lg border border-panelBorder bg-panel p-4">
-      <h2 className="mb-3 text-sm font-semibold">Admin акаунти</h2>
+      <h2 className="mb-3 text-sm font-semibold">Акаунти</h2>
 
       {admins && (
-        <div className="mb-3 flex flex-col gap-1">
-          {admins.map((admin) => (
-            <div key={admin.id} className="flex items-center justify-between rounded-md border border-wellBorder bg-well px-3 py-1.5 text-xs">
-              <span>{admin.username}</span>
-              <span className="text-textFaint">{admin.role}</span>
-              <span className="text-textFaint">{admin.lastLoginAt ? `последен вход: ${new Date(admin.lastLoginAt).toLocaleString('bg-BG')}` : 'никога не е влизал'}</span>
-            </div>
-          ))}
+        <div className="mb-4 overflow-x-auto rounded-md border border-wellBorder">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-wellBorder bg-well text-[10px] uppercase text-textFaint">
+                <th className="px-3 py-2">Потребител</th>
+                <th className="px-3 py-2">Роля</th>
+                <th className="px-3 py-2">Статус</th>
+                <th className="px-3 py-2">Последен вход</th>
+              </tr>
+            </thead>
+            <tbody>
+              {admins.map((admin) => {
+                const isMe = admin.id === myId;
+                const canOpen = isMe || isAdmin;
+                const open = editingId === admin.id;
+                return (
+                  <Fragment key={admin.id}>
+                    <tr
+                      onClick={() => canOpen && setEditingId(open ? null : admin.id)}
+                      className={`border-b border-wellBorder last:border-b-0 ${canOpen ? 'cursor-pointer hover:bg-accentBgHover' : ''} ${open ? 'bg-accentBg' : ''}`}
+                    >
+                      <td className="px-3 py-2">
+                        {admin.username}
+                        {isMe && <span className="ml-1 text-textFaint">(ти)</span>}
+                      </td>
+                      <td className="px-3 py-2 text-textMuted">{admin.role}</td>
+                      <td className={`px-3 py-2 ${admin.isActive ? 'text-positive' : 'text-danger'}`}>{admin.isActive ? 'активен' : 'деактивиран'}</td>
+                      <td className="px-3 py-2 text-textFaint">
+                        {admin.lastLoginAt ? new Date(admin.lastLoginAt).toLocaleString('bg-BG') : 'никога не е влизал'}
+                      </td>
+                    </tr>
+                    {open && (
+                      <tr className="border-b border-wellBorder last:border-b-0 bg-panel">
+                        <td colSpan={4}>
+                          {isMe ? <OwnPasswordPanel onTokenChange={onTokenChange} /> : <AdminAccountEditor account={admin} onChanged={loadAdmins} />}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
+      {isAdmin && (
       <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-[10px] text-textFaint">
           потребителско име
@@ -1185,6 +1329,7 @@ function AdminAccountsPanel() {
           Създай
         </button>
       </form>
+      )}
       {createdPassword && (
         <p className="mt-2 text-xs text-positive">
           Създаден {createdPassword.username} — парола (записва се само сега): <span className="font-mono">{createdPassword.password}</span>
@@ -1334,3 +1479,672 @@ function SeasonSettingsPanel({ canEdit }: { canEdit: boolean }) {
     </section>
   );
 }
+
+interface ReportEntry {
+  id: string;
+  targetType: 'PLAYER' | 'CLAN' | 'CLAN_MESSAGE' | 'DIRECT_MESSAGE';
+  targetId: string;
+  reason: 'HARASSMENT' | 'OFFENSIVE_CONTENT' | 'SPAM' | 'CHEATING' | 'OTHER';
+  comment: string | null;
+  contentSnapshot: string;
+  status: 'OPEN' | 'RESOLVED' | 'DISMISSED';
+  createdAt: string;
+  resolvedAt: string | null;
+  resolvedByAdmin: string | null;
+  resolutionNote: string | null;
+  messageStillExists: boolean | null;
+  reporter: { id: string; username: string; clanTag: string | null; totalReports: number; dismissedReports: number };
+}
+
+interface ReportGroup {
+  key: string;
+  targetKind: 'PLAYER' | 'CLAN';
+  targetPlayerId: string | null;
+  targetUsername: string | null;
+  targetClanTag: string | null;
+  targetClanName: string | null;
+  uniqueReporters: number;
+  topReporterClan: { tag: string; reporters: number } | null;
+  reports: ReportEntry[];
+}
+
+const REPORT_TYPE_LABEL: Record<ReportEntry['targetType'], string> = {
+  PLAYER: 'Профил на играч',
+  CLAN: 'Клан',
+  CLAN_MESSAGE: 'Съобщение в кланов чат',
+  DIRECT_MESSAGE: 'Лично съобщение',
+};
+
+const REPORT_REASON_LABEL: Record<ReportEntry['reason'], string> = {
+  HARASSMENT: 'Обиди или тормоз',
+  OFFENSIVE_CONTENT: 'Неприлично име или съдържание',
+  SPAM: 'Спам',
+  CHEATING: 'Измама или бот',
+  OTHER: 'Друго',
+};
+
+const REPORT_STATUS_LABEL: Record<ReportEntry['status'], string> = {
+  OPEN: 'Отворен',
+  RESOLVED: 'Решен',
+  DISMISSED: 'Отхвърлен',
+};
+
+/**
+ * Moderation queue (owner decision, 2026-10-12). Reports are grouped by who/what
+ * was reported; each shows its reporter's track record so report abuse is easy
+ * to spot. Nothing here punishes anyone automatically — ban/rename stay on the
+ * Players tab ("Отвори играча" jumps there).
+ */
+function ReportsPanel({ onOpenPlayer }: { onOpenPlayer: (username: string) => void }) {
+  const [view, setView] = useState<'open' | 'closed'>('open');
+  const [groups, setGroups] = useState<ReportGroup[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  function load(which = view) {
+    setError(null);
+    adminFetch<{ groups: ReportGroup[] }>(`/admin/reports?view=${which}`)
+      .then((res) => setGroups(res.groups))
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+
+  useEffect(() => {
+    load(view);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  async function resolve(reportIds: string[], status: 'RESOLVED' | 'DISMISSED', noteKey: string) {
+    setError(null);
+    try {
+      await adminFetch('/admin/reports/resolve', { method: 'POST', body: { reportIds, status, note: notes[noteKey] || undefined } });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  async function deleteMessage(messageId: string) {
+    setError(null);
+    try {
+      await adminFetch(`/admin/clan-messages/${messageId}`, { method: 'DELETE' });
+      setConfirmDelete(null);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  const btn = 'rounded-md border px-2.5 py-1 text-[11px] hover:bg-accentBgHover';
+
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">Доклади от играчи</h2>
+        <div className="flex gap-2">
+          {(['open', 'closed'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              className={`${btn} ${view === v ? 'border-accent bg-accentBg' : 'border-panelBorder text-textMuted'}`}
+            >
+              {v === 'open' ? 'Отворени' : 'Затворени (последни 100)'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && <p className="mb-3 text-xs text-danger">{error}</p>}
+      {groups && groups.length === 0 && <p className="text-xs text-textFaint">{view === 'open' ? 'Няма отворени доклади.' : 'Няма затворени доклади.'}</p>}
+
+      <div className="flex flex-col gap-4">
+        {groups?.map((group) => {
+          const openIds = group.reports.filter((r) => r.status === 'OPEN').map((r) => r.id);
+          return (
+            <div key={group.key} className="rounded-md border border-wellBorder bg-well p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm">
+                  {group.targetKind === 'PLAYER' ? (
+                    <>
+                      <span className="text-textFaint">Играч: </span>
+                      <span className="font-semibold">{group.targetUsername ?? '(изтрит)'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-textFaint">Клан: </span>
+                      <span className="font-semibold">
+                        {group.targetClanTag ? `[${group.targetClanTag}] ${group.targetClanName}` : '(разпуснат)'}
+                      </span>
+                    </>
+                  )}
+                  <span className="ml-2 text-xs text-textMuted">
+                    {group.reports.length} доклада от {group.uniqueReporters} играчи
+                  </span>
+                </div>
+                {group.targetKind === 'PLAYER' && group.targetUsername && (
+                  <button type="button" onClick={() => onOpenPlayer(group.targetUsername!)} className={`${btn} border-accent`}>
+                    Отвори играча
+                  </button>
+                )}
+              </div>
+
+              {group.topReporterClan && (
+                <p className="mb-2 text-xs text-gold">
+                  ⚠ {group.topReporterClan.reporters} от докладващите са от клана [{group.topReporterClan.tag}] — възможно организирано докладване.
+                </p>
+              )}
+
+              <div className="flex flex-col gap-2">
+                {group.reports.map((report) => {
+                  const suspicious = report.reporter.totalReports >= 3 && report.reporter.dismissedReports / report.reporter.totalReports >= 0.5;
+                  return (
+                    <div key={report.id} className="rounded border border-wellBorder bg-panel p-2.5 text-xs">
+                      <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="font-semibold">{REPORT_REASON_LABEL[report.reason]}</span>
+                        <span className="text-textFaint">{REPORT_TYPE_LABEL[report.targetType]}</span>
+                        <span className="text-textFaint">{new Date(report.createdAt).toLocaleString('bg-BG')}</span>
+                        {report.status !== 'OPEN' && (
+                          <span className={report.status === 'RESOLVED' ? 'text-positive' : 'text-textMuted'}>
+                            {REPORT_STATUS_LABEL[report.status]}
+                            {report.resolvedByAdmin ? ` от ${report.resolvedByAdmin}` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mb-1 text-textMuted">
+                        Докладвал: {report.reporter.username}
+                        {report.reporter.clanTag ? ` [${report.reporter.clanTag}]` : ''} ·{' '}
+                        <span className={suspicious ? 'text-danger' : ''}>
+                          {report.reporter.totalReports} доклада, {report.reporter.dismissedReports} отхвърлени
+                        </span>
+                      </p>
+                      <pre className="mb-1 whitespace-pre-wrap break-words rounded border border-wellBorder bg-well p-2 font-sans text-text">
+                        {report.contentSnapshot}
+                      </pre>
+                      {report.comment && <p className="mb-1 text-textMuted">Коментар: „{report.comment}“</p>}
+                      {report.resolutionNote && <p className="mb-1 text-textFaint">Бележка: {report.resolutionNote}</p>}
+
+                      {report.status === 'OPEN' && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <input
+                            type="text"
+                            value={notes[report.id] ?? ''}
+                            onChange={(e) => setNotes({ ...notes, [report.id]: e.target.value })}
+                            placeholder="бележка (по желание)"
+                            maxLength={500}
+                            className="min-w-[160px] flex-1 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent"
+                          />
+                          <button type="button" onClick={() => resolve([report.id], 'RESOLVED', report.id)} className={`${btn} border-accent`}>
+                            Решен
+                          </button>
+                          <button type="button" onClick={() => resolve([report.id], 'DISMISSED', report.id)} className={`${btn} border-panelBorder text-textMuted`}>
+                            Отхвърлен
+                          </button>
+                          {report.targetType === 'CLAN_MESSAGE' &&
+                            report.messageStillExists &&
+                            (confirmDelete === report.targetId ? (
+                              <>
+                                <button type="button" onClick={() => deleteMessage(report.targetId)} className={`${btn} border-panelBorderDanger text-danger`}>
+                                  Потвърди изтриване
+                                </button>
+                                <button type="button" onClick={() => setConfirmDelete(null)} className={`${btn} border-panelBorder text-textMuted`}>
+                                  Отказ
+                                </button>
+                              </>
+                            ) : (
+                              <button type="button" onClick={() => setConfirmDelete(report.targetId)} className={`${btn} border-panelBorderDanger text-danger`}>
+                                Изтрий съобщението
+                              </button>
+                            ))}
+                          {report.targetType === 'CLAN_MESSAGE' && report.messageStillExists === false && (
+                            <span className="text-textFaint">съобщението вече е изтрито</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {openIds.length > 1 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-wellBorder pt-3">
+                  <span className="text-xs text-textFaint">Всички {openIds.length} отворени:</span>
+                  <input
+                    type="text"
+                    value={notes[group.key] ?? ''}
+                    onChange={(e) => setNotes({ ...notes, [group.key]: e.target.value })}
+                    placeholder="бележка (по желание)"
+                    maxLength={500}
+                    className="min-w-[160px] flex-1 rounded-md border border-wellBorder bg-panel px-2 py-1 text-xs outline-none focus:border-accent"
+                  />
+                  <button type="button" onClick={() => resolve(openIds, 'RESOLVED', group.key)} className={`${btn} border-accent`}>
+                    Реши всички
+                  </button>
+                  <button type="button" onClick={() => resolve(openIds, 'DISMISSED', group.key)} className={`${btn} border-panelBorder text-textMuted`}>
+                    Отхвърли всички
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Inline editor for one staff account (owner decision, 2026-10-12): change
+ * role, issue a new random password (shown once), deactivate/re-activate.
+ * Every action signs that account out everywhere (server-side tokenVersion).
+ */
+function AdminAccountEditor({ account, onChanged }: { account: AdminAccount; onChanged: () => void }) {
+  const [role, setRole] = useState(account.role);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<'password' | 'deactivate' | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run(action: () => Promise<void>, done: string) {
+    setError(null);
+    setMessage(null);
+    try {
+      await action();
+      setMessage(done);
+      setConfirming(null);
+      onChanged();
+    } catch (err) {
+      setError(accountError(err));
+    }
+  }
+
+  const btn = 'rounded-md border px-3 py-1.5 text-xs hover:bg-accentBgHover';
+
+  return (
+    <div className="flex flex-col gap-3 px-3 py-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          роля
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="rounded-md border border-wellBorder bg-panel px-3 py-1.5 text-xs outline-none focus:border-accent"
+          >
+            <option value="MODERATOR">MODERATOR</option>
+            <option value="ADMIN">ADMIN</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          disabled={role === account.role}
+          onClick={() => run(() => adminFetch(`/admin/admins/${account.id}/role`, { method: 'POST', body: { role } }), 'Ролята е сменена.')}
+          className={`${btn} border-accent disabled:cursor-not-allowed disabled:opacity-30`}
+        >
+          Запази ролята
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {confirming === 'password' ? (
+          <>
+            <span className="text-textMuted">Нова парола за {account.username}? Старата спира да работи веднага.</span>
+            <button
+              type="button"
+              onClick={() =>
+                run(async () => {
+                  const res = await adminFetch<{ password: string }>(`/admin/admins/${account.id}/reset-password`, { method: 'POST' });
+                  setNewPassword(res.password);
+                }, 'Паролата е сменена.')
+              }
+              className={`${btn} border-accent`}
+            >
+              Да, генерирай
+            </button>
+            <button type="button" onClick={() => setConfirming(null)} className={`${btn} border-panelBorder text-textMuted`}>
+              Отказ
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={() => setConfirming('password')} className={`${btn} border-accent`}>
+            Нова парола
+          </button>
+        )}
+
+        {account.isActive ? (
+          confirming === 'deactivate' ? (
+            <>
+              <span className="text-textMuted">Деактивиране на {account.username}? Губи достъп веднага.</span>
+              <button
+                type="button"
+                onClick={() => run(() => adminFetch(`/admin/admins/${account.id}/active`, { method: 'POST', body: { active: false } }), 'Акаунтът е деактивиран.')}
+                className={`${btn} border-panelBorderDanger text-danger`}
+              >
+                Да, деактивирай
+              </button>
+              <button type="button" onClick={() => setConfirming(null)} className={`${btn} border-panelBorder text-textMuted`}>
+                Отказ
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setConfirming('deactivate')} className={`${btn} border-panelBorderDanger text-danger`}>
+              Деактивирай
+            </button>
+          )
+        ) : (
+          <button
+            type="button"
+            onClick={() => run(() => adminFetch(`/admin/admins/${account.id}/active`, { method: 'POST', body: { active: true } }), 'Акаунтът е активиран отново.')}
+            className={`${btn} border-accent`}
+          >
+            Активирай отново
+          </button>
+        )}
+      </div>
+
+      {newPassword && (
+        <p className="text-xs text-positive">
+          Нова парола за {account.username} (показва се само сега): <span className="font-mono">{newPassword}</span>
+        </p>
+      )}
+      {message && <p className="text-xs text-positive">{message}</p>}
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </div>
+  );
+}
+
+/** Any signed-in staff account (ADMIN or MODERATOR) can change its own password — opened from their own row in the Admins tab. */
+function OwnPasswordPanel({ onTokenChange }: { onTokenChange: (token: string) => void }) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    if (newPassword.length < 10) {
+      setError('Новата парола трябва да е поне 10 символа.');
+      return;
+    }
+    if (newPassword !== repeat) {
+      setError('Новите пароли не съвпадат.');
+      return;
+    }
+    try {
+      // Other sessions of this account are signed out; this one gets a fresh token.
+      const res = await adminFetch<{ accessToken: string }>('/admin/me/password', { method: 'POST', body: { currentPassword, newPassword } });
+      onTokenChange(res.accessToken);
+      setCurrentPassword('');
+      setNewPassword('');
+      setRepeat('');
+      setMessage('Паролата е сменена. Входовете от други устройства са прекратени.');
+    } catch (err) {
+      setError(accountError(err));
+    }
+  }
+
+  const input = 'rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent';
+  return (
+    <div className="px-3 py-3">
+      <h3 className="mb-2 text-xs font-semibold">Смяна на паролата ми</h3>
+      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          текуща парола
+          <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={input} />
+        </label>
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          нова парола (мин. 10 символа)
+          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={input} />
+        </label>
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          повтори новата
+          <input type="password" value={repeat} onChange={(e) => setRepeat(e.target.value)} className={input} />
+        </label>
+        <button type="submit" className="rounded-md border border-accent bg-accentBg px-3 py-2 text-sm hover:bg-accentBgHover">
+          Смени
+        </button>
+      </form>
+      {message && <p className="mt-2 text-xs text-positive">{message}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+    </div>
+  );
+}
+
+/** Global (non-seasonal) game settings (owner decision, 2026-10-12). ADMIN edits, MODERATOR views. */
+function GameSettingsPanel({ canEdit }: { canEdit: boolean }) {
+  const [graceDays, setGraceDays] = useState<number | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminFetch<{ accountDeletionGraceDays: number }>('/admin/game-settings')
+      .then((res) => setGraceDays(res.accountDeletionGraceDays))
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }, []);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (graceDays === null) return;
+    setError(null);
+    setSaved(false);
+    try {
+      const res = await adminFetch<{ accountDeletionGraceDays: number }>('/admin/game-settings', {
+        method: 'POST',
+        body: { accountDeletionGraceDays: graceDays },
+      });
+      setGraceDays(res.accountDeletionGraceDays);
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <h2 className="mb-3 text-sm font-semibold">Настройки на играта</h2>
+      <form onSubmit={handleSave} className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          дни за отказ от изтриване на акаунт
+          <input
+            type="number"
+            min={0}
+            max={30}
+            value={graceDays ?? ''}
+            disabled={!canEdit || graceDays === null}
+            onChange={(e) => setGraceDays(Number(e.target.value))}
+            className="w-24 rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={!canEdit}
+          className="rounded-md border border-accent bg-accentBg px-3 py-2 text-sm hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          Запази
+        </button>
+      </form>
+      <p className="mt-2 text-[10px] text-textFaint">
+        Важи за заявките за изтриване, подадени отсега нататък. Вече насрочените запазват датата си.
+      </p>
+      {!canEdit && <p className="mt-2 text-xs text-textFaint">Само ADMIN може да променя тези настройки.</p>}
+      {saved && <p className="mt-2 text-xs text-positive">Запазено.</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+    </section>
+  );
+}
+
+interface BannedWordRow {
+  id: string;
+  word: string;
+  normalized: string;
+  match: 'WHOLE_WORD' | 'SUBSTRING';
+  createdBy: string | null;
+  createdAt: string;
+}
+
+const MATCH_LABEL: Record<BannedWordRow['match'], string> = {
+  SUBSTRING: 'навсякъде',
+  WHOLE_WORD: 'само цяла дума',
+};
+
+/**
+ * Content filter word list (owner decision, 2026-10-12). Names/descriptions
+ * containing a listed word are rejected; clan chat and DMs get it masked with
+ * asterisks. Changes apply immediately. Both roles can manage it.
+ */
+function ContentFilterPanel() {
+  const [words, setWords] = useState<BannedWordRow[] | null>(null);
+  const [search, setSearch] = useState('');
+  const [newWord, setNewWord] = useState('');
+  const [newMatch, setNewMatch] = useState<BannedWordRow['match']>('SUBSTRING');
+  const [testText, setTestText] = useState('');
+  const [testResult, setTestResult] = useState<{ matches: string[]; masked: string } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    adminFetch<BannedWordRow[]>('/admin/content-filter/words')
+      .then(setWords)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+
+  useEffect(load, []);
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await adminFetch('/admin/content-filter/words', { method: 'POST', body: { word: newWord, match: newMatch } });
+      setNewWord('');
+      load();
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      setError(code === 'WORD_ALREADY_LISTED' ? 'Тази дума вече е в списъка.' : code === 'WORD_TOO_SHORT' ? 'Думата е твърде къса.' : code || 'Грешка');
+    }
+  }
+
+  async function handleRemove(id: string) {
+    setError(null);
+    try {
+      await adminFetch(`/admin/content-filter/words/${id}`, { method: 'DELETE' });
+      setConfirmRemove(null);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  async function handleTest(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      setTestResult(await adminFetch<{ matches: string[]; masked: string }>('/admin/content-filter/test', { method: 'POST', body: { text: testText } }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  const visible = words?.filter((w) => !search || w.word.toLowerCase().includes(search.toLowerCase()) || w.normalized.includes(search.toLowerCase()));
+  const input = 'rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent';
+  const btn = 'rounded-md border px-3 py-2 text-sm hover:bg-accentBgHover';
+
+  return (
+    <>
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="mb-1 text-sm font-semibold">Проба</h2>
+        <p className="mb-3 text-xs text-textFaint">Въведи текст, за да видиш дали минава и как би изглеждал в чата.</p>
+        <form onSubmit={handleTest} className="flex flex-wrap items-end gap-2">
+          <input type="text" value={testText} onChange={(e) => setTestText(e.target.value)} placeholder="текст за проба" className={`${input} min-w-[240px] flex-1`} />
+          <button type="submit" disabled={!testText.trim()} className={`${btn} border-accent bg-accentBg disabled:opacity-30`}>
+            Провери
+          </button>
+        </form>
+        {testResult && (
+          <div className="mt-3 text-xs">
+            {testResult.matches.length === 0 ? (
+              <p className="text-positive">Минава — няма забранени думи.</p>
+            ) : (
+              <>
+                <p className="text-danger">Хваща: {testResult.matches.join(', ')} — име/описание с този текст ще бъде отказано.</p>
+                <p className="mt-1 text-textMuted">В чата ще изглежда така: „{testResult.masked}“</p>
+              </>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="mb-1 text-sm font-semibold">Забранени думи {words && <span className="text-textFaint">({words.length})</span>}</h2>
+        <p className="mb-3 text-xs text-textFaint">
+          „Навсякъде“ хваща думата дори залепена за други букви. „Само цяла дума“ е за къси думи, които иначе се срещат в нормални думи (напр. „ass“ в
+          „class“). Промените важат веднага.
+        </p>
+
+        <form onSubmit={handleAdd} className="mb-4 flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+            нова дума
+            <input type="text" value={newWord} onChange={(e) => setNewWord(e.target.value)} maxLength={40} className={input} />
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+            хваща се
+            <select value={newMatch} onChange={(e) => setNewMatch(e.target.value as BannedWordRow['match'])} className={input}>
+              <option value="SUBSTRING">навсякъде</option>
+              <option value="WHOLE_WORD">само цяла дума</option>
+            </select>
+          </label>
+          <button type="submit" disabled={newWord.trim().length < 2} className={`${btn} border-accent bg-accentBg disabled:opacity-30`}>
+            Добави
+          </button>
+        </form>
+
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="търси в списъка" className={`${input} mb-2 w-full sm:w-64`} />
+
+        {visible && (
+          <div className="overflow-x-auto rounded-md border border-wellBorder">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-wellBorder bg-well text-[10px] uppercase text-textFaint">
+                  <th className="px-3 py-2">Дума</th>
+                  <th className="px-3 py-2">Хваща се</th>
+                  <th className="px-3 py-2">Добавена от</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((w) => (
+                  <tr key={w.id} className="border-b border-wellBorder last:border-b-0">
+                    <td className="px-3 py-1.5">
+                      {w.word} <span className="text-textFaint">({w.normalized})</span>
+                    </td>
+                    <td className="px-3 py-1.5 text-textMuted">{MATCH_LABEL[w.match]}</td>
+                    <td className="px-3 py-1.5 text-textFaint">{w.createdBy === 'seed' ? 'начален списък' : (w.createdBy ?? '—')}</td>
+                    <td className="px-3 py-1.5 text-right">
+                      {confirmRemove === w.id ? (
+                        <>
+                          <button type="button" onClick={() => handleRemove(w.id)} className="mr-2 text-danger underline">
+                            Потвърди
+                          </button>
+                          <button type="button" onClick={() => setConfirmRemove(null)} className="text-textFaint underline">
+                            Отказ
+                          </button>
+                        </>
+                      ) : (
+                        <button type="button" onClick={() => setConfirmRemove(w.id)} className="text-textFaint underline hover:text-danger">
+                          Премахни
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      </section>
+    </>
+  );
+}
+

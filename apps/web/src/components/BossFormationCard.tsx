@@ -7,6 +7,7 @@ import { ConfirmButton } from '@/components/ConfirmButton';
 import { LootEntry } from '@/components/LootEntry';
 import { formatDuration } from '@/lib/format-duration';
 import { RACE_BG_CLASS } from '@/lib/race-colors';
+import { displayPlayerName } from '@/lib/player-name';
 
 const ALL_RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
 
@@ -40,7 +41,7 @@ export function BossFormationCard({
     <div className="rounded-lg border border-panelBorder bg-well p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
         <span className="text-textMuted">
-          {t('bosses.createdBy')} <span className="text-text">{formation.creatorUsername}</span>
+          {t('bosses.createdBy')} <span className="text-text">{displayPlayerName(t, formation.creatorUsername)}</span>
         </span>
         {isOpen ? (
           <span className="tabular-nums text-gold">
@@ -106,7 +107,7 @@ export function BossFormationCard({
                 className="h-6 w-6 object-contain"
                 fallback={<span className="text-xs font-semibold">{t(`race.${race}.name`).charAt(0)}</span>}
               />
-              <span className="w-full truncate text-[10px] text-text">{slot?.playerUsername ?? t('bosses.emptySlot')}</span>
+              <span className="w-full truncate text-[10px] text-text">{slot?.playerUsername ? displayPlayerName(t, slot.playerUsername) : t('bosses.emptySlot')}</span>
             </div>
           );
         })}

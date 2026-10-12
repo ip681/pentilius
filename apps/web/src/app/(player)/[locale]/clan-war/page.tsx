@@ -21,6 +21,7 @@ import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { displayPlayerName } from '@/lib/player-name';
 
 interface LogLine {
   text: React.ReactNode;
@@ -117,7 +118,7 @@ export default function ClanWarPage() {
         round: 0,
         youHp: report.attackerMaxHp,
         opponentHp: report.defenderMaxHp,
-        log: [{ text: t('pvp.encounterStart', { name: report.opponentUsername }), kind: 'system' }],
+        log: [{ text: t('pvp.encounterStart', { name: displayPlayerName(t, report.opponentUsername) }), kind: 'system' }],
         finished: report.rounds.length === 0,
       });
 
@@ -134,19 +135,19 @@ export default function ClanWarPage() {
           if (!previous) return previous;
           const log: LogLine[] = [...previous.log];
           if (roundData.pentiliDodged) {
-            log.push({ text: t('pvp.roundDodge', { name: report.opponentUsername }), kind: 'enemy' });
+            log.push({ text: t('pvp.roundDodge', { name: displayPlayerName(t, report.opponentUsername) }), kind: 'enemy' });
           } else {
             log.push({ text: t('pvp.roundHit', { name: myName, damage: roundData.playerDamage }), kind: 'player' });
             if (roundData.playerCritical) log.push({ text: t('pvp.roundCritical', { name: myName }), kind: 'player' });
             if (roundData.pentiliReflectedDamage > 0) {
-              log.push({ text: t('pvp.roundReflect', { name: report.opponentUsername, damage: roundData.pentiliReflectedDamage }), kind: 'enemy' });
+              log.push({ text: t('pvp.roundReflect', { name: displayPlayerName(t, report.opponentUsername), damage: roundData.pentiliReflectedDamage }), kind: 'enemy' });
             }
           }
           if (roundData.playerDodged) {
             log.push({ text: t('pvp.roundDodge', { name: myName }), kind: 'player' });
           } else if (roundData.pentiliDamage > 0) {
-            log.push({ text: t('pvp.roundHit', { name: report.opponentUsername, damage: roundData.pentiliDamage }), kind: 'enemy' });
-            if (roundData.pentiliCritical) log.push({ text: t('pvp.roundCritical', { name: report.opponentUsername }), kind: 'enemy' });
+            log.push({ text: t('pvp.roundHit', { name: displayPlayerName(t, report.opponentUsername), damage: roundData.pentiliDamage }), kind: 'enemy' });
+            if (roundData.pentiliCritical) log.push({ text: t('pvp.roundCritical', { name: displayPlayerName(t, report.opponentUsername) }), kind: 'enemy' });
             if (roundData.playerReflectedDamage > 0) {
               log.push({ text: t('pvp.roundReflect', { name: myName, damage: roundData.playerReflectedDamage }), kind: 'player' });
             }
@@ -257,7 +258,7 @@ export default function ClanWarPage() {
               <section className="mb-6 grid grid-cols-[1fr_auto_1fr] items-stretch gap-1.5 sm:gap-5">
                 <FighterPanel name={myName} hp={battle.youHp} maxHp={battle.report.attackerMaxHp} variant="player" />
                 <BattleDivider round={battle.round} />
-                <FighterPanel name={battle.report.opponentUsername} hp={battle.opponentHp} maxHp={battle.report.defenderMaxHp} variant="enemy" />
+                <FighterPanel name={displayPlayerName(t, battle.report.opponentUsername)} hp={battle.opponentHp} maxHp={battle.report.defenderMaxHp} variant="enemy" />
               </section>
 
               <section className="mb-6 rounded-lg border border-panelBorder bg-panel p-4">
@@ -299,7 +300,7 @@ export default function ClanWarPage() {
                         fallback={<div className="h-8 w-8 shrink-0 rounded-full bg-accent opacity-60" />}
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">{target.username}</p>
+                        <p className="truncate text-sm font-semibold">{displayPlayerName(t, target.username)}</p>
                         <p className="text-[10px] text-textFaint">{t('pvp.level')} {target.level}</p>
                         <p className="mt-0.5 flex flex-wrap gap-x-2 text-[9px] text-textFaint">
                           <span>{t('robot.stat.damage')} {Math.round(target.stats.attack)}</span>
@@ -393,7 +394,7 @@ function ContributionList({ title, entries, accent }: { title: string; entries: 
           {entries.map((entry, index) => (
             <div key={entry.playerId} className="flex items-center justify-between rounded-md border border-wellBorder bg-well px-2.5 py-1.5 text-[11px]">
               <span className="truncate">
-                <span className="text-textFaint">#{index + 1}</span> {entry.username}
+                <span className="text-textFaint">#{index + 1}</span> {displayPlayerName(t, entry.username)}
               </span>
               <span className="shrink-0 text-textFaint">
                 {entry.totalDamageDealt.toLocaleString()} · {entry.attackCount} {t('clans.war.hits')}

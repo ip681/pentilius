@@ -36,9 +36,9 @@ describe('PvP (e2e)', () => {
     prisma = app.get(PrismaService);
 
     const [regA, regB, regC] = await Promise.all([
-      request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: emailA, username: usernameA, password, race: 'LUXARI' }),
-      request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: emailB, username: usernameB, password, race: 'VORLUN' }),
-      request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: emailC, username: usernameC, password, race: 'ZARYTH' }),
+      request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: emailA, username: usernameA, password, race: 'LUXARI', acceptedTerms: true }),
+      request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: emailB, username: usernameB, password, race: 'VORLUN', acceptedTerms: true }),
+      request(app.getHttpServer()).post('/api/v1/auth/register').send({ email: emailC, username: usernameC, password, race: 'ZARYTH', acceptedTerms: true }),
     ]);
     tokenA = regA.body.accessToken;
     tokenB = regB.body.accessToken;

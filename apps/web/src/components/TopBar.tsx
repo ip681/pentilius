@@ -91,6 +91,24 @@ export function TopBar({
 
         {loggedIn && profile ? (
           <div className="flex shrink-0 items-center gap-1.5 text-xs md:gap-3">
+            {/* Information pages (About, Lore, Rules, Privacy, Support, Delete account) — owner decision, 2026-10-12. */}
+            <Link
+              href="/about"
+              title={t('topbar.info')}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:opacity-70 sm:h-8 sm:w-8"
+            >
+              <AssetIcon
+                assetId="interface.info.icon"
+                alt={t('topbar.info')}
+                className="h-4 w-4 object-contain sm:h-5 sm:w-5"
+                fallback={
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full border-[1.5px] border-current text-[9px] font-bold leading-none text-textMuted sm:h-5 sm:w-5 sm:text-[11px]">
+                    i
+                  </span>
+                }
+              />
+              <span className="sr-only">{t('topbar.info')}</span>
+            </Link>
             <Link
               href="/settings"
               title={t('topbar.settings')}

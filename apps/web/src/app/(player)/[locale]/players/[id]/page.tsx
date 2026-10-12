@@ -8,18 +8,24 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
+import { ReportSheet } from '@/components/ReportSheet';
 import { Link } from '@/i18n/navigation';
 import {
+  ApiError,
   acceptFriendRequest,
+  blockPlayer,
   declineFriendRequest,
+  getBlockStatus,
   getFriendshipStatus,
   getProfile,
   getPublicProfile,
   removeFriend,
   sendFriendRequest,
+  unblockPlayer,
   updateBio,
 } from '@/lib/api-client';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { displayPlayerName } from '@/lib/player-name';
 
 export default function PlayerProfilePage() {
   useRequireAuth();
@@ -34,6 +40,8 @@ export default function PlayerProfilePage() {
   const [editing, setEditing] = useState(false);
   const [friendship, setFriendship] = useState<FriendshipStatusDto | null>(null);
   const [friendActionError, setFriendActionError] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   async function load() {
     try {
@@ -42,7 +50,9 @@ export default function PlayerProfilePage() {
       setIsOwn(me.id === playerId);
       setBioDraft(publicProfile.bio ?? '');
       if (me.id !== playerId) {
-        setFriendship(await getFriendshipStatus(playerId));
+        const [friendshipStatus, blockStatus] = await Promise.all([getFriendshipStatus(playerId), getBlockStatus(playerId)]);
+        setFriendship(friendshipStatus);
+        setBlocked(blockStatus.blocked);
       }
     } catch {
       setError(t('profile.loadError'));
@@ -94,6 +104,20 @@ export default function PlayerProfilePage() {
     }
   }
 
+  async function handleToggleBlock() {
+    setFriendActionError(null);
+    try {
+      if (blocked) {
+        await unblockPlayer(playerId);
+      } else {
+        await blockPlayer(playerId);
+      }
+      await load();
+    } catch {
+      setFriendActionError(t('moderation.blockError'));
+    }
+  }
+
   async function handleSaveBio(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -101,8 +125,8 @@ export default function PlayerProfilePage() {
       const updated = await updateBio(bioDraft);
       setProfile(updated);
       setEditing(false);
-    } catch {
-      setError(t('profile.saveError'));
+    } catch (err) {
+      setError(err instanceof ApiError && err.code === 'INAPPROPRIATE_CONTENT' ? t('common.inappropriateContent') : t('profile.saveError'));
     }
   }
 
@@ -119,7 +143,7 @@ export default function PlayerProfilePage() {
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <PlayerAvatarFrame avatarKey={profile.selectedAvatarKey} frameKey={profile.selectedFrameKey} className="h-14 w-14 shrink-0" />
-              <h2 className="text-xl font-semibold">{profile.username}</h2>
+              <h2 className="text-xl font-semibold">{displayPlayerName(t, profile.username)}</h2>
             </div>
             <span className="text-xs text-textFaint">{t('dashboard.level')} {profile.level}</span>
           </div>
@@ -146,7 +170,9 @@ export default function PlayerProfilePage() {
             <span>{t('profile.memberSince')}: {new Date(profile.createdAt).toLocaleDateString()}</span>
           </div>
 
-          {!isOwn && friendship && (
+          {!isOwn && blocked && <p className="mb-3 text-xs text-danger">{t('moderation.youBlockedThisPlayer')}</p>}
+
+          {!isOwn && friendship && !blocked && (
             <div className="mb-4 flex flex-wrap items-center gap-2">
               {friendship.status === 'NONE' && (
                 <button
@@ -209,6 +235,47 @@ export default function PlayerProfilePage() {
             </div>
           )}
           {friendActionError && <p className="mb-4 text-xs text-danger">{friendActionError}</p>}
+
+          {/* Block / report (owner decision, 2026-10-12 — app-store UGC requirement). */}
+          {!isOwn && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              {blocked ? (
+                <button
+                  type="button"
+                  onClick={handleToggleBlock}
+                  className="rounded-md border border-wellBorder px-4 py-1.5 text-[11px] uppercase text-textMuted hover:text-text"
+                >
+                  {t('moderation.unblock')}
+                </button>
+              ) : (
+                <ConfirmButton
+                  label={t('moderation.block')}
+                  confirmLabel={t('moderation.confirmBlock')}
+                  cancelLabel={t('common.cancel')}
+                  onConfirm={handleToggleBlock}
+                  className="rounded-md border border-wellBorder px-4 py-1.5 text-[11px] uppercase text-textMuted hover:text-danger"
+                  confirmClassName="rounded-md border border-panelBorderDanger bg-well px-4 py-1.5 text-[11px] uppercase text-danger hover:bg-accentBgHover"
+                  cancelClassName="rounded-md border border-wellBorder px-4 py-1.5 text-[11px] uppercase text-textMuted hover:text-text"
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => setReportOpen(true)}
+                className="rounded-md border border-wellBorder px-4 py-1.5 text-[11px] uppercase text-textMuted hover:text-danger"
+              >
+                {t('moderation.report')}
+              </button>
+            </div>
+          )}
+          {!isOwn && profile && (
+            <ReportSheet
+              open={reportOpen}
+              onClose={() => setReportOpen(false)}
+              targetType="PLAYER"
+              targetId={playerId}
+              title={t('moderation.reportPlayerTitle', { name: profile.username })}
+            />
+          )}
 
           <div className="rounded-md border border-wellBorder bg-well p-4">
             <div className="mb-2 flex items-center justify-between">

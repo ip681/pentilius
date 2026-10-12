@@ -1,5 +1,5 @@
 import { Race } from '@prisma/client';
-import { IsEmail, IsEnum, Matches, MinLength } from 'class-validator';
+import { Equals, IsEmail, IsEnum, Matches, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsEmail()
@@ -16,4 +16,9 @@ export class RegisterDto {
 
   @IsEnum(Race)
   race!: Race;
+
+  // Must be explicitly true — the "I accept the Rules and Privacy Policy and
+  // confirm the minimum age" checkbox (app-store requirement, 2026-10-12).
+  @Equals(true)
+  acceptedTerms!: boolean;
 }

@@ -1,16 +1,22 @@
-import { Body, Controller, Get, Param, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { createReadStream } from 'fs';
 import type { Response } from 'express';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminService } from './admin.service';
 import { CurrentAdmin } from './decorators/current-admin.decorator';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { ChangeAdminPasswordDto } from './dto/change-admin-password.dto';
 import { BanPlayerDto } from './dto/ban-player.dto';
+import { AddBannedWordDto, TestContentDto } from './dto/banned-word.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { GrantItemDto } from './dto/grant-item.dto';
 import { GrantResourceDto } from './dto/grant-resource.dto';
 import { RenamePlayerDto } from './dto/rename-player.dto';
 import { UnbanPlayerDto } from './dto/unban-player.dto';
+import { ResolveReportsDto } from './dto/resolve-reports.dto';
+import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
+import { SetAdminActiveDto } from './dto/set-admin-active.dto';
+import { UpdateAdminRoleDto } from './dto/update-admin-role.dto';
 import { UpdateSeasonSettingsDto } from './dto/update-season-settings.dto';
 import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 import { AdminJwtPayload } from './admin-jwt-payload.interface';
@@ -94,6 +100,36 @@ export class AdminController {
   }
 
   @UseGuards(AdminJwtAuthGuard)
+  @Post('admins/:id/role')
+  updateAdminRole(@Param('id') id: string, @Body() dto: UpdateAdminRoleDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminAuthService.updateRole(id, dto.role, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('admins/:id/reset-password')
+  resetAdminPassword(@Param('id') id: string, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminAuthService.resetPassword(id, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('admins/:id/active')
+  setAdminActive(@Param('id') id: string, @Body() dto: SetAdminActiveDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminAuthService.setActive(id, dto.active, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('me/password')
+  changeOwnPassword(@Body() dto: ChangeAdminPasswordDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminAuthService.changeOwnPassword(admin, dto.currentPassword, dto.newPassword);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('refresh')
+  refresh(@CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminAuthService.refresh(admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
   @Get('backups')
   listBackups() {
     return this.adminService.listBackups();
@@ -117,6 +153,60 @@ export class AdminController {
   @Post('season')
   updateSeasonSettings(@Body() dto: UpdateSeasonSettingsDto, @CurrentAdmin() admin: AdminJwtPayload) {
     return this.adminService.updateSeasonSettings(dto, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('content-filter/words')
+  listBannedWords() {
+    return this.adminService.listBannedWords();
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('content-filter/words')
+  addBannedWord(@Body() dto: AddBannedWordDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminService.addBannedWord(dto, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Delete('content-filter/words/:id')
+  removeBannedWord(@Param('id') id: string, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminService.removeBannedWord(id, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('content-filter/test')
+  testContent(@Body() dto: TestContentDto) {
+    return this.adminService.testContent(dto.text);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('game-settings')
+  getGameSettings() {
+    return this.adminService.getGameSettings();
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('game-settings')
+  updateGameSettings(@Body() dto: UpdateGameSettingsDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminService.updateGameSettings(dto, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('reports')
+  getReports(@Query('view') view: string) {
+    return this.adminService.getReports(view === 'closed' ? 'closed' : 'open');
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('reports/resolve')
+  resolveReports(@Body() dto: ResolveReportsDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminService.resolveReports(dto, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Delete('clan-messages/:id')
+  deleteClanMessage(@Param('id') id: string, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminService.deleteClanMessage(id, admin);
   }
 
   @UseGuards(AdminJwtAuthGuard)

@@ -5,7 +5,10 @@ import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
+import { InfoLinks } from '@/components/InfoLinks';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { Link } from '@/i18n/navigation';
+import { LEGAL } from '@/lib/legal';
 import { useRouter } from '@/i18n/navigation';
 import { ApiError, getRaceCounts, login, register } from '@/lib/api-client';
 import { storeTokens } from '@/lib/auth';
@@ -58,6 +61,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [raceCounts, setRaceCounts] = useState<RaceCountsDto | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     getRaceCounts()
@@ -73,13 +77,19 @@ export default function LoginPage() {
       setStatus({ kind: 'error', messageKey: 'race.required' });
       return;
     }
+    if (mode === 'register' && !acceptedTerms) {
+      setStatus({ kind: 'error', messageKey: 'pages.acceptTermsRequired' });
+      return;
+    }
     setStatus({ kind: 'idle' });
     try {
-      const result = mode === 'login' ? await login({ email, password }) : await register({ email, username, password, race: race as Race });
+      const result = mode === 'login' ? await login({ email, password }) : await register({ email, username, password, race: race as Race, acceptedTerms });
       storeTokens(result);
       router.push('/dashboard');
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
+      if (error instanceof ApiError && error.code === 'INAPPROPRIATE_CONTENT') {
+        setStatus({ kind: 'error', messageKey: 'common.inappropriateContent' });
+      } else if (error instanceof ApiError && error.status === 409) {
         const messageKey =
           error.code === 'USERNAME_TAKEN'
             ? 'auth.errorUsernameTaken'
@@ -221,18 +231,43 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Rules / Privacy / minimum age (owner decision, 2026-10-12 — app-store requirement). */}
+            {mode === 'register' && (
+              <label className="flex items-start gap-2 text-[11px] leading-snug text-textMuted">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(event) => setAcceptedTerms(event.target.checked)}
+                  className="mt-0.5 shrink-0"
+                />
+                <span>
+                  {t('pages.acceptTerms', { minAge: LEGAL.minAge })}
+                  <Link href="/rules" target="_blank" className="underline hover:text-text">
+                    {t('pages.acceptTermsRules')}
+                  </Link>
+                  {t('pages.acceptTermsAnd')}
+                  <Link href="/privacy" target="_blank" className="underline hover:text-text">
+                    {t('pages.acceptTermsPrivacy')}
+                  </Link>
+                  .
+                </span>
+              </label>
+            )}
+
             {status.kind === 'error' && <p className="text-xs text-danger">{t(status.messageKey)}</p>}
             {status.kind === 'banned' && <BannedNotice bannedUntil={status.bannedUntil} reason={status.reason} onExpired={() => setStatus({ kind: 'idle' })} />}
 
             <button
               type="submit"
-              disabled={(mode === 'register' && !race) || status.kind === 'banned'}
+              disabled={(mode === 'register' && (!race || !acceptedTerms)) || status.kind === 'banned'}
               className="mt-1 w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase tracking-wide text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
             >
               {t('auth.submit')}
             </button>
           </form>
         </div>
+
+        <InfoLinks className="mt-5 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-textFaint" />
       </div>
     </main>
   );

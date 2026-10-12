@@ -24,7 +24,7 @@ describe('General inventory (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    const registerRes = await request(app.getHttpServer()).post('/api/v1/auth/register').send({ email, username, password, race: 'LUXARI' });
+    const registerRes = await request(app.getHttpServer()).post('/api/v1/auth/register').send({ email, username, password, race: 'LUXARI', acceptedTerms: true });
     accessToken = registerRes.body.accessToken;
     playerId = registerRes.body.player.id;
   });

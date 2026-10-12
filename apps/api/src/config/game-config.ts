@@ -289,6 +289,22 @@ export const GAME_BALANCE = {
     activationCrystalPerLevel: 60,
     activationCreditsPerLevel: 0,
   },
+  moderation: {
+    // Report-abuse limits (owner decision, 2026-10-12). A report never acts on
+    // its own (only an admin decides), so these only keep the moderation
+    // queue from being flooded. Starting values, tune freely.
+    reportsPerDay: 10,
+    secondsBetweenReports: 30,
+    // Eligible to report if EITHER is met — stops throwaway accounts.
+    minAccountAgeDays: 3,
+    minLevel: 5,
+    // Reporter reputation: if at least maxDismissedInWindow of a player's last
+    // reputationWindow decided reports were dismissed, reporting is suspended.
+    reputationWindow: 10,
+    maxDismissedInWindow: 5,
+    suspensionDays: 7,
+    maxCommentLength: 300,
+  },
   presence: {
     // No real-time system (instructions/ARCHITECTURE.md prefers elapsed-time
     // computation over a background job/socket per player) — "online" is just

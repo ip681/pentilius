@@ -6,6 +6,7 @@ import { Race } from '@prisma/client';
 
 const ALL_RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
 import * as bcrypt from 'bcryptjs';
+import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -20,9 +21,11 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly contentFilter: ContentFilterService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponse> {
+    await this.contentFilter.assertClean(dto.username);
     const [existingEmail, existingUsername] = await Promise.all([
       this.prisma.player.findUnique({ where: { email: dto.email } }),
       this.prisma.player.findUnique({ where: { username: dto.username } }),
@@ -48,6 +51,7 @@ export class AuthService {
         username: dto.username,
         passwordHash,
         race: dto.race,
+        termsAcceptedAt: new Date(),
         ...(avatarKey ? { selectedAvatarKey: avatarKey } : {}),
         ...(frameKey ? { selectedFrameKey: frameKey } : {}),
       },
@@ -102,7 +106,7 @@ export class AuthService {
     }
 
     const player = await this.prisma.player.findUnique({ where: { id: payload.sub } });
-    if (!player) {
+    if (!player || player.deletedAt) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 

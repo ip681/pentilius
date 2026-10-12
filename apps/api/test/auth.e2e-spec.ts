@@ -38,7 +38,7 @@ describe('Auth (e2e)', () => {
   it('registers a new player', () => {
     return request(app.getHttpServer())
       .post('/api/v1/auth/register')
-      .send({ email, username, password, race: 'LUXARI' })
+      .send({ email, username, password, race: 'LUXARI', acceptedTerms: true })
       .expect(201)
       .expect((res) => {
         expect(res.body.player.email).toBe(email);
@@ -48,17 +48,26 @@ describe('Auth (e2e)', () => {
       });
   });
 
+  it('rejects registration without accepting the Rules and Privacy Policy', async () => {
+    for (const acceptedTerms of [undefined, false]) {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({ email: `terms-${email}`, username: `${username}_t`, password, race: 'LUXARI', acceptedTerms })
+        .expect(400);
+    }
+  });
+
   it('rejects a duplicate email', () => {
     return request(app.getHttpServer())
       .post('/api/v1/auth/register')
-      .send({ email, username: `${username}_2`, password, race: 'LUXARI' })
+      .send({ email, username: `${username}_2`, password, race: 'LUXARI', acceptedTerms: true })
       .expect(409);
   });
 
   it('rejects a duplicate username', () => {
     return request(app.getHttpServer())
       .post('/api/v1/auth/register')
-      .send({ email: `other-${email}`, username, password, race: 'LUXARI' })
+      .send({ email: `other-${email}`, username, password, race: 'LUXARI', acceptedTerms: true })
       .expect(409);
   });
 

@@ -7,5 +7,6 @@ import { ClansService } from './clans.service';
   imports: [PlayerModule],
   controllers: [ClansController],
   providers: [ClansService],
+  exports: [ClansService],
 })
 export class ClansModule {}

@@ -901,6 +901,85 @@ async function main() {
     });
   }
 
+  // Content filter starter list (owner decision, 2026-10-12). Only words
+  // not listed yet are added — never removes or overrides what moderators
+  // added or changed in godmaster. `normalized` must match
+  // src/moderation/content-filter.ts's normalizeWord(); it's duplicated here
+  // (not imported) because the production image ships no src/ for the seed.
+  const starterWords: [string, 'WHOLE_WORD' | 'SUBSTRING'][] = [
+    ['ass', 'WHOLE_WORD'],
+    ['cunt', 'WHOLE_WORD'],
+    ['dick', 'WHOLE_WORD'],
+    ['cock', 'WHOLE_WORD'],
+    ['sex', 'WHOLE_WORD'],
+    ['rape', 'WHOLE_WORD'],
+    ['fag', 'WHOLE_WORD'],
+    ['tits', 'WHOLE_WORD'],
+    ['еба', 'WHOLE_WORD'],
+    ['ебал', 'WHOLE_WORD'],
+    ['ебах', 'WHOLE_WORD'],
+    ['ебем', 'WHOLE_WORD'],
+    ['ебеш', 'WHOLE_WORD'],
+    ['хуй', 'WHOLE_WORD'],
+    ['хуя', 'WHOLE_WORD'],
+    ['кур', 'WHOLE_WORD'],
+    ['деба', 'WHOLE_WORD'],
+    ['fuck', 'SUBSTRING'],
+    ['motherfucker', 'SUBSTRING'],
+    ['shit', 'SUBSTRING'],
+    ['bitch', 'SUBSTRING'],
+    ['asshole', 'SUBSTRING'],
+    ['bastard', 'SUBSTRING'],
+    ['pussy', 'SUBSTRING'],
+    ['whore', 'SUBSTRING'],
+    ['slut', 'SUBSTRING'],
+    ['nigger', 'SUBSTRING'],
+    ['nigga', 'SUBSTRING'],
+    ['faggot', 'SUBSTRING'],
+    ['retard', 'SUBSTRING'],
+    ['hitler', 'SUBSTRING'],
+    ['porn', 'SUBSTRING'],
+    ['penis', 'SUBSTRING'],
+    ['vagina', 'SUBSTRING'],
+    ['dildo', 'SUBSTRING'],
+    ['wanker', 'SUBSTRING'],
+    ['twat', 'SUBSTRING'],
+    ['путка', 'SUBSTRING'],
+    ['путьо', 'SUBSTRING'],
+    ['пичка', 'SUBSTRING'],
+    ['курва', 'SUBSTRING'],
+    ['курец', 'SUBSTRING'],
+    ['шибан', 'SUBSTRING'],
+    ['шибаняк', 'SUBSTRING'],
+    ['ебан', 'WHOLE_WORD'],
+    ['ебана', 'WHOLE_WORD'],
+    ['ебало', 'SUBSTRING'],
+    ['ебачка', 'SUBSTRING'],
+    ['мамкамуи', 'SUBSTRING'],
+    ['мамкатии', 'SUBSTRING'],
+    ['лайно', 'SUBSTRING'],
+    ['копеле', 'SUBSTRING'],
+    ['педераст', 'SUBSTRING'],
+    ['проститутка', 'SUBSTRING'],
+    ['дебил', 'SUBSTRING'],
+    ['идиот', 'SUBSTRING'],
+  ];
+  const BG_TRANSLIT: Record<string, string> = {
+    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm',
+    н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh',
+    щ: 'sht', ъ: 'a', ь: 'y', ю: 'yu', я: 'ya',
+  };
+  const normalizeWord = (w: string) =>
+    [...w.toLowerCase()]
+      .map((ch) => BG_TRANSLIT[ch] ?? ch)
+      .join('')
+      .replace(/[^a-z]/g, '')
+      .replace(/(.)\1+/g, '$1');
+  for (const [word, match] of starterWords) {
+    const normalized = normalizeWord(word);
+    await prisma.bannedWord.upsert({ where: { normalized }, update: {}, create: { word, normalized, match, createdBy: 'seed' } });
+  }
+
   // Season 1 (owner decision, 2026-10-12): created unscheduled — the Core's
   // opening time is set later from the godmaster Settings tab. Only created if
   // no season exists yet, never touches a live one.

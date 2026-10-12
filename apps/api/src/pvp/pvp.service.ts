@@ -192,6 +192,7 @@ export class PvpService {
       tx.player.findMany({
         where: {
           id: { not: attackerId },
+          deletedAt: null,
           level: { gte: GAME_BALANCE.pvp.minLevel },
           OR: [{ pvpProtectedUntil: null }, { pvpProtectedUntil: { lte: new Date() } }],
         },
@@ -213,7 +214,7 @@ export class PvpService {
   /** Re-checks the same eligibility rules pickRandomOpponent applies to its pool, for one specific candidate. */
   private async isEligibleOpponent(attackerId: string, opponentId: string, tx: Tx): Promise<boolean> {
     const opponent = await tx.player.findUnique({ where: { id: opponentId } });
-    if (!opponent || opponent.level < GAME_BALANCE.pvp.minLevel) {
+    if (!opponent || opponent.deletedAt || opponent.level < GAME_BALANCE.pvp.minLevel) {
       return false;
     }
     if (opponent.pvpProtectedUntil && opponent.pvpProtectedUntil > new Date()) {

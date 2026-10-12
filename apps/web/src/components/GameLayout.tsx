@@ -1,10 +1,11 @@
 'use client';
 
 import type { PlayerProfileDto } from '@pentilius/shared';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { usePathname, useRouter } from '@/i18n/navigation';
-import { getProfile } from '@/lib/api-client';
+import { cancelAccountDeletion, getProfile } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format-datetime';
 import { clearTokens, isAuthenticated } from '@/lib/auth';
 import { onProfileChanged } from '@/lib/profile-events';
 import { getCachedProfile, setCachedProfile } from '@/lib/profile-cache';
@@ -18,6 +19,7 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
   const [loggedIn, setLoggedIn] = useState(false);
   const hasUnreadFriends = useFriendsUnread();
   const locale = useLocale();
+  const t = useTranslations();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -88,7 +90,22 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
       <TopBar profile={profile} loggedIn={loggedIn} />
       <div className="flex min-h-[calc(100vh-4rem)]">
         <Sidebar hasUnreadFriends={hasUnreadFriends} />
-        <main className="w-full max-w-[1500px] flex-1 px-4 pb-20 pt-4 md:p-7">{children}</main>
+        <main className="w-full max-w-[1500px] flex-1 px-4 pb-20 pt-4 md:p-7">
+          {/* Pending account deletion (owner decision, 2026-10-12): shown on every page until it happens or is cancelled. */}
+          {profile?.deletionScheduledFor && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-panelBorderDanger bg-panel px-4 py-3 text-xs">
+              <span className="text-danger">{t('accountDeletion.bannerScheduled', { date: formatDateTime(profile.deletionScheduledFor) })}</span>
+              <button
+                type="button"
+                onClick={() => cancelAccountDeletion().then(loadProfile).catch(() => undefined)}
+                className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-[11px] uppercase hover:bg-accentBgHover"
+              >
+                {t('accountDeletion.cancel')}
+              </button>
+            </div>
+          )}
+          {children}
+        </main>
       </div>
       {loggedIn && <BottomNav hasUnreadFriends={hasUnreadFriends} />}
     </div>

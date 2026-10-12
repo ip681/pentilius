@@ -328,3 +328,176 @@ The owner wants the frame itself to become buildings. The **corner towers are th
 
 The Crystal Extractor's display name became "Кристална мина" / "Crystal Mine", for symmetry with the Metal Mine. Only the translation changed; the stable key `crystal_extractor` stays.
 
+## Blocking and reporting (2026-10-12)
+
+Built as the first step toward app-store compliance: Apple and Google require
+UGC apps to let players block others, report content, and have it moderated.
+The current store terms still need checking before submission.
+
+**Blocking** is one-directional and affects communication only. The blocker
+stops seeing the blocked player's clan-chat messages, and the two can't be
+friends, so there are no DMs or friend requests between them. Blocking deletes
+any existing friendship or pending request.
+- The blocked player is never told: their attempts fail with a generic error,
+  to avoid provoking conflict.
+- Gameplay is untouched: PvP, wars, market and rankings.
+- If two clanmates block each other, only chat is affected; the clan itself
+  is not.
+- There is no limit on how many players you can block.
+
+**Reports** can target:
+- a player profile;
+- a clan;
+- a clan-chat message, which only current members of that clan can report;
+- a direct message, which only its recipient can report.
+
+The server snapshots the content itself, so the evidence survives later edits
+and deletions. **A report never acts automatically**: only a godmaster admin
+decides, so false reports can at worst waste moderation time. That queue is
+protected by the following, all in `GAME_BALANCE.moderation`:
+- 10 reports per day and a 30-second gap between reports;
+- an account at least 3 days old OR at least level 5;
+- no duplicate open report of the same thing;
+- reporter reputation: 5 dismissed among the last 10 decided reports
+  automatically suspends reporting for 7 days.
+
+The godmaster **Доклади** tab groups reports by target, shows each reporter's
+total and dismissed counts, flags when several reporters share a clan (possible
+organized reporting), and supports resolving or dismissing individually or per
+group. It can also delete a reported clan-chat message, which clan chat could
+not do before. Every decision is written to the admin action log. Report abuse
+is meant to be listed as a rule violation once the Rules page exists.
+
+## Godmaster staff accounts and sessions (2026-10-12)
+
+The owner was being logged out of godmaster every 2 hours, because the admin
+token was fixed at `ADMIN_JWT_EXPIRES_IN: 2h` with no renewal, and asked never
+to be logged out automatically.
+
+**Sessions** now slide: the token lasts 30 days and godmaster renews it on load
+and every 6 hours, so an account in use never expires.
+
+This is safe only because the admin JWT strategy now **re-checks the account
+in the database on every request**:
+- `AdminUser.isActive` must still be true;
+- `AdminUser.tokenVersion` must still match the token;
+- the role is read from the database, not trusted from the token.
+
+Bumping `tokenVersion` (a new password, a role change, deactivation, or a
+password change by the user) revokes every existing session of that account
+immediately.
+
+**Account management** is ADMIN only. An ADMIN can change another account's
+role, issue a new random password (shown once), and deactivate or re-activate
+an account. Accounts are deactivated, never deleted, so the action log stays
+readable. Your own account can't be changed this way, which prevents locking
+yourself out, and at least one active ADMIN must always remain. Any staff
+account can change its own password. Every action is logged.
+
+**Still open:** both roles can currently grant resources and items to players
+and download DB backups. Backups contain every player's email and password
+hash. Restricting these to ADMIN was proposed but not yet decided.
+
+## Account deletion (2026-10-12)
+
+App-store requirement: Apple and Google both require in-app account deletion,
+and Google also requires a web path. This needs checking against the current
+store terms before submission.
+
+**Confirmation.** The player enters their current password and retypes a
+one-time code shown on screen (6 characters, no ambiguous ones, valid 10
+minutes, not copyable). A code was chosen over typing a word like "ИЗТРИЙ"
+because it is language-independent and can't be typed from habit. An emailed
+code would be stronger, but the game can't send email yet.
+
+**Grace period.** Deletion happens after a grace period: 3 days by default,
+editable by an ADMIN in the godmaster Settings tab (`GameSettings`). During it
+the player plays normally, sees a banner on every page, and can cancel. It is
+never cancelled automatically just by logging in.
+
+**What happens.** An in-process background job, every 10 minutes, finds due
+accounts and anonymizes them. There is no cron infrastructure; deletions only
+need to happen around their scheduled time.
+- Personal data is wiped: email, password, bio, items, buildings, research,
+  expeditions, friends, DMs, blocks, reports they filed, and resources.
+- Their seat in any still-open boss formation is freed.
+- The player leaves their clan through the normal path, so leadership passes
+  on, or a solo clan disbands.
+- The Player row stays, with the username replaced by a `~deleted~…` marker
+  (`~` is impossible in real usernames). Clients render it as a translated
+  "Deleted player", so all history keeps working: battles, PvP, wars, market,
+  Core points, clan donations and clan-chat messages.
+- The old username and email are freed immediately for re-registration.
+- `AccountDeletionLog` keeps only the old username, for support.
+
+**Banned players** can't log in to use this, so they request deletion via the
+support email. A godmaster "delete this account" button may come later.
+
+Backups are deliberately not addressed beyond not promising instant removal
+from them in the Privacy Policy.
+
+## Public information pages and registration terms (2026-10-12)
+
+Public pages that work without login, in both bg and en:
+- `/about`, `/lore`, `/rules`, `/privacy`, `/support`, `/delete-account`;
+- linked under the login/registration form, in a Settings "Информация"
+  section, and in every page's footer.
+
+All text lives in `messages/*.json` under `pages.*`.
+
+**Operator** (owner-provided): ОПТИСКЕЙЛ СЪЛЮШЪНС ЕООД (OPTISCALE SOLUTIONS
+EOOD), ЕИК 208772002, Sofia, Bulgaria; support@pentilius.com. These values,
+the minimum age and the default grace days are in one place,
+`apps/web/src/lib/legal.ts`, and are filled into the texts. The page texts use
+the static default of 3 grace days; keep it in step with the godmaster setting.
+
+**Minimum age 13** (owner decision). It was discussed against 14, the
+Bulgarian GDPR self-consent threshold. The texts therefore add that players
+under 14 need parental permission. A minimum age matters for the store
+target-audience declarations and because of player-to-player chat, not
+because of the game content.
+
+**Registration** now requires the "I am at least {minAge} and accept the Rules
+and Privacy Policy" checkbox. The API rejects it unless `acceptedTerms ===
+true` and stores `Player.termsAcceptedAt`; all e2e register calls were updated.
+
+The Rules and Privacy texts are drafts written by Claude and should be reviewed
+by someone with legal knowledge before relying on them. The lore was written
+from `PRODUCT_SPEC.md` for the owner to edit.
+
+## Content filter (2026-10-12)
+
+This covers Apple's "method for filtering objectionable material" requirement
+for UGC apps.
+
+**Where it applies:**
+- **Rejected** (generic `INAPPROPRIATE_CONTENT`, never naming the word):
+  usernames at registration, clan name, tag and description, and player bios.
+- **Masked with asterisks** instead, so the conversation goes on: clan chat
+  and direct messages. The owner chose to include DMs too.
+- **Not filtered:** report comments (only moderators see them) and godmaster
+  renames (staff are trusted). Existing names are not re-checked
+  retroactively.
+
+**Matching** (`apps/api/src/moderation/content-filter.ts`, unit-tested):
+- text is reduced to a Latin "skeleton": Bulgarian transliteration, lowercase
+  Cyrillic look-alikes, leetspeak, and Bulgarian chat-Latin `4`=ч / `6`=ш;
+- separators and repeated letters are removed;
+- `4` and `6` are ambiguous, so several readings are checked.
+
+Each word is either **SUBSTRING** (anywhere, for long unambiguous words) or
+**WHOLE_WORD** (standalone only, for short words that occur inside innocent
+words, e.g. `ass` in "class"). Uppercase-only look-alikes (В/Н/Т/М) were
+deliberately left out after they turned the name "Ева" into "eba".
+
+**The word list** is the `BannedWord` table, managed from the new godmaster
+**Филтър** tab by both roles: add, remove, and a test box that also shows how
+chat would render the text. Every change is logged and applies immediately;
+the cache is invalidated, with a 60 s safety TTL.
+- The seed adds a starter list (en + bg). It never removes or overrides
+  moderators' edits, because it only inserts missing words.
+- Words dropped from the starter list as false positives: гъз ("газ"),
+  педал (pedal), курат (куратор). ебан/ебана are WHOLE_WORD (небанален).
+- A false-positive check against real names and common words found only
+  acceptable hits, e.g. shitake and Penistone.
+

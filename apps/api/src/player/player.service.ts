@@ -4,6 +4,7 @@ import { Race } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { GAME_BALANCE } from '../config/game-config';
 import { EconomyService } from './economy.service';
+import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const SALT_ROUNDS = 10;
@@ -13,6 +14,7 @@ export class PlayerService {
   constructor(
     private readonly economy: EconomyService,
     private readonly prisma: PrismaService,
+    private readonly contentFilter: ContentFilterService,
   ) {}
 
   async getProfile(playerId: string): Promise<PlayerProfileDto> {
@@ -44,6 +46,7 @@ export class PlayerService {
       preferredLocale: player.preferredLocale,
       selectedAvatarKey: player.selectedAvatarKey,
       selectedFrameKey: player.selectedFrameKey,
+      deletionScheduledFor: player.deletionScheduledFor?.toISOString() ?? null,
     };
   }
 
@@ -116,6 +119,7 @@ export class PlayerService {
 
   async updateBio(playerId: string, bio: string): Promise<PlayerPublicProfileDto> {
     const trimmed = bio.trim();
+    await this.contentFilter.assertClean(trimmed);
     await this.prisma.player.update({ where: { id: playerId }, data: { bio: trimmed || null } });
     return this.getPublicProfile(playerId);
   }
@@ -140,6 +144,7 @@ export class PlayerService {
 
     const [allPlayers, pvpAttackWins, pvpDefenseWins, clanWarDamage, bossPoints] = await Promise.all([
       this.prisma.player.findMany({
+        where: { deletedAt: null },
         select: {
           id: true,
           username: true,

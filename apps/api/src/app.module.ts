@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AccountDeletionModule } from './account-deletion/account-deletion.module';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { BaseModule } from './base/base.module';
@@ -11,6 +12,8 @@ import { ExpeditionsModule } from './expeditions/expeditions.module';
 import { FriendsModule } from './friends/friends.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { MarketModule } from './market/market.module';
+import { ContentFilterModule } from './moderation/content-filter.service';
+import { ModerationModule } from './moderation/moderation.module';
 import { PlayerModule } from './player/player.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PveModule } from './pve/pve.module';
@@ -40,6 +43,9 @@ import { ZonesModule } from './zones/zones.module';
     ClansModule,
     ClanWarsModule,
     SeasonModule,
+    ModerationModule,
+    ContentFilterModule,
+    AccountDeletionModule,
     ReportsModule,
     ShopModule,
     FriendsModule,

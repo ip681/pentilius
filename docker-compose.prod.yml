@@ -28,7 +28,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_EXPIRES_IN: 7d
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET}
-      ADMIN_JWT_EXPIRES_IN: 2h
+      ADMIN_JWT_EXPIRES_IN: 30d
       MONITORING_DIR: /app/monitoring
     volumes:
       - /opt/pentilius-backups:/app/monitoring:ro

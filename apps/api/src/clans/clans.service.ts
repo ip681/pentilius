@@ -11,8 +11,10 @@ import {
 } from '@pentilius/shared';
 import { Clan, ClanBuilding, ClanBuildingLevelCost, ClanBuildingType, ClanMembership, ClanMessage, Player, Prisma } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
+import { getBlockedIds } from '../moderation/moderation.service';
 import { chargeTavernActivation, findTavern, isTavernActive, TAVERN_ACTIVATION_MS, tavernActivationCost } from './clan-tavern';
 import { EconomyService } from '../player/economy.service';
+import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClanLeaderboardQueryDto } from './dto/clan-leaderboard-query.dto';
 import { CreateClanDto } from './dto/create-clan.dto';
@@ -48,6 +50,7 @@ export class ClansService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
+    private readonly contentFilter: ContentFilterService,
   ) {}
 
   async listClans(): Promise<ClanSummaryDto[]> {
@@ -160,6 +163,7 @@ export class ClansService {
     }
 
     const tag = dto.tag.toUpperCase();
+    await this.contentFilter.assertClean(dto.name, tag, dto.description);
     const [existingName, existingTag] = await Promise.all([
       this.prisma.clan.findUnique({ where: { name: dto.name } }),
       this.prisma.clan.findUnique({ where: { tag } }),
@@ -259,6 +263,7 @@ export class ClansService {
     if (dto.name === undefined && dto.description === undefined) {
       throw new BadRequestException('Nothing to update');
     }
+    await this.contentFilter.assertClean(dto.name, dto.description);
 
     if (dto.name !== undefined) {
       const existingName = await this.prisma.clan.findUnique({ where: { name: dto.name } });
@@ -505,8 +510,10 @@ export class ClansService {
   async getMessages(clanId: string, playerId: string): Promise<ClanMessageDto[]> {
     await this.assertMembership(clanId, playerId);
 
+    // Messages from players this viewer blocked are hidden for them only.
+    const blockedIds = await getBlockedIds(playerId, this.prisma);
     const messages = await this.prisma.clanMessage.findMany({
-      where: { clanId },
+      where: { clanId, ...(blockedIds.length > 0 ? { playerId: { notIn: blockedIds } } : {}) },
       include: { player: true },
       orderBy: { createdAt: 'desc' },
       take: GAME_BALANCE.clanChat.historyLimit,
@@ -533,8 +540,9 @@ export class ClansService {
       }
     }
 
+    // Banned words are masked with asterisks, not rejected (owner decision, 2026-10-12).
     const created = await this.prisma.clanMessage.create({
-      data: { clanId, playerId, text: trimmed },
+      data: { clanId, playerId, text: await this.contentFilter.mask(trimmed) },
       include: { player: true },
     });
     return toMessageDto(created);

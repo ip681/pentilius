@@ -36,13 +36,13 @@ describe('Clan chat (e2e)', () => {
     const [regA, regB, regC] = await Promise.all([
       request(app.getHttpServer())
         .post('/api/v1/auth/register')
-        .send({ email: `chat-a-${suffix}@example.com`, username: usernameA, password, race: 'LUXARI' }),
+        .send({ email: `chat-a-${suffix}@example.com`, username: usernameA, password, race: 'LUXARI', acceptedTerms: true }),
       request(app.getHttpServer())
         .post('/api/v1/auth/register')
-        .send({ email: `chat-b-${suffix}@example.com`, username: usernameB, password, race: 'VORLUN' }),
+        .send({ email: `chat-b-${suffix}@example.com`, username: usernameB, password, race: 'VORLUN', acceptedTerms: true }),
       request(app.getHttpServer())
         .post('/api/v1/auth/register')
-        .send({ email: `chat-c-${suffix}@example.com`, username: usernameC, password, race: 'ZARYTH' }),
+        .send({ email: `chat-c-${suffix}@example.com`, username: usernameC, password, race: 'ZARYTH', acceptedTerms: true }),
     ]);
     tokenA = regA.body.accessToken;
     tokenB = regB.body.accessToken;

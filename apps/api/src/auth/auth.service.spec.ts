@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
+import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
 
@@ -36,6 +37,7 @@ describe('AuthService', () => {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('test-value') },
         },
+        { provide: ContentFilterService, useValue: { assertClean: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 
@@ -49,7 +51,7 @@ describe('AuthService', () => {
       );
 
       await expect(
-        authService.register({ email: 'a@b.com', username: 'playerone', password: 'password123', race: 'LUXARI' }),
+        authService.register({ email: 'a@b.com', username: 'playerone', password: 'password123', race: 'LUXARI', acceptedTerms: true }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -59,7 +61,7 @@ describe('AuthService', () => {
       );
 
       await expect(
-        authService.register({ email: 'a@b.com', username: 'playerone', password: 'password123', race: 'LUXARI' }),
+        authService.register({ email: 'a@b.com', username: 'playerone', password: 'password123', race: 'LUXARI', acceptedTerms: true }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -67,7 +69,7 @@ describe('AuthService', () => {
       prisma.player.findUnique.mockResolvedValue(null);
       prisma.player.create.mockResolvedValue({ id: '1', email: 'a@b.com', username: 'playerone', race: 'LUXARI', createdAt: new Date() });
 
-      const result = await authService.register({ email: 'a@b.com', username: 'playerone', password: 'password123', race: 'LUXARI' });
+      const result = await authService.register({ email: 'a@b.com', username: 'playerone', password: 'password123', race: 'LUXARI', acceptedTerms: true });
 
       expect(prisma.player.create).toHaveBeenCalledTimes(1);
       const createArgs = prisma.player.create.mock.calls[0][0];

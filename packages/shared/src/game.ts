@@ -42,6 +42,8 @@ export interface PlayerProfileDto {
   // "frames.<key>.icon" itself, same convention as race.
   selectedAvatarKey: string;
   selectedFrameKey: string;
+  // Set while an account deletion is pending — the player can cancel until then.
+  deletionScheduledFor: string | null;
 }
 
 export interface AvatarDto {
@@ -1048,3 +1050,51 @@ export interface SeasonResultDto {
   clanTag: string;
   damage: number;
 }
+
+// --- Moderation: blocking and reports (owner decision, 2026-10-12) ---
+
+export type ReportTargetType = 'PLAYER' | 'CLAN' | 'CLAN_MESSAGE' | 'DIRECT_MESSAGE';
+export type ReportReason = 'HARASSMENT' | 'OFFENSIVE_CONTENT' | 'SPAM' | 'CHEATING' | 'OTHER';
+
+export interface CreateReportRequest {
+  targetType: ReportTargetType;
+  // The reported player's, clan's or message's own id.
+  targetId: string;
+  reason: ReportReason;
+  comment?: string;
+}
+
+export interface BlockedPlayerDto {
+  playerId: string;
+  username: string;
+  race: Race;
+  level: number;
+  blockedAt: string;
+}
+
+export interface BlockStatusDto {
+  blocked: boolean;
+}
+
+// --- Account deletion (owner decision, 2026-10-12) ---
+
+// A deleted account's username is replaced with this prefix + a short id.
+// "~" is not allowed in real usernames, so nobody can register a look-alike;
+// clients show any such name as a translated "Deleted player".
+export const DELETED_PLAYER_PREFIX = '~deleted~';
+
+export function isDeletedPlayerName(username: string | null | undefined): boolean {
+  return !!username && username.startsWith(DELETED_PLAYER_PREFIX);
+}
+
+export interface AccountDeletionStatusDto {
+  // When the account will be deleted, or null if no deletion is pending.
+  scheduledFor: string | null;
+  graceDays: number;
+}
+
+export interface AccountDeletionCodeDto {
+  // One-time confirmation code shown on screen, e.g. "K7M-4QX"; valid 10 minutes.
+  code: string;
+}
+

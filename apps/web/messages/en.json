@@ -3,6 +3,8 @@
     "appName": "Pentilius",
     "confirm": "Confirm",
     "cancel": "Cancel",
+    "deletedPlayer": "Deleted player",
+    "inappropriateContent": "The text contains inappropriate words. Please change it.",
     "close": "Close",
     "atNextLevel": "{value} at next level"
   },
@@ -69,6 +71,7 @@
   },
   "topbar": {
     "loggedOut": "Not logged in",
+    "info": "Information",
     "settings": "Settings",
     "logout": "Log out"
   },
@@ -768,5 +771,364 @@
     "errorExpedition": "You cannot attack while on an expedition.",
     "topPlayers": "Biggest contribution",
     "noPlayerDamage": "No damage dealt yet."
+  },
+  "moderation": {
+    "block": "Block",
+    "unblock": "Unblock",
+    "confirmBlock": "Yes, block",
+    "blockName": "Block {name}",
+    "confirmBlockText": "Block {name}? You will no longer see their clan-chat messages, and you can't be friends or message each other.",
+    "blockError": "Could not change the block.",
+    "youBlockedThisPlayer": "You have blocked this player.",
+    "report": "Report",
+    "reportMessage": "Report message",
+    "reportClan": "Report clan",
+    "reportPlayerTitle": "Report {name}",
+    "reportMessageTitle": "Report a message from {name}",
+    "reportClanTitle": "Report {name}",
+    "messageActions": "Actions",
+    "chooseReason": "Why are you reporting this?",
+    "reasons": {
+      "HARASSMENT": "Insults or harassment",
+      "OFFENSIVE_CONTENT": "Offensive name or content",
+      "SPAM": "Spam",
+      "CHEATING": "Cheating or bot",
+      "OTHER": "Other"
+    },
+    "commentPlaceholder": "Short comment (optional)",
+    "sendReport": "Send report",
+    "reportSent": "Thank you — your report has been sent to the moderators.",
+    "reportError": "The report could not be sent.",
+    "errorSuspended": "Your ability to report is temporarily suspended.",
+    "errorNotYetAllowed": "Your account is too new to send reports yet.",
+    "errorTooFast": "Please wait a little before sending another report.",
+    "errorDailyLimit": "You have reached the daily report limit.",
+    "errorAlreadyReported": "You have already reported this — it is waiting for review.",
+    "blockedPlayers": "Blocked players",
+    "blockedPlayersHint": "You don't see their clan-chat messages, and you can't be friends or message each other.",
+    "noBlockedPlayers": "You haven't blocked anyone.",
+    "blockedLoadError": "Could not load the blocked players."
+  },
+  "accountDeletion": {
+    "title": "Delete account",
+    "explainWhat": "Your email, password, profile, items, buildings, resources, friends and private messages will be deleted. Your history stays in the game (battles, wars, market, clan donations, Core points) but will show as \"Deleted player\".",
+    "explainGrace": "The deletion happens {days} days after you confirm. Until then you can keep playing and cancel at any time.",
+    "start": "Delete my account",
+    "codeHint": "To confirm, type this code and your password:",
+    "codePlaceholder": "Code from above",
+    "passwordPlaceholder": "Your password",
+    "confirm": "Delete account",
+    "scheduled": "Your account will be deleted on {date}.",
+    "bannerScheduled": "Your account is scheduled for deletion on {date}.",
+    "cancel": "Cancel deletion",
+    "error": "Something went wrong. Please try again.",
+    "errorWrongPassword": "Wrong password.",
+    "errorWrongCode": "The code is wrong or has expired — open the form again for a new one.",
+    "errorAlreadyScheduled": "Your account is already scheduled for deletion."
+  },
+  "pages": {
+    "backToGame": "Back to the game",
+    "backToLogin": "Back to login",
+    "updated": "Last updated: {updated}",
+    "infoSection": "Information",
+    "acceptTerms": "I confirm that I am at least {minAge} years old and accept the ",
+    "acceptTermsRules": "Rules",
+    "acceptTermsAnd": " and the ",
+    "acceptTermsPrivacy": "Privacy Policy",
+    "acceptTermsRequired": "To register you must accept the Rules and the Privacy Policy.",
+    "about": {
+      "title": "About the game",
+      "intro": "Pentilius is a seasonal strategy game in your browser — made for people who don't have all day to spend in front of a screen, but want every session to count.",
+      "sections": [
+        {
+          "heading": "How it plays",
+          "bullets": [
+            "Develop your base — mines, a warehouse, a trading post and defenses.",
+            "Build a combat robot from parts, upgrade them, and spend your points every time you level up.",
+            "Spend energy fighting the Pentili — the planet's native creatures — for experience, resources and items.",
+            "Unlock new lands with tougher enemies and better loot.",
+            "Join a clan with players of all five races — together you are stronger, and the clan has its own buildings, treasury, chat and wars.",
+            "Send your robot on expeditions and form squads against the bosses."
+          ]
+        },
+        {
+          "heading": "Short sessions that matter",
+          "paragraphs": [
+            "No manual controls and no need to be online all the time. Battles play out automatically, and timers — construction, research, expeditions — keep running while you are away."
+          ]
+        },
+        {
+          "heading": "Seasons and the Core",
+          "paragraphs": [
+            "Every season ends with a race for the Core. When it opens, clans from the whole server attack it, and the clan that deals the most damage wins the season. Then a new season begins — your account stays, but progress starts over."
+          ]
+        },
+        {
+          "heading": "Who is behind the game",
+          "paragraphs": [
+            "Pentilius is developed and run by {company}, {address}. Questions: {email}."
+          ]
+        }
+      ]
+    },
+    "lore": {
+      "title": "The story",
+      "intro": "This is the story of a humanity that had to become something more in order to survive.",
+      "sections": [
+        {
+          "heading": "The meteorite",
+          "paragraphs": [
+            "The sky above Earth split open for a single day. The meteorite did not destroy humanity — it changed it. What it brought seeped into the soil, the water and the blood of the survivors.",
+            "Over generations, people divided into five distinct bloodlines — each marked by the change in its own way."
+          ]
+        },
+        {
+          "heading": "The five races",
+          "bullets": [
+            "Luxari — Masters of Technology. Brilliant engineers and innovators who push the boundaries of science.",
+            "Vorlun — Harmonizers of Life. In tune with nature, they excel in biology, medicine and sustainable development.",
+            "Zaryth — Keepers of Knowledge. Scholars and seekers of truth who archive and interpret the wisdom of the past.",
+            "Thalion — Guardians of Honor. Proud and disciplined, unmatched in leadership, strategy and combat.",
+            "Nexar — Forgers of Strength. Resilient and relentless, they thrive in the harshest places and turn resources into power."
+          ]
+        },
+        {
+          "heading": "One purpose",
+          "paragraphs": [
+            "For a long time the five races walked separate paths. But Earth was running out, and none of them could build a future alone. So, for the first time, they united — not because they were alike, but because they needed one another.",
+            "Together, humanity left Earth and reached the planet Pentilius."
+          ]
+        },
+        {
+          "heading": "Pentilius",
+          "paragraphs": [
+            "Pentilius was not made for humans. Its air is unbreathable for all five races — outside the protected bases the colonists wear helmets and oxygen systems, and the bases process the local atmosphere to make air. Earth's crops grow only in sealed, controlled environments.",
+            "And the planet is not empty. It belongs to the Pentili — dangerous native creatures that guard their lands."
+          ]
+        },
+        {
+          "heading": "The Core",
+          "paragraphs": [
+            "Deep beneath the surface, humans found something ancient — a system that keeps the atmosphere and life of Pentilius the way they are. It was not built for humans, and it is no convenient terraforming machine.",
+            "But through the Core, that system can be influenced. Whoever takes control of it will lay the foundations of a new civilization.",
+            "The closer humanity gets to the Core, the more restless the Pentili become. And every clan knows that only one of them will be first."
+          ]
+        }
+      ]
+    },
+    "rules": {
+      "title": "Rules and Terms of Use",
+      "intro": "These terms govern your use of Pentilius. By creating an account you accept them together with the Privacy Policy. The game is provided by {company}, company ID {eik}, {address} (\"we\").",
+      "sections": [
+        {
+          "heading": "1. Who can play",
+          "paragraphs": [
+            "You must be at least {minAge} years old. If you are below the age at which you can consent to the processing of personal data on your own in your country (14 in Bulgaria), you need permission from a parent or guardian."
+          ]
+        },
+        {
+          "heading": "2. Your account",
+          "bullets": [
+            "You are responsible for keeping your account and password secure. Do not share them.",
+            "Your username must be appropriate and must not impersonate another person, a moderator or the game team.",
+            "You can delete your account at any time from Settings. Deletion happens {graceDays} days after you confirm, and you can cancel until then."
+          ]
+        },
+        {
+          "heading": "3. Code of conduct",
+          "paragraphs": [
+            "We have zero tolerance for offensive and harmful content. The following are not allowed:"
+          ],
+          "bullets": [
+            "insults, harassment, threats, stalking, and inciting hatred or violence;",
+            "sexual, racist, discriminatory or otherwise offensive content — in names, descriptions, clans and messages;",
+            "spam, advertising and scams, including attempts to obtain someone else's account or data;",
+            "cheats, bots, automation and knowingly exploiting bugs (please report bugs to {email});",
+            "abusing the report feature, including mass or deliberately false reports;",
+            "sharing other people's personal data."
+          ]
+        },
+        {
+          "heading": "4. Reporting, blocking and moderation",
+          "bullets": [
+            "Any player can block another player and report a profile, a clan or a message.",
+            "Reports are reviewed by moderators. A report on its own never punishes anyone.",
+            "For violations we may remove content, change a name, or suspend or permanently ban an account, depending on how serious the violation is."
+          ]
+        },
+        {
+          "heading": "5. Seasons and virtual items",
+          "bullets": [
+            "The game is seasonal. At the end of a season in-game progress resets; your account stays.",
+            "Resources, items and everything else in the game have no real-money value and cannot be cashed out."
+          ]
+        },
+        {
+          "heading": "6. Availability",
+          "paragraphs": [
+            "The game is provided \"as is\". We do our best to keep it available and bug-free, but there may be downtime, maintenance and changes to balance and content."
+          ]
+        },
+        {
+          "heading": "7. Changes to these terms",
+          "paragraphs": [
+            "We may change these terms. We will announce significant changes in the game. Continuing to play after a change means you accept it."
+          ]
+        },
+        {
+          "heading": "8. Governing law and contact",
+          "paragraphs": [
+            "Bulgarian law applies. For questions and complaints, write to {email}."
+          ]
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Privacy Policy",
+      "intro": "This policy explains what personal data we process in Pentilius, why, and what your rights are.",
+      "sections": [
+        {
+          "heading": "1. Data controller",
+          "paragraphs": [
+            "{company}, company ID {eik}, {address}. Contact for personal-data questions: {email}."
+          ]
+        },
+        {
+          "heading": "2. What we collect",
+          "bullets": [
+            "Account data: email, username, password (stored only in hashed form), chosen race, language, and when you accepted the terms.",
+            "Game data: level, resources, items, buildings, battles, clan, donations, war and season participation.",
+            "Content you create: your profile description, clan names and descriptions, clan-chat and private messages.",
+            "Safety data: reports you file or that are filed against you, blocks, sanctions.",
+            "Technical data: when you were last active. Our servers may technically log IP addresses for security purposes."
+          ]
+        },
+        {
+          "heading": "3. Why we process it",
+          "bullets": [
+            "to provide the game and your account (performance of a contract);",
+            "for security, fraud prevention and content moderation (legitimate interest);",
+            "to meet legal obligations where they apply."
+          ]
+        },
+        {
+          "heading": "4. Who we share it with",
+          "paragraphs": [
+            "We do not sell personal data or use it for advertising. Data is stored with hosting and backup providers that process it only on our behalf. Other players see only your public information: username, race, level, clan, profile description, and the messages you send them."
+          ]
+        },
+        {
+          "heading": "5. How long we keep it",
+          "bullets": [
+            "For as long as your account exists.",
+            "When you delete your account, your personal data is removed {graceDays} days after you confirm. Game history (battles, wars, market, donations) stays, but no longer linked to you — shown as \"Deleted player\".",
+            "Database backups are kept for a limited time and then replaced.",
+            "Reports about violations may be kept longer to protect other players."
+          ]
+        },
+        {
+          "heading": "6. Your rights",
+          "paragraphs": [
+            "You have the right to access, rectify and erase your data, to restrict processing, to data portability and to object. You can delete your account yourself from Settings; for anything else write to {email}. You also have the right to lodge a complaint with a data protection authority — in Bulgaria, the Commission for Personal Data Protection (www.cpdp.bg)."
+          ]
+        },
+        {
+          "heading": "7. Children",
+          "paragraphs": [
+            "The game is not intended for anyone under {minAge}. If you are below the age at which you can consent to the processing of personal data on your own in your country (14 in Bulgaria), you need permission from a parent or guardian. If we learn that an account belongs to a child under {minAge}, we will delete it."
+          ]
+        },
+        {
+          "heading": "8. Cookies and local storage",
+          "paragraphs": [
+            "We use no advertising or tracking cookies. Your browser only stores what the game needs to work — your login session and chosen language."
+          ]
+        },
+        {
+          "heading": "9. Changes",
+          "paragraphs": [
+            "We may update this policy. The date of the last change is shown at the top."
+          ]
+        }
+      ]
+    },
+    "support": {
+      "title": "Support",
+      "intro": "Got a question, a problem, or found a bug? Write to us at {email} — we reply as soon as we can.",
+      "sections": [
+        {
+          "heading": "Frequently asked questions",
+          "paragraphs": []
+        },
+        {
+          "heading": "I forgot my password",
+          "paragraphs": [
+            "Write to {email} from the email address you registered with, and include your username."
+          ]
+        },
+        {
+          "heading": "Someone is insulting me or posting offensive things",
+          "paragraphs": [
+            "Open their profile or tap \"⋯\" next to the message — from there you can block and report them. Reports are reviewed by moderators."
+          ]
+        },
+        {
+          "heading": "I found a bug",
+          "paragraphs": [
+            "Describe what happened and where to {email}. Please don't use the bug to your advantage — that breaks the Rules."
+          ]
+        },
+        {
+          "heading": "My account is suspended",
+          "paragraphs": [
+            "When you log in you will see the reason and how long the suspension lasts. If you think it is a mistake, write to {email}."
+          ]
+        },
+        {
+          "heading": "How do I delete my account",
+          "paragraphs": [
+            "Log in → Settings → \"Delete account\". Details are on the \"Delete account\" page."
+          ]
+        }
+      ]
+    },
+    "deleteAccount": {
+      "title": "Delete account",
+      "intro": "You can delete your Pentilius account at any time.",
+      "sections": [
+        {
+          "heading": "How",
+          "bullets": [
+            "Log in to the game.",
+            "Open Settings and scroll to \"Delete account\".",
+            "Tap \"Delete my account\", then enter the code shown and your password."
+          ]
+        },
+        {
+          "heading": "What happens next",
+          "paragraphs": [
+            "The deletion happens {graceDays} days after you confirm. Until then you can keep playing and cancel with one button."
+          ]
+        },
+        {
+          "heading": "What is deleted",
+          "paragraphs": [
+            "Your email, password, profile description, items, buildings, resources, friends and private messages."
+          ]
+        },
+        {
+          "heading": "What stays",
+          "paragraphs": [
+            "Game history — battles, wars, market, clan donations, Core points and clan-chat messages — stays, but is no longer linked to you and shows as \"Deleted player\". Database backups are kept for a limited time and then replaced."
+          ]
+        },
+        {
+          "heading": "I can't access my account",
+          "paragraphs": [
+            "If you can't log in (for example because your account is suspended), write to {email} from the email address you registered with, with the subject \"Account deletion\", and include your username."
+          ]
+        }
+      ]
+    }
   }
 }

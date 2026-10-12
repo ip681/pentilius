@@ -2,14 +2,20 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { promises as fs } from 'fs';
 import { AdminActionType, Prisma } from '@prisma/client';
 import { grantItem } from '../inventory/inventory-capacity';
+import { normalizeWord } from '../moderation/content-filter';
+import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { GAME_BALANCE } from '../config/game-config';
 import { coreEndsAt, coreStatus, getCurrentSeason } from '../season/season.service';
 import { AdminJwtPayload } from './admin-jwt-payload.interface';
 import { BanPlayerDto } from './dto/ban-player.dto';
+import { AddBannedWordDto } from './dto/banned-word.dto';
 import { GrantItemDto } from './dto/grant-item.dto';
 import { GrantResourceDto } from './dto/grant-resource.dto';
 import { RenamePlayerDto } from './dto/rename-player.dto';
 import { UnbanPlayerDto } from './dto/unban-player.dto';
+import { ResolveReportsDto } from './dto/resolve-reports.dto';
+import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
 import { UpdateSeasonSettingsDto } from './dto/update-season-settings.dto';
 
 type Tx = PrismaService | Prisma.TransactionClient;
@@ -43,13 +49,17 @@ const INVENTORY_PAGE_SIZE = 300;
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly contentFilter: ContentFilterService,
+  ) {}
 
   async searchPlayers(query: string): Promise<{ id: string; username: string; level: number }[]> {
     // Empty query — the box was just opened, nothing typed yet: show the most
     // recently active players instead of a blank dropdown.
     if (!query) {
       return this.prisma.player.findMany({
+        where: { deletedAt: null },
         select: { id: true, username: true, level: true },
         take: 10,
         orderBy: { lastActiveAt: 'desc' },
@@ -59,7 +69,7 @@ export class AdminService {
       return [];
     }
     const players = await this.prisma.player.findMany({
-      where: { username: { startsWith: query, mode: 'insensitive' } },
+      where: { username: { startsWith: query, mode: 'insensitive' }, deletedAt: null },
       select: { id: true, username: true, level: true },
       take: 10,
       orderBy: { username: 'asc' },
@@ -328,6 +338,213 @@ export class AdminService {
     return this.getSeasonSettings();
   }
 
+  /** Content filter word list (owner decision, 2026-10-12) — both roles can manage it. */
+  async listBannedWords(): Promise<{ id: string; word: string; normalized: string; match: string; createdBy: string | null; createdAt: Date }[]> {
+    return this.prisma.bannedWord.findMany({ orderBy: { word: 'asc' } });
+  }
+
+  async addBannedWord(dto: AddBannedWordDto, admin: AdminJwtPayload): Promise<void> {
+    const normalized = normalizeWord(dto.word.trim());
+    if (normalized.length < 2) {
+      throw new BadRequestException('WORD_TOO_SHORT');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.bannedWord.findUnique({ where: { normalized } });
+      if (existing) {
+        throw new ConflictException('WORD_ALREADY_LISTED');
+      }
+      await tx.bannedWord.create({ data: { word: dto.word.trim(), normalized, match: dto.match, createdBy: admin.username } });
+      await this.logAction(tx, admin, 'ADD_BANNED_WORD', null, { word: dto.word.trim(), match: dto.match });
+    });
+    this.contentFilter.invalidate();
+  }
+
+  async removeBannedWord(id: string, admin: AdminJwtPayload): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const row = await tx.bannedWord.findUnique({ where: { id } });
+      if (!row) {
+        throw new NotFoundException('WORD_NOT_FOUND');
+      }
+      await tx.bannedWord.delete({ where: { id } });
+      await this.logAction(tx, admin, 'REMOVE_BANNED_WORD', null, { word: row.word, match: row.match });
+    });
+    this.contentFilter.invalidate();
+  }
+
+  testContent(text: string): Promise<{ matches: string[]; masked: string }> {
+    return this.contentFilter.test(text);
+  }
+
+  /** Global (non-seasonal) game settings — see schema.prisma's GameSettings. */
+  async getGameSettings(): Promise<{ accountDeletionGraceDays: number }> {
+    const settings = await this.prisma.gameSettings.findUnique({ where: { id: 1 } });
+    return { accountDeletionGraceDays: settings?.accountDeletionGraceDays ?? 3 };
+  }
+
+  /** ADMIN only. Applies to deletions requested from now on — already scheduled ones keep their date. */
+  async updateGameSettings(dto: UpdateGameSettingsDto, admin: AdminJwtPayload): Promise<{ accountDeletionGraceDays: number }> {
+    if (admin.role !== 'ADMIN') {
+      throw new ForbiddenException('ADMIN_ROLE_REQUIRED');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      const before = await tx.gameSettings.findUnique({ where: { id: 1 } });
+      await tx.gameSettings.upsert({
+        where: { id: 1 },
+        update: { accountDeletionGraceDays: dto.accountDeletionGraceDays },
+        create: { id: 1, accountDeletionGraceDays: dto.accountDeletionGraceDays },
+      });
+      await this.logAction(tx, admin, 'UPDATE_GAME_SETTINGS', null, {
+        oldAccountDeletionGraceDays: before?.accountDeletionGraceDays ?? 3,
+        newAccountDeletionGraceDays: dto.accountDeletionGraceDays,
+      });
+    });
+    return this.getGameSettings();
+  }
+
+  /**
+   * Reports grouped by who/what was reported (owner decision, 2026-10-12), so
+   * a mass-report shows up as one group with its reporter count, and the
+   * clan most of the reporters belong to (a sign of organized reporting).
+   * Each report carries its reporter's track record (total vs. dismissed).
+   */
+  async getReports(view: 'open' | 'closed'): Promise<{ groups: ReportGroup[] }> {
+    const reports = await this.prisma.playerReport.findMany({
+      where: view === 'open' ? { status: 'OPEN' } : { status: { not: 'OPEN' } },
+      orderBy: view === 'open' ? { createdAt: 'asc' } : { resolvedAt: 'desc' },
+      take: view === 'open' ? 500 : 100,
+      include: {
+        reporter: { select: { id: true, username: true, clanMembership: { select: { clan: { select: { tag: true } } } } } },
+        targetPlayer: { select: { id: true, username: true } },
+        targetClan: { select: { id: true, tag: true, name: true } },
+      },
+    });
+
+    const reporterIds = [...new Set(reports.map((r) => r.reporterId))];
+    const [totals, dismissed, liveMessages] = await Promise.all([
+      this.prisma.playerReport.groupBy({ by: ['reporterId'], where: { reporterId: { in: reporterIds } }, _count: { _all: true } }),
+      this.prisma.playerReport.groupBy({ by: ['reporterId'], where: { reporterId: { in: reporterIds }, status: 'DISMISSED' }, _count: { _all: true } }),
+      this.prisma.clanMessage.findMany({
+        where: { id: { in: reports.filter((r) => r.targetType === 'CLAN_MESSAGE').map((r) => r.targetId) } },
+        select: { id: true },
+      }),
+    ]);
+    const totalBy = new Map(totals.map((row) => [row.reporterId, row._count._all]));
+    const dismissedBy = new Map(dismissed.map((row) => [row.reporterId, row._count._all]));
+    const liveMessageIds = new Set(liveMessages.map((m) => m.id));
+
+    const groups = new Map<string, ReportGroup>();
+    for (const report of reports) {
+      const isClanTarget = report.targetType === 'CLAN';
+      const key = isClanTarget ? `clan:${report.targetClanId ?? report.targetId}` : `player:${report.targetPlayerId ?? report.targetId}`;
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          key,
+          targetKind: isClanTarget ? 'CLAN' : 'PLAYER',
+          targetPlayerId: isClanTarget ? null : report.targetPlayerId,
+          targetUsername: isClanTarget ? null : (report.targetPlayer?.username ?? null),
+          targetClanTag: isClanTarget ? (report.targetClan?.tag ?? null) : null,
+          targetClanName: isClanTarget ? (report.targetClan?.name ?? null) : null,
+          uniqueReporters: 0,
+          topReporterClan: null,
+          reports: [],
+        };
+        groups.set(key, group);
+      }
+      group.reports.push({
+        id: report.id,
+        targetType: report.targetType,
+        targetId: report.targetId,
+        reason: report.reason,
+        comment: report.comment,
+        contentSnapshot: report.contentSnapshot,
+        status: report.status,
+        createdAt: report.createdAt,
+        resolvedAt: report.resolvedAt,
+        resolvedByAdmin: report.resolvedByAdmin,
+        resolutionNote: report.resolutionNote,
+        messageStillExists: report.targetType === 'CLAN_MESSAGE' ? liveMessageIds.has(report.targetId) : null,
+        reporter: {
+          id: report.reporter.id,
+          username: report.reporter.username,
+          clanTag: report.reporter.clanMembership?.clan.tag ?? null,
+          totalReports: totalBy.get(report.reporterId) ?? 0,
+          dismissedReports: dismissedBy.get(report.reporterId) ?? 0,
+        },
+      });
+    }
+
+    for (const group of groups.values()) {
+      const reporters = new Map(group.reports.map((r) => [r.reporter.id, r.reporter.clanTag]));
+      group.uniqueReporters = reporters.size;
+      const byClan = new Map<string, number>();
+      for (const tag of reporters.values()) if (tag) byClan.set(tag, (byClan.get(tag) ?? 0) + 1);
+      const top = [...byClan.entries()].sort((a, b) => b[1] - a[1])[0];
+      group.topReporterClan = top && top[1] > 1 ? { tag: top[0], reporters: top[1] } : null;
+    }
+
+    // Most-reported first.
+    return { groups: [...groups.values()].sort((a, b) => b.uniqueReporters - a.uniqueReporters || b.reports.length - a.reports.length) };
+  }
+
+  /**
+   * Marks one or more open reports RESOLVED or DISMISSED and logs each. After a
+   * dismissal, re-checks the reporter's track record and suspends their
+   * reporting if too many recent reports were dismissed (GAME_BALANCE.moderation).
+   */
+  async resolveReports(dto: ResolveReportsDto, admin: AdminJwtPayload): Promise<{ updated: number }> {
+    return this.prisma.$transaction(async (tx) => {
+      const reports = await tx.playerReport.findMany({
+        where: { id: { in: dto.reportIds }, status: 'OPEN' },
+        include: { targetPlayer: { select: { id: true, username: true } } },
+      });
+      const note = dto.note?.trim() || null;
+      for (const report of reports) {
+        await tx.playerReport.update({
+          where: { id: report.id },
+          data: { status: dto.status, resolvedAt: new Date(), resolvedByAdmin: admin.username, resolutionNote: note },
+        });
+        await this.logAction(tx, admin, dto.status === 'RESOLVED' ? 'RESOLVE_REPORT' : 'DISMISS_REPORT', report.targetPlayer, {
+          reportId: report.id,
+          targetType: report.targetType,
+          reason: report.reason,
+          note,
+        });
+      }
+
+      if (dto.status === 'DISMISSED') {
+        const limits = GAME_BALANCE.moderation;
+        for (const reporterId of new Set(reports.map((r) => r.reporterId))) {
+          const recent = await tx.playerReport.findMany({
+            where: { reporterId, status: { not: 'OPEN' } },
+            orderBy: { resolvedAt: 'desc' },
+            take: limits.reputationWindow,
+            select: { status: true },
+          });
+          if (recent.filter((r) => r.status === 'DISMISSED').length >= limits.maxDismissedInWindow) {
+            await tx.player.update({
+              where: { id: reporterId },
+              data: { reportingSuspendedUntil: new Date(Date.now() + limits.suspensionDays * 24 * 3600_000) },
+            });
+          }
+        }
+      }
+      return { updated: reports.length };
+    });
+  }
+
+  /** Removes an abusive clan-chat message (the report keeps its text snapshot as evidence). */
+  async deleteClanMessage(messageId: string, admin: AdminJwtPayload): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const message = await tx.clanMessage.findUnique({ where: { id: messageId }, include: { player: { select: { id: true, username: true } } } });
+      if (!message) {
+        throw new NotFoundException('MESSAGE_NOT_FOUND');
+      }
+      await tx.clanMessage.delete({ where: { id: messageId } });
+      await this.logAction(tx, admin, 'DELETE_CLAN_MESSAGE', message.player, { messageId, clanId: message.clanId, text: message.text });
+    });
+  }
+
   private async logAction(
     tx: Tx,
     admin: AdminJwtPayload,
@@ -445,4 +662,32 @@ export class AdminService {
       createdAt: row.createdAt,
     }));
   }
+}
+
+export interface ReportGroup {
+  key: string;
+  targetKind: 'PLAYER' | 'CLAN';
+  targetPlayerId: string | null;
+  targetUsername: string | null;
+  targetClanTag: string | null;
+  targetClanName: string | null;
+  uniqueReporters: number;
+  // Set only when more than one reporter shares a clan — a hint of organized reporting.
+  topReporterClan: { tag: string; reporters: number } | null;
+  reports: {
+    id: string;
+    targetType: string;
+    targetId: string;
+    reason: string;
+    comment: string | null;
+    contentSnapshot: string;
+    status: string;
+    createdAt: Date;
+    resolvedAt: Date | null;
+    resolvedByAdmin: string | null;
+    resolutionNote: string | null;
+    // CLAN_MESSAGE only: whether the message can still be deleted.
+    messageStillExists: boolean | null;
+    reporter: { id: string; username: string; clanTag: string | null; totalReports: number; dismissedReports: number };
+  }[];
 }

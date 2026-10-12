@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DirectMessageDto, FriendDto, FriendRequestDto, FriendRequestsDto, FriendshipStatusDto } from '@pentilius/shared';
 import { Friendship, Player } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
+import { isBlockedEitherWay } from '../moderation/moderation.service';
+import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -13,7 +15,10 @@ import { PrismaService } from '../prisma/prisma.service';
  */
 @Injectable()
 export class FriendsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly contentFilter: ContentFilterService,
+  ) {}
 
   async sendRequest(requesterId: string, addresseeId: string): Promise<void> {
     if (requesterId === addresseeId) {
@@ -21,8 +26,14 @@ export class FriendsService {
     }
 
     const addressee = await this.prisma.player.findUnique({ where: { id: addresseeId } });
-    if (!addressee) {
+    if (!addressee || addressee.deletedAt) {
       throw new NotFoundException('Player not found');
+    }
+
+    // A block in either direction makes friendship (and so DMs) impossible.
+    // Deliberately generic — the blocked player isn't told they're blocked.
+    if (await isBlockedEitherWay(requesterId, addresseeId, this.prisma)) {
+      throw new BadRequestException('FRIEND_REQUEST_UNAVAILABLE');
     }
 
     const existing = await this.findFriendshipBetween(requesterId, addresseeId);
@@ -157,7 +168,8 @@ export class FriendsService {
       }
     }
 
-    const created = await this.prisma.directMessage.create({ data: { senderId, recipientId, text: trimmed } });
+    // Banned words are masked with asterisks, not rejected (owner decision, 2026-10-12).
+    const created = await this.prisma.directMessage.create({ data: { senderId, recipientId, text: await this.contentFilter.mask(trimmed) } });
 
     // The sender has trivially "read" up to their own message — updating
     // their own side's read marker alongside lastMessageAt keeps them from

@@ -23,8 +23,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Checked on every authenticated request (not just login) so an
     // admin-issued ban takes effect immediately against an already-active
     // session, not only against a future login attempt.
-    const player = await this.prisma.player.findUnique({ where: { id: payload.sub }, select: { bannedUntil: true } });
-    if (player?.bannedUntil && player.bannedUntil > new Date()) {
+    const player = await this.prisma.player.findUnique({ where: { id: payload.sub }, select: { bannedUntil: true, deletedAt: true } });
+    if (!player || player.deletedAt) {
+      throw new UnauthorizedException('ACCOUNT_DELETED');
+    }
+    if (player.bannedUntil && player.bannedUntil > new Date()) {
       throw new UnauthorizedException('PLAYER_BANNED');
     }
 

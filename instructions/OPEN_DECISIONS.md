@@ -126,8 +126,14 @@ The attacked-Core model was decided on 2026-10-12 (see `instructions/GAME_SYSTEM
 
 ## Mobile
 - mobile framework choice (candidate: React Native + Expo, for TS/React consistency)
-- app-store compliance pages (Privacy Policy, Terms/EULA, support contact, age
-  rating) — drafting not started (discussed 2026-10-11). In-app account/data
-  deletion and a report/block mechanism for user-generated content (Apple's
-  stricter UGC rules, triggered by usernames/clan names/chat) are real
-  backend engineering tasks, not just static pages, and aren't built yet.
+- app-store compliance — report/block, in-app account deletion, the
+  registration terms checkbox, and the public pages (About, History/Lore,
+  Rules, Privacy, Support, Delete account) were built on 2026-10-12, and so
+  was a content filter; see `instructions/DECISIONS_LOG.md`. Still open:
+  - growing the Bulgarian banned-word list (owner);
+  - a legal review of the Rules and Privacy texts;
+  - checking the current Apple/Google terms before submission;
+  - filling in the store age-rating and data-safety forms;
+  - a real support@pentilius.com mailbox;
+  - a password-reset flow (the game can't send email yet, so password resets
+    currently go through support).

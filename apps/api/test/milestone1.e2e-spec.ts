@@ -26,7 +26,7 @@ describe('Milestone 1 vertical slice (e2e)', () => {
 
     const registerRes = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
-      .send({ email, username, password, race: 'LUXARI' });
+      .send({ email, username, password, race: 'LUXARI', acceptedTerms: true });
     accessToken = registerRes.body.accessToken;
   });
 

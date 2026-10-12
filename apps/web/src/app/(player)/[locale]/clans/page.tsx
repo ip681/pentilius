@@ -14,12 +14,14 @@ import type {
   Race,
   RobotAttributesDto,
 } from '@pentilius/shared';
+import { isDeletedPlayerName } from '@pentilius/shared';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { ClanLink } from '@/components/ClanLink';
 import { GameLayout } from '@/components/GameLayout';
+import { MessageActions } from '@/components/MessageActions';
 import { NextLevelValue } from '@/components/NextLevelValue';
 import { PlayerLink } from '@/components/PlayerLink';
 import { ResourceIcon } from '@/components/ResourceIcon';
@@ -54,6 +56,7 @@ import {
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { displayPlayerName } from '@/lib/player-name';
 
 const ALL_RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
 
@@ -216,6 +219,7 @@ export default function ClansPage() {
       const map: Record<string, string> = {
         ALREADY_IN_CLAN: t('clans.errorAlreadyInClan'),
         CLAN_NAME_TAKEN: t('clans.errorNameTaken'),
+        INAPPROPRIATE_CONTENT: t('common.inappropriateContent'),
         CLAN_TAG_TAKEN: t('clans.errorTagTaken'),
         CLAN_FULL: t('clans.errorFull'),
         NOT_ENOUGH_RESOURCES: t('clans.errorNotEnoughResources'),
@@ -994,7 +998,7 @@ export default function ClansPage() {
                 </>
               ) : (
                 <>
-                  <h3 className="mb-3 text-sm font-semibold">{actionSheetMember.username}</h3>
+                  <h3 className="mb-3 text-sm font-semibold">{displayPlayerName(t, actionSheetMember.username)}</h3>
                   <div className="flex flex-col gap-2">
                     {availableActions(actionSheetMember, myClan.myRole).map((action) => (
                       <button
@@ -1027,6 +1031,16 @@ export default function ClansPage() {
                     <PlayerLink playerId={message.playerId} username={message.username} className="font-semibold hover:text-accent" />
                     {': '}
                     <span className="text-textMuted">{message.text}</span>
+                    {myProfile && message.playerId !== myProfile.id && !isDeletedPlayerName(message.username) && (
+                      <MessageActions
+                        messageId={message.id}
+                        targetType="CLAN_MESSAGE"
+                        authorId={message.playerId}
+                        authorName={message.username}
+                        allowBlock
+                        onBlocked={() => loadMessages(myClan.id)}
+                      />
+                    )}
                   </div>
                 ))}
               </div>

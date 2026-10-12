@@ -7,8 +7,9 @@ import { useEffect, useRef, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
+import { MessageActions } from '@/components/MessageActions';
 import { PlayerLink } from '@/components/PlayerLink';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import {
   acceptFriendRequest,
   ApiError,
@@ -68,6 +69,8 @@ export default function FriendsPage() {
   const [chatText, setChatText] = useState('');
   const [chatError, setChatError] = useState<string | null>(null);
   const chatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const router = useRouter();
 
   async function load() {
     try {
@@ -283,6 +286,21 @@ export default function FriendsPage() {
                         </span>
                         {': '}
                         <span className="text-textMuted">{message.text}</span>
+                        {fromFriend && selectedFriendId && (
+                          <MessageActions
+                            messageId={message.id}
+                            targetType="DIRECT_MESSAGE"
+                            authorId={selectedFriendId}
+                            authorName={selectedFriend?.username ?? ''}
+                            allowBlock
+                            // Blocking ends the friendship, so this conversation is gone — back to the list.
+                            onBlocked={() => {
+                              notifyFriendsActivity();
+                              router.push('/friends');
+                              load();
+                            }}
+                          />
+                        )}
                       </div>
                     );
                   })}

@@ -8,6 +8,7 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerLink } from '@/components/PlayerLink';
+import { ReportSheet } from '@/components/ReportSheet';
 import { Link } from '@/i18n/navigation';
 import { ApiError, declareClanWar, getClan, getClanWarStatus, getMyClan, getProfile, getRobotAttributes, joinClan } from '@/lib/api-client';
 import { hasAnyRequirement, meetsJoinRequirements } from '@/lib/clan-requirements';
@@ -27,6 +28,7 @@ export default function ClanDetailPage() {
   const [myAttributes, setMyAttributes] = useState<RobotAttributesDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [declareWarConfirmOpen, setDeclareWarConfirmOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   async function load() {
     try {
@@ -271,6 +273,26 @@ export default function ClanDetailPage() {
             <Link href="/clans" className="mt-4 inline-block text-xs text-accent underline">
               {t('clans.manage')}
             </Link>
+          )}
+
+          {/* Report the clan's name/description (owner decision, 2026-10-12) — not offered for your own clan. */}
+          {!clan.myRole && (
+            <>
+              <button
+                type="button"
+                onClick={() => setReportOpen(true)}
+                className="mt-4 block text-[11px] uppercase text-textFaint underline hover:text-danger"
+              >
+                {t('moderation.reportClan')}
+              </button>
+              <ReportSheet
+                open={reportOpen}
+                onClose={() => setReportOpen(false)}
+                targetType="CLAN"
+                targetId={clan.id}
+                title={t('moderation.reportClanTitle', { name: `[${clan.tag}] ${clan.name}` })}
+              />
+            </>
           )}
         </section>
       )}

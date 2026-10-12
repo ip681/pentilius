@@ -1,9 +1,13 @@
 import type {
+  AccountDeletionCodeDto,
+  AccountDeletionStatusDto,
   ActiveExpeditionDto,
   AuthResponse,
   AuthTokens,
   BaseResponseDto,
   BattleReportDto,
+  BlockedPlayerDto,
+  BlockStatusDto,
   BossFormationDto,
   BossFormationsResponseDto,
   BoxOpenResultDto,
@@ -26,6 +30,7 @@ import type {
   CorePlayerRankingScope,
   CoreStateDto,
   CosmeticsCatalogDto,
+  CreateReportRequest,
   DirectMessageDto,
   ExpeditionClaimResultDto,
   ExpeditionsResponseDto,
@@ -239,6 +244,46 @@ export function getFriendshipStatus(playerId: string): Promise<FriendshipStatusD
 
 export function getFriendsUnreadStatus(): Promise<FriendsUnreadStatusDto> {
   return request<FriendsUnreadStatusDto>('/friends/unread', { auth: true });
+}
+
+// --- Account deletion (owner decision, 2026-10-12) ---
+
+export function getAccountDeletionStatus(): Promise<AccountDeletionStatusDto> {
+  return request<AccountDeletionStatusDto>('/player/me/deletion', { auth: true });
+}
+
+export function getAccountDeletionCode(): Promise<AccountDeletionCodeDto> {
+  return request<AccountDeletionCodeDto>('/player/me/deletion/code', { method: 'POST', auth: true });
+}
+
+export function requestAccountDeletion(password: string, code: string): Promise<AccountDeletionStatusDto> {
+  return request<AccountDeletionStatusDto>('/player/me/deletion', { method: 'POST', auth: true, body: { password, code } });
+}
+
+export function cancelAccountDeletion(): Promise<AccountDeletionStatusDto> {
+  return request<AccountDeletionStatusDto>('/player/me/deletion/cancel', { method: 'POST', auth: true });
+}
+
+// --- Moderation: blocking and reports (owner decision, 2026-10-12) ---
+
+export function getBlockedPlayers(): Promise<BlockedPlayerDto[]> {
+  return request<BlockedPlayerDto[]>('/moderation/blocks', { auth: true });
+}
+
+export function getBlockStatus(playerId: string): Promise<BlockStatusDto> {
+  return request<BlockStatusDto>(`/moderation/blocks/${playerId}`, { auth: true });
+}
+
+export function blockPlayer(playerId: string): Promise<void> {
+  return request<void>(`/moderation/blocks/${playerId}`, { method: 'POST', auth: true });
+}
+
+export function unblockPlayer(playerId: string): Promise<void> {
+  return request<void>(`/moderation/blocks/${playerId}`, { method: 'DELETE', auth: true });
+}
+
+export function createReport(payload: CreateReportRequest): Promise<void> {
+  return request<void>('/moderation/reports', { method: 'POST', auth: true, body: payload });
 }
 
 export function sendFriendRequest(playerId: string): Promise<void> {

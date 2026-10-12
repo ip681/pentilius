@@ -26,7 +26,7 @@ describe('Clan wars (e2e)', () => {
         const username = `${prefix}${i}_${suffix}`;
         return request(app.getHttpServer())
           .post('/api/v1/auth/register')
-          .send({ email: `${prefix}${i}-${suffix}@example.com`, username, password, race: races[i % races.length] });
+          .send({ email: `${prefix}${i}-${suffix}@example.com`, username, password, race: races[i % races.length], acceptedTerms: true });
       }),
     );
     return results.map((res) => ({ token: res.body.accessToken as string, id: res.body.player.id as string, username: res.body.player.username as string }));

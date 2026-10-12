@@ -26,7 +26,7 @@ describe('Expeditions (e2e)', () => {
 
     const registerRes = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
-      .send({ email, username, password, race: 'VORLUN' });
+      .send({ email, username, password, race: 'VORLUN', acceptedTerms: true });
     accessToken = registerRes.body.accessToken;
     playerId = registerRes.body.player.id;
   });
