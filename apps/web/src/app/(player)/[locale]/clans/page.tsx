@@ -55,6 +55,7 @@ import {
 } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
 
@@ -152,7 +153,6 @@ export default function ClansPage() {
   const [messages, setMessages] = useState<ClanMessageDto[] | null>(null);
   const [chatText, setChatText] = useState('');
   const [chatError, setChatError] = useState<string | null>(null);
-  const chatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [actionSheetPlayerId, setActionSheetPlayerId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<ClanAction | null>(null);
   const [clanOptionsOpen, setClanOptionsOpen] = useState(false);
@@ -198,21 +198,11 @@ export default function ClansPage() {
   }
 
   useEffect(() => {
-    if (chatIntervalRef.current) {
-      clearInterval(chatIntervalRef.current);
-      chatIntervalRef.current = null;
-    }
-    if (!myClan) {
-      setMessages(null);
-      return;
-    }
-    loadMessages(myClan.id);
-    chatIntervalRef.current = setInterval(() => loadMessages(myClan.id), 5000);
-    return () => {
-      if (chatIntervalRef.current) clearInterval(chatIntervalRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myClan?.id]);
+    if (!myClan) setMessages(null);
+  }, [myClan]);
+
+  // Clan chat is live — every 5 s, but only while the tab is visible.
+  useRefresh(() => myClan && loadMessages(myClan.id), { intervalMs: 5000, key: myClan?.id ?? null });
 
   function errorMessage(err: unknown, fallback: string): string {
     if (err instanceof ApiError) {

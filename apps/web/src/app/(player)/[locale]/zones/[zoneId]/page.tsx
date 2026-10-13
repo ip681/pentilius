@@ -29,6 +29,7 @@ import { getCachedProfile } from '@/lib/profile-cache';
 import { takePendingBattle } from '@/lib/pending-battle';
 import { isVipActive, multiAttackCount } from '@/lib/vip';
 import { usePlayerEnergy } from '@/lib/use-player-energy';
+import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface LogLine {
@@ -488,12 +489,8 @@ function ZoneBossPanel({ zoneId }: { zoneId: string }) {
     }
   }
 
-  useEffect(() => {
-    load();
-    const interval = setInterval(load, 10000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Other players fill formations — live, but only while the tab is visible.
+  useRefresh(load, { intervalMs: 10_000 });
 
   const boss = data?.bosses.find((b) => b.zoneId === zoneId) ?? null;
   const openFormations = boss?.formations.filter((f) => f.status === 'OPEN') ?? [];

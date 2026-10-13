@@ -9,6 +9,7 @@ import { GameLayout } from '@/components/GameLayout';
 import { Link } from '@/i18n/navigation';
 import { getBase, getBossFormations, getClanWarStatus, getCoreState, getExpeditions, getMyClan, getPvpStatus, getResearches, getRobot, getZones } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
+import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 interface NavCard {
@@ -41,14 +42,19 @@ export default function DashboardPage() {
   const [core, setCore] = useState<CoreStateDto | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
-  async function load() {
+  // The player's own state — changes only by their actions or known timers.
+  function loadOwn() {
     getBase().then(setBase).catch(() => undefined);
     getRobot().then(setRobot).catch(() => undefined);
     getZones().then(setZones).catch(() => undefined);
     getResearches().then(setResearch).catch(() => undefined);
     getExpeditions().then(setExpeditions).catch(() => undefined);
-    getBossFormations().then(setBossFormations).catch(() => undefined);
     getMyClan().then(setMyClan).catch(() => undefined);
+  }
+
+  // What other players can change: PvP status, clan war, the Core, boss formations.
+  function loadLive() {
+    getBossFormations().then(setBossFormations).catch(() => undefined);
     getPvpStatus().then(setPvpStatus).catch(() => undefined);
     getCoreState().then(setCore).catch(() => undefined);
     getClanWarStatus()
@@ -56,15 +62,20 @@ export default function DashboardPage() {
       .catch(() => undefined);
   }
 
+  // Owner decision (2026-10-13): no 5 s polling — own data refreshes when a
+  // timer ends, live data every 60 s, and nothing while the tab is hidden.
+  useRefresh(loadOwn, {
+    refreshAt: [
+      ...(base?.buildings.map((b) => b.constructionEndsAt) ?? []),
+      ...(research?.researches.map((r) => r.researchEndsAt) ?? []),
+      expeditions?.active?.endsAt,
+    ],
+  });
+  useRefresh(loadLive, { intervalMs: 60_000, refreshAt: [core?.opensAt, core?.endsAt, core?.tavern?.activeUntil, clanWar?.endsAt] });
+
   useEffect(() => {
-    load();
-    const dataInterval = setInterval(load, 5000);
     const clockInterval = setInterval(() => setNow(Date.now()), 1000);
-    return () => {
-      clearInterval(dataInterval);
-      clearInterval(clockInterval);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => clearInterval(clockInterval);
   }, []);
 
   const equippedCount = robot?.filter((slot) => slot.item !== null).length ?? 0;

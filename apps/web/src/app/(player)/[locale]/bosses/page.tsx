@@ -16,6 +16,7 @@ import {
 } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { getCachedProfile } from '@/lib/profile-cache';
+import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 export default function BossesPage() {
@@ -39,12 +40,8 @@ export default function BossesPage() {
     }
   }
 
-  useEffect(() => {
-    load();
-    const interval = setInterval(load, 10000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Other players fill formations — live, but only while the tab is visible.
+  useRefresh(load, { intervalMs: 10_000 });
 
   // Live countdown for OPEN formations and the viewer's own cooldown — ticks only while something is worth ticking for.
   const hasCountdown = Boolean(data?.nextActionAvailableAt) || Boolean(data?.bosses.some((b) => b.formations.some((f) => f.status === 'OPEN')));

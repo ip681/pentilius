@@ -22,6 +22,7 @@ import {
 } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format-datetime';
 import { notifyFriendsActivity } from '@/lib/friends-events';
+import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 function RaceLabel({ race }: { race: FriendDto['race'] }) {
@@ -68,7 +69,6 @@ export default function FriendsPage() {
   const [messages, setMessages] = useState<DirectMessageDto[] | null>(null);
   const [chatText, setChatText] = useState('');
   const [chatError, setChatError] = useState<string | null>(null);
-  const chatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const router = useRouter();
 
@@ -96,10 +96,6 @@ export default function FriendsPage() {
   }
 
   useEffect(() => {
-    if (chatIntervalRef.current) {
-      clearInterval(chatIntervalRef.current);
-      chatIntervalRef.current = null;
-    }
     setChatText('');
     setChatError(null);
     if (!selectedFriendId) {
@@ -113,12 +109,16 @@ export default function FriendsPage() {
       setFriends((prev) => prev?.map((f) => (f.id === selectedFriendId ? { ...f, hasUnread: false } : f)) ?? prev);
       notifyFriendsActivity();
     });
-    chatIntervalRef.current = setInterval(() => loadMessages(selectedFriendId), 5000);
-    return () => {
-      if (chatIntervalRef.current) clearInterval(chatIntervalRef.current);
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFriendId]);
+
+  // The open conversation is live — every 5 s, but only while the tab is visible.
+  // (Its first load above also marks it read.)
+  useRefresh(() => selectedFriendId && loadMessages(selectedFriendId), {
+    intervalMs: 5000,
+    key: selectedFriendId ?? null,
+    loadOnStart: false,
+  });
 
   function friendActionErrorMessage(err: unknown): string {
     if (err instanceof ApiError && err.code === 'SENDING_TOO_FAST') return t('friends.sendingTooFast');

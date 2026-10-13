@@ -2,12 +2,13 @@
 
 import type { ResearchResponseDto, ResearchStateDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { GameLayout } from '@/components/GameLayout';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, getResearches, startResearch } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 function researchProgress(research: ResearchStateDto): { active: boolean; percent: number; secondsLeft: number } {
@@ -39,12 +40,8 @@ export default function ResearchPage() {
     }
   }
 
-  useEffect(() => {
-    load();
-    const interval = setInterval(load, 3000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // No polling (owner decision, 2026-10-13): refresh when a research ends.
+  useRefresh(load, { refreshAt: data?.researches.map((r) => r.researchEndsAt) ?? [] });
 
   async function handleStart(key: string) {
     setError(null);

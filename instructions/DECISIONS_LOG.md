@@ -710,3 +710,31 @@ Center tiles, the daily-tasks popup and "Contact the team" no longer refresh
 on a timer either. A dot set by a battle therefore shows up on the next page
 change. Owner decision: the cheaper approach for the current single server;
 revisit with more capacity.
+
+## One refresh mechanism for every page (2026-10-13)
+
+To keep server load low on the single small VPS, every page now uses one
+shared helper (`apps/web/src/lib/use-refresh.ts`) with the same rules:
+
+1. Load once when the page opens.
+2. Nothing runs while the tab is hidden; coming back refreshes at once.
+3. Refresh once when a known timer ends (construction, research, expedition,
+   Core opening or close, war end).
+4. Refresh right after the player's own actions, as before.
+
+Periodic refresh exists only for data other players change, and only while
+the tab is visible:
+
+| Page | Refresh |
+|---|---|
+| Base, Research, Expeditions | none (timers only) |
+| Command Center: base, robot, zones, research, expeditions, clan | timers only |
+| Command Center: PvP status, clan war, Core, boss formations | 60 s |
+| Core standings | 30 s |
+| Clan chat, friends chat, boss formations, clan war | 5-10 s |
+
+Before this the Command Center made 10 requests every 5 s, and Base and
+Research polled every 3 s, even in hidden tabs. Rough, unmeasured estimate:
+about 10x fewer requests per online player. Merging the Command Center into
+one request was considered and deferred until the mobile app's home screen
+needs it: more coupling, and one failing part could break the whole page.

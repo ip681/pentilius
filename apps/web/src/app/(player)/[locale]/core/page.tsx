@@ -13,11 +13,12 @@ import { ApiError, attackCore, getCorePlayerRanking, getCoreState } from '@/lib/
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { usePlayerEnergy } from '@/lib/use-player-energy';
+import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 // Sliders refresh on their own so other clans' attacks show up without a
 // reload (owner decision) — paused while the tab is hidden.
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 30_000;
 
 /**
  * Seasons and the Core (owner decision, 2026-10-12): any clan member attacks
@@ -59,17 +60,13 @@ export default function CorePage() {
     }
   }
 
+  // Standings change with every clan's attacks — every 30 s while visible
+  // (owner decision, 2026-10-13); the player's own attacks refresh at once.
+  useRefresh(load, { intervalMs: POLL_INTERVAL_MS });
+
   useEffect(() => {
-    load();
-    const poll = setInterval(() => {
-      if (document.visibilityState === 'visible') load();
-    }, POLL_INTERVAL_MS);
     const clock = setInterval(() => setNow(Date.now()), 1000);
-    return () => {
-      clearInterval(poll);
-      clearInterval(clock);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => clearInterval(clock);
   }, []);
 
   const serverNow = now + clockOffsetRef.current;

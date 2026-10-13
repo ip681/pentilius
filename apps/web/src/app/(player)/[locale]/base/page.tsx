@@ -11,6 +11,7 @@ import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, cancelBuildQueue, consumeItem, getBase, getInventory, queueBuilding, upgradeBuilding } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 function isConstructionSpeedup(item: InventoryItemDto): boolean {
@@ -67,18 +68,16 @@ export default function BasePage() {
     }
   }
 
-  // 1s re-render so construction countdowns tick smoothly between the 3s data refreshes.
+  // 1s re-render so construction countdowns tick smoothly.
   const [, setTick] = useState(0);
 
+  // No polling (owner decision, 2026-10-13): refresh when a construction ends
+  // (which also starts a queued one), after actions, and on returning to the tab.
+  useRefresh(load, { refreshAt: data?.buildings.map((b) => b.constructionEndsAt) ?? [] });
+
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 3000);
     const clock = setInterval(() => setTick((n) => n + 1), 1000);
-    return () => {
-      clearInterval(interval);
-      clearInterval(clock);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => clearInterval(clock);
   }, []);
 
   async function handleUpgrade(key: string) {

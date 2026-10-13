@@ -10,6 +10,7 @@ import { ResourceIcon } from '@/components/ResourceIcon';
 import { cancelExpedition, claimExpedition, getExpeditions, startExpedition } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 function formatDurationMinutes(minutes: number): string {
@@ -33,15 +34,12 @@ export default function ExpeditionsPage() {
     }
   }
 
+  // No polling (owner decision, 2026-10-13): refresh when the expedition ends.
+  useRefresh(load, { refreshAt: [data?.active?.endsAt] });
+
   useEffect(() => {
-    load();
-    const dataInterval = setInterval(load, 5000);
     const clockInterval = setInterval(() => setNow(Date.now()), 1000);
-    return () => {
-      clearInterval(dataInterval);
-      clearInterval(clockInterval);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => clearInterval(clockInterval);
   }, []);
 
   async function handleStart(key: string) {

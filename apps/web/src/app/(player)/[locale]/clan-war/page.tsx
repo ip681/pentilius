@@ -20,6 +20,7 @@ import { formatDateTime } from '@/lib/format-datetime';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { usePlayerEnergy } from '@/lib/use-player-energy';
+import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
 
@@ -86,16 +87,15 @@ export default function ClanWarPage() {
     }
   }
 
+  // Live while the war runs, but only while the tab is visible.
+  useRefresh(load, { intervalMs: 10_000, refreshAt: [war?.endsAt] });
+
   useEffect(() => {
-    load();
-    const dataInterval = setInterval(load, 10_000);
     const clockInterval = setInterval(() => setNow(Date.now()), 1000);
     return () => {
-      clearInterval(dataInterval);
       clearInterval(clockInterval);
       if (timerRef.current) clearInterval(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
