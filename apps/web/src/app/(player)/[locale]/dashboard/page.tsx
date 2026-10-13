@@ -4,6 +4,7 @@ import type { BaseResponseDto, BossFormationsResponseDto, ClanWarStateDto, CoreS
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
+import { EnableNotificationsCard } from '@/components/EnableNotificationsCard';
 import { ProgressTiles } from '@/components/ProgressTiles';
 import { GameLayout } from '@/components/GameLayout';
 import { Link } from '@/i18n/navigation';
@@ -273,6 +274,8 @@ export default function DashboardPage() {
           <p className="rounded-lg border border-panelBorder bg-panel p-4 text-xs text-textMuted">{t('dashboard.noActiveOperations')}</p>
         )}
       </div>
+
+      <EnableNotificationsCard />
 
       <ProgressTiles />
 

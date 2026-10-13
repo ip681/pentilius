@@ -1217,6 +1217,7 @@ enum AdminActionType {
   SUPPORT_REPLY
   SUPPORT_CLOSE
   SUPPORT_REOPEN
+  SET_PLAYER_PASSWORD
 }
 
 // Audit trail for every godmaster mutation (owner decision, 2026-09-12) —

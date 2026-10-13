@@ -15,6 +15,7 @@ import { AddBannedWordDto } from './dto/banned-word.dto';
 import { GrantItemDto } from './dto/grant-item.dto';
 import { GrantResourceDto } from './dto/grant-resource.dto';
 import { RenamePlayerDto } from './dto/rename-player.dto';
+import { SetPlayerPasswordDto } from './dto/set-player-password.dto';
 import { SetVipDto } from './dto/set-vip.dto';
 import { UnbanPlayerDto } from './dto/unban-player.dto';
 import { ResetSeasonDto } from './dto/reset-season.dto';
@@ -216,6 +217,27 @@ export class AdminService {
       const updated = await tx.player.update({ where: { id: player.id }, data: { vipUntil } });
       await this.logAction(tx, admin, dto.days > 0 ? 'GRANT_VIP' : 'REVOKE_VIP', updated, { days: dto.days, vipUntil: vipUntil?.toISOString() ?? null });
       return { username: updated.username, vipUntil };
+    });
+  }
+
+  /**
+   * Sets a player's password by hand (owner decision, 2026-10-13) — for
+   * support cases until email-based password reset exists. ADMIN only; the
+   * action log records who and when, never the password itself.
+   */
+  async setPlayerPassword(dto: SetPlayerPasswordDto, admin: AdminJwtPayload): Promise<{ username: string }> {
+    if (admin.role !== 'ADMIN') {
+      throw new ForbiddenException('ADMIN_ROLE_REQUIRED');
+    }
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    return this.prisma.$transaction(async (tx) => {
+      const player = await tx.player.findUnique({ where: { username: dto.username } });
+      if (!player || player.deletedAt) {
+        throw new NotFoundException('PLAYER_NOT_FOUND');
+      }
+      const updated = await tx.player.update({ where: { id: player.id }, data: { passwordHash } });
+      await this.logAction(tx, admin, 'SET_PLAYER_PASSWORD', updated, {});
+      return { username: updated.username };
     });
   }
 

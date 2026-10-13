@@ -90,6 +90,13 @@
     "RIGHT_LEG": "Десен крак"
   },
   "dashboard": {
+    "enableNotifications": {
+      "title": "Включи известията",
+      "body": "Разбери кога енергията ти е пълна, строежът е готов или те нападат — дори когато играта е затворена.",
+      "enable": "Включи",
+      "later": "Не сега",
+      "enabled": "Известията са включени!"
+    },
     "dailyTasksProgress": "Изпълнени: {done}/{total}",
     "achievementsClaimable": "Награди за вземане: {count}",
     "achievementsView": "Виж напредъка",

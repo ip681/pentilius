@@ -800,6 +800,12 @@ needs it: more coupling, and one failing part could break the whole page.
   Each device only has its own on/off (OS or browser permission).
 - **Mobile app later (owner decision):** while the player is active on one
   device, the others stay silent, so nothing arrives twice.
+- **Invitation card (owner decision, same day):** the Command Center shows
+  a "Turn on notifications" card while notifications are off on this device.
+  It is not shown when they are blocked or unsupported. "Turn on" opens the
+  browser's permission prompt, same as Settings; "Not now" hides it for 7
+  days. A once-per-moment prompt (first build, empty energy) was considered
+  and judged overkill.
 - **No inactivity cut-off (owner decision):** notifications keep going until
   the player turns them off, logs out or clears the browser. Timers notify
   only once each, so in practice only PvP attacks keep coming.
@@ -823,3 +829,12 @@ and no icons (owner decision):
 A click opens the section in a popup, as the Command Center tiles do. The
 old two-column layout looked uneven because the sections differed so much in
 height. `#support` in the URL opens "Contact the team" directly.
+
+## Godmaster: set a player's password (2026-10-13)
+
+Until email-based password reset exists, an ADMIN can set a player's
+password by hand in the godmaster player view. The password is typed by the
+admin, not generated (owner decision). It needs at least 8 characters, like
+registration. Moderators can't do it. The action log records
+`SET_PLAYER_PASSWORD` with who and when, never the password. Existing
+sessions on other devices are not logged out (not requested).

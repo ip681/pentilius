@@ -12,6 +12,7 @@ import { CreateAdminDto } from './dto/create-admin.dto';
 import { GrantItemDto } from './dto/grant-item.dto';
 import { GrantResourceDto } from './dto/grant-resource.dto';
 import { RenamePlayerDto } from './dto/rename-player.dto';
+import { SetPlayerPasswordDto } from './dto/set-player-password.dto';
 import { SetVipDto } from './dto/set-vip.dto';
 import { UnbanPlayerDto } from './dto/unban-player.dto';
 import { ResetSeasonDto } from './dto/reset-season.dto';
@@ -87,6 +88,12 @@ export class AdminController {
   @Post('players/rename')
   renamePlayer(@Body() dto: RenamePlayerDto, @CurrentAdmin() admin: AdminJwtPayload) {
     return this.adminService.renamePlayer(dto, admin);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('players/password')
+  setPlayerPassword(@Body() dto: SetPlayerPasswordDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminService.setPlayerPassword(dto, admin);
   }
 
   @UseGuards(AdminJwtAuthGuard)

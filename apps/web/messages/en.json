@@ -90,6 +90,13 @@
     "RIGHT_LEG": "Right Leg"
   },
   "dashboard": {
+    "enableNotifications": {
+      "title": "Turn on notifications",
+      "body": "Know when your energy is full, a building is ready or you are attacked — even when the game is closed.",
+      "enable": "Turn on",
+      "later": "Not now",
+      "enabled": "Notifications are on!"
+    },
     "dailyTasksProgress": "Completed: {done}/{total}",
     "achievementsClaimable": "Rewards to claim: {count}",
     "achievementsView": "View progress",

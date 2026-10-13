@@ -379,6 +379,7 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
   SUPPORT_CLOSE: 'Затворено съобщение',
   SUPPORT_REOPEN: 'Отворено отново съобщение',
   GRANT_VIP: 'Даден VIP',
+  SET_PLAYER_PASSWORD: 'Сменена парола',
   REVOKE_VIP: 'Премахнат VIP',
 };
 
@@ -412,6 +413,8 @@ function PlayerDetailView({ detail, onReload }: { detail: PlayerDetail; onReload
       <BanRenameControls username={profile.username} isBanned={Boolean(isBanned)} onReload={onReload} />
 
       <VipControls username={profile.username} vipUntil={profile.vipUntil} onReload={onReload} />
+
+      <PasswordControls username={profile.username} onReload={onReload} />
 
       <div>
         <p className="mb-1 text-[11px] font-medium text-textFaint">Екипировка ({equipped.length}/7)</p>
@@ -572,6 +575,56 @@ function BanRenameControls({ username, isBanned, onReload }: { username: string;
         </label>
         <button type="button" onClick={handleRename} className="rounded-md border border-accent px-3 py-1.5 text-[11px] hover:bg-accentBgHover">
           Преименувай
+        </button>
+      </div>
+      {message && <p className="text-positive">{message}</p>}
+      {error && <p className="text-danger">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * Set a player's password by hand (owner decision, 2026-10-13) — for support
+ * cases until email-based password reset exists. ADMIN only (the server checks).
+ */
+function PasswordControls({ username, onReload }: { username: string; onReload: (username: string) => void }) {
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setMessage(null);
+    setError(null);
+    if (password.length < 8) {
+      setError('Паролата трябва да е поне 8 символа');
+      return;
+    }
+    try {
+      await adminFetch('/admin/players/password', { method: 'POST', body: { username, newPassword: password } });
+      setMessage(`Паролата на ${username} е сменена`);
+      setPassword('');
+      onReload(username);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-wellBorder bg-well p-3 text-xs">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          нова парола (поне 8 символа)
+          <input
+            type="text"
+            value={password}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-48 rounded-md border border-wellBorder bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent"
+          />
+        </label>
+        <button type="button" onClick={submit} className="rounded-md border border-accent px-3 py-1.5 text-[11px] hover:bg-accentBgHover">
+          Смени паролата
         </button>
       </div>
       {message && <p className="text-positive">{message}</p>}
