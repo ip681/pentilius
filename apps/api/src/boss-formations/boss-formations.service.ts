@@ -14,6 +14,8 @@ import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { grantItem } from '../inventory/inventory-capacity';
 import { aggregateFormationCombatStats, CombatService } from '../pve/combat.service';
 import { EconomyService } from '../player/economy.service';
+import { AchievementsService } from '../achievements/achievements.service';
+import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const RESOURCE_FIELD: Record<ResourceType, 'metal' | 'crystal' | 'credits'> = {
@@ -42,6 +44,8 @@ export class BossFormationsService {
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
     private readonly combat: CombatService,
+    private readonly dailyTasks: DailyTasksService,
+    private readonly achievements: AchievementsService,
   ) {}
 
   async getFormations(playerId: string): Promise<BossFormationsResponseDto> {
@@ -152,6 +156,7 @@ export class BossFormationsService {
       });
 
       await setCooldown(tx, playerId);
+      await this.dailyTasks.record(playerId, 'BOSS_FORMATION_JOIN', 1, tx);
 
       const formation = await this.loadFormation(created.id, tx);
       return toFormationDto(formation!, playerId);
@@ -187,6 +192,7 @@ export class BossFormationsService {
       }
 
       await setCooldown(tx, playerId);
+      await this.dailyTasks.record(playerId, 'BOSS_FORMATION_JOIN', 1, tx);
 
       const refreshed = await this.loadFormation(formationId, tx);
       return toFormationDto(refreshed!, playerId);
@@ -282,6 +288,7 @@ export class BossFormationsService {
       for (const slot of filledSlots) {
         const playerId = slot.playerId!;
         await this.economy.applyXp(playerId, xpPerSlot, tx);
+        await this.achievements.record(playerId, 'BOSS_WIN', 1, tx);
 
         const lootSummary: LootResultEntryDto[] = [];
 

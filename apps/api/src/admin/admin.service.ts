@@ -15,6 +15,7 @@ import { AddBannedWordDto } from './dto/banned-word.dto';
 import { GrantItemDto } from './dto/grant-item.dto';
 import { GrantResourceDto } from './dto/grant-resource.dto';
 import { RenamePlayerDto } from './dto/rename-player.dto';
+import { SetVipDto } from './dto/set-vip.dto';
 import { UnbanPlayerDto } from './dto/unban-player.dto';
 import { ResetSeasonDto } from './dto/reset-season.dto';
 import { ResolveReportsDto } from './dto/resolve-reports.dto';
@@ -195,6 +196,29 @@ export class AdminService {
     });
   }
 
+  /**
+   * VIP from godmaster (owner decision, 2026-10-13) — there is no payment yet.
+   * ADMIN only. days > 0 extends (from the current end if still active),
+   * days = 0 removes it.
+   */
+  async setVip(dto: SetVipDto, admin: AdminJwtPayload): Promise<{ username: string; vipUntil: Date | null }> {
+    if (admin.role !== 'ADMIN') {
+      throw new ForbiddenException('ADMIN_ROLE_REQUIRED');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const player = await tx.player.findUnique({ where: { username: dto.username } });
+      if (!player) {
+        throw new NotFoundException('PLAYER_NOT_FOUND');
+      }
+      const now = Date.now();
+      const from = player.vipUntil && player.vipUntil.getTime() > now ? player.vipUntil.getTime() : now;
+      const vipUntil = dto.days > 0 ? new Date(from + dto.days * 24 * 60 * 60 * 1000) : null;
+      const updated = await tx.player.update({ where: { id: player.id }, data: { vipUntil } });
+      await this.logAction(tx, admin, dto.days > 0 ? 'GRANT_VIP' : 'REVOKE_VIP', updated, { days: dto.days, vipUntil: vipUntil?.toISOString() ?? null });
+      return { username: updated.username, vipUntil };
+    });
+  }
+
   /** Single lookup for the godmaster player detail view: profile+ban state, resources, equipped items, inventory, and this player's own admin-action history. */
   async getPlayerDetail(username: string): Promise<{
     profile: {
@@ -208,6 +232,7 @@ export class AdminService {
       lastActiveAt: Date;
       bannedUntil: Date | null;
       banReason: string | null;
+      vipUntil: Date | null;
     };
     resources: { metal: number; crystal: number; credits: number };
     equipped: { id: string; slot: string; itemDefinitionKey: string; nameKey: string; tier: string | null; quality: string; upgradeLevel: number }[];
@@ -268,6 +293,7 @@ export class AdminService {
         lastActiveAt: player.lastActiveAt,
         bannedUntil: player.bannedUntil,
         banReason: player.banReason,
+        vipUntil: player.vipUntil,
       },
       resources: { metal: player.metal, crystal: player.crystal, credits: player.credits },
       equipped,

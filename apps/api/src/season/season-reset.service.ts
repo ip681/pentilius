@@ -93,6 +93,11 @@ export class SeasonResetService implements OnModuleInit, OnModuleDestroy {
           await tx.bossFormation.deleteMany({});
           await tx.bossFormationDailyPoints.deleteMany({});
           await tx.coreAttack.deleteMany({});
+          // Achievements, level rewards and daily tasks restart with the season.
+          await tx.achievementProgress.deleteMany({});
+          await tx.achievementClaim.deleteMany({});
+          await tx.dailyTaskProgress.deleteMany({});
+          await tx.dailyTaskClaim.deleteMany({});
 
           // Every clan is disbanded (season results keep the names).
           await tx.clanMessage.deleteMany({});
@@ -129,6 +134,9 @@ export class SeasonResetService implements OnModuleInit, OnModuleDestroy {
               nextBossFormationActionAt: null,
               lastCoreAttackAt: null,
               needsRaceSelection: true,
+              buildQueueBuildingTypeId: null,
+              buildQueueMetal: 0,
+              buildQueueCrystal: 0,
             },
           });
 

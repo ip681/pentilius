@@ -5,6 +5,8 @@ import * as bcrypt from 'bcryptjs';
 import { GAME_BALANCE } from '../config/game-config';
 import { EconomyService } from './economy.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
+import { AchievementsService } from '../achievements/achievements.service';
+import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coreStatus, getCurrentSeason } from '../season/season.service';
 
@@ -16,6 +18,8 @@ export class PlayerService {
     private readonly economy: EconomyService,
     private readonly prisma: PrismaService,
     private readonly contentFilter: ContentFilterService,
+    private readonly dailyTasks: DailyTasksService,
+    private readonly achievements: AchievementsService,
   ) {}
 
   async getProfile(playerId: string): Promise<PlayerProfileDto> {
@@ -50,6 +54,11 @@ export class PlayerService {
       deletionScheduledFor: player.deletionScheduledFor?.toISOString() ?? null,
       needsRaceSelection: player.needsRaceSelection,
       ...(await this.seasonInfo()),
+      dailyTasksClaimable: await this.dailyTasks.hasClaimable(playerId),
+      achievementsClaimable: await this.achievements.hasClaimable(playerId),
+      supportUnread: (await this.prisma.supportTicket.count({ where: { playerId, playerUnread: true } })) > 0,
+      vipUntil: player.vipUntil?.toISOString() ?? null,
+      vipMultiAttackCount: GAME_BALANCE.vip.multiAttackCount,
     };
   }
 

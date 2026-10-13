@@ -34,6 +34,9 @@ const config: Config = {
         // Action Energy bar fill — a distinct cyan so it's never confused with
         // HP (positive/danger) or the XP bar (gold) at a glance.
         energy: '#5ec8d8',
+        // VIP (owner decision, 2026-10-13): a pale, not bright, yellow — VIP names
+        // in chat and the VIP-only buttons.
+        vip: '#e6d9a2',
         // Per-race brand colors (instructions/PRODUCT_SPEC.md's 5 races), matched
         // to each race's icon art — used at low opacity as an inventory slot's
         // background tint for a race-locked item, never at full strength.

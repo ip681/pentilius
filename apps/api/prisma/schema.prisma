@@ -183,6 +183,19 @@ model Player {
   // minimum age) at registration — evidence in case of a dispute. Null for
   // accounts created before the checkbox existed (2026-10-12).
   termsAcceptedAt DateTime?
+
+  // VIP (owner decision, 2026-10-13): VIP while now < vipUntil. Granted from
+  // godmaster for now; a future payment flow will extend the same date. VIP
+  // only adds convenience (auto-claimed daily rewards, "Attack x3", a
+  // one-slot build queue) and a chat name colour — never combat power.
+  vipUntil DateTime?
+
+  // VIP build queue: one building that starts by itself when the current
+  // construction ends. Its cost is paid when queued (stored here so a cancel
+  // refunds exactly what was paid). Plain id, not a relation — at most one row.
+  buildQueueBuildingTypeId String?
+  buildQueueMetal          Int     @default(0)
+  buildQueueCrystal        Int     @default(0)
   deletionCode          String?
   deletionCodeExpiresAt DateTime?
 
@@ -243,6 +256,11 @@ model Player {
   adminActionLogs        AdminActionLog[]
   coreAttacks            CoreAttack[]
   seasonResults          SeasonPlayerResult[]
+  dailyTaskProgress      DailyTaskProgress[]
+  dailyTaskClaims        DailyTaskClaim[]
+  achievementProgress    AchievementProgress[]
+  achievementClaims      AchievementClaim[]
+  supportTickets         SupportTicket[]
   blocksMade             PlayerBlock[]  @relation("BlocksMade")
   blocksReceived         PlayerBlock[]  @relation("BlocksReceived")
   reportsFiled           PlayerReport[] @relation("ReportsFiled")
@@ -1188,6 +1206,11 @@ enum AdminActionType {
   RESET_SEASON
   ADD_BANNED_WORD
   REMOVE_BANNED_WORD
+  GRANT_VIP
+  REVOKE_VIP
+  SUPPORT_REPLY
+  SUPPORT_CLOSE
+  SUPPORT_REOPEN
 }
 
 // Audit trail for every godmaster mutation (owner decision, 2026-09-12) —
@@ -1465,3 +1488,120 @@ model SeasonPlayerResult {
   @@map("season_player_results")
 }
 
+// Daily tasks (owner decision, 2026-10-13 — GAME_SYSTEMS.md "Daily tasks").
+// The task list itself lives in GAME_BALANCE.dailyTasks (not godmaster-editable
+// for now). `day` is the calendar day in Europe/Sofia ("2026-10-13") — tasks
+// reset at 00:00 Bulgarian time. Progress is one counter per action type per
+// day (every Pentili battle, PvP attack, finished expedition, boss-formation
+// join, donated resource amount); several tasks can read the same counter
+// (the 10 -> 15 -> 20 Pentili chain).
+model DailyTaskProgress {
+  id       String @id @default(uuid())
+  playerId String
+  day      String
+  type     String
+  count    Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, day, type])
+  @@map("daily_task_progress")
+}
+
+// A claimed reward — one row per task per day (taskKey "ALL_DONE" for the
+// all-tasks bonus). auto = granted automatically after the day ended because
+// the player didn't press "Claim" in time (owner decision: never lost).
+model DailyTaskClaim {
+  id        String   @id @default(uuid())
+  playerId  String
+  day       String
+  taskKey   String
+  auto      Boolean  @default(false)
+  claimedAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, day, taskKey])
+  @@index([playerId, day])
+  @@map("daily_task_claims")
+}
+
+// Season achievements and level rewards (owner decision, 2026-10-13). Counted
+// metrics (Pentili wins, expeditions, ...) live here; state-based ones (best
+// item upgrade, full set, building levels) are read live. Wiped by a season reset.
+model AchievementProgress {
+  id       String @id @default(uuid())
+  playerId String
+  metric   String
+  count    Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, metric])
+  @@map("achievement_progress")
+}
+
+// One row per claimed reward: an achievement tier ("pentili_wins_2") or a
+// level reward ("level_12"). Claims are always manual (owner decision).
+model AchievementClaim {
+  id        String   @id @default(uuid())
+  playerId  String
+  key       String
+  claimedAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, key])
+  @@map("achievement_claims")
+}
+
+// "Contact the team" (owner decision, 2026-10-13). OPEN = waiting for staff
+// (new, or the player wrote again), ANSWERED = staff replied, CLOSED = done.
+enum SupportCategory {
+  IDEA
+  BUG
+  QUESTION
+  OTHER
+}
+
+enum SupportStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+}
+
+// One conversation. Kept across season resets; deleted with the account.
+model SupportTicket {
+  id           String          @id @default(uuid())
+  playerId     String
+  category     SupportCategory
+  status       SupportStatus   @default(OPEN)
+  // A staff reply the player hasn't opened yet — the dot on Settings.
+  playerUnread Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  player   Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  messages SupportMessage[]
+
+  @@index([status, updatedAt])
+  @@index([playerId])
+  @@map("support_tickets")
+}
+
+// The player sees staff messages as "the Pentilius team"; the author is kept
+// (adminUsername is a snapshot) and shown only in godmaster.
+model SupportMessage {
+  id            String   @id @default(uuid())
+  ticketId      String
+  fromStaff     Boolean
+  adminUserId   String?
+  adminUsername String?
+  text          String
+  createdAt     DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
+}

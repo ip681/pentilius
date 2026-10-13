@@ -115,7 +115,7 @@ Slot schema — **LOCKED** (7 anatomical slots):
 **LOCKED direction:** Equipment can roll a quality tier with bonus "Excellent options":
 - **Normal** — no bonus option (the common case).
 - **Rare** — 1 bonus option, a flat 5% chance on every granted equipment drop (`GAME_BALANCE.rarity.rareChance`), across all 3 sets.
-- **Epic** — 2 bonus options. Not obtainable through normal loot yet — reserved for a future boss "box/cache" mechanic (see `instructions/OPEN_DECISIONS.md`).
+- **Epic** — 2 bonus options. Comes from loot boxes. Bosses drop tier-matched boxes, and opening one always yields RARE or EPIC. Boxes are also sold in the Shop for now, for testing only; they will be removed from the Shop before a real launch (owner decision, 2026-10-13).
 
 The option pool depends on the slot's category, and every value is fixed (no rolled ranges) — see `apps/api/src/config/game-config.ts`'s `itemOptionValues`/`itemOptionPools`:
 - **Weapon slots** (Left Arm, Right Arm): Increase Damage +2%, Critical Damage +10%.
@@ -135,8 +135,8 @@ Exact:
 
 are **UNDEFINED**.
 
-## Trading and auction
-**LOCKED direction:** Player trade/item transfer and auction are planned.
+## Trading
+**LOCKED direction:** Player trade/item transfer is built as the fixed-price player Market. An auction with bidding was dropped (owner decision, 2026-10-13).
 
 Exact fees, restrictions and binding rules are **UNDEFINED**.
 
@@ -202,7 +202,7 @@ Buildings consume Power.
 Economic currency.
 
 Possible uses:
-- auction/trade;
+- trade (Market);
 - fees;
 - services;
 - item-related costs.
@@ -227,10 +227,21 @@ Repeated-action milestones may grant rewards.
 
 Timed events should use participation windows rather than requiring one exact login time.
 
+**Built (2026-10-13):** a fixed daily task list (PvE chain 10 → 15 → 20 battles,
+1 completed expedition, 1 PvP battle, 1 boss formation, a clan donation), reset
+at 00:00 Bulgarian time, rewards scaling with level, and a small energy pack
+for completing everything. Unclaimed rewards are granted automatically after
+the day ends. Values live in `apps/api/src/config/game-config.ts`'s
+`dailyTasks` block; details in `instructions/DECISIONS_LOG.md`.
+
 ## Achievements
 **LOCKED direction:** Achievements exist.
 
-Final achievement list should be defined only after the final action set is clearer.
+**Built (2026-10-13):** season achievements (tiered chains) and per-level
+rewards. Every 5th level also gives a set box. Everything is claimed by hand
+and resets each season. Lists and rewards are in `game-config.ts`
+(`achievements`, `levelRewards`). Details are in
+`instructions/DECISIONS_LOG.md`.
 
 ## Notifications
 **LOCKED:** Notify the player when Action Energy is fully regenerated.
@@ -274,4 +285,4 @@ Exact member cap is **UNDEFINED**.
 
 **Tavern (clan building, LOCKED direction, same date):** +1% damage per level against bosses and the Core only (Clan Forge stays the general combat bonus). No designed level cap — rising cost is the natural ceiling. The bonus only applies while the Tavern is **active**: a leader/officer activates it from the treasury for 12 h. It is **not** renewed automatically — once it expires, a leader/officer has to activate it again by hand (owner decision, revised the same day from an initial auto-renew design). The activation cost grows with level. While active, the Tavern and its countdown are shown in every member's Command Center. An inactive Tavern shows nothing there, to avoid noise. Called "Кръчма" in Bulgarian and "Cantina" in English.
 
-Core combat stats, round cap, Tavern costs and activation cost are **PROVISIONAL** (`apps/api/src/config/game-config.ts`'s `core`/`clanTavern` blocks; Tavern level costs are in `seed.ts`). Pentili escalation as the season advances is still **UNDEFINED**.
+Core combat stats, round cap, Tavern costs and activation cost are **PROVISIONAL** (`apps/api/src/config/game-config.ts`'s `core`/`clanTavern` blocks; Tavern level costs are in `seed.ts`).

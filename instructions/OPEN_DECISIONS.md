@@ -17,7 +17,6 @@ touching application code. Full rationale: `instructions/DECISIONS_LOG.md`.
 - **Item upgrade cost/success rules** → `game-config.ts` (`itemUpgrade.stonesPerLevel`); no failure chance or protection stones yet.
 - **Final damage formula** → `apps/api/src/pve/combat.service.ts` (a simple power-ratio win-probability model), isolated so it can be replaced without touching callers.
 - **Core Attributes point-buy curves** → flat, not compounding (`game-config.ts`'s `robotAttributes`). Defense Success Rate and a "Combat Power" summary score remain undecided (see Combat below).
-- **Epic items ("boxes/caches")** → built, Shop-only for now. Still undecided: which activity should drop a box, and at what chance.
 - **Construction costs/times, building production rates** → `BuildingLevelCost` seed rows.
 - **Research tree size/rate** → 4 technologies, +5%/level, cap level 5 — placeholder numbers, not a final tree.
 - **PvP placeholders** → targeting pool (random among level-5+ players), attack cooldown minutes, revenge-protection window minutes — see `game-config.ts`'s `pvp` block.
@@ -51,7 +50,6 @@ touching application code. Full rationale: `instructions/DECISIONS_LOG.md`.
 
 ## Items
 - final slot list
-- rarity tiers beyond Rare — Epic's drop source is undecided (see Milestone 1 placeholders above)
 - Excellent option stacking caps across multiple items; Defense Success Rate
 - upgrade maximum
 - success/failure rules
@@ -95,24 +93,23 @@ Action Energy case ("notify when fully regenerated") and explicitly leaves
 - A notification when someone buys a Market listing — not designed at all.
 
 ## Daily tasks/events
-`instructions/GAME_SYSTEMS.md` has this as LOCKED direction (tasks exist, may
-unlock sequentially, repeated-action milestones may grant rewards, timed
-events use participation windows rather than one exact login time) but no
-specifics exist yet — task list, unlock sequencing, reward values, and how a
-"daily" reset lines up against server time are all still open (owner wants to
-think this through properly later, discussed 2026-09-10).
+Daily tasks are built (see `instructions/DECISIONS_LOG.md`, 2026-10-13).
+Still open:
+- reward values (`game-config.ts`'s `dailyTasks`) are placeholders, not balanced;
+- managing the task list from godmaster (deferred — config-only for now);
+- timed events with participation windows — not designed.
 
 ## Seasons/Core
 The attacked-Core model was decided on 2026-10-12 (see `instructions/GAME_SYSTEMS.md`'s Core / Endgame section). Still open:
 - the Core's lore now that it isn't human-built
 - Core combat stats and round cap (placeholders: `game-config.ts`'s `core` block)
 - Tavern level-cost curve and activation cost (placeholders: `seed.ts`'s Tavern block, `game-config.ts`'s `clanTavern` block)
-- Pentili escalation as the season advances
-- the season reset is built (2026-10-13, see `instructions/DECISIONS_LOG.md`). Still open: Pentili escalation, and the Core's lore
+- the season reset is built (2026-10-13, see `instructions/DECISIONS_LOG.md`). Still open: the Core's lore
 
 ## Monetization
 - VIP tiers
-- exact benefits
+- exact benefits — a first set was built 2026-10-13 (see `instructions/DECISIONS_LOG.md`).
+  Still open: VIP frames, a VIP badge, max energy 12, pricing and payment.
 - premium currency
 - shop contents
 - limits preventing pay-to-win
@@ -134,5 +131,7 @@ The attacked-Core model was decided on 2026-10-12 (see `instructions/GAME_SYSTEM
   - checking the current Apple/Google terms before submission;
   - filling in the store age-rating and data-safety forms;
   - a real support@pentilius.com mailbox;
+    (an in-game "Contact the team" form exists since 2026-10-13, but
+    logged-out players and store reviewers still need the email);
   - a password-reset flow (the game can't send email yet, so password resets
     currently go through support).

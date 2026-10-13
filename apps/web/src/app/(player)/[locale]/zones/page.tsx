@@ -6,7 +6,9 @@ import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
 import { Link, useRouter } from '@/i18n/navigation';
-import { ApiError, attackPentili, getBossFormations, getCoreState, getZones } from '@/lib/api-client';
+import { ApiError, attackPentili, attackPentiliMulti, getBossFormations, getCoreState, getZones } from '@/lib/api-client';
+import { usePlayerEnergy } from '@/lib/use-player-energy';
+import { isVipActive, multiAttackCount } from '@/lib/vip';
 import { assetUrl } from '@/lib/assets';
 import { formatDuration } from '@/lib/format-duration';
 import { setPendingBattle } from '@/lib/pending-battle';
@@ -120,19 +122,21 @@ export default function ZonesPage() {
   const [selectedPentiliId, setSelectedPentiliId] = useState<string | null>(null);
   const [attackingFromPlanet, setAttackingFromPlanet] = useState(false);
   const [attackError, setAttackError] = useState<string | null>(null);
+  const { profile } = usePlayerEnergy();
+  const multiCount = multiAttackCount(profile);
 
   // Fires the attack right here, before navigating — otherwise the player
   // sits through two separate waits in a row: the zone page's own loading,
   // then the attack itself (owner-reported issue, 2026-10-11). The result
   // travels to the zone page via sessionStorage so it can render the fight
   // immediately instead of re-requesting it.
-  async function handleAttackFromPlanet(zoneId: string, pentiliId: string) {
+  async function handleAttackFromPlanet(zoneId: string, pentiliId: string, multi = false) {
     setAttackError(null);
     setAttackingFromPlanet(true);
     try {
-      const report = await attackPentili(pentiliId);
+      const reports = multi ? (await attackPentiliMulti(pentiliId)).reports : [await attackPentili(pentiliId)];
       notifyProfileChanged();
-      setPendingBattle(pentiliId, report);
+      setPendingBattle(pentiliId, reports);
       router.push(`/zones/${zoneId}?pentili=${pentiliId}`);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'EXPEDITION_IN_PROGRESS') {
@@ -457,14 +461,27 @@ export default function ZonesPage() {
                     })}
                   </div>
 
-                  <button
-                    type="button"
-                    disabled={!selectedPentiliId || attackingFromPlanet}
-                    onClick={() => selectedPentiliId && handleAttackFromPlanet(selected.id, selectedPentiliId)}
-                    className="mt-3 block w-full rounded-md border border-accent bg-accentBg py-2 text-center text-xs uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {attackingFromPlanet ? '…' : selectedPentiliId ? t('pve.attack') : t('pve.chooseOpponent')}
-                  </button>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      disabled={!selectedPentiliId || attackingFromPlanet}
+                      onClick={() => selectedPentiliId && handleAttackFromPlanet(selected.id, selectedPentiliId)}
+                      className="block flex-1 rounded-md border border-accent bg-accentBg py-2 text-center text-xs uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {attackingFromPlanet ? '…' : selectedPentiliId ? t('pve.attack') : t('pve.chooseOpponent')}
+                    </button>
+                    {/* VIP "Attack xN" (owner decision, 2026-10-13). */}
+                    {isVipActive(profile) && (
+                      <button
+                        type="button"
+                        disabled={!selectedPentiliId || attackingFromPlanet || multiCount < 2}
+                        onClick={() => selectedPentiliId && handleAttackFromPlanet(selected.id, selectedPentiliId, true)}
+                        className="rounded-md border border-vip bg-accentBg px-4 py-2 text-center text-xs uppercase text-vip hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {t('pve.attackMulti', { count: multiCount >= 2 ? multiCount : (profile?.vipMultiAttackCount ?? 3) })}
+                      </button>
+                    )}
+                  </div>
                   {attackError && <p className="mt-2 text-center text-xs text-danger">{attackError}</p>}
                 </div>
               )}

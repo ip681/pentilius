@@ -11,9 +11,9 @@ const STORAGE_KEY = 'pentilius.pendingPentiliBattle';
  * two separate waits. sessionStorage (not a query param) because a full
  * BattleReportDto is too large/structured for a URL.
  */
-export function setPendingBattle(pentiliId: string, report: BattleReportDto): void {
+export function setPendingBattle(pentiliId: string, reports: BattleReportDto[]): void {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ pentiliId, report }));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ pentiliId, reports }));
   } catch {
     // Storage unavailable — the zone page's own fallback (show the Attack
     // button, let the player click it) still works fine without this.
@@ -21,13 +21,13 @@ export function setPendingBattle(pentiliId: string, report: BattleReportDto): vo
 }
 
 /** Reads and immediately clears the pending result — it's single-use, never replayed on a refresh or back-navigation. */
-export function takePendingBattle(pentiliId: string): BattleReportDto | null {
+export function takePendingBattle(pentiliId: string): BattleReportDto[] | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     sessionStorage.removeItem(STORAGE_KEY);
-    const parsed = JSON.parse(raw) as { pentiliId: string; report: BattleReportDto };
-    return parsed.pentiliId === pentiliId ? parsed.report : null;
+    const parsed = JSON.parse(raw) as { pentiliId: string; reports?: BattleReportDto[] };
+    return parsed.pentiliId === pentiliId && parsed.reports?.length ? parsed.reports : null;
   } catch {
     return null;
   }

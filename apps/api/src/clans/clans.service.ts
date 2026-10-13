@@ -15,7 +15,10 @@ import { getBlockedIds } from '../moderation/moderation.service';
 import { chargeTavernActivation, findTavern, isTavernActive, TAVERN_ACTIVATION_MS, tavernActivationCost } from './clan-tavern';
 import { EconomyService } from '../player/economy.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
+import { AchievementsService } from '../achievements/achievements.service';
+import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { isVip } from '../vip/vip';
 import { ClanLeaderboardQueryDto } from './dto/clan-leaderboard-query.dto';
 import { CreateClanDto } from './dto/create-clan.dto';
 import { DonateDto } from './dto/donate.dto';
@@ -51,6 +54,8 @@ export class ClansService {
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
     private readonly contentFilter: ContentFilterService,
+    private readonly dailyTasks: DailyTasksService,
+    private readonly achievements: AchievementsService,
   ) {}
 
   async listClans(): Promise<ClanSummaryDto[]> {
@@ -401,6 +406,9 @@ export class ClansService {
           contributedCredits: { increment: credits },
         },
       });
+      // The donation task counts donated resources, any mix (owner decision).
+      await this.dailyTasks.record(playerId, 'CLAN_DONATION', metal + crystal + credits, tx);
+      await this.achievements.record(playerId, 'CLAN_DONATION', metal + crystal + credits, tx);
     });
 
     return this.getClan(membership.clanId, playerId);
@@ -703,6 +711,7 @@ function toMessageDto(message: ClanMessage & { player: Player }): ClanMessageDto
     id: message.id,
     playerId: message.playerId,
     username: message.player.username,
+    isVip: isVip(message.player),
     text: message.text,
     createdAt: message.createdAt.toISOString(),
   };

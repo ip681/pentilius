@@ -5,6 +5,7 @@ import { GAME_BALANCE } from '../config/game-config';
 import { isBlockedEitherWay } from '../moderation/moderation.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { isVip } from '../vip/vip';
 
 /**
  * Friends list (owner decision, 2026-09-09) — step one toward friends-only
@@ -206,7 +207,7 @@ function hasUnread(
 }
 
 function toFriendDto(player: Player, hasUnreadMessages: boolean): FriendDto {
-  return { id: player.id, username: player.username, race: player.race, level: player.level, hasUnread: hasUnreadMessages };
+  return { id: player.id, username: player.username, race: player.race, level: player.level, isVip: isVip(player), hasUnread: hasUnreadMessages };
 }
 
 function toFriendRequestDto(row: Friendship, otherPlayer: Player): FriendRequestDto {

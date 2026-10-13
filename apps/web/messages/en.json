@@ -90,6 +90,9 @@
     "RIGHT_LEG": "Right Leg"
   },
   "dashboard": {
+    "dailyTasksProgress": "Completed: {done}/{total}",
+    "achievementsClaimable": "Rewards to claim: {count}",
+    "achievementsView": "View progress",
     "title": "Command Center",
     "subtitle": "Manage your base, robot and operations.",
     "level": "Level",
@@ -120,6 +123,12 @@
     "seasonResetIn": "New season starts in"
   },
   "base": {
+    "queued": "Queued: {building} → level {level}",
+    "cancelQueue": "Cancel (resources are refunded)",
+    "addToQueue": "Add to queue (level {level})",
+    "queueLevelCost": "Level {level}",
+    "queueNote": "VIP: paid now, construction starts by itself when the current one finishes.",
+    "queueFull": "A building is already queued.",
     "title": "Base",
     "subtitle": "Resource buildings generate materials automatically.",
     "level": "Level",
@@ -235,6 +244,12 @@
     "coreTakenByClan": "Taken by {clan}"
   },
   "pve": {
+    "attackMulti": "Attack ×{count}",
+    "seriesTitle": "Series of {count} battles — wins: {wins}",
+    "seriesBattle": "Battle {number}",
+    "seriesWin": "Victory",
+    "seriesLoss": "Defeat",
+    "seriesStopped": "The series stopped after a defeat — the remaining energy was not spent.",
     "title": "Combat",
     "subtitle": "Engage a Pentili in automatic, simulated combat.",
     "attack": "Attack",
@@ -1065,7 +1080,7 @@
     },
     "support": {
       "title": "Support",
-      "intro": "Got a question, a problem, or found a bug? Write to us at {email} — we reply as soon as we can.",
+      "intro": "Got a question, a problem, or found a bug? Write to us at {email} — we reply as soon as we can. If you have an account, you can also write to us from inside the game: Settings → Contact the team.",
       "sections": [
         {
           "heading": "Frequently asked questions",
@@ -1147,5 +1162,73 @@
     "chooseRace": "Everything starts over. Choose your race for this season — keep the same one or try a new one.",
     "confirm": "Start the season",
     "error": "Your choice could not be saved. Please try again."
+  },
+  "dailyTasks": {
+    "title": "Daily tasks",
+    "resetsIn": "New tasks in {time}",
+    "claim": "Claim",
+    "claimed": "Claimed",
+    "allDoneBonus": "Bonus for all tasks: {item}",
+    "types": {
+      "PVE_BATTLE": "Pentili battles: {count}",
+      "EXPEDITION_COMPLETED": "Complete an expedition",
+      "PVP_BATTLE": "PvP battle",
+      "BOSS_FORMATION_JOIN": "Join a boss formation",
+      "CLAN_DONATION": "Donate {count} resources to your clan"
+    }
+  },
+  "achievements": {
+    "title": "Achievements",
+    "claim": "Claim",
+    "done": "Done",
+    "levelReward": "Reach level {level}",
+    "inventoryFull": "Your inventory is full — free some space and try again.",
+    "claimError": "The reward could not be claimed.",
+    "sets": {
+      "PIONEER": "Pioneer",
+      "ASCENDANT": "Ascendant",
+      "COREFORGED": "Coreforged"
+    },
+    "items": {
+      "pentili_wins": "Defeat {count} Pentili",
+      "expeditions": "Complete {count} expeditions",
+      "pvp_wins": "Win {count} PvP battles",
+      "boss_wins": "Defeat a boss {count} times",
+      "item_upgrade": "Upgrade an item to +{count}",
+      "full_set": "Equip a full {set} set",
+      "buildings": "Every base building at level {count}",
+      "clan_donations": "Donate {count} resources to your clan",
+      "core_attacks": "Attack the Core {count} times",
+      "daily_all_done": "Complete all daily tasks on {count} days"
+    }
+  },
+  "support": {
+    "title": "Contact the team",
+    "intro": "Have an idea, found a problem, or have a question? Write to us — the answer will show up here.",
+    "categories": {
+      "IDEA": "Idea",
+      "BUG": "Problem",
+      "QUESTION": "Question",
+      "OTHER": "Other"
+    },
+    "status": {
+      "OPEN": "Sent",
+      "ANSWERED": "Answered",
+      "CLOSED": "Closed"
+    },
+    "placeholder": "Describe your idea, problem or question…",
+    "send": "Send",
+    "sent": "Sent! You will see the answer under \"My messages\".",
+    "myMessages": "My messages",
+    "team": "The Pentilius team",
+    "you": "You",
+    "reply": "Reply",
+    "replyPlaceholder": "Write a reply…",
+    "closedNote": "This conversation is closed. For a new question, send a new message.",
+    "errorDailyLimit": "You can send up to 3 new messages a day.",
+    "errorOpenLimit": "You have too many open messages — please wait for an answer.",
+    "errorWaitForReply": "Please wait for the team to answer before writing again.",
+    "errorClosed": "This conversation is closed.",
+    "errorGeneric": "The message could not be sent."
   }
 }

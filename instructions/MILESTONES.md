@@ -87,7 +87,6 @@ Planned:
 ## Milestone 5 — Economy
 Planned:
 - trade;
-- auction;
 - smelting/recycling;
 - crafting foundation;
 - anti-abuse controls.
@@ -99,7 +98,6 @@ Planned:
 - Tavern clan building (built 2026-10-12);
 - season winner and frozen final standings (built 2026-10-12);
 - showing past-season placements on profiles;
-- increasing Pentili reaction;
 - season reset (accounts kept, all progress reset).
 
 Do not implement later milestones until the earlier loop is stable and approved.

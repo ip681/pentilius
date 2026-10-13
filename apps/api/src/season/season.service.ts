@@ -15,6 +15,7 @@ import { findTavern, isTavernActive } from '../clans/clan-tavern';
 import { GAME_BALANCE } from '../config/game-config';
 import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { EconomyService } from '../player/economy.service';
+import { AchievementsService } from '../achievements/achievements.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CombatService } from '../pve/combat.service';
 
@@ -65,6 +66,7 @@ export class SeasonService {
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
     private readonly combat: CombatService,
+    private readonly achievements: AchievementsService,
   ) {}
 
   async getState(playerId: string): Promise<CoreStateDto> {
@@ -121,6 +123,7 @@ export class SeasonService {
           playerMaxHp: combat.playerMaxHp,
         },
       });
+      await this.achievements.record(playerId, 'CORE_ATTACK', 1, tx);
       await tx.clanCoreScore.upsert({
         where: { seasonId_clanId: { seasonId: season.id, clanId: membership.clanId } },
         update: { damage: { increment: BigInt(combat.damageDealt) } },

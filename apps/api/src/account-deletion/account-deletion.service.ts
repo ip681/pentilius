@@ -135,6 +135,7 @@ export class AccountDeletionService implements OnModuleInit, OnModuleDestroy {
       await tx.directMessage.deleteMany({ where: { OR: [{ senderId: playerId }, { recipientId: playerId }] } });
       await tx.playerBlock.deleteMany({ where: { OR: [{ blockerId: playerId }, { blockedId: playerId }] } });
       await tx.playerReport.deleteMany({ where: { reporterId: playerId } });
+      await tx.supportTicket.deleteMany({ where: { playerId } });
       // Free their seat in any boss formation that hasn't resolved yet; resolved ones stay as history.
       await tx.bossFormationSlot.updateMany({
         where: { playerId, formation: { status: 'OPEN' } },

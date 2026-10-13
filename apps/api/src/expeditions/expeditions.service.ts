@@ -3,6 +3,8 @@ import { ActiveExpeditionDto, ExpeditionClaimResultDto, ExpeditionsResponseDto, 
 import { GAME_BALANCE } from '../config/game-config';
 import { grantItem } from '../inventory/inventory-capacity';
 import { EconomyService } from '../player/economy.service';
+import { AchievementsService } from '../achievements/achievements.service';
+import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -10,6 +12,8 @@ export class ExpeditionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
+    private readonly dailyTasks: DailyTasksService,
+    private readonly achievements: AchievementsService,
   ) {}
 
   async getExpeditions(playerId: string): Promise<ExpeditionsResponseDto> {
@@ -99,6 +103,9 @@ export class ExpeditionsService {
       }
 
       await tx.playerExpedition.update({ where: { id: active.id }, data: { claimedAt: new Date() } });
+      // Only a finished, collected expedition counts — not a cancelled one (owner decision).
+      await this.dailyTasks.record(playerId, 'EXPEDITION_COMPLETED', 1, tx);
+      await this.achievements.record(playerId, 'EXPEDITION_COMPLETED', 1, tx);
 
       return {
         rewards: {

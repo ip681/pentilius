@@ -6,6 +6,8 @@ import { getHideoutProtection, getWallProtectionMinutes, stealableAmount } from 
 import { CombatService, toStatsDto } from '../pve/combat.service';
 import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { EconomyService } from '../player/economy.service';
+import { AchievementsService } from '../achievements/achievements.service';
+import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
@@ -41,6 +43,8 @@ export class PvpService {
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
     private readonly combat: CombatService,
+    private readonly dailyTasks: DailyTasksService,
+    private readonly achievements: AchievementsService,
   ) {}
 
   async getStatus(playerId: string): Promise<PvpStatusDto> {
@@ -147,6 +151,8 @@ export class PvpService {
         });
       }
 
+      await this.dailyTasks.record(attackerId, 'PVP_BATTLE', 1, tx);
+      if (result.won) await this.achievements.record(attackerId, 'PVP_WIN', 1, tx);
       const report = await tx.pvpBattleReport.create({
         data: {
           attackerId,

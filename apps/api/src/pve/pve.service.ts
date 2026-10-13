@@ -1,9 +1,13 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { BattleReportDto, CombatRoundDto, LootResultEntryDto, ResourceType } from '@pentilius/shared';
+import { BattleReportDto, CombatRoundDto, LootResultEntryDto, MultiAttackResultDto, ResourceType } from '@pentilius/shared';
+import { GAME_BALANCE } from '../config/game-config';
+import { isVip } from '../vip/vip';
 import { Prisma } from '@prisma/client';
 import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { grantItem } from '../inventory/inventory-capacity';
 import { EconomyService } from '../player/economy.service';
+import { AchievementsService } from '../achievements/achievements.service';
+import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CombatService } from './combat.service';
 
@@ -19,7 +23,37 @@ export class PveService {
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
     private readonly combat: CombatService,
+    private readonly dailyTasks: DailyTasksService,
+    private readonly achievements: AchievementsService,
   ) {}
+
+  /**
+   * VIP "Attack xN" (owner decision, 2026-10-13): up to N ordinary battles in
+   * one click — same energy, odds and rewards as N single attacks. N shrinks
+   * to the energy available, and the series stops at the first loss.
+   */
+  async attackMultiple(playerId: string, pentiliId: string): Promise<MultiAttackResultDto> {
+    const player = await this.economy.settleAll(playerId);
+    if (!isVip(player)) {
+      throw new ForbiddenException('VIP_REQUIRED');
+    }
+    const count = Math.min(GAME_BALANCE.vip.multiAttackCount, player.actionEnergy);
+    if (count < 2) {
+      throw new BadRequestException('Not enough Action Energy');
+    }
+    const reports: BattleReportDto[] = [];
+    for (let i = 0; i < count; i++) {
+      try {
+        reports.push(await this.attack(playerId, pentiliId));
+      } catch (error) {
+        // The first battle reports its error as usual; a later failure just ends the series.
+        if (reports.length === 0) throw error;
+        break;
+      }
+      if (reports[reports.length - 1].outcome !== 'WIN') break;
+    }
+    return { reports };
+  }
 
   async attack(playerId: string, pentiliId: string): Promise<BattleReportDto> {
     return this.prisma.$transaction(async (tx) => {
@@ -99,6 +133,8 @@ export class PveService {
         },
       });
 
+      await this.dailyTasks.record(playerId, 'PVE_BATTLE', 1, tx);
+      if (result.won) await this.achievements.record(playerId, 'PVE_WIN', 1, tx);
       return toBattleReportDto(report, pentili, pentili.zone, player.level, leveledUp, lootSummary, result.rounds);
     });
   }

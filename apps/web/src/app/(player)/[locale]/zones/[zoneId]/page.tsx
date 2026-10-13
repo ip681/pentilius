@@ -15,6 +15,7 @@ import { ResourceIcon } from '@/components/ResourceIcon';
 import {
   ApiError,
   attackPentili,
+  attackPentiliMulti,
   createBossFormation,
   getBossFormations,
   getMyClan,
@@ -26,6 +27,7 @@ import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { getCachedProfile } from '@/lib/profile-cache';
 import { takePendingBattle } from '@/lib/pending-battle';
+import { isVipActive, multiAttackCount } from '@/lib/vip';
 import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
@@ -78,6 +80,34 @@ function DropEntry({ drop }: { drop: PentiliLootDropDto }) {
   );
 }
 
+/** VIP "Attack xN" result: one row per battle (outcome, XP, loot); a row replays that fight. */
+function SeriesSummary({ reports, shown, onShow }: { reports: BattleReportDto[]; shown: string; onShow: (report: BattleReportDto) => void }) {
+  const t = useTranslations();
+  const wins = reports.filter((r) => r.outcome === 'WIN').length;
+  const stoppedEarly = reports[reports.length - 1].outcome !== 'WIN';
+  return (
+    <section className="mb-4 rounded-lg border border-panelBorder bg-panel p-4">
+      <h2 className="mb-2 text-sm font-semibold">{t('pve.seriesTitle', { count: reports.length, wins })}</h2>
+      <ul className="flex flex-col gap-1.5">
+        {reports.map((report, index) => (
+          <li key={report.id}>
+            <button
+              type="button"
+              onClick={() => onShow(report)}
+              className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-md border px-3 py-1.5 text-left text-[11px] ${report.id === shown ? 'border-accent bg-accentBg' : 'border-wellBorder bg-well hover:bg-accentBgHover'}`}
+            >
+              <span className="text-textMuted">{t('pve.seriesBattle', { number: index + 1 })}</span>
+              <span className={report.outcome === 'WIN' ? 'text-positive' : 'text-danger'}>{report.outcome === 'WIN' ? t('pve.seriesWin') : t('pve.seriesLoss')}</span>
+              {report.outcome === 'WIN' && <RewardSummary report={report} />}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {stoppedEarly && <p className="mt-2 text-[11px] text-textFaint">{t('pve.seriesStopped')}</p>}
+    </section>
+  );
+}
+
 interface BattleState {
   target: PentiliDto;
   report: BattleReportDto;
@@ -117,6 +147,9 @@ function ZonePentiliPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
   const [attacking, setAttacking] = useState(false);
+  // VIP "Attack xN" series (owner decision, 2026-10-13) — null for a single attack.
+  const [series, setSeries] = useState<BattleReportDto[] | null>(null);
+  const multiCount = multiAttackCount(profile);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const myName = profile?.username ?? t('pve.you');
@@ -151,10 +184,10 @@ function ZonePentiliPageInner() {
     if (!targetPentiliId || autoAttackedRef.current || !pentili) return;
     const target = pentili.find((entry) => entry.id === targetPentiliId);
     if (!target) return;
-    const pendingReport = takePendingBattle(targetPentiliId);
-    if (!pendingReport) return;
+    const pendingReports = takePendingBattle(targetPentiliId);
+    if (!pendingReports) return;
     autoAttackedRef.current = true;
-    startBattleFromReport(target, pendingReport);
+    showReports(target, pendingReports);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pentili, targetPentiliId]);
 
@@ -232,19 +265,25 @@ function ZonePentiliPageInner() {
       }, ROUND_INTERVAL_MS);
   }
 
-  async function handleAttack(target: PentiliDto) {
+  /** A single attack replays its fight; a series also lists every battle, replaying the last one. */
+  function showReports(target: PentiliDto, reports: BattleReportDto[]) {
+    setSeries(reports.length > 1 ? reports : null);
+    startBattleFromReport(target, reports[reports.length - 1]);
+  }
+
+  async function handleAttack(target: PentiliDto, multi = false) {
     if (attacking || (battle && !battle.finished)) return;
-    if ((profile?.energy.current ?? 0) < 1) {
+    if ((profile?.energy.current ?? 0) < (multi ? 2 : 1)) {
       setError(t('pve.notEnoughEnergy'));
       return;
     }
     setError(null);
     setAttacking(true);
     try {
-      const report = await attackPentili(target.id);
+      const reports = multi ? (await attackPentiliMulti(target.id)).reports : [await attackPentili(target.id)];
       notifyProfileChanged();
       await refreshProfile();
-      startBattleFromReport(target, report);
+      showReports(target, reports);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'EXPEDITION_IN_PROGRESS') {
         setError(t('pve.expeditionInProgress'));
@@ -289,6 +328,8 @@ function ZonePentiliPageInner() {
               iconAssetId={battle.target.iconAssetId}
             />
           </section>
+
+          {series && <SeriesSummary reports={series} shown={battle.report.id} onShow={(report) => startBattleFromReport(battle.target, report)} />}
 
           <section className="mb-6 rounded-lg border border-panelBorder bg-panel p-4">
             <h2 className="mb-3 text-sm font-semibold">{t('pve.combatLog')}</h2>
@@ -335,14 +376,26 @@ function ZonePentiliPageInner() {
                     )}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleAttack(entry)}
-                  aria-disabled={attacking || (battle !== null && !battle.finished) || (profile?.energy.current ?? 0) < 1}
-                  className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
-                >
-                  {t('pve.attack')}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAttack(entry)}
+                    aria-disabled={attacking || (battle !== null && !battle.finished) || (profile?.energy.current ?? 0) < 1}
+                    className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
+                  >
+                    {t('pve.attack')}
+                  </button>
+                  {isVipActive(profile) && (
+                    <button
+                      type="button"
+                      onClick={() => multiCount >= 2 && handleAttack(entry, true)}
+                      aria-disabled={attacking || (battle !== null && !battle.finished) || multiCount < 2}
+                      className="rounded-md border border-vip bg-accentBg px-4 py-2 text-xs uppercase text-vip hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
+                    >
+                      {t('pve.attackMulti', { count: multiCount >= 2 ? multiCount : (profile?.vipMultiAttackCount ?? 3) })}
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
         </ul>
@@ -381,6 +434,16 @@ function ZonePentiliPageInner() {
               >
                 {t('pve.attack')}
               </button>
+              {isVipActive(profile) && (
+                <button
+                  type="button"
+                  onClick={() => multiCount >= 2 && handleAttack(entry, true)}
+                  aria-disabled={attacking || (battle !== null && !battle.finished) || multiCount < 2}
+                  className="w-full rounded-md border border-vip bg-accentBg py-1.5 text-[10px] uppercase text-vip hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
+                >
+                  {t('pve.attackMulti', { count: multiCount >= 2 ? multiCount : (profile?.vipMultiAttackCount ?? 3) })}
+                </button>
+              )}
             </li>
           ))}
         </ul>

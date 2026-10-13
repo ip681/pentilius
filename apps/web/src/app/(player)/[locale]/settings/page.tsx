@@ -7,6 +7,7 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { PlayerLink } from '@/components/PlayerLink';
+import { SupportSection } from '@/components/SupportSection';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import {
   ApiError,
@@ -254,6 +255,8 @@ export default function SettingsPage() {
             </div>
             {cosmeticsError && <p className="mt-3 text-xs text-danger">{cosmeticsError}</p>}
           </section>
+
+          <SupportSection />
 
           <BlockedPlayersSection />
         </div>

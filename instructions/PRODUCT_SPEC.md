@@ -22,8 +22,6 @@ Deep within the planet exists an ancient system connected to maintaining the cur
 
 Humans discover that they can influence this system through **the Core**. (Owner decision, 2026-10-12: the Core is no longer something clans build — the earlier "human-built megastructure" concept was dropped. Its exact lore is **UNDEFINED**.)
 
-As the race for the Core intensifies, Pentili behavior may change: migrations increase, attacks intensify and stronger Pentili appear (not built yet — see `instructions/OPEN_DECISIONS.md`).
-
 Clans compete by attacking the Core; the clan that has dealt the most damage when the Core window closes wins the season.
 
 A new season restarts the same competitive race.

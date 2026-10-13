@@ -23,6 +23,7 @@ import { ResearchModule } from './research/research.module';
 import { SeasonModule } from './season/season.module';
 import { RobotModule } from './robot/robot.module';
 import { ShopModule } from './shop/shop.module';
+import { SupportModule } from './support/support.module';
 import { ZonesModule } from './zones/zones.module';
 
 @Module({
@@ -48,6 +49,7 @@ import { ZonesModule } from './zones/zones.module';
     AccountDeletionModule,
     ReportsModule,
     ShopModule,
+    SupportModule,
     FriendsModule,
     MarketModule,
     AdminModule,

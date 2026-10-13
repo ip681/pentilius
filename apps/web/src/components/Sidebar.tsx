@@ -9,7 +9,7 @@ import { NAV_ITEMS } from '@/lib/nav-items';
 // Desktop-only now — the Command Center's Quick Access grid covers every one
 // of these destinations, so mobile relies on that (plus the BottomNav)
 // instead of a slide-in menu. Same order/icons as BottomNav for consistency.
-export function Sidebar({ hasUnreadFriends }: { hasUnreadFriends: boolean }) {
+export function Sidebar({ hasUnreadFriends, hasDailyTaskReward = false }: { hasUnreadFriends: boolean; hasDailyTaskReward?: boolean }) {
   const t = useTranslations();
   const pathname = usePathname();
 
@@ -31,6 +31,8 @@ export function Sidebar({ hasUnreadFriends }: { hasUnreadFriends: boolean }) {
                 fallback={<span className="flex h-6 w-6 shrink-0 items-center justify-center text-sm font-semibold">{t(item.labelKey).charAt(0)}</span>}
               />
               {t(item.labelKey)}
+              {/* A daily-task reward is waiting (owner decision, 2026-10-13). */}
+              {item.href === '/dashboard' && hasDailyTaskReward && <span className="absolute right-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-positive" />}
               {item.href === '/friends' && hasUnreadFriends && <span className="absolute right-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-danger" />}
             </Link>
           );

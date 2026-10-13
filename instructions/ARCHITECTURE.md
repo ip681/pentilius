@@ -27,7 +27,7 @@ The backend is authoritative for:
 - research;
 - expeditions;
 - clans;
-- trades/auction;
+- trades/market;
 - season state.
 
 The frontend may display countdowns and previews, but never decides outcomes.

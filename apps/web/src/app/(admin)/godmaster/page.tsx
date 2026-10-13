@@ -1,5 +1,6 @@
 'use client';
 
+import type { AdminSupportTicketDetailDto, AdminSupportTicketsDto } from '@pentilius/shared';
 import { Fragment, useEffect, useRef, useState } from 'react';
 // Plain JSON import — godmaster deliberately has no next-intl setup (see the
 // (admin) layout comment), so item display names are resolved by hand from
@@ -207,6 +208,7 @@ const TABS = [
   { key: 'server', label: 'Сървър' },
   { key: 'players', label: 'Играчи' },
   { key: 'reports', label: 'Доклади' },
+  { key: 'support', label: 'Обратна връзка' },
   { key: 'filter', label: 'Филтър' },
   { key: 'admins', label: 'Админи' },
   { key: 'settings', label: 'Настройки' },
@@ -251,6 +253,18 @@ function AdminPanel({
   // Every tab is visible to both roles; the Admins tab shows a MODERATOR only their own account.
   const visibleTabs = TABS;
 
+  // Conversations waiting for staff — the badge on the "Обратна връзка" tab.
+  const [supportOpen, setSupportOpen] = useState(0);
+  useEffect(() => {
+    const load = () =>
+      adminFetch<AdminSupportTicketsDto>('/admin/support?status=OPEN')
+        .then((res) => setSupportOpen(res.openCount))
+        .catch(() => undefined);
+    load();
+    const interval = setInterval(load, 60_000);
+    return () => clearInterval(interval);
+  }, [tab]);
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
@@ -263,6 +277,7 @@ function AdminPanel({
               className={`rounded-md border px-3 py-1.5 text-xs ${tab === t.key ? 'border-accent bg-accentBg' : 'border-panelBorder bg-panel text-textMuted hover:bg-accentBgHover'}`}
             >
               {t.label}
+              {t.key === 'support' && supportOpen > 0 && <span className="ml-1.5 rounded-full bg-danger px-1.5 text-[10px] text-white">{supportOpen}</span>}
             </button>
           ))}
         </div>
@@ -305,6 +320,15 @@ function AdminPanel({
         </>
       )}
 
+      {tab === 'support' && (
+        <SupportPanel
+          onOpenPlayer={(name) => {
+            setTab('players');
+            loadPlayer(name);
+          }}
+        />
+      )}
+
       {tab === 'reports' && (
         <ReportsPanel
           onOpenPlayer={(name) => {
@@ -329,6 +353,7 @@ interface PlayerDetail {
     lastActiveAt: string;
     bannedUntil: string | null;
     banReason: string | null;
+    vipUntil: string | null;
   };
   resources: { metal: number; crystal: number; credits: number };
   equipped: { id: string; slot: string; itemDefinitionKey: string; nameKey: string; tier: string | null; quality: string; upgradeLevel: number }[];
@@ -350,6 +375,11 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
   RESOLVE_REPORT: 'Доклад — решен',
   DISMISS_REPORT: 'Доклад — отхвърлен',
   DELETE_CLAN_MESSAGE: 'Изтрито съобщение',
+  SUPPORT_REPLY: 'Отговор на съобщение',
+  SUPPORT_CLOSE: 'Затворено съобщение',
+  SUPPORT_REOPEN: 'Отворено отново съобщение',
+  GRANT_VIP: 'Даден VIP',
+  REVOKE_VIP: 'Премахнат VIP',
 };
 
 function PlayerDetailView({ detail, onReload }: { detail: PlayerDetail; onReload: (username: string) => void }) {
@@ -380,6 +410,8 @@ function PlayerDetailView({ detail, onReload }: { detail: PlayerDetail; onReload
       </div>
 
       <BanRenameControls username={profile.username} isBanned={Boolean(isBanned)} onReload={onReload} />
+
+      <VipControls username={profile.username} vipUntil={profile.vipUntil} onReload={onReload} />
 
       <div>
         <p className="mb-1 text-[11px] font-medium text-textFaint">Екипировка ({equipped.length}/7)</p>
@@ -541,6 +573,73 @@ function BanRenameControls({ username, isBanned, onReload }: { username: string;
         <button type="button" onClick={handleRename} className="rounded-md border border-accent px-3 py-1.5 text-[11px] hover:bg-accentBgHover">
           Преименувай
         </button>
+      </div>
+      {message && <p className="text-positive">{message}</p>}
+      {error && <p className="text-danger">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * VIP (owner decision, 2026-10-13) — granted by hand until there is a payment
+ * flow. Adding days extends an active VIP from its current end. ADMIN only.
+ */
+function VipControls({ username, vipUntil, onReload }: { username: string; vipUntil: string | null; onReload: (username: string) => void }) {
+  const [days, setDays] = useState('30');
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const active = !!vipUntil && new Date(vipUntil) > new Date();
+
+  async function submit(value: number) {
+    setMessage(null);
+    setError(null);
+    try {
+      await adminFetch('/admin/players/vip', { method: 'POST', body: { username, days: value } });
+      setMessage(value > 0 ? `VIP удължен с ${value} дни` : 'VIP е премахнат');
+      onReload(username);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-wellBorder bg-well p-3 text-xs">
+      <p className={active ? 'text-vip' : 'text-textFaint'}>
+        {active ? `VIP до ${new Date(vipUntil as string).toLocaleString('bg-BG')}` : 'Няма VIP'}
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        {[7, 30].map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            onClick={() => submit(preset)}
+            className="rounded-md border border-vip px-3 py-1.5 text-[11px] text-vip hover:bg-accentBgHover"
+          >
+            +{preset} дни
+          </button>
+        ))}
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          дни
+          <input
+            type="number"
+            min={1}
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+            className="w-20 rounded-md border border-wellBorder bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => Number(days) > 0 && submit(Number(days))}
+          className="rounded-md border border-vip px-3 py-1.5 text-[11px] text-vip hover:bg-accentBgHover"
+        >
+          Дай VIP
+        </button>
+        {active && (
+          <button type="button" onClick={() => submit(0)} className="rounded-md border border-danger px-3 py-1.5 text-[11px] text-danger hover:bg-accentBgHover">
+            Махни VIP
+          </button>
+        )}
       </div>
       {message && <p className="text-positive">{message}</p>}
       {error && <p className="text-danger">{error}</p>}
@@ -1545,6 +1644,177 @@ const REPORT_STATUS_LABEL: Record<ReportEntry['status'], string> = {
  * to spot. Nothing here punishes anyone automatically — ban/rename stay on the
  * Players tab ("Отвори играча" jumps there).
  */
+const SUPPORT_CATEGORY_LABEL: Record<string, string> = { IDEA: 'Идея', BUG: 'Проблем', QUESTION: 'Въпрос', OTHER: 'Друго' };
+const SUPPORT_STATUS_LABEL: Record<string, string> = { OPEN: 'Нови', ANSWERED: 'Отговорени', CLOSED: 'Затворени' };
+
+/**
+ * "Contact the team" inbox (owner decision, 2026-10-13) — shared by every
+ * moderator and admin. Each staff reply shows its author here; the player
+ * sees it only as "the Pentilius team".
+ */
+function SupportPanel({ onOpenPlayer }: { onOpenPlayer: (username: string) => void }) {
+  const [status, setStatus] = useState<'OPEN' | 'ANSWERED' | 'CLOSED' | ''>('OPEN');
+  const [category, setCategory] = useState('');
+  const [list, setList] = useState<AdminSupportTicketsDto | null>(null);
+  const [selected, setSelected] = useState<AdminSupportTicketDetailDto | null>(null);
+  const [reply, setReply] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (category) params.set('category', category);
+    adminFetch<AdminSupportTicketsDto>(`/admin/support?${params.toString()}`)
+      .then(setList)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, category]);
+
+  async function open(id: string) {
+    setError(null);
+    setReply('');
+    try {
+      setSelected(await adminFetch<AdminSupportTicketDetailDto>(`/admin/support/${id}`));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  async function act(path: string, body?: unknown) {
+    if (!selected) return;
+    setError(null);
+    try {
+      setSelected(await adminFetch<AdminSupportTicketDetailDto>(`/admin/support/${selected.id}/${path}`, { method: 'POST', body }));
+      setReply('');
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  const btn = 'rounded-md border px-2.5 py-1 text-[11px] hover:bg-accentBgHover';
+
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">Обратна връзка от играчи</h2>
+        <div className="flex flex-wrap gap-2">
+          {(['OPEN', 'ANSWERED', 'CLOSED', ''] as const).map((value) => (
+            <button
+              key={value || 'all'}
+              type="button"
+              onClick={() => setStatus(value)}
+              className={`${btn} ${status === value ? 'border-accent bg-accentBg' : 'border-panelBorder text-textMuted'}`}
+            >
+              {value ? SUPPORT_STATUS_LABEL[value] : 'Всички'}
+            </button>
+          ))}
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="rounded-md border border-panelBorder bg-panel px-2 py-1 text-[11px] text-textMuted"
+          >
+            <option value="">Всички видове</option>
+            {Object.entries(SUPPORT_CATEGORY_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {error && <p className="mb-3 text-xs text-danger">{error}</p>}
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div className="flex max-h-[600px] flex-col gap-1.5 overflow-y-auto">
+          {list && list.tickets.length === 0 && <p className="text-xs text-textFaint">Няма съобщения.</p>}
+          {list?.tickets.map((ticket) => (
+            <button
+              key={ticket.id}
+              type="button"
+              onClick={() => open(ticket.id)}
+              className={`rounded-md border px-3 py-2 text-left text-xs ${selected?.id === ticket.id ? 'border-accent bg-accentBg' : 'border-wellBorder bg-well hover:bg-accentBgHover'}`}
+            >
+              <div className="mb-0.5 flex flex-wrap items-center justify-between gap-2">
+                <span className="font-semibold">{ticket.username}</span>
+                <span className="text-[10px] text-textFaint">{new Date(ticket.updatedAt).toLocaleString('bg-BG')}</span>
+              </div>
+              <div className="mb-0.5 flex gap-2 text-[10px] text-textFaint">
+                <span>{SUPPORT_CATEGORY_LABEL[ticket.category]}</span>
+                <span>· {SUPPORT_STATUS_LABEL[ticket.status]}</span>
+                <span>· {ticket.messageCount} съобщ.</span>
+              </div>
+              <p className="truncate text-textMuted">
+                {ticket.lastFromStaff ? 'Екип: ' : ''}
+                {ticket.lastMessage}
+              </p>
+            </button>
+          ))}
+        </div>
+
+        <div>
+          {!selected && <p className="text-xs text-textFaint">Избери съобщение отляво.</p>}
+          {selected && (
+            <div className="rounded-md border border-wellBorder bg-well p-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div>
+                  <button type="button" onClick={() => onOpenPlayer(selected.username)} className="font-semibold underline hover:text-accent">
+                    {selected.username}
+                  </button>
+                  <span className="text-textFaint">
+                    {' '}
+                    · {SUPPORT_CATEGORY_LABEL[selected.category]} · {SUPPORT_STATUS_LABEL[selected.status]}
+                  </span>
+                </div>
+                {selected.status === 'CLOSED' ? (
+                  <button type="button" onClick={() => act('reopen')} className={`${btn} border-panelBorder`}>
+                    Отвори отново
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => act('close')} className={`${btn} border-panelBorder`}>
+                    Затвори
+                  </button>
+                )}
+              </div>
+              <div className="mb-3 flex max-h-[420px] flex-col gap-2 overflow-y-auto">
+                {selected.messages.map((message) => (
+                  <div key={message.id} className={`rounded-md px-2.5 py-1.5 text-xs ${message.fromStaff ? 'border border-accent/40 bg-accentBg' : 'bg-panel'}`}>
+                    <div className="mb-0.5 flex justify-between gap-2 text-[10px] text-textFaint">
+                      <span className="font-semibold">{message.fromStaff ? `Екип (${message.staffUsername ?? '—'})` : selected.username}</span>
+                      <span>{new Date(message.createdAt).toLocaleString('bg-BG')}</span>
+                    </div>
+                    <p className="whitespace-pre-wrap break-words">{message.text}</p>
+                  </div>
+                ))}
+              </div>
+              <textarea
+                value={reply}
+                onChange={(e) => setReply(e.target.value.slice(0, 2000))}
+                rows={3}
+                placeholder="Отговор (играчът го вижда като „Екипът на Pentilius“)"
+                className="mb-2 w-full resize-y rounded-md border border-wellBorder bg-panel px-3 py-2 text-xs outline-none focus:border-accent"
+              />
+              <button
+                type="button"
+                disabled={!reply.trim()}
+                onClick={() => act('reply', { text: reply })}
+                className="rounded-md border border-accent bg-accentBg px-4 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-30"
+              >
+                Изпрати отговор
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ReportsPanel({ onOpenPlayer }: { onOpenPlayer: (username: string) => void }) {
   const [view, setView] = useState<'open' | 'closed'>('open');
   const [groups, setGroups] = useState<ReportGroup[] | null>(null);

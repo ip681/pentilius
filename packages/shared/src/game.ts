@@ -48,6 +48,16 @@ export interface PlayerProfileDto {
   needsRaceSelection: boolean;
   // Current season number ("Започна Сезон N!").
   seasonNumber: number;
+  // A daily-task reward (or the all-tasks bonus) is waiting to be claimed — the nav dot.
+  dailyTasksClaimable: boolean;
+  // VIP until this moment (null = never/expired long ago); the client compares with now.
+  vipUntil: string | null;
+  // Staff answered a "contact the team" conversation the player hasn't opened — the Settings dot.
+  supportUnread: boolean;
+  // An achievement tier or level reward is waiting to be claimed — the tile dot.
+  achievementsClaimable: boolean;
+  // GAME_BALANCE.vip.multiAttackCount — the "Attack xN" size.
+  vipMultiAttackCount: number;
   // Once the Core has closed: when the season resets — the client counts down to it
   // on every page and, at zero, moves the player to the new season's race picker.
   seasonResetAt: string | null;
@@ -204,6 +214,8 @@ export interface BuildingStateDto {
   maxLevel: number;
   constructionEndsAt: string | null;
   nextLevelCost: BuildingCostDto | null;
+  // The level after that — what a VIP queues while this building is itself under construction.
+  afterNextLevelCost: BuildingCostDto | null;
   // null when the building isn't built yet, or (for a resource-producing building) has no coded effect.
   currentProduction: BuildingProductionDto | null;
   nextLevelProduction: BuildingProductionDto | null;
@@ -227,9 +239,23 @@ export interface BuildingStateDto {
   nextLevelProtectedResources: ResourcesDto | null;
 }
 
+export interface BuildQueueDto {
+  buildingKey: string;
+  targetLevel: number;
+  metalPaid: number;
+  crystalPaid: number;
+}
+
 export interface BaseResponseDto {
   resources: ResourcesDto;
   buildings: BuildingStateDto[];
+  // VIP one-slot build queue (owner decision, 2026-10-13) — null when empty.
+  buildQueue: BuildQueueDto | null;
+  isVip: boolean;
+}
+
+export interface MultiAttackResultDto {
+  reports: BattleReportDto[];
 }
 
 export interface EquippedItemDto {
@@ -785,6 +811,8 @@ export interface ClanMessageDto {
   id: string;
   playerId: string;
   username: string;
+  // VIP senders get a pale-yellow name (owner decision, 2026-10-13).
+  isVip: boolean;
   text: string;
   createdAt: string;
 }
@@ -903,6 +931,7 @@ export interface FriendDto {
   username: string;
   race: Race;
   level: number;
+  isVip: boolean;
   // Owner decision (2026-09-11) — true when this conversation has a message
   // since the viewer last opened it. Also drives listFriends()' sort order
   // (most recent conversation first) on the backend.
@@ -1121,3 +1150,123 @@ export interface AccountDeletionCodeDto {
   code: string;
 }
 
+// --- Daily tasks (owner decision, 2026-10-13) ---
+
+export type DailyTaskType = 'PVE_BATTLE' | 'EXPEDITION_COMPLETED' | 'PVP_BATTLE' | 'BOSS_FORMATION_JOIN' | 'CLAN_DONATION';
+
+export interface DailyTaskRewardDto {
+  metal: number;
+  crystal: number;
+  xp: number;
+  energy: number;
+}
+
+export interface DailyTaskDto {
+  key: string;
+  type: DailyTaskType;
+  target: number;
+  // Capped at target.
+  progress: number;
+  completed: boolean;
+  claimed: boolean;
+  reward: DailyTaskRewardDto;
+}
+
+export interface DailyTasksDto {
+  // Calendar day in Europe/Sofia, and when the next day starts (00:00 Bulgarian time).
+  day: string;
+  resetAt: string;
+  // Only the tasks this player can see right now (level/clan gating; one per chain).
+  tasks: DailyTaskDto[];
+  allDone: { completed: boolean; claimed: boolean; bonusItemKey: string };
+}
+
+// Season achievements and level rewards (owner decision, 2026-10-13).
+export interface AchievementRewardDto {
+  metal: number;
+  crystal: number;
+  // An item definition key (box, energy pack) — the client builds "items.<key>.name"/".icon".
+  itemKey: string | null;
+}
+
+export interface LevelRewardDto {
+  level: number;
+  claimKey: string;
+  // The player's level now — drives the progress bar toward `level`.
+  currentLevel: number;
+  reached: boolean;
+  reward: AchievementRewardDto;
+}
+
+export interface AchievementDto {
+  key: string;
+  // The tier shown now (the first unclaimed one) — also the claim key.
+  tierKey: string;
+  tier: number;
+  tierCount: number;
+  target: number;
+  progress: number;
+  completed: boolean;
+  // Every tier claimed — the last one stays visible as done.
+  finished: boolean;
+  // FULL_SET tiers only: which set the tier asks for.
+  setTier: 'PIONEER' | 'ASCENDANT' | 'COREFORGED' | null;
+  reward: AchievementRewardDto;
+}
+
+export interface AchievementsDto {
+  // Null once every level reward up to the cap is claimed.
+  levelReward: LevelRewardDto | null;
+  achievements: AchievementDto[];
+}
+
+// "Contact the team" (owner decision, 2026-10-13).
+export type SupportCategoryValue = 'IDEA' | 'BUG' | 'QUESTION' | 'OTHER';
+export type SupportStatusValue = 'OPEN' | 'ANSWERED' | 'CLOSED';
+
+export interface SupportMessageViewDto {
+  id: string;
+  // Staff messages carry no name for the player — shown as "the Pentilius team".
+  fromStaff: boolean;
+  text: string;
+  createdAt: string;
+}
+
+export interface SupportTicketDto {
+  id: string;
+  category: SupportCategoryValue;
+  status: SupportStatusValue;
+  unread: boolean;
+  createdAt: string;
+  updatedAt: string;
+  messages: SupportMessageViewDto[];
+}
+
+export interface AdminSupportTicketSummaryDto {
+  id: string;
+  playerId: string;
+  username: string;
+  category: SupportCategoryValue;
+  status: SupportStatusValue;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  lastMessage: string;
+  lastFromStaff: boolean;
+}
+
+export interface AdminSupportTicketsDto {
+  // Conversations waiting for staff — the godmaster tab badge.
+  openCount: number;
+  tickets: AdminSupportTicketSummaryDto[];
+}
+
+export interface AdminSupportTicketDetailDto {
+  id: string;
+  playerId: string;
+  username: string;
+  category: SupportCategoryValue;
+  status: SupportStatusValue;
+  createdAt: string;
+  messages: (SupportMessageViewDto & { staffUsername: string | null })[];
+}

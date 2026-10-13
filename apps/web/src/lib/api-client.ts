@@ -30,6 +30,11 @@ import type {
   CorePlayerRankingScope,
   CoreStateDto,
   CosmeticsCatalogDto,
+  AchievementsDto,
+  DailyTasksDto,
+  SupportCategoryValue,
+  SupportTicketDto,
+  MultiAttackResultDto,
   CreateReportRequest,
   DirectMessageDto,
   ExpeditionClaimResultDto,
@@ -166,6 +171,46 @@ export function register(payload: RegisterRequest): Promise<AuthResponse> {
 
 export function login(payload: LoginRequest): Promise<AuthResponse> {
   return request<AuthResponse>('/auth/login', { method: 'POST', body: payload });
+}
+
+// --- Contact the team (owner decision, 2026-10-13) ---
+
+export function getSupportTickets(): Promise<SupportTicketDto[]> {
+  return request<SupportTicketDto[]>('/support/tickets', { auth: true });
+}
+
+export function createSupportTicket(category: SupportCategoryValue, text: string): Promise<SupportTicketDto[]> {
+  return request<SupportTicketDto[]>('/support/tickets', { method: 'POST', auth: true, body: { category, text } });
+}
+
+export function replySupportTicket(ticketId: string, text: string): Promise<SupportTicketDto[]> {
+  return request<SupportTicketDto[]>(`/support/tickets/${ticketId}/messages`, { method: 'POST', auth: true, body: { text } });
+}
+
+export function markSupportTicketRead(ticketId: string): Promise<void> {
+  return request<void>(`/support/tickets/${ticketId}/read`, { method: 'POST', auth: true });
+}
+
+// --- Achievements and level rewards (owner decision, 2026-10-13) ---
+
+export function getAchievements(): Promise<AchievementsDto> {
+  return request<AchievementsDto>('/achievements', { auth: true });
+}
+
+/** claimKey = an achievement's tierKey or a level reward's claimKey. */
+export function claimAchievement(claimKey: string): Promise<AchievementsDto> {
+  return request<AchievementsDto>(`/achievements/${claimKey}/claim`, { method: 'POST', auth: true });
+}
+
+// --- Daily tasks (owner decision, 2026-10-13) ---
+
+export function getDailyTasks(): Promise<DailyTasksDto> {
+  return request<DailyTasksDto>('/daily-tasks', { auth: true });
+}
+
+/** taskKey = a task's key, or "ALL_DONE" for the all-tasks bonus. */
+export function claimDailyTask(taskKey: string): Promise<DailyTasksDto> {
+  return request<DailyTasksDto>(`/daily-tasks/${taskKey}/claim`, { method: 'POST', auth: true });
 }
 
 /** Asks the server to start the new season now if (by its clock) it's due — see SeasonController.seasonCheck. */
@@ -329,6 +374,16 @@ export function upgradeBuilding(key: string): Promise<BuildingStateDto> {
   return request<BuildingStateDto>(`/base/buildings/${key}/upgrade`, { method: 'POST', auth: true });
 }
 
+/** VIP build queue (owner decision, 2026-10-13) — paid now, starts when the current construction ends. */
+export function queueBuilding(key: string): Promise<BaseResponseDto> {
+  return request<BaseResponseDto>(`/base/buildings/${key}/queue`, { method: 'POST', auth: true });
+}
+
+/** Cancels the queued building; refunds what was paid. */
+export function cancelBuildQueue(): Promise<BaseResponseDto> {
+  return request<BaseResponseDto>('/base/queue', { method: 'DELETE', auth: true });
+}
+
 // Robot / equipment
 export function getRobot(): Promise<RobotSlotDto[]> {
   return request<RobotSlotDto[]>('/robot', { auth: true });
@@ -425,6 +480,11 @@ export function getPentiliInZone(zoneId: string): Promise<PentiliDto[]> {
 // PvE
 export function attackPentili(pentiliId: string): Promise<BattleReportDto> {
   return request<BattleReportDto>(`/pve/attack/${pentiliId}`, { method: 'POST', auth: true });
+}
+
+/** VIP "Attack xN" (owner decision, 2026-10-13) — stops at the first loss. */
+export function attackPentiliMulti(pentiliId: string): Promise<MultiAttackResultDto> {
+  return request<MultiAttackResultDto>(`/pve/attack/${pentiliId}/multi`, { method: 'POST', auth: true });
 }
 
 export function getBattleReports(): Promise<BattleReportDto[]> {

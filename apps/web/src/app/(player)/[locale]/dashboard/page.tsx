@@ -4,6 +4,7 @@ import type { BaseResponseDto, BossFormationsResponseDto, ClanWarStateDto, CoreS
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
+import { ProgressTiles } from '@/components/ProgressTiles';
 import { GameLayout } from '@/components/GameLayout';
 import { Link } from '@/i18n/navigation';
 import { getBase, getBossFormations, getClanWarStatus, getCoreState, getExpeditions, getMyClan, getPvpStatus, getResearches, getRobot, getZones } from '@/lib/api-client';
@@ -261,6 +262,8 @@ export default function DashboardPage() {
           <p className="rounded-lg border border-panelBorder bg-panel p-4 text-xs text-textMuted">{t('dashboard.noActiveOperations')}</p>
         )}
       </div>
+
+      <ProgressTiles />
 
       <h2 className="mb-3 text-[11px] uppercase tracking-wide text-textFaint">{t('dashboard.quickAccess')}</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">

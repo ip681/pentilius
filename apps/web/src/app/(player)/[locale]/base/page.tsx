@@ -8,7 +8,7 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { GameLayout } from '@/components/GameLayout';
 import { ResourceIcon } from '@/components/ResourceIcon';
-import { ApiError, consumeItem, getBase, getInventory, upgradeBuilding } from '@/lib/api-client';
+import { ApiError, cancelBuildQueue, consumeItem, getBase, getInventory, queueBuilding, upgradeBuilding } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -98,6 +98,33 @@ export default function BasePage() {
     }
   }
 
+  async function handleQueue(key: string) {
+    setError(null);
+    try {
+      setData(await queueBuilding(key));
+      notifyProfileChanged();
+      closeSheet();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'BUILD_QUEUE_FULL') {
+        setError(t('base.queueFull'));
+      } else if (err instanceof ApiError && err.status === 400) {
+        setError(t('base.notEnoughResources'));
+      } else {
+        setError(t('base.upgradeError'));
+      }
+    }
+  }
+
+  async function handleCancelQueue() {
+    setError(null);
+    try {
+      setData(await cancelBuildQueue());
+      notifyProfileChanged();
+    } catch {
+      await load();
+    }
+  }
+
   async function handleUseSpeedup(itemInstanceId: string, buildingKey: string) {
     setError(null);
     try {
@@ -132,6 +159,9 @@ export default function BasePage() {
   // Only one base building can be under construction at a time.
   const constructing = data?.buildings.find((b) => buildingProgress(b).active) ?? null;
   const constructingProgress = constructing ? buildingProgress(constructing) : null;
+  const queued = data?.buildQueue ? (data.buildings.find((b) => b.key === data.buildQueue!.buildingKey) ?? null) : null;
+  // VIP build queue (owner decision, 2026-10-13): one slot, only while something is being built.
+  const canQueue = !!data?.isVip && anyUnderConstruction && !data.buildQueue;
 
   return (
     <GameLayout>
@@ -159,6 +189,15 @@ export default function BasePage() {
             <div className="h-full bg-accent transition-all" style={{ width: `${constructingProgress.percent}%` }} />
           </div>
         </button>
+      )}
+
+      {data?.buildQueue && queued && (
+        <div className="-mt-2 mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-vip/40 bg-panel px-4 py-2 text-xs">
+          <span className="text-vip">{t('base.queued', { building: t(queued.nameKey), level: data.buildQueue.targetLevel })}</span>
+          <button type="button" onClick={handleCancelQueue} className="text-[11px] text-textFaint underline hover:text-text">
+            {t('base.cancelQueue')}
+          </button>
+        </div>
       )}
 
       {data && (
@@ -246,9 +285,12 @@ export default function BasePage() {
           <BuildingDetails
             building={selected}
             anotherActive={!buildingProgress(selected).active && anyUnderConstruction}
+            canQueue={canQueue}
+            resources={data.resources}
             speedupItems={speedupItems}
             error={error}
             onUpgrade={() => handleUpgrade(selected.key)}
+            onQueue={() => handleQueue(selected.key)}
             onUseSpeedup={(itemId) => handleUseSpeedup(itemId, selected.key)}
             onClose={closeSheet}
           />
@@ -261,22 +303,33 @@ export default function BasePage() {
 function BuildingDetails({
   building,
   anotherActive,
+  canQueue,
+  resources,
   speedupItems,
   error,
   onUpgrade,
+  onQueue,
   onUseSpeedup,
   onClose,
 }: {
   building: BuildingStateDto;
   anotherActive: boolean;
+  canQueue: boolean;
+  resources: ResourcesDto;
   speedupItems: InventoryItemDto[];
   error: string | null;
   onUpgrade: () => void;
+  onQueue: () => void;
   onUseSpeedup: (itemInstanceId: string) => void;
   onClose: () => void;
 }) {
   const t = useTranslations();
   const progress = buildingProgress(building);
+  // What a queue would build: the level after the current construction, or the next level.
+  const queueCost = progress.active ? building.afterNextLevelCost : building.nextLevelCost;
+  const queueLevel = building.level + (progress.active ? 2 : 1);
+  const showQueue = canQueue && !!queueCost;
+  const canAffordQueue = !!queueCost && resources.metal >= queueCost.metalCost && resources.crystal >= queueCost.crystalCost;
 
   return (
     <>
@@ -356,6 +409,34 @@ function BuildingDetails({
       >
         {t('base.upgrade')}
       </button>
+
+      {showQueue && queueCost && (
+        <div className="mt-3 rounded border border-vip/40 bg-well p-2.5">
+          {progress.active && (
+            <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <span className="text-[10px] uppercase text-textFaint">{t('base.queueLevelCost', { level: queueLevel })}</span>
+              <span className="flex items-center gap-1">
+                <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
+                {queueCost.metalCost}
+              </span>
+              <span className="flex items-center gap-1">
+                <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
+                {queueCost.crystalCost}
+              </span>
+              <span className="tabular-nums text-textMuted">{formatDuration(queueCost.constructionSeconds)}</span>
+            </div>
+          )}
+          <button
+            type="button"
+            disabled={!canAffordQueue}
+            onClick={onQueue}
+            className="w-full rounded-md border border-vip bg-accentBg py-2 text-xs uppercase text-vip hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            {t('base.addToQueue', { level: queueLevel })}
+          </button>
+          <p className="mt-1.5 text-[10px] text-textFaint">{t('base.queueNote')}</p>
+        </div>
+      )}
 
       {error && <p className="mt-3 text-xs text-danger">{error}</p>}
 

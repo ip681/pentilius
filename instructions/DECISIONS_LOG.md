@@ -563,3 +563,138 @@ table was emptied, friends and DMs were kept, all 63 players were flagged
 for race selection, and 63 player cards plus 8 clan results were written. A
 second reset is refused.
 
+## Dropped ideas and Epic box source (2026-10-13)
+
+- **Pentili escalation** (Pentili getting stronger or more aggressive as the
+  Core race advances) is **dropped**. It is no longer a planned mechanic.
+- **An auction with bidding** is **dropped**. Player trading stays the
+  fixed-price Market.
+- **Epic items** come from loot boxes, which bosses drop (tier-matched,
+  guaranteed on a win; opening one yields RARE or EPIC). The Shop also sells
+  boxes, but only while the game is in testing; they will be removed from the
+  Shop before a real launch.
+
+## Daily tasks (2026-10-13)
+
+- **Task list** (fixed, from `GAME_BALANCE.dailyTasks`; not managed from
+  godmaster for now):
+  - Pentili battles, a chain of 10 → 15 → 20. Every battle counts, won or
+    lost. Only the next unclaimed tier is shown.
+  - 1 expedition. It counts when a finished expedition is collected; a
+    cancelled one does not count.
+  - 1 PvP battle, shown from the PvP minimum level.
+  - 1 boss formation, either created or joined. Shown from the lowest boss
+    minimum level.
+  - Clan donation of 100 resources (Metal, Crystal and Credits in any mix).
+    Smaller donations fill the bar proportionally. Shown only to clan
+    members.
+- **Rewards:** Metal, Crystal and XP scale with the player's level (a
+  per-level amount × level). Some tasks also give flat Action Energy, capped
+  at the player's max.
+- **All-tasks bonus:** a small energy pack (`energy_pack_small`). If the
+  inventory is full, its energy is added directly instead.
+- **Reset:** at 00:00 Bulgarian time (`Europe/Sofia`, DST-aware).
+- **Unclaimed rewards** (revised the same day, see VIP below): completed but
+  unclaimed tasks from earlier days are granted automatically only to players
+  who were VIP when that day ended. For everyone else they expire at
+  midnight. The auto-granted bonus needs every task completed that day.
+- **Display** (revised the same day): a "Daily tasks" tile in the Command
+  Center opens the list in a popup. The tile has its own dot, and the Command
+  Center nav item has a dot while something can be claimed here or in
+  Achievements.
+
+## VIP, first pass (2026-10-13)
+
+The principle: VIP saves time and clicks. It never adds combat power, loot,
+XP, build speed or Core points, so it does not become pay-to-win.
+
+- **Status:** `Player.vipUntil`. A player is VIP while now is before it.
+  There is no payment yet. An ADMIN grants VIP from the godmaster player view:
+  +7 days, +30 days, or any number of days. Adding days extends an active VIP
+  from its current end. "Remove VIP" ends it. Every change is written to the
+  admin action log (`GRANT_VIP` / `REVOKE_VIP`). A future payment flow will
+  extend the same date.
+- **Perks:**
+  - **Automatic daily-task rewards.** Unclaimed completed rewards are granted
+    after midnight. Without VIP they expire.
+  - **"Attack ×3" against Pentili.** A second button next to the normal
+    attack. Energy, odds and rewards are the same as three single attacks.
+    It runs ×2 with 2 energy and is inactive with 1. The series stops at the
+    first loss. The size is `GAME_BALANCE.vip.multiAttackCount`.
+  - **Build queue (one slot).** While a building is under construction, one
+    more can be queued, including the next level of the same building. It is
+    paid when queued and fully refunded on cancel. It starts by itself
+    exactly when the current construction ends, even offline, and is no
+    faster. If VIP expires, an already queued building still gets built.
+  - **Chat name colour.** VIP names are pale yellow in clan chat and in direct
+    messages.
+- **Later:** VIP profile frames; possibly a VIP badge (not now). Max energy
+  12 instead of 10 was left for a separate decision.
+
+## Achievements and level rewards (2026-10-13)
+
+- **Season-scoped:** both reset with the season, along with daily-task rows.
+- **Claiming:** every reward is claimed by hand, never automatically. Once
+  one is claimed, the next of the same kind appears, like the daily-task chain.
+- **Level rewards:** one row at a time, for the lowest unclaimed level from 2
+  up.
+  - Metal and Crystal scale with the level: 100 and 25 × level
+    (placeholders).
+  - Every 5th level adds a box of the set of the zone being entered:
+    - levels 5-15: Pioneer;
+    - levels 20-35: Ascendant;
+    - levels 40-100: Coreforged.
+  - Config: `GAME_BALANCE.levelRewards`.
+- **Achievements** (`GAME_BALANCE.achievements`, placeholder rewards):
+  - Pentili wins: 100 / 500 / 2,000 / 10,000.
+  - Expeditions completed: 10 / 50 / 200.
+  - Regular-PvP wins: 10 / 50 / 200. Clan-war duels don't count. No extra
+    anti-abuse rule is needed: opponents are picked at random by the server,
+    with cooldown and protection.
+  - Boss wins: 1 / 10 / 50.
+  - Best item upgrade: +5 / +10.
+  - Full set equipped: Pioneer / Ascendant / Coreforged, all 7 slots at that
+    set or stronger.
+  - Every base building at level 5 / 10.
+  - Clan donations: 10,000 / 100,000 resources.
+  - Core attacks: 1 / 50.
+  - Days with the all-daily-tasks bonus received: 7 / 30.
+
+  Upgrade, set and building achievements read the player's current state; the
+  rest are counters. "First Rare / first Epic" was left out for now.
+- **A full inventory** blocks claiming a reward that includes an item. Nothing
+  is lost; the player claims it again after freeing space.
+- **Display:** an "Achievements" tile next to "Daily tasks" in the Command
+  Center, with its own dot, opening a popup. The level reward is on top, then
+  the achievements with progress bars.
+- **Later:** frames and titles as cosmetic rewards. They need art first.
+
+## Contact the team (2026-10-13)
+
+- **Player side:** a "Contact the team" section in Settings. The public
+  Support page points to it.
+  - The player picks a category (Idea, Problem, Question, Other) and writes
+    up to 2000 characters.
+  - "My messages" lists their conversations. The player can reply until
+    staff close the conversation.
+- **Staff side:** one shared inbox in a godmaster "Обратна връзка" tab.
+  - Every moderator and admin sees and can answer every conversation.
+  - Filters: status (new / answered / closed / all) and category.
+  - The tab shows how many conversations are waiting.
+  - Staff can close a conversation and reopen it.
+  - Replies, closes and reopens go to the admin action log.
+- **Anonymous replies (for now):** the player sees staff replies as "the
+  Pentilius team". Each reply's author is stored and shown only in
+  godmaster. Showing names later only changes what the player endpoint
+  returns.
+- **Statuses:**
+  - OPEN means waiting for staff: new, or the player wrote again.
+  - ANSWERED means staff replied. A staff reply sets the dot on the Settings
+    icon in the top bar until the player opens it.
+  - CLOSED means done. A staff reply reopens it as ANSWERED.
+- **Limits** (`GAME_BALANCE.support`):
+  - 3 new conversations per 24 hours;
+  - 5 not-closed conversations at once;
+  - 3 player messages in a row before staff answer.
+- **Retention:** conversations survive season resets and are deleted with
+  the account.

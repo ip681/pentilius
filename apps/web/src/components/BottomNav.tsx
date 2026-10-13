@@ -9,7 +9,7 @@ import { NAV_ITEMS } from '@/lib/nav-items';
 // Mobile-only, fixed to the bottom, scrolling horizontally — covers every
 // destination (the Sidebar's desktop equivalent), reusing the same icon
 // assets already made for the Command Center's Quick Access cards.
-export function BottomNav({ hasUnreadFriends }: { hasUnreadFriends: boolean }) {
+export function BottomNav({ hasUnreadFriends, hasDailyTaskReward = false }: { hasUnreadFriends: boolean; hasDailyTaskReward?: boolean }) {
   const t = useTranslations();
   const pathname = usePathname();
 
@@ -30,6 +30,8 @@ export function BottomNav({ hasUnreadFriends }: { hasUnreadFriends: boolean }) {
                 className={`h-9 w-9 object-contain transition-all ${active ? 'opacity-100' : 'opacity-80'}`}
                 fallback={<span className={`text-lg font-semibold ${active ? 'text-accent' : 'text-textMuted'}`}>{t(item.labelKey).charAt(0)}</span>}
               />
+              {/* A daily-task reward is waiting (owner decision, 2026-10-13). */}
+              {item.href === '/dashboard' && hasDailyTaskReward && <span className="absolute right-3 top-2 h-2 w-2 rounded-full bg-positive" />}
               {item.href === '/friends' && hasUnreadFriends && <span className="absolute right-3 top-2 h-2 w-2 rounded-full bg-danger" />}
               <span className="sr-only">{t(item.labelKey)}</span>
             </Link>

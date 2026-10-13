@@ -297,6 +297,157 @@ export const GAME_BALANCE = {
     activationCrystalPerLevel: 60,
     activationCreditsPerLevel: 0,
   },
+  // "Contact the team" limits (owner decision, 2026-10-13).
+  support: {
+    maxNewPerDay: 3,
+    maxOpen: 5,
+    maxMessageLength: 2000,
+    // Player messages in a row before staff must answer (anti-flood).
+    maxUnansweredMessages: 3,
+  },
+
+  // VIP convenience perks (owner decision, 2026-10-13) — see Player.vipUntil.
+  vip: {
+    // "Attack xN" against Pentili: up to this many battles in one click
+    // (fewer when energy is short; stops at the first loss).
+    multiAttackCount: 3,
+  },
+
+  // Level rewards (owner decision, 2026-10-13): claimed by hand, one level at a
+  // time. Placeholder amounts. Every boxEveryLevels-th level adds a box of the
+  // set of the zone being entered (zones open at 1/20/40/60).
+  levelRewards: {
+    maxLevel: 100,
+    metalPerLevel: 100,
+    crystalPerLevel: 25,
+    boxEveryLevels: 5,
+    boxes: [
+      { upToLevel: 15, itemKey: 'pioneer_box' },
+      { upToLevel: 35, itemKey: 'ascendant_box' },
+      { upToLevel: 100, itemKey: 'coreforged_box' },
+    ],
+  },
+
+  // Season achievements (owner decision, 2026-10-13): each is a chain of
+  // tiers; only the next unclaimed tier is shown. Placeholder rewards.
+  achievements: [
+    {
+      key: 'pentili_wins',
+      metric: 'PVE_WIN',
+      tiers: [
+        { target: 100, reward: { metal: 2000, crystal: 500 } },
+        { target: 500, reward: { metal: 6000, crystal: 1500, itemKey: 'energy_pack_small' } },
+        { target: 2000, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large' } },
+        { target: 10000, reward: { metal: 40000, crystal: 10000, itemKey: 'coreforged_box' } },
+      ],
+    },
+    {
+      key: 'expeditions',
+      metric: 'EXPEDITION_COMPLETED',
+      tiers: [
+        { target: 10, reward: { metal: 1500, crystal: 400 } },
+        { target: 50, reward: { metal: 5000, crystal: 1200, itemKey: 'energy_pack_small' } },
+        { target: 200, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large' } },
+      ],
+    },
+    {
+      // Regular PvP only — clan-war duels don't count.
+      key: 'pvp_wins',
+      metric: 'PVP_WIN',
+      tiers: [
+        { target: 10, reward: { metal: 2000, crystal: 500 } },
+        { target: 50, reward: { metal: 6000, crystal: 1500, itemKey: 'energy_pack_small' } },
+        { target: 200, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large' } },
+      ],
+    },
+    {
+      key: 'boss_wins',
+      metric: 'BOSS_WIN',
+      tiers: [
+        { target: 1, reward: { metal: 1000, crystal: 250 } },
+        { target: 10, reward: { metal: 5000, crystal: 1200, itemKey: 'energy_pack_small' } },
+        { target: 50, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large' } },
+      ],
+    },
+    {
+      key: 'item_upgrade',
+      metric: 'MAX_ITEM_UPGRADE',
+      tiers: [
+        { target: 5, reward: { metal: 2000, crystal: 500 } },
+        { target: 10, reward: { metal: 8000, crystal: 2000, itemKey: 'energy_pack_small' } },
+      ],
+    },
+    {
+      // All 7 slots equipped with this set (or a stronger one).
+      key: 'full_set',
+      metric: 'FULL_SET',
+      tiers: [
+        { target: 7, setTier: 'PIONEER', reward: { metal: 2000, crystal: 500 } },
+        { target: 7, setTier: 'ASCENDANT', reward: { metal: 8000, crystal: 2000, itemKey: 'energy_pack_small' } },
+        { target: 7, setTier: 'COREFORGED', reward: { metal: 20000, crystal: 5000, itemKey: 'energy_pack_large' } },
+      ],
+    },
+    {
+      // Every base building at this level or higher.
+      key: 'buildings',
+      metric: 'MIN_BUILDING_LEVEL',
+      tiers: [
+        { target: 5, reward: { metal: 5000, crystal: 1200 } },
+        { target: 10, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large' } },
+      ],
+    },
+    {
+      key: 'clan_donations',
+      metric: 'CLAN_DONATION',
+      tiers: [
+        { target: 10000, reward: { metal: 2000, crystal: 500 } },
+        { target: 100000, reward: { metal: 10000, crystal: 2500, itemKey: 'energy_pack_small' } },
+      ],
+    },
+    {
+      key: 'core_attacks',
+      metric: 'CORE_ATTACK',
+      tiers: [
+        { target: 1, reward: { metal: 500, crystal: 100 } },
+        { target: 50, reward: { metal: 8000, crystal: 2000, itemKey: 'energy_pack_large' } },
+      ],
+    },
+    {
+      // Days on which the all-daily-tasks bonus was received.
+      key: 'daily_all_done',
+      metric: 'DAILY_ALL_DONE',
+      tiers: [
+        { target: 7, reward: { metal: 3000, crystal: 800, itemKey: 'energy_pack_small' } },
+        { target: 30, reward: { metal: 12000, crystal: 3000, itemKey: 'energy_pack_large' } },
+      ],
+    },
+  ] as AchievementConfig[],
+
+  dailyTasks: {
+    // Daily tasks (owner decision, 2026-10-13). Reset at 00:00 in this time
+    // zone for everyone. Every battle counts (win or lose); the expedition
+    // task counts a FINISHED expedition (collected), not a cancelled one;
+    // the donation task counts donated resources (any mix of Metal/Crystal/
+    // Credits), so smaller donations fill it proportionally. Rewards grow with
+    // the player's level: amount = perLevel x level (energy is flat, capped
+    // at max like an energy pack). Unclaimed rewards are granted automatically
+    // after the day ends. Placeholder numbers — tune freely.
+    timeZone: 'Europe/Sofia',
+    tasks: [
+      { key: 'pve_10', type: 'PVE_BATTLE', target: 10, chain: 'pve', reward: { metalPerLevel: 60, crystalPerLevel: 15, xpPerLevel: 8, energy: 0 } },
+      { key: 'pve_15', type: 'PVE_BATTLE', target: 15, chain: 'pve', reward: { metalPerLevel: 80, crystalPerLevel: 20, xpPerLevel: 10, energy: 0 } },
+      { key: 'pve_20', type: 'PVE_BATTLE', target: 20, chain: 'pve', reward: { metalPerLevel: 100, crystalPerLevel: 25, xpPerLevel: 12, energy: 2 } },
+      { key: 'expedition_1', type: 'EXPEDITION_COMPLETED', target: 1, reward: { metalPerLevel: 80, crystalPerLevel: 20, xpPerLevel: 10, energy: 0 } },
+      // Shown from the PvP unlock level (GAME_BALANCE.pvp.minLevel).
+      { key: 'pvp_1', type: 'PVP_BATTLE', target: 1, minLevel: 'PVP', reward: { metalPerLevel: 80, crystalPerLevel: 20, xpPerLevel: 10, energy: 1 } },
+      // Shown from the lowest boss's Boss.minLevel; counts creating or joining a formation.
+      { key: 'boss_1', type: 'BOSS_FORMATION_JOIN', target: 1, minLevel: 'BOSS', reward: { metalPerLevel: 120, crystalPerLevel: 30, xpPerLevel: 15, energy: 2 } },
+      // Only for clan members; target = resources donated that day.
+      { key: 'clan_donation', type: 'CLAN_DONATION', target: 100, requiresClan: true, reward: { metalPerLevel: 60, crystalPerLevel: 15, xpPerLevel: 8, energy: 0 } },
+    ] as DailyTaskConfig[],
+    // Bonus for completing every task shown to the player that day.
+    allDoneBonusItemKey: 'energy_pack_small',
+  },
   moderation: {
     // Report-abuse limits (owner decision, 2026-10-12). A report never acts on
     // its own (only an admin decides), so these only keep the moderation
@@ -366,4 +517,43 @@ export function attributeCostForRank(currentRank: number): number {
 /** The pool of rollable "Excellent options" for a given equipment slot. */
 export function getOptionPool(slot: EquipmentSlot): ItemOption[] {
   return slot === 'LEFT_ARM' || slot === 'RIGHT_ARM' ? GAME_BALANCE.itemOptionPools.WEAPON : GAME_BALANCE.itemOptionPools.ARMOR;
+}
+
+export type DailyTaskType = 'PVE_BATTLE' | 'EXPEDITION_COMPLETED' | 'PVP_BATTLE' | 'BOSS_FORMATION_JOIN' | 'CLAN_DONATION';
+
+export interface DailyTaskConfig {
+  key: string;
+  type: DailyTaskType;
+  target: number;
+  // Tasks sharing a chain are shown one at a time, in list order — the next
+  // appears once the previous one's reward is claimed (10 -> 15 -> 20).
+  chain?: string;
+  // 'PVP' / 'BOSS' resolve to the PvP unlock level / lowest boss level.
+  minLevel?: number | 'PVP' | 'BOSS';
+  requiresClan?: boolean;
+  reward: { metalPerLevel: number; crystalPerLevel: number; xpPerLevel: number; energy: number };
+}
+
+export type AchievementMetric =
+  | 'PVE_WIN'
+  | 'EXPEDITION_COMPLETED'
+  | 'PVP_WIN'
+  | 'BOSS_WIN'
+  | 'CLAN_DONATION'
+  | 'CORE_ATTACK'
+  | 'DAILY_ALL_DONE'
+  | 'MAX_ITEM_UPGRADE'
+  | 'FULL_SET'
+  | 'MIN_BUILDING_LEVEL';
+
+export interface AchievementRewardConfig {
+  metal: number;
+  crystal: number;
+  itemKey?: string;
+}
+
+export interface AchievementConfig {
+  key: string;
+  metric: AchievementMetric;
+  tiers: { target: number; setTier?: 'PIONEER' | 'ASCENDANT' | 'COREFORGED'; reward: AchievementRewardConfig }[];
 }

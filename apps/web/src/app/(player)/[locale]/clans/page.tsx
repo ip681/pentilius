@@ -1028,7 +1028,11 @@ export default function ClansPage() {
                 {messages?.map((message) => (
                   <div key={message.id} className="mb-1.5 text-xs">
                     <span className="text-[9px] text-textFaint">{formatDateTime(message.createdAt)}</span>{' '}
-                    <PlayerLink playerId={message.playerId} username={message.username} className="font-semibold hover:text-accent" />
+                    <PlayerLink
+                      playerId={message.playerId}
+                      username={message.username}
+                      className={`font-semibold hover:text-accent ${message.isVip ? 'text-vip' : ''}`}
+                    />
                     {': '}
                     <span className="text-textMuted">{message.text}</span>
                     {myProfile && message.playerId !== myProfile.id && !isDeletedPlayerName(message.username) && (

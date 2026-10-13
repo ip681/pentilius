@@ -14,6 +14,11 @@ export class PveController {
     return this.pveService.attack(currentPlayer.sub, pentiliId);
   }
 
+  @Post('attack/:pentiliId/multi')
+  attackMultiple(@CurrentPlayer() currentPlayer: JwtPayload, @Param('pentiliId') pentiliId: string) {
+    return this.pveService.attackMultiple(currentPlayer.sub, pentiliId);
+  }
+
   @Get('reports')
   getReports(@CurrentPlayer() currentPlayer: JwtPayload) {
     return this.pveService.getReports(currentPlayer.sub);
