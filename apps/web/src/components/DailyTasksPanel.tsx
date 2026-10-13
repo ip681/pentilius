@@ -28,12 +28,8 @@ export function DailyTasksPanel({ onChanged }: { onChanged?: () => void }) {
 
   useEffect(() => {
     load();
-    const refresh = setInterval(load, 15_000);
     const clock = setInterval(() => setNow(Date.now()), 1000);
-    return () => {
-      clearInterval(refresh);
-      clearInterval(clock);
-    };
+    return () => clearInterval(clock);
   }, []);
 
   // A new day started — load the fresh tasks.

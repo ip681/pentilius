@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CosmeticsCatalogDto, PlayerLeaderboardEntryDto, PlayerLeaderboardPageDto, PlayerLeaderboardSortBy, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
+import { CosmeticsCatalogDto, NotificationsDto, PlayerLeaderboardEntryDto, PlayerLeaderboardPageDto, PlayerLeaderboardSortBy, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
 import { Race } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { GAME_BALANCE } from '../config/game-config';
@@ -54,9 +54,6 @@ export class PlayerService {
       deletionScheduledFor: player.deletionScheduledFor?.toISOString() ?? null,
       needsRaceSelection: player.needsRaceSelection,
       ...(await this.seasonInfo()),
-      dailyTasksClaimable: await this.dailyTasks.hasClaimable(playerId),
-      achievementsClaimable: await this.achievements.hasClaimable(playerId),
-      supportUnread: (await this.prisma.supportTicket.count({ where: { playerId, playerUnread: true } })) > 0,
       vipUntil: player.vipUntil?.toISOString() ?? null,
       vipMultiAttackCount: GAME_BALANCE.vip.multiAttackCount,
     };
@@ -68,6 +65,16 @@ export class PlayerService {
       avatars: avatars.map((a) => ({ key: a.key, nameKey: a.nameKey, iconAssetId: a.iconAssetId })),
       frames: frames.map((f) => ({ key: f.key, nameKey: f.nameKey, iconAssetId: f.iconAssetId })),
     };
+  }
+
+  /** The menu dots — fetched on page change and after claims, not with every profile load. */
+  async getNotifications(playerId: string): Promise<NotificationsDto> {
+    const [dailyTasks, achievements, support] = await Promise.all([
+      this.dailyTasks.hasClaimable(playerId),
+      this.achievements.hasClaimable(playerId),
+      this.prisma.supportTicket.count({ where: { playerId, playerUnread: true } }),
+    ]);
+    return { dailyTasks, achievements, support: support > 0 };
   }
 
   async updateAvatar(playerId: string, avatarKey: string): Promise<PlayerProfileDto> {

@@ -8,6 +8,7 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { DailyTasksPanel } from '@/components/DailyTasksPanel';
 import { getAchievements, getDailyTasks } from '@/lib/api-client';
+import { notifyNotificationsChanged } from '@/lib/notifications-events';
 
 type Open = 'daily' | 'achievements' | null;
 
@@ -31,10 +32,15 @@ export function ProgressTiles() {
       .catch(() => undefined);
   }
 
+  // After a claim: refresh the tiles and the menu dot.
+  function afterClaim() {
+    load();
+    notifyNotificationsChanged();
+  }
+
+  // Loaded on page open and after a claim (the cheap way — no polling).
   useEffect(() => {
     load();
-    const refresh = setInterval(load, 30_000);
-    return () => clearInterval(refresh);
   }, []);
 
   const dailyDone = daily ? daily.tasks.filter((task) => task.completed).length : 0;
@@ -63,8 +69,8 @@ export function ProgressTiles() {
       </div>
 
       <BottomSheet open={open !== null} onClose={() => setOpen(null)} wide>
-        {open === 'daily' && <DailyTasksPanel onChanged={load} />}
-        {open === 'achievements' && <AchievementsPanel onChanged={load} />}
+        {open === 'daily' && <DailyTasksPanel onChanged={afterClaim} />}
+        {open === 'achievements' && <AchievementsPanel onChanged={afterClaim} />}
         <button type="button" onClick={() => setOpen(null)} className="mt-4 w-full text-center text-xs text-textFaint underline">
           {t('common.close')}
         </button>

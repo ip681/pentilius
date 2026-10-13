@@ -32,6 +32,7 @@ import type {
   CosmeticsCatalogDto,
   AchievementsDto,
   DailyTasksDto,
+  NotificationsDto,
   SupportCategoryValue,
   SupportTicketDto,
   MultiAttackResultDto,
@@ -171,6 +172,11 @@ export function register(payload: RegisterRequest): Promise<AuthResponse> {
 
 export function login(payload: LoginRequest): Promise<AuthResponse> {
   return request<AuthResponse>('/auth/login', { method: 'POST', body: payload });
+}
+
+/** The menu dots — a light check kept out of the profile. */
+export function getNotifications(): Promise<NotificationsDto> {
+  return request<NotificationsDto>('/player/me/notifications', { auth: true });
 }
 
 // --- Contact the team (owner decision, 2026-10-13) ---

@@ -48,14 +48,8 @@ export interface PlayerProfileDto {
   needsRaceSelection: boolean;
   // Current season number ("Започна Сезон N!").
   seasonNumber: number;
-  // A daily-task reward (or the all-tasks bonus) is waiting to be claimed — the nav dot.
-  dailyTasksClaimable: boolean;
   // VIP until this moment (null = never/expired long ago); the client compares with now.
   vipUntil: string | null;
-  // Staff answered a "contact the team" conversation the player hasn't opened — the Settings dot.
-  supportUnread: boolean;
-  // An achievement tier or level reward is waiting to be claimed — the tile dot.
-  achievementsClaimable: boolean;
   // GAME_BALANCE.vip.multiAttackCount — the "Attack xN" size.
   vipMultiAttackCount: number;
   // Once the Core has closed: when the season resets — the client counts down to it
@@ -1269,4 +1263,15 @@ export interface AdminSupportTicketDetailDto {
   status: SupportStatusValue;
   createdAt: string;
   messages: (SupportMessageViewDto & { staffUsername: string | null })[];
+}
+
+// The menu dots (owner decision, 2026-10-13) — one light check, kept out of the
+// profile (loaded far more often), same idea as the friends unread status.
+export interface NotificationsDto {
+  // A daily-task reward or the all-tasks bonus can be claimed.
+  dailyTasks: boolean;
+  // An achievement tier or a level reward can be claimed.
+  achievements: boolean;
+  // Staff answered a "contact the team" conversation the player hasn't opened.
+  support: boolean;
 }

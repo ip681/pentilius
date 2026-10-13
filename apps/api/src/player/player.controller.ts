@@ -26,6 +26,11 @@ export class PlayerController {
     return this.playerService.getProfile(currentPlayer.sub);
   }
 
+  @Get('me/notifications')
+  getNotifications(@CurrentPlayer() currentPlayer: JwtPayload) {
+    return this.playerService.getNotifications(currentPlayer.sub);
+  }
+
   @Post('me/bio')
   updateBio(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: UpdateBioDto) {
     return this.playerService.updateBio(currentPlayer.sub, dto.bio);

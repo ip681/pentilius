@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { ApiError, createSupportTicket, getSupportTickets, markSupportTicketRead, replySupportTicket } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format-datetime';
-import { notifyProfileChanged } from '@/lib/profile-events';
+import { notifyNotificationsChanged } from '@/lib/notifications-events';
 
 const CATEGORIES: SupportCategoryValue[] = ['IDEA', 'BUG', 'QUESTION', 'OTHER'];
 const MAX_LENGTH = 2000;
@@ -33,8 +33,6 @@ export function SupportSection() {
 
   useEffect(() => {
     load();
-    const refresh = setInterval(load, 60_000);
-    return () => clearInterval(refresh);
   }, []);
 
   function errorText(err: unknown): string {
@@ -69,7 +67,7 @@ export function SupportSection() {
     if (next && ticket.unread) {
       await markSupportTicketRead(ticket.id).catch(() => undefined);
       setTickets((list) => list?.map((item) => (item.id === ticket.id ? { ...item, unread: false } : item)) ?? null);
-      notifyProfileChanged();
+      notifyNotificationsChanged();
     }
   }
 

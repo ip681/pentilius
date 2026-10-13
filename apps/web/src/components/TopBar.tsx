@@ -32,9 +32,11 @@ function ResourcesRow({ profile, className, iconClassName }: { profile: PlayerPr
 export function TopBar({
   profile,
   loggedIn,
+  supportUnread = false,
 }: {
   profile: PlayerProfileDto | null;
   loggedIn: boolean;
+  supportUnread?: boolean;
 }) {
   const t = useTranslations();
   const router = useRouter();
@@ -115,7 +117,7 @@ export function TopBar({
               className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:opacity-70 sm:h-8 sm:w-8"
             >
               {/* The team answered a "contact the team" message (owner decision, 2026-10-13). */}
-              {profile?.supportUnread && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-danger" />}
+              {supportUnread && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-danger" />}
               <AssetIcon
                 assetId="interface.settings.icon"
                 alt={t('topbar.settings')}

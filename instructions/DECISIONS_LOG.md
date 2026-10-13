@@ -698,3 +698,15 @@ XP, build speed or Core points, so it does not become pay-to-win.
   - 3 player messages in a row before staff answer.
 - **Retention:** conversations survive season resets and are deleted with
   the account.
+
+## Menu dots kept out of the profile (2026-10-13)
+
+The daily-task, achievement and team-reply dots used to be computed inside
+the player profile, which loads on nearly every page and after every action.
+They are now one light `GET /player/me/notifications` call, the same way the
+friends unread status works. It is checked once per page change and right
+after a claim or after opening a team reply, with no polling. The Command
+Center tiles, the daily-tasks popup and "Contact the team" no longer refresh
+on a timer either. A dot set by a battle therefore shows up on the next page
+change. Owner decision: the cheaper approach for the current single server;
+revisit with more capacity.
