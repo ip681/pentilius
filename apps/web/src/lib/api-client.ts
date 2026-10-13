@@ -32,6 +32,7 @@ import type {
   CosmeticsCatalogDto,
   AchievementsDto,
   DailyTasksDto,
+  NotificationSettingsDto,
   NotificationsDto,
   SupportCategoryValue,
   SupportTicketDto,
@@ -177,6 +178,28 @@ export function login(payload: LoginRequest): Promise<AuthResponse> {
 /** The menu dots — a light check kept out of the profile. */
 export function getNotifications(): Promise<NotificationsDto> {
   return request<NotificationsDto>('/player/me/notifications', { auth: true });
+}
+
+// --- Notifications and Web Push (owner decision, 2026-10-13) ---
+
+export function getNotificationSettings(): Promise<{ settings: NotificationSettingsDto; pushPublicKey: string | null }> {
+  return request<{ settings: NotificationSettingsDto; pushPublicKey: string | null }>('/player/me/notification-settings', { auth: true });
+}
+
+export function updateNotificationSettings(settings: NotificationSettingsDto): Promise<{ settings: NotificationSettingsDto; pushPublicKey: string | null }> {
+  return request<{ settings: NotificationSettingsDto; pushPublicKey: string | null }>('/player/me/notification-settings', {
+    method: 'POST',
+    auth: true,
+    body: { settings },
+  });
+}
+
+export function subscribePush(endpoint: string, p256dh: string, auth: string): Promise<void> {
+  return request<void>('/player/me/push-subscriptions', { method: 'POST', auth: true, body: { endpoint, keys: { p256dh, auth } } });
+}
+
+export function unsubscribePush(endpoint: string): Promise<void> {
+  return request<void>('/player/me/push-subscriptions/remove', { method: 'POST', auth: true, body: { endpoint } });
 }
 
 // --- Contact the team (owner decision, 2026-10-13) ---

@@ -7,9 +7,16 @@ files for game design and architecture rules.
 ## Production environment
 
 - Single VPS (Time4VPS), IP `185.5.52.196`, root SSH key-only access.
-- Both apps live under `/opt/pentilius` (this repo) and `/opt/billing` (a
-  separate, unrelated app) on the same box, sharing one Caddy reverse proxy
-  (`/opt/billing/Caddyfile`) and a shared Docker network `caddy_net`.
+- The VPS runs only Pentilius (owner decision, 2026-10-13: the Billing test
+  app that used to share it was removed). The repo is at `/opt/pentilius`.
+  Caddy is part of `docker-compose.prod.yml`; its config is `deploy/Caddyfile`
+  and it reaches `api`/`web` over the compose network. Let's Encrypt
+  certificates live in the `pentilius_caddy_data` volume and renew
+  automatically.
+- Host-side files outside the repo:
+  - `/opt/pentilius-backups`: backup and status scripts, dumps, logs;
+  - `/opt/pentilius-secrets`: the rclone config;
+  - `/opt/pentilius/.env`: app secrets.
 - Deploy flow: `git pull` → `docker compose -f docker-compose.prod.yml build <service>`
   (sequentially, not in parallel — the box has ~3.8GB RAM) → `up -d` →
   `docker compose ... exec api npx prisma migrate deploy` → re-run the seed
@@ -50,18 +57,14 @@ season launch or a natural stopping point:
   records swap, and the godmaster Server tab shows it with stricter colours
   (gold from 10%, red from 40%) and a line on the chart. Steady swap use means
   RAM is short and it is time for a bigger server.
-- **Prune Docker build cache periodically.** Every `docker compose build`
-  adds layers; `docker builder prune -f` reclaims the unused ones. Checked
-  2026-09-08: 10.78GB total build cache, 8.44GB reclaimable. Disk headroom
-  was healthy (31GB free) so this wasn't urgent, but it grows with every
-  deploy and is worth checking again periodically.
+- **Prune Docker build cache periodically (idea, to discuss and do later —
+  owner, 2026-10-13).** Checked 2026-10-13: 8.5GB of build cache, 6.3GB of
+  it reclaimable; the disk is 35% used. Proposal so far:
+  - a weekly host cron (like the backup), e.g. Sunday night, running
+    `docker builder prune -f --filter until=168h` and removing unused images;
+  - godmaster shows it read-only, via `server-status.sh`: cache size, last
+    prune, result.
 
-## Decisions log
-
-`instructions/DECISIONS_LOG.md` holds the historical record of confirmed
-decisions and their rationale (split out of `OPEN_DECISIONS.md` on
-2026-10-11, which had grown into a mix of resolved history and genuinely open
-questions — expensive to load in full on every conversation for mostly-dead
-weight). It is deliberately **not** referenced via `@` from `CLAUDE.md`, so
-it's read on demand instead of auto-loaded every turn. `OPEN_DECISIONS.md`
-keeps tracking the opposite — things *not yet* decided.
+  A godmaster button or a schedule set from godmaster were considered and
+  advised against: the API would need Docker access, which is effectively
+  root on the host.

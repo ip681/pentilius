@@ -479,6 +479,22 @@
     "visibilityClanAndFriends": "Clan & friends"
   },
   "settings": {
+    "cards": {
+      "cosmetics": "Choose your avatar and frame",
+      "password": "Change your password",
+      "languageNames": {
+        "bg": "Български",
+        "en": "English"
+      },
+      "notificationsOn": "On for this device",
+      "notificationsOff": "Off for this device",
+      "supportNew": "You have a new reply from the team",
+      "supportIdle": "Send us an idea, a problem or a question",
+      "blockedNone": "No blocked players",
+      "blockedCount": "Blocked: {count}",
+      "deleteIdle": "Delete your account for good",
+      "deleteScheduled": "Scheduled for {date}"
+    },
     "title": "Settings",
     "subtitle": "Manage your account.",
     "passwordSection": "Password",
@@ -937,7 +953,7 @@
           "paragraphs": [
             "Deep beneath the surface, humans found something ancient — a system that keeps the atmosphere and life of Pentilius the way they are. It was not built for humans, and it is no convenient terraforming machine.",
             "But through the Core, that system can be influenced. Whoever takes control of it will lay the foundations of a new civilization.",
-            "The closer humanity gets to the Core, the more restless the Pentili become. And every clan knows that only one of them will be first."
+            "Every clan knows that only one of them will be first."
           ]
         }
       ]
@@ -1230,5 +1246,56 @@
     "errorWaitForReply": "Please wait for the team to answer before writing again.",
     "errorClosed": "This conversation is closed.",
     "errorGeneric": "The message could not be sent."
+  },
+  "notifications": {
+    "energyFull": {
+      "title": "Energy is full",
+      "body": "Time to fight — your energy is at its maximum."
+    },
+    "constructionDone": {
+      "title": "Construction finished",
+      "body": "{name} — level {level} is ready."
+    },
+    "researchDone": {
+      "title": "Research finished",
+      "body": "{name} — level {level} is ready."
+    },
+    "expeditionDone": {
+      "title": "Expedition is back",
+      "body": "{name} — collect your rewards."
+    },
+    "pvpAttacked": {
+      "title": "You were attacked!",
+      "bodyWon": "{attacker} attacked your base, but you held them off.",
+      "bodyLost": "{attacker} attacked your base and won."
+    },
+    "settings": {
+      "title": "Notifications",
+      "intro": "Get notified when something finishes or you are attacked — even when the game is not in front of you.",
+      "device": {
+        "on": "Browser notifications are on for this device.",
+        "off": "Browser notifications are off for this device.",
+        "blocked": "Your browser blocks notifications — allow them for pentilius.com in the browser settings.",
+        "unsupported": "This browser does not support notifications.",
+        "onPush": "On for this device — they arrive even when the game is closed.",
+        "onOpenOnly": "On for this device, but only while the game is open (even in another tab)."
+      },
+      "turnOn": "Turn on",
+      "turnOff": "Turn off",
+      "types": {
+        "ENERGY_FULL": "Full energy",
+        "CONSTRUCTION_DONE": "Construction finished",
+        "RESEARCH_DONE": "Research finished",
+        "EXPEDITION_DONE": "Expedition finished",
+        "PVP_ATTACKED": "PvP attack"
+      },
+      "note": "On iPhone, notifications with the game closed only work once the game is added to the home screen (Share → Add to Home Screen).",
+      "pushFailure": {
+        "no-server-key": "The server does not have closed-game notifications set up yet.",
+        "unsupported": "This browser does not support notifications with the game closed (on iPhone, add the game to the home screen).",
+        "subscribe-failed": "The browser refused notifications with the game closed (in Brave: Settings → Privacy → \"Use Google services for push messaging\"). Turn off and on again to retry.",
+        "server-failed": "The subscription could not be saved. Turn off and on again to retry."
+      }
+    }
   }
 }

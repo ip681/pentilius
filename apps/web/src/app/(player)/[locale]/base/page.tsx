@@ -11,6 +11,7 @@ import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, cancelBuildQueue, consumeItem, getBase, getInventory, queueBuilding, upgradeBuilding } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { notifyNotificationsChanged } from '@/lib/notifications-events';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
@@ -85,6 +86,7 @@ export default function BasePage() {
     try {
       await upgradeBuilding(key);
       notifyProfileChanged();
+      notifyNotificationsChanged();
       await load();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'ANOTHER_BUILDING_UNDER_CONSTRUCTION') {
@@ -102,6 +104,7 @@ export default function BasePage() {
     try {
       setData(await queueBuilding(key));
       notifyProfileChanged();
+      notifyNotificationsChanged();
       closeSheet();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'BUILD_QUEUE_FULL') {
@@ -128,6 +131,7 @@ export default function BasePage() {
     setError(null);
     try {
       await consumeItem(itemInstanceId, buildingKey);
+      notifyNotificationsChanged();
       await load();
     } catch {
       setError(t('base.speedupError'));

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ResearchStateDto, ResourcesDto } from '@pentilius/shared';
 import { Player, PlayerResearch, ResearchType } from '@prisma/client';
 import { EconomyService } from '../player/economy.service';
+import { PushService } from '../notifications/push.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 type ResearchWithType = PlayerResearch & { researchType: ResearchType & { levelCosts: { level: number; metalCost: number; crystalCost: number; creditsCost: number; researchSeconds: number }[] } };
@@ -22,6 +23,7 @@ export class ResearchService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
+    private readonly push: PushService,
   ) {}
 
   async getResearches(playerId: string) {
@@ -110,6 +112,8 @@ export class ResearchService {
         where: { id: research.id },
         data: { level: research.level + 1, researchEndsAt: null },
       });
+      // Same key as the minute scan, so it goes out once whichever sees it first.
+      void this.push.sendOnce(playerId, 'RESEARCH_DONE', `${research.id}:${research.researchEndsAt!.toISOString()}`).catch(() => undefined);
     }
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { assetUrl } from '@/lib/assets';
 
 // Most entities don't have prepared art yet (see instructions/ASSETS.md — placeholders are
@@ -18,6 +18,14 @@ export function AssetIcon({
   fallback: React.ReactNode;
 }) {
   const [failed, setFailed] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // A missing file can fail before React attaches onError (server-rendered
+  // markup), leaving a broken image instead of the fallback — check once mounted.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth === 0) setFailed(true);
+  }, [assetId]);
 
   if (failed) {
     return <>{fallback}</>;
@@ -25,6 +33,6 @@ export function AssetIcon({
 
   return (
     // eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer is disabled project-wide (no sharp); see apps/web/next.config.mjs.
-    <img src={assetUrl(assetId)} alt={alt} className={className} onError={() => setFailed(true)} />
+    <img ref={imgRef} src={assetUrl(assetId)} alt={alt} className={className} onError={() => setFailed(true)} />
   );
 }

@@ -8,6 +8,7 @@ import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, getResearches, startResearch } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { notifyNotificationsChanged } from '@/lib/notifications-events';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
@@ -47,6 +48,7 @@ export default function ResearchPage() {
     setError(null);
     try {
       await startResearch(key);
+      notifyNotificationsChanged();
       notifyProfileChanged();
       await load();
     } catch (err) {

@@ -21,6 +21,8 @@ export interface EnergyDto {
   max: number;
   // ISO timestamp of the next point's regeneration, or null when already at max.
   nextRegenAt: string | null;
+  // When the bar will be full (null when already full) — the "energy full" notification.
+  fullAt: string | null;
 }
 
 export interface PlayerProfileDto {
@@ -1267,6 +1269,20 @@ export interface AdminSupportTicketDetailDto {
 
 // The menu dots (owner decision, 2026-10-13) — one light check, kept out of the
 // profile (loaded far more often), same idea as the friends unread status.
+// Timed and event notifications (owner decision, 2026-10-13).
+export type NotificationType = 'ENERGY_FULL' | 'CONSTRUCTION_DONE' | 'RESEARCH_DONE' | 'EXPEDITION_DONE' | 'PVP_ATTACKED';
+export type NotificationSettingsDto = Record<NotificationType, boolean>;
+
+// A timer the open game turns into an in-game/browser notification when it ends.
+export interface NotificationTimerDto {
+  type: NotificationType;
+  at: string;
+  // Translation key of the building / research / expedition name; null for energy.
+  nameKey: string | null;
+  // The level being built or researched; null otherwise.
+  level: number | null;
+}
+
 export interface NotificationsDto {
   // A daily-task reward or the all-tasks bonus can be claimed.
   dailyTasks: boolean;
@@ -1274,4 +1290,9 @@ export interface NotificationsDto {
   achievements: boolean;
   // Staff answered a "contact the team" conversation the player hasn't opened.
   support: boolean;
+  // Upcoming (or just-ended) timers for in-game notifications.
+  timers: NotificationTimerDto[];
+  // The latest PvP battle where this player was the defender.
+  lastAttack: { at: string; attacker: string; defenderWon: boolean } | null;
+  settings: NotificationSettingsDto;
 }

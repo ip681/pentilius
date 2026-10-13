@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CosmeticsCatalogDto, NotificationsDto, PlayerLeaderboardEntryDto, PlayerLeaderboardPageDto, PlayerLeaderboardSortBy, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
+import { CosmeticsCatalogDto, NotificationTimerDto, NotificationsDto, PlayerLeaderboardEntryDto, PlayerLeaderboardPageDto, PlayerLeaderboardSortBy, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
 import { Race } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { GAME_BALANCE } from '../config/game-config';
@@ -7,6 +7,7 @@ import { EconomyService } from './economy.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
+import { readNotificationSettings } from '../notifications/push.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coreStatus, getCurrentSeason } from '../season/season.service';
 
@@ -47,6 +48,12 @@ export class PlayerService {
           player.actionEnergy < player.actionEnergyMax
             ? new Date(player.energyUpdatedAt.getTime() + GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000).toISOString()
             : null,
+        fullAt:
+          player.actionEnergy < player.actionEnergyMax
+            ? new Date(
+                player.energyUpdatedAt.getTime() + (player.actionEnergyMax - player.actionEnergy) * GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000,
+              ).toISOString()
+            : null,
       },
       preferredLocale: player.preferredLocale,
       selectedAvatarKey: player.selectedAvatarKey,
@@ -69,12 +76,55 @@ export class PlayerService {
 
   /** The menu dots — fetched on page change and after claims, not with every profile load. */
   async getNotifications(playerId: string): Promise<NotificationsDto> {
-    const [dailyTasks, achievements, support] = await Promise.all([
+    // Timers that ended a moment ago are included, so a page change at the
+    // wrong instant doesn't swallow the notification (the client dedupes).
+    const since = new Date(Date.now() - 2 * 60_000);
+    const [dailyTasks, achievements, support, player, buildings, researches, expedition, lastDefense] = await Promise.all([
       this.dailyTasks.hasClaimable(playerId),
       this.achievements.hasClaimable(playerId),
       this.prisma.supportTicket.count({ where: { playerId, playerUnread: true } }),
+      this.prisma.player.findUniqueOrThrow({
+        where: { id: playerId },
+        select: { actionEnergy: true, actionEnergyMax: true, energyUpdatedAt: true, notificationSettings: true },
+      }),
+      this.prisma.playerBuilding.findMany({
+        where: { playerId, constructionEndsAt: { gte: since } },
+        select: { level: true, constructionEndsAt: true, buildingType: { select: { nameKey: true } } },
+      }),
+      this.prisma.playerResearch.findMany({
+        where: { playerId, researchEndsAt: { gte: since } },
+        select: { level: true, researchEndsAt: true, researchType: { select: { nameKey: true } } },
+      }),
+      this.prisma.playerExpedition.findFirst({
+        where: { playerId, claimedAt: null, cancelled: false, endsAt: { gte: since } },
+        select: { endsAt: true, expeditionType: { select: { nameKey: true } } },
+      }),
+      this.prisma.pvpBattleReport.findFirst({
+        where: { defenderId: playerId },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, outcome: true, attacker: { select: { username: true } } },
+      }),
     ]);
-    return { dailyTasks, achievements, support: support > 0 };
+
+    const timers: NotificationTimerDto[] = [];
+    if (player.actionEnergy < player.actionEnergyMax) {
+      const fullAt = player.energyUpdatedAt.getTime() + (player.actionEnergyMax - player.actionEnergy) * GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000;
+      timers.push({ type: 'ENERGY_FULL', at: new Date(fullAt).toISOString(), nameKey: null, level: null });
+    }
+    for (const b of buildings) timers.push({ type: 'CONSTRUCTION_DONE', at: b.constructionEndsAt!.toISOString(), nameKey: b.buildingType.nameKey, level: b.level + 1 });
+    for (const r of researches) timers.push({ type: 'RESEARCH_DONE', at: r.researchEndsAt!.toISOString(), nameKey: r.researchType.nameKey, level: r.level + 1 });
+    if (expedition) timers.push({ type: 'EXPEDITION_DONE', at: expedition.endsAt.toISOString(), nameKey: expedition.expeditionType.nameKey, level: null });
+
+    return {
+      dailyTasks,
+      achievements,
+      support: support > 0,
+      timers,
+      lastAttack: lastDefense
+        ? { at: lastDefense.createdAt.toISOString(), attacker: lastDefense.attacker.username, defenderWon: lastDefense.outcome !== 'WIN' }
+        : null,
+      settings: readNotificationSettings(player.notificationSettings),
+    };
   }
 
   async updateAvatar(playerId: string, avatarKey: string): Promise<PlayerProfileDto> {

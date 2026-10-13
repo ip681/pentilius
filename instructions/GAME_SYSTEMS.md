@@ -248,6 +248,18 @@ and resets each season. Lists and rewards are in `game-config.ts`
 
 Other notifications may be added later.
 
+**Built (2026-10-13):**
+- **Kinds:** full energy, construction finished, research finished,
+  expedition finished, and a PvP attack on you. Each can be switched off in
+  Settings; the setting is server-side and shared by all devices.
+- **Delivery:**
+  - an in-game notice while the game is in front of the player;
+  - a browser notification while it's open in the background;
+  - Web Push when the game is closed.
+- **Server-side design:** the server decides what and when, and the
+  browser is one delivery channel, so the future mobile app adds a channel
+  without new rules. Details are in `instructions/DECISIONS_LOG.md`.
+
 ## Research / Technology Tree
 **LOCKED:** Research exists.
 

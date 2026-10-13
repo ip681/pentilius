@@ -10,6 +10,7 @@ import { ResourceIcon } from '@/components/ResourceIcon';
 import { StatBar } from '@/components/StatBar';
 import { Link, useRouter } from '@/i18n/navigation';
 import { clearTokens } from '@/lib/auth';
+import { disableDeviceNotifications } from '@/lib/push';
 
 function ResourcesRow({ profile, className, iconClassName }: { profile: PlayerProfileDto; className?: string; iconClassName?: string }) {
   const amounts: [ResourceType, number][] = [
@@ -41,7 +42,10 @@ export function TopBar({
   const t = useTranslations();
   const router = useRouter();
 
-  function handleLogout() {
+  async function handleLogout() {
+    // Owner decision (2026-10-13): logging out stops this account's
+    // notifications on this device, so the next person here doesn't get them.
+    await disableDeviceNotifications().catch(() => undefined);
     clearTokens();
     router.push('/login');
   }

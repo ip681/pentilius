@@ -261,6 +261,12 @@ model Player {
   achievementProgress    AchievementProgress[]
   achievementClaims      AchievementClaim[]
   supportTickets         SupportTicket[]
+  pushSubscriptions      PushSubscription[]
+  pushDispatches         PushDispatch[]
+
+  // Which notifications the player wants (owner decision, 2026-10-13) —
+  // { TYPE: false } switches one off; missing = on. Shared by every channel.
+  notificationSettings Json @default("{}")
   blocksMade             PlayerBlock[]  @relation("BlocksMade")
   blocksReceived         PlayerBlock[]  @relation("BlocksReceived")
   reportsFiled           PlayerReport[] @relation("ReportsFiled")
@@ -1604,4 +1610,37 @@ model SupportMessage {
 
   @@index([ticketId, createdAt])
   @@map("support_messages")
+}
+
+// Web Push (owner decision, 2026-10-13): one row per browser/device that
+// allowed notifications. Removed when the browser reports it gone (404/410),
+// when the player turns push off, and with the account.
+model PushSubscription {
+  id        String   @id @default(uuid())
+  playerId  String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+  @@map("push_subscriptions")
+}
+
+// "Already sent" marks so the minute scan and event hooks never notify twice
+// for the same thing. Pruned after two days.
+model PushDispatch {
+  id        String   @id @default(uuid())
+  playerId  String
+  type      String
+  refKey    String
+  createdAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, type, refKey])
+  @@index([createdAt])
+  @@map("push_dispatches")
 }

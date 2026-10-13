@@ -738,3 +738,80 @@ Research polled every 3 s, even in hidden tabs. Rough, unmeasured estimate:
 about 10x fewer requests per online player. Merging the Command Center into
 one request was considered and deferred until the mobile app's home screen
 needs it: more coupling, and one failing part could break the whole page.
+
+## Notifications and Web Push (2026-10-13)
+
+- **Principle:** the server decides what to notify and when; delivery
+  channels plug in. Today: in-game notices, browser notifications and Web
+  Push. Later: the mobile app. Browser first, built so the app is easy to
+  add.
+- **Kinds:**
+  - `ENERGY_FULL` (LOCKED requirement);
+  - `CONSTRUCTION_DONE`;
+  - `RESEARCH_DONE`;
+  - `EXPEDITION_DONE`;
+  - `PVP_ATTACKED`.
+
+  Each one can be switched off in Settings → Notifications, stored as
+  `Player.notificationSettings` (missing = on). "Turn on" in Settings is per
+  device: it asks the browser's permission and subscribes that browser to
+  Web Push.
+- **While the game is open:** the light notifications check (once per page
+  change) also returns upcoming timers and the last PvP defense. The client
+  schedules them: an in-game notice if the tab is visible, a browser
+  notification if it's in the background (skipped when this device has Web
+  Push, to avoid doubles).
+- **Web Push (game closed):**
+  - It uses our own VAPID keys (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` in
+    the API env) and the `web-push` library. No paid service; delivery goes
+    through the browser vendors' push services.
+  - A one-minute in-process scan finds timers that ended in the last 10
+    minutes for subscribed players. This is one light scan, not a job per
+    player.
+  - PvP attacks are pushed right after the battle commits.
+  - `PushDispatch` makes every notification go out once.
+  - Subscriptions that the browser reports gone are deleted, and all of
+    them are deleted with the account.
+  - The service worker (`public/sw.js`) skips the OS notification when the
+    game is open and focused.
+- **Platform limits** (from secondary sources, checked 2026-10-13; recheck
+  against Apple's docs before relying on them):
+  - On iPhone, push works only once the game is added to the home screen
+    (iOS 16.4+).
+  - Android and desktop browsers work directly. On desktop the browser has
+    to be running, at least in the background.
+- **Fixes after the first test (same day):**
+  - The energy-full time comes from the player profile, which refreshes
+    after every action.
+  - Timed actions (build, queue, speed-up, research, expedition) refresh the
+    notification timers at once.
+  - A construction or research that a page marks as done also triggers the
+    push, with the same once-only key as the minute scan.
+  - The service worker is re-registered on every load, so updates reach
+    browsers.
+  - Logging out removes this device's subscription. An expired session drops
+    it on the next visit, so the next person on that browser doesn't get the
+    previous account's notifications.
+- **No inactivity cut-off (owner decision):** notifications keep going until
+  the player turns them off, logs out or clears the browser. Timers notify
+  only once each, so in practice only PvP attacks keep coming.
+- **Texts:** push texts are rendered on the server
+  (`apps/api/src/notifications/push-texts.ts`, bg/en) and kept generic,
+  because the server has translation keys, not translated names. In-game
+  notices include building, research and expedition names.
+
+## Settings as cards (2026-10-13)
+
+Settings is a grid of equal cards, each with a title and a one-line status
+and no icons (owner decision):
+- avatar and frame;
+- language;
+- password;
+- notifications;
+- contact the team (with a dot for a new reply);
+- blocked players;
+- account deletion (red).
+
+A click opens the section in a popup, as the Command Center tiles do. The
+old two-column layout looked uneven because the sections differed so much in
+height. `#support` in the URL opens "Contact the team" directly.

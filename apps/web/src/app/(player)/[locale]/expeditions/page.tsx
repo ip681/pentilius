@@ -10,6 +10,7 @@ import { ResourceIcon } from '@/components/ResourceIcon';
 import { cancelExpedition, claimExpedition, getExpeditions, startExpedition } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { notifyNotificationsChanged } from '@/lib/notifications-events';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
@@ -46,6 +47,7 @@ export default function ExpeditionsPage() {
     setError(null);
     try {
       await startExpedition(key);
+      notifyNotificationsChanged();
       await load();
     } catch {
       setError(t('expeditions.startError'));
@@ -67,6 +69,7 @@ export default function ExpeditionsPage() {
     setError(null);
     try {
       setResult(await cancelExpedition());
+      notifyNotificationsChanged();
       notifyProfileChanged();
       await load();
     } catch {

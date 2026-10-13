@@ -89,7 +89,7 @@ function Tile({ iconKey, title, subtitle, dot, onClick }: { iconKey: string; tit
       {dot && <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-positive" />}
       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-wellBorder/50 to-transparent sm:h-14 sm:w-14">
         <AssetIcon
-          assetId={`dashboard.${iconKey}.icon`}
+          assetId={`interface.${iconKey}.icon`}
           alt={title}
           className="h-10 w-10 object-contain sm:h-12 sm:w-12"
           fallback={<span className="text-lg font-semibold text-textMuted">{title.charAt(0)}</span>}

@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { BaseResponseDto, BuildingProductionDto, BuildingStateDto, BuildQueueDto, ResourcesDto } from '@pentilius/shared';
 import { BuildingLevelCost, BuildingType, Player, PlayerBuilding } from '@prisma/client';
 import { EconomyService } from '../player/economy.service';
+import { PushService } from '../notifications/push.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { isVip } from '../vip/vip';
 
@@ -12,6 +13,7 @@ export class BaseService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
+    private readonly push: PushService,
   ) {}
 
   async getBase(playerId: string): Promise<BaseResponseDto> {
@@ -189,6 +191,10 @@ export class BaseService {
           data: { level: building.level + 1, constructionEndsAt: null },
         });
         if (!lastEnd || building.constructionEndsAt! > lastEnd) lastEnd = building.constructionEndsAt;
+        // Same key as the minute scan, so it goes out once whichever sees it first.
+        void this.push
+          .sendOnce(playerId, 'CONSTRUCTION_DONE', `${building.id}:${building.constructionEndsAt!.toISOString()}`)
+          .catch(() => undefined);
       }
       if (!(await this.startQueuedBuilding(playerId, lastEnd))) return;
     }

@@ -72,7 +72,7 @@ export function SupportSection() {
   }
 
   return (
-    <section id="support" className="rounded-lg border border-panelBorder bg-panel p-5">
+    <section id="support">
       <h2 className="mb-1 text-sm font-semibold">{t('support.title')}</h2>
       <p className="mb-3 text-xs text-textMuted">{t('support.intro')}</p>
 

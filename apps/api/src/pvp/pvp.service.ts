@@ -8,6 +8,7 @@ import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { EconomyService } from '../player/economy.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
+import { PushService } from '../notifications/push.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
@@ -45,6 +46,7 @@ export class PvpService {
     private readonly combat: CombatService,
     private readonly dailyTasks: DailyTasksService,
     private readonly achievements: AchievementsService,
+    private readonly push: PushService,
   ) {}
 
   async getStatus(playerId: string): Promise<PvpStatusDto> {
@@ -99,7 +101,7 @@ export class PvpService {
     }
     await assertNoActiveExpedition(attackerId, this.prisma);
 
-    return this.prisma.$transaction(async (tx) => {
+    const reportDto = await this.prisma.$transaction(async (tx) => {
       const eligible = await this.isEligibleOpponent(attackerId, opponentId, tx);
       if (!eligible) {
         throw new NotFoundException('This opponent is no longer available');
@@ -169,6 +171,13 @@ export class PvpService {
 
       return toReportDto(report, 'attacker', defender, lootSummary, result.rounds);
     });
+
+    // Web Push to the defender (owner decision, 2026-10-13) — after the commit,
+    // never blocking or failing the attack.
+    void this.push
+      .sendOnce(opponentId, 'PVP_ATTACKED', reportDto.id, { attacker: attacker.username, defenderWon: String(reportDto.outcome !== 'WIN') })
+      .catch(() => undefined);
+    return reportDto;
   }
 
   async getReports(playerId: string): Promise<PvpBattleReportDto[]> {

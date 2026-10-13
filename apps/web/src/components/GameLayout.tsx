@@ -11,10 +11,12 @@ import { onProfileChanged } from '@/lib/profile-events';
 import { getCachedProfile, setCachedProfile } from '@/lib/profile-cache';
 import { useFriendsUnread } from '@/lib/use-friends-unread';
 import { useNotifications } from '@/lib/use-notifications';
+import { NotificationCenter } from '@/components/NotificationCenter';
 import { BottomNav } from './BottomNav';
 import { RaceSelectModal } from './RaceSelectModal';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { forgetDevicePush } from '@/lib/push';
 
 export function GameLayout({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
@@ -36,6 +38,7 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
       .catch(() => {
         // Stored token is missing/expired — treat as logged out rather than showing dead chrome.
         clearTokens();
+        void forgetDevicePush();
         setLoggedIn(false);
       });
   }
@@ -113,9 +116,9 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-ink text-text">
-      <TopBar profile={profile} loggedIn={loggedIn} supportUnread={notifications.support} />
+      <TopBar profile={profile} loggedIn={loggedIn} supportUnread={!!notifications?.support} />
       <div className="flex min-h-[calc(100vh-4rem)]">
-        <Sidebar hasUnreadFriends={hasUnreadFriends} hasDailyTaskReward={notifications.dailyTasks || notifications.achievements} />
+        <Sidebar hasUnreadFriends={hasUnreadFriends} hasDailyTaskReward={!!notifications?.dailyTasks || !!notifications?.achievements} />
         <main className="w-full max-w-[1500px] flex-1 px-4 pb-20 pt-4 md:p-7">
           {/* Pending account deletion (owner decision, 2026-10-12): shown on every page until it happens or is cancelled. */}
           {profile?.deletionScheduledFor && (
@@ -133,7 +136,8 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-      {loggedIn && <BottomNav hasUnreadFriends={hasUnreadFriends} hasDailyTaskReward={notifications.dailyTasks || notifications.achievements} />}
+      {loggedIn && <NotificationCenter notifications={notifications} profile={profile} />}
+      {loggedIn && <BottomNav hasUnreadFriends={hasUnreadFriends} hasDailyTaskReward={!!notifications?.dailyTasks || !!notifications?.achievements} />}
       {/* After a season reset everyone re-picks their race before playing on (owner decision, 2026-10-13). */}
       {profile?.needsRaceSelection && pathname === '/dashboard' && <RaceSelectModal seasonNumber={profile.seasonNumber} onChosen={loadProfile} />}
     </div>

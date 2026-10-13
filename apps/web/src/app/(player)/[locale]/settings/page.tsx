@@ -4,9 +4,11 @@ import type { AccountDeletionStatusDto, BlockedPlayerDto, CosmeticsCatalogDto } 
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
+import { BottomSheet } from '@/components/BottomSheet';
 import { GameLayout } from '@/components/GameLayout';
 import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { PlayerLink } from '@/components/PlayerLink';
+import { NotificationSettingsSection } from '@/components/NotificationSettingsSection';
 import { SupportSection } from '@/components/SupportSection';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import {
@@ -18,6 +20,7 @@ import {
   getBlockedPlayers,
   getCosmeticsCatalog,
   getProfile,
+  getSupportTickets,
   requestAccountDeletion,
   unblockPlayer,
   updateAvatar,
@@ -26,6 +29,7 @@ import {
 } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format-datetime';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { getDeviceState } from '@/lib/push';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 export default function SettingsPage() {
@@ -49,6 +53,40 @@ export default function SettingsPage() {
   const [selectedAvatarKey, setSelectedAvatarKey] = useState<string | null>(null);
   const [selectedFrameKey, setSelectedFrameKey] = useState<string | null>(null);
   const [cosmeticsError, setCosmeticsError] = useState<string | null>(null);
+
+  // Settings as cards that open a popup (owner decision, 2026-10-13).
+  const [open, setOpen] = useState<SettingsCardKey | null>(null);
+  const [summary, setSummary] = useState<{ notificationsOn: boolean; supportUnread: boolean; blockedCount: number | null; deletionScheduledFor: string | null }>({
+    notificationsOn: false,
+    supportUnread: false,
+    blockedCount: null,
+    deletionScheduledFor: null,
+  });
+
+  // The cards' status lines — refreshed on open and whenever a popup closes.
+  function loadSummary() {
+    setSummary((s) => ({ ...s, notificationsOn: getDeviceState() === 'on' }));
+    getSupportTickets()
+      .then((tickets) => setSummary((s) => ({ ...s, supportUnread: tickets.some((ticket) => ticket.unread) })))
+      .catch(() => undefined);
+    getBlockedPlayers()
+      .then((list) => setSummary((s) => ({ ...s, blockedCount: list.length })))
+      .catch(() => undefined);
+    getAccountDeletionStatus()
+      .then((status) => setSummary((s) => ({ ...s, deletionScheduledFor: status.scheduledFor })))
+      .catch(() => undefined);
+  }
+
+  useEffect(() => {
+    loadSummary();
+    // The Support page links here with #support.
+    if (window.location.hash === '#support') setOpen('support');
+  }, []);
+
+  function closeSheet() {
+    setOpen(null);
+    loadSummary();
+  }
 
   useEffect(() => {
     getProfile()
@@ -132,10 +170,40 @@ export default function SettingsPage() {
         <p className="text-xs text-textMuted">{t('settings.subtitle')}</p>
       </div>
 
-      {/* Two columns on wide screens; the danger zone spans both at the bottom. */}
-      <div className="grid max-w-6xl gap-5 lg:grid-cols-2 lg:items-start">
-        <div className="flex flex-col gap-5">
-          <section className="rounded-lg border border-panelBorder bg-panel p-5">
+      <div className="grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <SettingsCard title={t('settings.cosmeticsSection')} onClick={() => setOpen('cosmetics')}>
+          <span className="flex items-center gap-2">
+            <PlayerAvatarFrame avatarKey={selectedAvatarKey} frameKey={selectedFrameKey} className="h-8 w-8" />
+            {t('settings.cards.cosmetics')}
+          </span>
+        </SettingsCard>
+        <SettingsCard title={t('settings.languageSection')} onClick={() => setOpen('language')}>
+          {t(`settings.cards.languageNames.${selectedLocale === 'en' ? 'en' : 'bg'}`)}
+        </SettingsCard>
+        <SettingsCard title={t('settings.passwordSection')} onClick={() => setOpen('password')}>
+          {t('settings.cards.password')}
+        </SettingsCard>
+        <SettingsCard title={t('notifications.settings.title')} onClick={() => setOpen('notifications')}>
+          {summary.notificationsOn ? t('settings.cards.notificationsOn') : t('settings.cards.notificationsOff')}
+        </SettingsCard>
+        <SettingsCard title={t('support.title')} dot={summary.supportUnread} onClick={() => setOpen('support')}>
+          {summary.supportUnread ? t('settings.cards.supportNew') : t('settings.cards.supportIdle')}
+        </SettingsCard>
+        <SettingsCard title={t('moderation.blockedPlayers')} onClick={() => setOpen('blocked')}>
+          {summary.blockedCount === null || summary.blockedCount === 0
+            ? t('settings.cards.blockedNone')
+            : t('settings.cards.blockedCount', { count: summary.blockedCount })}
+        </SettingsCard>
+        <SettingsCard title={t('accountDeletion.title')} danger onClick={() => setOpen('delete')}>
+          {summary.deletionScheduledFor
+            ? t('settings.cards.deleteScheduled', { date: formatDateTime(summary.deletionScheduledFor) })
+            : t('settings.cards.deleteIdle')}
+        </SettingsCard>
+      </div>
+
+      <BottomSheet open={open !== null} onClose={closeSheet} wide={open !== 'password' && open !== 'language'}>
+        {open === 'password' && (
+          <section>
             <h2 className="mb-3 text-sm font-semibold">{t('settings.passwordSection')}</h2>
             <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
               <label className="flex flex-col gap-1.5 text-xs text-textMuted">
@@ -172,16 +240,15 @@ export default function SettingsPage() {
               </label>
               {passwordError && <p className="text-xs text-danger">{passwordError}</p>}
               {passwordSuccess && <p className="text-xs text-positive">{t('settings.passwordSaved')}</p>}
-              <button
-                type="submit"
-                className="self-start rounded-md border border-accent bg-accentBg px-5 py-2 text-xs uppercase hover:bg-accentBgHover"
-              >
+              <button type="submit" className="self-start rounded-md border border-accent bg-accentBg px-5 py-2 text-xs uppercase hover:bg-accentBgHover">
                 {t('settings.save')}
               </button>
             </form>
           </section>
+        )}
 
-          <section className="rounded-lg border border-panelBorder bg-panel p-5">
+        {open === 'language' && (
+          <section>
             <h2 className="mb-3 text-sm font-semibold">{t('settings.languageSection')}</h2>
             <form onSubmit={handleSaveLanguage} className="flex flex-col gap-3">
               <select
@@ -194,17 +261,15 @@ export default function SettingsPage() {
               </select>
               {languageError && <p className="text-xs text-danger">{languageError}</p>}
               {languageSuccess && <p className="text-xs text-positive">{t('settings.languageSaved')}</p>}
-              <button
-                type="submit"
-                className="self-start rounded-md border border-accent bg-accentBg px-5 py-2 text-xs uppercase hover:bg-accentBgHover"
-              >
+              <button type="submit" className="self-start rounded-md border border-accent bg-accentBg px-5 py-2 text-xs uppercase hover:bg-accentBgHover">
                 {t('settings.save')}
               </button>
             </form>
           </section>
-        </div>
-        <div className="flex flex-col gap-5">
-          <section className="rounded-lg border border-panelBorder bg-panel p-5">
+        )}
+
+        {open === 'cosmetics' && (
+          <section>
             <h2 className="mb-3 text-sm font-semibold">{t('settings.cosmeticsSection')}</h2>
             <div className="mb-4 flex justify-center">
               <PlayerAvatarFrame avatarKey={selectedAvatarKey} frameKey={selectedFrameKey} className="h-24 w-24" />
@@ -255,16 +320,49 @@ export default function SettingsPage() {
             </div>
             {cosmeticsError && <p className="mt-3 text-xs text-danger">{cosmeticsError}</p>}
           </section>
+        )}
 
-          <SupportSection />
+        {open === 'notifications' && <NotificationSettingsSection />}
+        {open === 'support' && <SupportSection />}
+        {open === 'blocked' && <BlockedPlayersSection />}
+        {open === 'delete' && <DeleteAccountSection />}
 
-          <BlockedPlayersSection />
-        </div>
-        <div className="lg:col-span-2">
-          <DeleteAccountSection />
-        </div>
-      </div>
+        <button type="button" onClick={closeSheet} className="mt-4 w-full text-center text-xs text-textFaint underline">
+          {t('common.close')}
+        </button>
+      </BottomSheet>
     </GameLayout>
+  );
+}
+
+type SettingsCardKey = 'cosmetics' | 'language' | 'password' | 'notifications' | 'support' | 'blocked' | 'delete';
+
+/** One settings card: a title and a status line; a click opens its popup. */
+function SettingsCard({
+  title,
+  children,
+  onClick,
+  dot = false,
+  danger = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClick: () => void;
+  dot?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative flex min-h-[84px] flex-col justify-center gap-1 rounded-lg border bg-panel px-4 py-3 text-left transition-all hover:-translate-y-0.5 ${
+        danger ? 'border-panelBorderDanger hover:border-danger' : 'border-panelBorder hover:border-accent'
+      }`}
+    >
+      {dot && <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-danger" />}
+      <h2 className={`text-sm font-semibold ${danger ? 'text-danger' : ''}`}>{title}</h2>
+      <div className="text-xs text-textMuted">{children}</div>
+    </button>
   );
 }
 
@@ -298,7 +396,7 @@ function BlockedPlayersSection() {
   }
 
   return (
-    <section className="rounded-lg border border-panelBorder bg-panel p-5">
+    <section>
       <h2 className="mb-1 text-sm font-semibold">{t('moderation.blockedPlayers')}</h2>
       <p className="mb-3 text-xs text-textMuted">{t('moderation.blockedPlayersHint')}</p>
       {blocked && blocked.length === 0 && <p className="text-xs text-textFaint">{t('moderation.noBlockedPlayers')}</p>}
@@ -394,7 +492,7 @@ function DeleteAccountSection() {
   }
 
   return (
-    <section className="rounded-lg border border-panelBorderDanger bg-panel p-5">
+    <section>
       <h2 className="mb-1 text-sm font-semibold text-danger">{t('accountDeletion.title')}</h2>
 
       {status?.scheduledFor ? (
