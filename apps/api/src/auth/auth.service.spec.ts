@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
+import { AccountEmailService } from '../email/account-email.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
@@ -38,6 +39,7 @@ describe('AuthService', () => {
           useValue: { get: jest.fn().mockReturnValue('test-value') },
         },
         { provide: ContentFilterService, useValue: { assertClean: jest.fn().mockResolvedValue(undefined) } },
+        { provide: AccountEmailService, useValue: { sendVerification: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 

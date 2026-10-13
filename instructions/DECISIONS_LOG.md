@@ -838,3 +838,34 @@ admin, not generated (owner decision). It needs at least 8 characters, like
 registration. Moderators can't do it. The action log records
 `SET_PLAYER_PASSWORD` with who and when, never the password. Existing
 sessions on other devices are not logged out (not requested).
+
+## Email: password reset and confirmation (2026-10-13)
+
+Sent through Brevo (see `instructions/OPERATIONS.md`) from
+`Pentilius <no-reply@pentilius.com>`.
+
+- **Confirming the email is optional (owner decision):**
+  - The player plays right away after registering; registration sends the
+    confirmation email, and a failed send never blocks it.
+  - The Command Center shows a "Confirm your email" card until it's done,
+    like the notifications card, with "Send again" and "Not now". "Not now"
+    hides it for 7 days.
+  - The link is valid for 3 days.
+- **Forgot password** is on the login page and works whether or not the
+  email is confirmed (owner decision).
+  - The link is valid for 1 hour and works once; a new request replaces the
+    older link.
+  - A successful reset also marks the email as confirmed, since the link
+    proves ownership.
+  - The answer is always the same, so it never reveals whether an email is
+    registered.
+- **Security:**
+  - tokens are 32 random bytes, stored only as a SHA-256 hash, single-use and
+    time-limited;
+  - at most 3 emails of one kind per player per hour (`GAME_BALANCE.email`);
+  - tokens are deleted with the account.
+- **Texts:** bg/en email texts are rendered on the server
+  (`apps/api/src/email/email-templates.ts`), in the language of the page the
+  player used.
+- **Mobile app check:** the links open web pages, which also work for app
+  users. Deep links into the app can come later.

@@ -7,6 +7,14 @@ export default () => ({
     refreshSecret: process.env.JWT_REFRESH_SECRET,
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   },
+  // Transactional email via Brevo (owner decision, 2026-10-13); no key = log only.
+  email: {
+    brevoApiKey: process.env.BREVO_API_KEY,
+    from: process.env.EMAIL_FROM ?? 'no-reply@pentilius.com',
+    fromName: process.env.EMAIL_FROM_NAME ?? 'Pentilius',
+    // Base URL used in emailed links.
+    appBaseUrl: process.env.APP_BASE_URL ?? 'https://pentilius.com',
+  },
   // Web Push (owner decision, 2026-10-13) — our own VAPID keys; unset = push off.
   push: {
     publicKey: process.env.VAPID_PUBLIC_KEY,

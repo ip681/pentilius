@@ -52,6 +52,8 @@ export interface PlayerProfileDto {
   seasonNumber: number;
   // VIP until this moment (null = never/expired long ago); the client compares with now.
   vipUntil: string | null;
+  // Email confirmed (optional) — drives the Command Center reminder.
+  emailVerified: boolean;
   // GAME_BALANCE.vip.multiAttackCount — the "Attack xN" size.
   vipMultiAttackCount: number;
   // Once the Core has closed: when the season resets — the client counts down to it

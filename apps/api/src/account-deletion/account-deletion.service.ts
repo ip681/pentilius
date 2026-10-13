@@ -138,6 +138,7 @@ export class AccountDeletionService implements OnModuleInit, OnModuleDestroy {
       await tx.supportTicket.deleteMany({ where: { playerId } });
       await tx.pushSubscription.deleteMany({ where: { playerId } });
       await tx.pushDispatch.deleteMany({ where: { playerId } });
+      await tx.emailToken.deleteMany({ where: { playerId } });
       // Free their seat in any boss formation that hasn't resolved yet; resolved ones stay as history.
       await tx.bossFormationSlot.updateMany({
         where: { playerId, formation: { status: 'OPEN' } },

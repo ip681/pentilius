@@ -13,6 +13,17 @@ files for game design and architecture rules.
   and it reaches `api`/`web` over the compose network. Let's Encrypt
   certificates live in the `pentilius_caddy_data` volume and renew
   automatically.
+- **Transactional email: Brevo** (set up 2026-10-13, free plan, account
+  "OptiScale Solutions").
+  - pentilius.com is authenticated there: a Brevo-code TXT and two DKIM
+    CNAMEs (`brevo1/brevo2._domainkey`) in Jump.bg DNS Management. The
+    existing DMARC record was kept.
+  - The sender `no-reply@pentilius.com` is verified through the domain; no
+    mailbox exists for it.
+  - The API key is **never committed**. It lives in `/opt/pentilius/.env`
+    (`BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`), the local
+    `apps/api/.env`, and the owner's local `secrets/brevo-api-key.txt`
+    (gitignored). If it is lost, generate a new one in Brevo → SMTP & API.
 - Host-side files outside the repo:
   - `/opt/pentilius-backups`: backup and status scripts, dumps, logs;
   - `/opt/pentilius-secrets`: the rclone config;

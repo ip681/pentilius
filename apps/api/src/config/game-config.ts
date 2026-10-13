@@ -297,6 +297,14 @@ export const GAME_BALANCE = {
     activationCrystalPerLevel: 60,
     activationCreditsPerLevel: 0,
   },
+  // Email links (owner decision, 2026-10-13).
+  email: {
+    verifyTokenHours: 72,
+    resetTokenMinutes: 60,
+    // Emails of one kind per player per hour (anti-abuse).
+    maxPerHour: 3,
+  },
+
   // "Contact the team" limits (owner decision, 2026-10-13).
   support: {
     maxNewPerDay: 3,

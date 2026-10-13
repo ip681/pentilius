@@ -2,7 +2,7 @@
 
 import type { Race, RaceCountsDto } from '@pentilius/shared';
 import Image from 'next/image';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { InfoLinks } from '@/components/InfoLinks';
@@ -54,6 +54,7 @@ function BannedNotice({ bannedUntil, reason, onExpired }: { bannedUntil: string;
 export default function LoginPage() {
   const t = useTranslations();
   const router = useRouter();
+  const locale = useLocale();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -83,7 +84,10 @@ export default function LoginPage() {
     }
     setStatus({ kind: 'idle' });
     try {
-      const result = mode === 'login' ? await login({ email, password }) : await register({ email, username, password, race: race as Race, acceptedTerms });
+      const result =
+        mode === 'login'
+          ? await login({ email, password })
+          : await register({ email, username, password, race: race as Race, acceptedTerms, locale: locale === 'en' ? 'en' : 'bg' });
       storeTokens(result);
       router.push('/dashboard');
     } catch (error) {
@@ -183,6 +187,11 @@ export default function LoginPage() {
                 className="rounded-md border border-wellBorder bg-well px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
               />
             </label>
+            {mode === 'login' && (
+              <Link href="/forgot-password" className="-mt-2 self-end text-[11px] text-textFaint underline hover:text-text">
+                {t('authEmail.forgotLink')}
+              </Link>
+            )}
 
             {mode === 'register' && (
               <div className="flex flex-col gap-1.5">

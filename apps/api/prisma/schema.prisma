@@ -184,6 +184,10 @@ model Player {
   // accounts created before the checkbox existed (2026-10-12).
   termsAcceptedAt DateTime?
 
+  // Email confirmation (owner decision, 2026-10-13) — optional; null until the
+  // player opens the emailed link (or resets the password via email).
+  emailVerifiedAt DateTime?
+
   // VIP (owner decision, 2026-10-13): VIP while now < vipUntil. Granted from
   // godmaster for now; a future payment flow will extend the same date. VIP
   // only adds convenience (auto-claimed daily rewards, "Attack x3", a
@@ -263,6 +267,7 @@ model Player {
   supportTickets         SupportTicket[]
   pushSubscriptions      PushSubscription[]
   pushDispatches         PushDispatch[]
+  emailTokens            EmailToken[]
 
   // Which notifications the player wants (owner decision, 2026-10-13) —
   // { TYPE: false } switches one off; missing = on. Shared by every channel.
@@ -1644,4 +1649,26 @@ model PushDispatch {
   @@unique([playerId, type, refKey])
   @@index([createdAt])
   @@map("push_dispatches")
+}
+
+enum EmailTokenType {
+  VERIFY_EMAIL
+  PASSWORD_RESET
+}
+
+// One-time links sent by email (owner decision, 2026-10-13). Only a SHA-256 of
+// the token is stored; a token works once, until expiresAt.
+model EmailToken {
+  id        String         @id @default(uuid())
+  playerId  String
+  type      EmailTokenType
+  tokenHash String         @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime       @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, type, createdAt])
+  @@map("email_tokens")
 }

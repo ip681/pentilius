@@ -1304,5 +1304,26 @@
         "server-failed": "The subscription could not be saved. Turn off and on again to retry."
       }
     }
+  },
+  "authEmail": {
+    "forgotLink": "Forgot your password?",
+    "forgotTitle": "Forgot password",
+    "forgotIntro": "Enter the email you signed up with. We will send you a link to set a new password.",
+    "forgotSubmit": "Send link",
+    "forgotSent": "If an account exists for this email, we sent a link to set a new password. Check your inbox (and the spam folder). The link is valid for 1 hour.",
+    "resetTitle": "New password",
+    "resetSubmit": "Save new password",
+    "resetDone": "Your password has been changed. You can now log in with the new one.",
+    "linkInvalid": "The link is invalid or has expired. Ask for a new one under \"Forgot your password?\".",
+    "verifyTitle": "Email confirmation",
+    "verifyDone": "Your email is confirmed. Thank you!",
+    "verifyInvalid": "The link is invalid or has expired. You can ask for a new one from the Command Center.",
+    "backToLogin": "Back to login",
+    "error": "Something went wrong. Please try again later.",
+    "cardTitle": "Confirm your email",
+    "cardBody": "We sent an email to {email}. Confirm it so you can recover your account if you forget your password.",
+    "cardSend": "Send again",
+    "cardSent": "We sent a new email to {email}. Check your inbox (and the spam folder).",
+    "cardLimit": "We have already sent several emails. Please try again in an hour."
   }
 }

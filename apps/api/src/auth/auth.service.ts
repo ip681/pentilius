@@ -6,6 +6,7 @@ import { Race } from '@prisma/client';
 
 const ALL_RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
 import * as bcrypt from 'bcryptjs';
+import { AccountEmailService } from '../email/account-email.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -22,6 +23,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly contentFilter: ContentFilterService,
+    private readonly accountEmail: AccountEmailService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponse> {
@@ -56,6 +58,10 @@ export class AuthService {
         ...(frameKey ? { selectedFrameKey: frameKey } : {}),
       },
     });
+
+    // Confirmation email (optional confirmation, owner decision 2026-10-13) — a
+    // failure never blocks registration; the Command Center can send it again.
+    void this.accountEmail.sendVerification(player, dto.locale ?? 'bg').catch(() => undefined);
 
     return this.buildAuthResponse(player.id, player.email, player.username, player.race, player.createdAt);
   }

@@ -62,6 +62,7 @@ export class PlayerService {
       needsRaceSelection: player.needsRaceSelection,
       ...(await this.seasonInfo()),
       vipUntil: player.vipUntil?.toISOString() ?? null,
+      emailVerified: player.emailVerifiedAt !== null,
       vipMultiAttackCount: GAME_BALANCE.vip.multiAttackCount,
     };
   }

@@ -171,6 +171,24 @@ export function register(payload: RegisterRequest): Promise<AuthResponse> {
   return request<AuthResponse>('/auth/register', { method: 'POST', body: payload });
 }
 
+// --- Email links: forgot password, confirm email (owner decision, 2026-10-13) ---
+
+export function requestPasswordReset(email: string, locale: 'bg' | 'en'): Promise<void> {
+  return request<void>('/auth/forgot-password', { method: 'POST', body: { email, locale } });
+}
+
+export function resetPassword(token: string, newPassword: string): Promise<void> {
+  return request<void>('/auth/reset-password', { method: 'POST', body: { token, newPassword } });
+}
+
+export function verifyEmail(token: string): Promise<void> {
+  return request<void>('/auth/verify-email', { method: 'POST', body: { token } });
+}
+
+export function resendVerificationEmail(locale: 'bg' | 'en'): Promise<void> {
+  return request<void>('/player/me/verify-email/resend', { method: 'POST', auth: true, body: { locale } });
+}
+
 export function login(payload: LoginRequest): Promise<AuthResponse> {
   return request<AuthResponse>('/auth/login', { method: 'POST', body: payload });
 }

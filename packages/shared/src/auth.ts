@@ -7,6 +7,8 @@ export interface RegisterRequest {
   race: Race;
   // The Rules/Privacy/minimum-age checkbox — the API rejects anything but true.
   acceptedTerms: boolean;
+  // Language of the confirmation email.
+  locale?: 'bg' | 'en';
 }
 
 export interface LoginRequest {
