@@ -1,0 +1,11 @@
+# Reverse proxy and HTTPS for pentilius.com (owner decision, 2026-10-13: the
+# VPS now runs only Pentilius; this replaced the Caddy that used to live in
+# the Billing project). Certificates are kept in the caddy_data volume.
+pentilius.com, www.pentilius.com {
+	handle /api/* {
+		reverse_proxy api:3001
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}

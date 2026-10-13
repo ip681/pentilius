@@ -35,9 +35,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - default
-      - caddy_net
 
   web:
     build:
@@ -49,14 +46,25 @@ services:
     restart: unless-stopped
     depends_on:
       - api
-    networks:
-      - default
-      - caddy_net
 
-networks:
-  default:
-  caddy_net:
-    external: true
+  # The only service bound to ports 80/443: HTTPS + routing for pentilius.com
+  # (see deploy/Caddyfile). Owner decision (2026-10-13): Pentilius now has the
+  # VPS to itself, so Caddy lives here instead of in the old Billing project.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
 
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:

@@ -26,9 +26,10 @@ season launch or a natural stopping point:
   (`/opt/pentilius-backups/backup-db.sh`, daily at 03:30) writes a
   `pg_dump` of the Pentilius DB to `/opt/pentilius-backups/`. About two weeks
   are kept, plus `predeploy` dumps taken before deploys. The godmaster Server
-  tab shows the last backup's result. Still open: an off-server copy (Google
-  Drive via rclone was tested, not wired up), since a lost VPS loses the
-  dumps too.
+  tab shows the last backup's result. Each dump is also uploaded to Google
+  Drive (`gdrive:pentilius/`, via rclone with `/opt/pentilius-secrets/rclone.conf`),
+  and old copies are pruned there too. The log says SUCCESS only after the
+  upload succeeds, so the off-server copy is covered.
 - **Squash the Prisma migration history.** Migrations accumulate fast during
   active development (24 by 2026-09-08). Squashing to one clean baseline is
   low-risk only when the production DB is being reset/reinitialized anyway —
