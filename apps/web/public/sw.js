@@ -12,17 +12,16 @@ self.addEventListener('push', (event) => {
   } catch (e) {
     data = {};
   }
+  // Always shown: "is the game open in front of the player?" is unreliable on
+  // phones (a locked screen can still report the page as visible), and a
+  // skipped push is worse than a duplicate of the in-game notice.
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      // The game is open and in front of the player — it shows its own in-game notice.
-      if (clients.some((client) => client.visibilityState === 'visible' && client.focused)) return undefined;
-      return self.registration.showNotification(data.title || 'Pentilius', {
-        body: data.body || '',
-        tag: data.tag,
-        icon: '/logo_255x255.png',
-        badge: '/logo_255x255.png',
-        data: { url: data.url || '/' },
-      });
+    self.registration.showNotification(data.title || 'Pentilius', {
+      body: data.body || '',
+      tag: data.tag,
+      icon: '/logo_255x255.png',
+      badge: '/logo_255x255.png',
+      data: { url: data.url || '/' },
     }),
   );
 });

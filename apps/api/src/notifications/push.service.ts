@@ -94,7 +94,12 @@ export class PushService {
     await Promise.all(
       player.pushSubscriptions.map(async (sub) => {
         try {
-          await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload, { TTL: 6 * 60 * 60 });
+          await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload, {
+            TTL: 6 * 60 * 60,
+            // High urgency: Android delivers it right away even on a sleeping
+            // (Doze) phone; "normal" waits until the phone wakes up.
+            urgency: 'high',
+          });
         } catch (error) {
           const status = (error as { statusCode?: number }).statusCode;
           // 404/410: the browser dropped this subscription — forget it.

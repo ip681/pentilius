@@ -772,8 +772,11 @@ needs it: more coupling, and one failing part could break the whole page.
   - `PushDispatch` makes every notification go out once.
   - Subscriptions that the browser reports gone are deleted, and all of
     them are deleted with the account.
-  - The service worker (`public/sw.js`) skips the OS notification when the
-    game is open and focused.
+  - The service worker (`public/sw.js`) always shows the notification. An
+    early version skipped it when the game looked open and focused, but on
+    phones a locked screen can still look "visible", so pushes got lost.
+  - Pushes are sent with high urgency, so Android delivers them right away
+    even to a sleeping (Doze) phone.
 - **Platform limits** (from secondary sources, checked 2026-10-13; recheck
   against Apple's docs before relying on them):
   - On iPhone, push works only once the game is added to the home screen
@@ -792,6 +795,11 @@ needs it: more coupling, and one failing part could break the whole page.
   - Logging out removes this device's subscription. An expired session drops
     it on the next visit, so the next person on that browser doesn't get the
     previous account's notifications.
+- **Devices vs kinds (owner decision):** the kinds a player picks apply to
+  every device: browser, and later the app. There are no per-device kinds.
+  Each device only has its own on/off (OS or browser permission).
+- **Mobile app later (owner decision):** while the player is active on one
+  device, the others stay silent, so nothing arrives twice.
 - **No inactivity cut-off (owner decision):** notifications keep going until
   the player turns them off, logs out or clears the browser. Timers notify
   only once each, so in practice only PvP attacks keep coming.
