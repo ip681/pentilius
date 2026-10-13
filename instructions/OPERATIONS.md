@@ -22,10 +22,13 @@ files for game design and architecture rules.
 Not urgent day-to-day, but worth doing as the project moves toward a real
 season launch or a natural stopping point:
 
-- **Database backups.** As of 2026-09, there is no automated Postgres backup
-  on the VPS. Once real player progress matters, this should exist before
-  anything else on this list — a lost volume currently means losing every
-  player's season progress with no recovery path.
+- **Database backups — in place (checked 2026-10-13).** A host cron job
+  (`/opt/pentilius-backups/backup-db.sh`, daily at 03:30) writes a
+  `pg_dump` of the Pentilius DB to `/opt/pentilius-backups/`. About two weeks
+  are kept, plus `predeploy` dumps taken before deploys. The godmaster Server
+  tab shows the last backup's result. Still open: an off-server copy (Google
+  Drive via rclone was tested, not wired up), since a lost VPS loses the
+  dumps too.
 - **Squash the Prisma migration history.** Migrations accumulate fast during
   active development (24 by 2026-09-08). Squashing to one clean baseline is
   low-risk only when the production DB is being reset/reinitialized anyway —
@@ -40,11 +43,12 @@ season launch or a natural stopping point:
   are explicitly stand-ins to make Milestone 1 playable (XP curve, PvP costs,
   drop rates, etc.), not real design decisions. Worth a deliberate pass
   before treating the economy as final.
-- **Add swap on the VPS.** No swap is currently configured (`free -h` shows
-  `0B`) — under real memory pressure a process gets OOM-killed abruptly
-  instead of degrading. A small swap file (e.g. 2GB) costs nothing (uses
-  already-available disk) and is a cheap insurance policy. Not urgent while
-  memory headroom is healthy.
+- **Swap — done (2026-10-13).** A 2GB `/swapfile` (in `/etc/fstab`, so it
+  survives reboots) with `vm.swappiness=10` (`/etc/sysctl.d/99-swappiness.conf`),
+  so it is only used under real memory pressure. `server-status.sh` now
+  records swap, and the godmaster Server tab shows it with stricter colours
+  (gold from 10%, red from 40%) and a line on the chart. Steady swap use means
+  RAM is short and it is time for a bigger server.
 - **Prune Docker build cache periodically.** Every `docker compose build`
   adds layers; `docker builder prune -f` reclaims the unused ones. Checked
   2026-09-08: 10.78GB total build cache, 8.44GB reclaimable. Disk headroom

@@ -658,7 +658,8 @@ interface ContainerStatus {
 interface ServerStatus {
   timestamp: string;
   load: { '1m': number; '5m': number; '15m': number; cpuCores: number };
-  memory: { totalMb: number; usedMb: number; availableMb: number };
+  // swap* since 2026-10-13 (2GB /swapfile); absent in older snapshots.
+  memory: { totalMb: number; usedMb: number; availableMb: number; swapTotalMb?: number; swapUsedMb?: number };
   disk: { totalKb: number; usedKb: number; availableKb: number; usePercent: number };
   containers: ContainerStatus[];
 }
@@ -669,6 +670,7 @@ interface LoadHistoryPoint {
   cpuCores: number;
   memUsedMb: number;
   memTotalMb: number;
+  swapUsedMb?: number;
   diskUsePercent: number;
 }
 
@@ -798,7 +800,7 @@ function ServerStatusPanel() {
       ) : (
         <div className="flex flex-col gap-3 text-xs">
           <p className="text-textFaint">Обновено: {new Date(server.timestamp).toLocaleString('bg-BG')}</p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <StatBox
               label="Натоварване (1м)"
               value={`${server.load['1m'].toFixed(2)} / ${server.load.cpuCores} ядра (${Math.round((server.load['1m'] / server.load.cpuCores) * 100)}%)`}
@@ -809,6 +811,15 @@ function ServerStatusPanel() {
               value={`${(server.memory.usedMb / 1024).toFixed(1)} / ${(server.memory.totalMb / 1024).toFixed(1)} GB (${Math.round((server.memory.usedMb / server.memory.totalMb) * 100)}%)`}
               percent={(server.memory.usedMb / server.memory.totalMb) * 100}
             />
+            {/* Swap (owner decision, 2026-10-13): any steady use means RAM is getting short. */}
+            {server.memory.swapTotalMb ? (
+              <StatBox
+                label="Swap (резервна памет)"
+                value={`${((server.memory.swapUsedMb ?? 0) / 1024).toFixed(1)} / ${(server.memory.swapTotalMb / 1024).toFixed(1)} GB (${Math.round(((server.memory.swapUsedMb ?? 0) / server.memory.swapTotalMb) * 100)}%)`}
+                percent={((server.memory.swapUsedMb ?? 0) / server.memory.swapTotalMb) * 100}
+                thresholds={[10, 40]}
+              />
+            ) : null}
             <StatBox
               label="Диск"
               value={`${(server.disk.usedKb / 1024 / 1024).toFixed(1)} / ${(server.disk.totalKb / 1024 / 1024).toFixed(1)} GB (${server.disk.usePercent}%)`}
@@ -826,6 +837,9 @@ function ServerStatusPanel() {
               series={[
                 { label: 'Натоварване', colorClassName: 'text-gold', getPercent: (p) => (p.load1m / p.cpuCores) * 100 },
                 { label: 'Памет', colorClassName: 'text-energy', getPercent: (p) => (p.memUsedMb / p.memTotalMb) * 100 },
+                ...(server.memory.swapTotalMb
+                  ? [{ label: 'Swap', colorClassName: 'text-danger', getPercent: (p: LoadHistoryPoint) => ((p.swapUsedMb ?? 0) / server.memory.swapTotalMb!) * 100 }]
+                  : []),
               ]}
             />
           </div>
@@ -861,20 +875,35 @@ function ServerStatusPanel() {
   );
 }
 
-function StatBox({ label, value, tone, percent }: { label: string; value: string; tone?: 'good' | 'bad'; percent?: number }) {
+function StatBox({
+  label,
+  value,
+  tone,
+  percent,
+  thresholds,
+}: {
+  label: string;
+  value: string;
+  tone?: 'good' | 'bad';
+  percent?: number;
+  thresholds?: [number, number];
+}) {
   return (
     <div className="rounded-md border border-wellBorder bg-well px-3 py-2">
       <p className="text-[10px] text-textFaint">{label}</p>
       <p className={tone === 'good' ? 'text-positive' : tone === 'bad' ? 'text-danger' : ''}>{value}</p>
-      {percent !== undefined && <UsageBar percent={percent} />}
+      {percent !== undefined && <UsageBar percent={percent} thresholds={thresholds} />}
     </div>
   );
 }
 
-/** Green below 75%, gold 75-90%, red above — thresholds are a rough eyeball guide, not alerting. */
-function UsageBar({ percent }: { percent: number }) {
+/**
+ * Green below the first threshold, gold up to the second, red above — 75/90 by
+ * default (swap uses stricter ones). A rough eyeball guide, not alerting.
+ */
+function UsageBar({ percent, thresholds = [75, 90] }: { percent: number; thresholds?: [number, number] }) {
   const clamped = Math.min(100, Math.max(0, percent));
-  const color = percent >= 90 ? 'bg-danger' : percent >= 75 ? 'bg-gold' : 'bg-positive';
+  const color = percent >= thresholds[1] ? 'bg-danger' : percent >= thresholds[0] ? 'bg-gold' : 'bg-positive';
   return (
     <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-panel">
       <div className={`h-full rounded-full ${color} transition-[width]`} style={{ width: `${clamped}%` }} />
