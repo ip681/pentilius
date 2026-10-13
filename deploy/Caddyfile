@@ -2,10 +2,54 @@
 # VPS now runs only Pentilius; this replaced the Caddy that used to live in
 # the Billing project). Certificates are kept in the caddy_data volume.
 pentilius.com, www.pentilius.com {
+	# The "we're updating" page's own files — served by Caddy itself, so they
+	# work while the game containers restart.
+	handle /maintenance/* {
+		root * /srv
+		file_server
+	}
+
 	handle /api/* {
 		reverse_proxy api:3001
 	}
+
 	handle {
 		reverse_proxy web:3000
+	}
+
+	# While the api/web containers restart during an update (owner decision,
+	# 2026-10-13). The same machine-readable answer serves the browser and the
+	# future mobile app: API calls get JSON 503 "MAINTENANCE" + Retry-After;
+	# pages get the friendly "we're updating" page in the URL's language.
+	handle_errors 502 503 504 {
+		@api path /api/*
+		handle @api {
+			header Content-Type application/json
+			header Retry-After 15
+			respond `{"statusCode":503,"message":"MAINTENANCE"}` 503
+		}
+
+		# Script/style chunks of the old page: a plain 503, not the HTML page.
+		@assets path /_next/*
+		handle @assets {
+			respond 503
+		}
+
+		@english path /en /en/*
+		handle @english {
+			root * /srv/maintenance
+			rewrite * /en.html
+			file_server {
+				status 503
+			}
+		}
+
+		handle {
+			root * /srv/maintenance
+			rewrite * /bg.html
+			file_server {
+				status 503
+			}
+		}
 	}
 }

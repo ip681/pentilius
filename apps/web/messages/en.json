@@ -1325,5 +1325,9 @@
     "cardSend": "Send again",
     "cardSent": "We sent a new email to {email}. Check your inbox (and the spam folder).",
     "cardLimit": "We have already sent several emails. Please try again in an hour."
+  },
+  "connection": {
+    "maintenance": "We're improving Pentilius for you — back in a moment…",
+    "lost": "Lost connection to the server — reconnecting…"
   }
 }

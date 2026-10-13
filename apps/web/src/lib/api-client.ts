@@ -69,6 +69,7 @@ import type {
   ZoneDto,
 } from '@pentilius/shared';
 import { clearTokens, getAccessToken, getRefreshToken, storeTokens } from './auth';
+import { notifyConnectionLost } from './connection-events';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api/v1';
 
@@ -92,9 +93,11 @@ export class ApiError extends Error {
 // the 7-day refresh token exists precisely to renew them without forcing a
 // fresh login. Concurrent 401s share one in-flight refresh instead of each
 // firing their own.
-let refreshPromise: Promise<string | null> | null = null;
+// 'UNAVAILABLE' = the server couldn't be reached (e.g. an update restarting
+// it). Only a real refusal (4xx) logs the player out, never a temporary outage.
+let refreshPromise: Promise<string | null | 'UNAVAILABLE'> | null = null;
 
-function refreshAccessToken(): Promise<string | null> {
+function refreshAccessToken(): Promise<string | null | 'UNAVAILABLE'> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return Promise.resolve(null);
 
@@ -104,7 +107,8 @@ function refreshAccessToken(): Promise<string | null> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     })
-      .then(async (response) => {
+      .then(async (response): Promise<string | null | 'UNAVAILABLE'> => {
+        if (response.status >= 500) return 'UNAVAILABLE';
         if (!response.ok) {
           clearTokens();
           return null;
@@ -113,10 +117,7 @@ function refreshAccessToken(): Promise<string | null> {
         storeTokens(tokens);
         return tokens.accessToken;
       })
-      .catch(() => {
-        clearTokens();
-        return null;
-      })
+      .catch((): 'UNAVAILABLE' => 'UNAVAILABLE')
       .finally(() => {
         refreshPromise = null;
       });
@@ -131,11 +132,25 @@ async function request<TResponse>(path: string, options: { method?: string; body
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method ?? 'GET',
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: options.method ?? 'GET',
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    // No answer at all (server restarting, offline) — show the reconnect banner.
+    notifyConnectionLost('network');
+    throw new ApiError(0, `Request to ${path} failed: no connection`, 'CONNECTION_LOST');
+  }
+
+  // 502-504: the server is restarting (an update) — Caddy answers "MAINTENANCE".
+  if (response.status >= 502 && response.status <= 504) {
+    const body = (await response.json().catch(() => undefined)) as { message?: string } | undefined;
+    notifyConnectionLost(body?.message === 'MAINTENANCE' ? 'maintenance' : 'network');
+    throw new ApiError(response.status, `Request to ${path} failed: server unavailable`, 'CONNECTION_LOST', body);
+  }
 
   if (!response.ok) {
     // A 401 on an authenticated call almost always just means the short-lived access
@@ -144,6 +159,10 @@ async function request<TResponse>(path: string, options: { method?: string; body
     // a real logout).
     if (response.status === 401 && options.auth && !isRetry) {
       const newAccessToken = await refreshAccessToken();
+      if (newAccessToken === 'UNAVAILABLE') {
+        notifyConnectionLost('network');
+        throw new ApiError(0, `Request to ${path} failed: no connection`, 'CONNECTION_LOST');
+      }
       if (newAccessToken) {
         return request<TResponse>(path, options, true);
       }
@@ -169,6 +188,16 @@ async function request<TResponse>(path: string, options: { method?: string; body
 // Auth (unauthenticated)
 export function register(payload: RegisterRequest): Promise<AuthResponse> {
   return request<AuthResponse>('/auth/register', { method: 'POST', body: payload });
+}
+
+/** True when the API answers (used to come back after an outage). */
+export async function checkServerHealth(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/health`, { cache: 'no-store' });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 // --- Email links: forgot password, confirm email (owner decision, 2026-10-13) ---

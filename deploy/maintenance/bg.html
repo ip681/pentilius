@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Pentilius</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0f14;color:#d7dde3;font-family:Arial,Helvetica,sans-serif}
+  main{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
+  .card{max-width:440px;width:100%;text-align:center;background:#141b22;border:1px solid #26323d;border-radius:10px;padding:32px 28px}
+  img{width:120px;height:auto;margin:0 auto 18px;display:block}
+  h1{font-size:20px;color:#fff;margin:0 0 14px}
+  p{font-size:14px;line-height:1.6;margin:0 0 10px}
+  .thanks{color:#9aa6b2;font-size:13px;margin-top:18px}
+  .dots span{display:inline-block;width:7px;height:7px;margin:14px 3px 0;border-radius:50%;background:#405360;animation:b 1.2s infinite ease-in-out}
+  .dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
+  @keyframes b{0%,80%,100%{opacity:.3}40%{opacity:1}}
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <img src="/maintenance/logo.png" alt="Pentilius">
+    <h1>Подобряваме Pentilius за теб!</h1>
+    <p>В момента извършваме кратко обновяване, за да ти предложим още по-добро игрово изживяване.</p>
+    <p>Ще се завърнем след броени мигове!</p>
+    <div class="dots"><span></span><span></span><span></span></div>
+    <p class="thanks">Благодарим ти, че си част от света на Pentilius!</p>
+  </div>
+</main>
+<script>
+  // Comes back by itself: checks every 5 s and reloads once the game answers again.
+  setInterval(function () {
+    fetch(location.href, { method: 'HEAD', cache: 'no-store' })
+      .then(function (r) { if (r.status !== 503 && r.status < 500) location.reload(); })
+      .catch(function () {});
+  }, 5000);
+</script>
+</body>
+</html>

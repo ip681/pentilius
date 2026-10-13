@@ -869,3 +869,28 @@ Sent through Brevo (see `instructions/OPERATIONS.md`) from
   player used.
 - **Mobile app check:** the links open web pages, which also work for app
   users. Deep links into the app can come later.
+
+## What players see during an update (2026-10-13)
+
+During a deploy the old version keeps running while the new one builds. The
+only gap is the few seconds while the api/web containers restart.
+
+- **Caddy** (`deploy/Caddyfile`, `deploy/maintenance/`) handles that gap:
+  - **Pages** get a friendly "we're updating" page in the URL's language
+    (`/en/...` gives English, everything else Bulgarian). The owner wrote the
+    Bulgarian text. The page checks every 5 s and reloads by itself.
+  - **API calls** get JSON `{"statusCode":503,"message":"MAINTENANCE"}` with
+    `Retry-After: 15`. This is the same machine-readable answer the future
+    mobile app will use.
+  - **Old script chunks** (`/_next/*`) get a plain 503.
+- **Inside the game:**
+  - A lost connection (no answer, 502-504 or MAINTENANCE) shows a small
+    "reconnecting" banner instead of error messages.
+  - The banner polls `GET /api/v1/health`; when the server answers, every
+    page refreshes via `useRefresh`. No reload, nothing lost.
+  - Fixed along the way: a failed token refresh during a restart used to log
+    the player out. Now only a real refusal (4xx) does.
+- **Mobile app later:**
+  - The app reads the same `MAINTENANCE` answer and `/health`.
+  - The app must stay backward compatible with older installed versions. A
+    "minimum supported app version" check can force an update when unavoidable.

@@ -24,9 +24,11 @@ import { SeasonModule } from './season/season.module';
 import { RobotModule } from './robot/robot.module';
 import { ShopModule } from './shop/shop.module';
 import { SupportModule } from './support/support.module';
+import { HealthController } from './health.controller';
 import { ZonesModule } from './zones/zones.module';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
     PrismaModule,

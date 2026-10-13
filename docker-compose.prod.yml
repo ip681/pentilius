@@ -65,6 +65,8 @@ services:
       - "443:443"
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # "We're updating" page shown while api/web restart (deploy/Caddyfile).
+      - ./deploy/maintenance:/srv/maintenance:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

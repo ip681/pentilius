@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { onConnectionRestored } from './connection-events';
 
 // Long timers are capped so setTimeout never overflows (~24.8 days max); the
 // page simply re-arms after the next load.
@@ -56,9 +57,12 @@ export function useRefresh(
     if (loadOnStart) run();
     if (document.visibilityState === 'visible') start();
     document.addEventListener('visibilitychange', onVisibility);
+    // Back after an outage (e.g. an update): refresh right away.
+    const offRestored = onConnectionRestored(run);
     return () => {
       stop();
       document.removeEventListener('visibilitychange', onVisibility);
+      offRestored();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intervalMs, key, enabled]);

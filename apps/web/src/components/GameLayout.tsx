@@ -4,7 +4,7 @@ import type { PlayerProfileDto } from '@pentilius/shared';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { usePathname, useRouter } from '@/i18n/navigation';
-import { cancelAccountDeletion, checkSeason, getProfile } from '@/lib/api-client';
+import { ApiError, cancelAccountDeletion, checkSeason, getProfile } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format-datetime';
 import { clearTokens, isAuthenticated } from '@/lib/auth';
 import { onProfileChanged } from '@/lib/profile-events';
@@ -17,6 +17,7 @@ import { RaceSelectModal } from './RaceSelectModal';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { forgetDevicePush } from '@/lib/push';
+import { ConnectionBanner } from '@/components/ConnectionBanner';
 
 export function GameLayout({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
@@ -35,7 +36,10 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
         setLoggedIn(true);
         setCachedProfile(data);
       })
-      .catch(() => {
+      .catch((err) => {
+        // A temporary outage (an update restarting the server) is not a logout —
+        // keep the last-known profile; ConnectionBanner handles the wait.
+        if (err instanceof ApiError && err.code === 'CONNECTION_LOST') return;
         // Stored token is missing/expired — treat as logged out rather than showing dead chrome.
         clearTokens();
         void forgetDevicePush();
@@ -137,6 +141,7 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       {loggedIn && <NotificationCenter notifications={notifications} profile={profile} />}
+      <ConnectionBanner />
       {loggedIn && <BottomNav hasUnreadFriends={hasUnreadFriends} hasDailyTaskReward={!!notifications?.dailyTasks || !!notifications?.achievements} />}
       {/* After a season reset everyone re-picks their race before playing on (owner decision, 2026-10-13). */}
       {profile?.needsRaceSelection && pathname === '/dashboard' && <RaceSelectModal seasonNumber={profile.seasonNumber} onChosen={loadProfile} />}

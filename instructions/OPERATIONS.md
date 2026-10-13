@@ -32,6 +32,10 @@ files for game design and architecture rules.
   (sequentially, not in parallel — the box has ~3.8GB RAM) → `up -d` →
   `docker compose ... exec api npx prisma migrate deploy` → re-run the seed
   script if static content (buildings, items, zones, etc.) changed.
+- During the few seconds a container restarts, Caddy serves the "we're
+  updating" page (`deploy/maintenance/`) and a JSON 503 `MAINTENANCE` to API
+  calls; the game shows a reconnect banner. When only one side changed,
+  build and restart only that service (e.g. `build api` + `up -d api`).
 - Never commit/push/deploy without separate explicit confirmation each time,
   even if a very similar action was just approved.
 
