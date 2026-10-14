@@ -450,6 +450,11 @@ export function upgradeBuilding(key: string): Promise<BuildingStateDto> {
   return request<BuildingStateDto>(`/base/buildings/${key}/upgrade`, { method: 'POST', auth: true });
 }
 
+/** Exchange (owner decision, 2026-10-14): Metal <-> Crystal for a small Credits fee. */
+export function exchangeResources(from: 'METAL' | 'CRYSTAL', amount: number): Promise<BaseResponseDto> {
+  return request<BaseResponseDto>('/base/exchange', { method: 'POST', auth: true, body: { from, amount } });
+}
+
 /** VIP build queue (owner decision, 2026-10-13) — paid now, starts when the current construction ends. */
 export function queueBuilding(key: string): Promise<BaseResponseDto> {
   return request<BaseResponseDto>(`/base/buildings/${key}/queue`, { method: 'POST', auth: true });

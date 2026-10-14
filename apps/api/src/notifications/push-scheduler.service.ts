@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { GAME_BALANCE } from '../config/game-config';
+import { energyIntervalMs } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from './push.service';
 
@@ -46,12 +46,11 @@ export class PushSchedulerService implements OnModuleInit, OnModuleDestroy {
       const now = Date.now();
       const from = new Date(now - WINDOW_MS);
       const to = new Date(now);
-      const intervalMs = GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000;
 
       const [players, buildings, researches, expeditions] = await Promise.all([
         this.prisma.player.findMany({
           where: { id: { in: ids }, deletedAt: null },
-          select: { id: true, actionEnergy: true, actionEnergyMax: true, energyUpdatedAt: true },
+          select: { id: true, actionEnergy: true, actionEnergyMax: true, energyUpdatedAt: true, energyRegenBonus: true },
         }),
         this.prisma.playerBuilding.findMany({ where: { playerId: { in: ids }, constructionEndsAt: { gte: from, lte: to } } }),
         this.prisma.playerResearch.findMany({ where: { playerId: { in: ids }, researchEndsAt: { gte: from, lte: to } } }),
@@ -60,7 +59,7 @@ export class PushSchedulerService implements OnModuleInit, OnModuleDestroy {
 
       for (const player of players) {
         if (player.actionEnergy >= player.actionEnergyMax) continue;
-        const fullAt = player.energyUpdatedAt.getTime() + (player.actionEnergyMax - player.actionEnergy) * intervalMs;
+        const fullAt = player.energyUpdatedAt.getTime() + (player.actionEnergyMax - player.actionEnergy) * energyIntervalMs(player);
         if (fullAt >= from.getTime() && fullAt <= now) {
           await this.push.sendOnce(player.id, 'ENERGY_FULL', new Date(fullAt).toISOString());
         }

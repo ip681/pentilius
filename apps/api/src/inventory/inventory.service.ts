@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BoxOpenResultDto, InventoryItemDto, InventoryResponseDto, ItemStatsDto, RecycleValueDto, SellValueDto, UpgradeCostDto } from '@pentilius/shared';
-import { ItemQuality, ItemTier, Prisma } from '@prisma/client';
+import { ItemQuality, ItemTier, Prisma, ResearchBonusType } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
 import { getEffectiveInventoryCapacity, getUsedInventorySlots, grantItem } from './inventory-capacity';
 import { EconomyService } from '../player/economy.service';
@@ -56,8 +56,23 @@ export class InventoryService {
     for (const stack of fragmentStacks) {
       if (stack.itemDefinition.tier) ownedFragmentsByTier[stack.itemDefinition.tier] = stack.quantity;
     }
+    const effects = await this.researchEffects(playerId, tx);
 
-    return { items: items.map((item) => toInventoryItemDto(item, ownedFragmentsByTier)), capacity, used };
+    return { items: items.map((item) => toInventoryItemDto(item, ownedFragmentsByTier, effects)), capacity, used };
+  }
+
+  /** Metallurgy and Recycling research effects (owner decision, 2026-10-14). */
+  private async researchEffects(playerId: string, tx: Tx = this.prisma): Promise<ResearchEffects> {
+    const [metallurgy, recyclingMultiplier, recyclingLevel] = await Promise.all([
+      this.economy.getResearchMultiplier(playerId, ResearchBonusType.UPGRADE_MATERIALS, tx),
+      this.economy.getResearchMultiplier(playerId, ResearchBonusType.RECYCLING, tx),
+      this.economy.getResearchLevel(playerId, ResearchBonusType.RECYCLING, tx),
+    ]);
+    return {
+      materialFactor: 1 - Math.min(0.9, metallurgy - 1),
+      sellMultiplier: recyclingMultiplier,
+      extraFragments: Math.floor(recyclingLevel / GAME_BALANCE.recyclingExtraFragmentEvery),
+    };
   }
 
   async upgradeItem(playerId: string, itemInstanceId: string): Promise<InventoryResponseDto> {
@@ -85,7 +100,7 @@ export class InventoryService {
       // Each set has its own upgrade material (e.g. Coreforged gear needs coreforged_upgrade).
       const tier = item.itemDefinition.tier!;
       const materialKey = `${tier.toLowerCase()}_upgrade`;
-      const cost = GAME_BALANCE.itemUpgrade.materialsPerLevel * (item.upgradeLevel + 1);
+      const cost = upgradeMaterials(item.upgradeLevel, (await this.researchEffects(playerId, tx)).materialFactor);
 
       const material = await tx.itemDefinition.findUniqueOrThrow({ where: { key: materialKey } });
       const materialStack = await tx.itemInstance.findFirst({
@@ -128,7 +143,7 @@ export class InventoryService {
         throw new BadRequestException('ITEM_LISTED');
       }
 
-      const { metal, crystal } = computeSellValue(item.itemDefinition.tier!, item.quality);
+      const { metal, crystal } = computeSellValue(item.itemDefinition.tier!, item.quality, (await this.researchEffects(playerId, tx)).sellMultiplier);
       await tx.player.update({ where: { id: playerId }, data: { metal: { increment: metal }, crystal: { increment: crystal } } });
       await tx.itemInstance.delete({ where: { id: itemInstanceId } });
 
@@ -160,7 +175,8 @@ export class InventoryService {
 
       const tier = item.itemDefinition.tier!;
       const fragmentDefinition = await tx.itemDefinition.findUniqueOrThrow({ where: { key: FRAGMENT_KEYS_BY_TIER[tier] } });
-      for (let i = 0; i < GAME_BALANCE.itemRecycle.fragmentsPerItem; i++) {
+      const fragments = GAME_BALANCE.itemRecycle.fragmentsPerItem + (await this.researchEffects(playerId, tx)).extraFragments;
+      for (let i = 0; i < fragments; i++) {
         await grantItem(playerId, fragmentDefinition.id, tx);
       }
       await tx.itemInstance.delete({ where: { id: itemInstanceId } });
@@ -301,9 +317,17 @@ export class InventoryService {
   }
 }
 
+type ResearchEffects = { materialFactor: number; sellMultiplier: number; extraFragments: number };
+
+/** Materials for the next upgrade, after Metallurgy — never below 1. */
+function upgradeMaterials(upgradeLevel: number, materialFactor: number): number {
+  return Math.max(1, Math.round(GAME_BALANCE.itemUpgrade.materialsPerLevel * (upgradeLevel + 1) * materialFactor));
+}
+
 function toInventoryItemDto(
   item: Prisma.ItemInstanceGetPayload<{ include: { itemDefinition: true } }>,
   ownedFragmentsByTier: Partial<Record<ItemTier, number>>,
+  effects: ResearchEffects,
 ): InventoryItemDto {
   const isEquipment = item.itemDefinition.category === 'EQUIPMENT';
   const baseStats = item.itemDefinition.baseStats as { attack?: number; defense?: number; hp?: number };
@@ -327,10 +351,11 @@ function toInventoryItemDto(
     race: item.race,
     currentStats: isEquipment ? computeItemStats(baseStats, item.upgradeLevel) : null,
     nextLevelStats: isEquipment && !atMaxLevel ? computeItemStats(baseStats, item.upgradeLevel + 1) : null,
-    upgradeCost: isEquipment && !atMaxLevel && item.itemDefinition.tier ? computeUpgradeCost(item.itemDefinition.tier, item.upgradeLevel) : null,
-    sellValue: isEquipment && item.itemDefinition.tier ? computeSellValue(item.itemDefinition.tier, item.quality) : null,
-    recycleValue: isEquipment && item.itemDefinition.tier ? computeRecycleValue(item.itemDefinition.tier, ownedFragmentsByTier) : null,
+    upgradeCost: isEquipment && !atMaxLevel && item.itemDefinition.tier ? computeUpgradeCost(item.itemDefinition.tier, item.upgradeLevel, effects.materialFactor) : null,
+    sellValue: isEquipment && item.itemDefinition.tier ? computeSellValue(item.itemDefinition.tier, item.quality, effects.sellMultiplier) : null,
+    recycleValue: isEquipment && item.itemDefinition.tier ? computeRecycleValue(item.itemDefinition.tier, ownedFragmentsByTier, effects.extraFragments) : null,
     listedForSale: item.listedForSale,
+    energyGain: (item.itemDefinition.baseStats as { energy?: number }).energy ?? null,
   };
 }
 
@@ -349,17 +374,18 @@ function roundToOneDecimal(value: number): number {
 }
 
 /** Mirrors inventory.service.ts's upgradeItem() cost formula, for display before the player commits. */
-function computeUpgradeCost(tier: string, upgradeLevel: number): UpgradeCostDto {
+function computeUpgradeCost(tier: string, upgradeLevel: number, materialFactor: number): UpgradeCostDto {
   return {
     itemDefinitionKey: `${tier.toLowerCase()}_upgrade`,
-    quantity: GAME_BALANCE.itemUpgrade.materialsPerLevel * (upgradeLevel + 1),
+    quantity: upgradeMaterials(upgradeLevel, materialFactor),
   };
 }
 
 /** Mirrors inventory.service.ts's sellItem() payout formula, for display before the player commits. */
-function computeSellValue(tier: ItemTier, quality: ItemQuality): SellValueDto {
+function computeSellValue(tier: ItemTier, quality: ItemQuality, researchMultiplier: number): SellValueDto {
   const { baseMetalByTier, baseCrystalByTier, qualityMultiplier } = GAME_BALANCE.itemSell;
-  const multiplier = qualityMultiplier[quality];
+  // Recycling research raises what selling returns (owner decision, 2026-10-14).
+  const multiplier = qualityMultiplier[quality] * researchMultiplier;
   return {
     metal: Math.round(baseMetalByTier[tier] * multiplier),
     crystal: Math.round(baseCrystalByTier[tier] * multiplier),
@@ -367,10 +393,11 @@ function computeSellValue(tier: ItemTier, quality: ItemQuality): SellValueDto {
 }
 
 /** Mirrors inventory.service.ts's recycleItem() fragment yield, for display before the player commits. */
-function computeRecycleValue(tier: ItemTier, ownedFragmentsByTier: Partial<Record<ItemTier, number>>): RecycleValueDto {
+function computeRecycleValue(tier: ItemTier, ownedFragmentsByTier: Partial<Record<ItemTier, number>>, extraFragments: number): RecycleValueDto {
   return {
     fragmentItemDefinitionKey: FRAGMENT_KEYS_BY_TIER[tier],
     ownedFragments: ownedFragmentsByTier[tier] ?? 0,
     fragmentsPerStone: GAME_BALANCE.itemRecycle.fragmentsPerStone,
+    fragments: GAME_BALANCE.itemRecycle.fragmentsPerItem + extraFragments,
   };
 }

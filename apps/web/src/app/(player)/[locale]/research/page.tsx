@@ -11,6 +11,7 @@ import { notifyProfileChanged } from '@/lib/profile-events';
 import { notifyNotificationsChanged } from '@/lib/notifications-events';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { SpecialLevels } from '@/components/SpecialLevels';
 
 function researchProgress(research: ResearchStateDto): { active: boolean; percent: number; secondsLeft: number } {
   if (!research.researchEndsAt || !research.nextLevelCost) {
@@ -54,6 +55,8 @@ export default function ResearchPage() {
     } catch (err) {
       if (err instanceof ApiError && err.code === 'ANOTHER_RESEARCH_IN_PROGRESS') {
         setError(t('research.anotherResearchActive'));
+      } else if (err instanceof ApiError && err.code === 'RESEARCH_CENTER_LEVEL_REQUIRED') {
+        setError(t('research.needsCenter', { level: (data?.researchCap ?? 0) + 1 }));
       } else if (err instanceof ApiError && err.status === 400) {
         setError(t('research.notEnoughResources'));
       } else {
@@ -76,6 +79,8 @@ export default function ResearchPage() {
           {data.researches.map((research) => {
             const progress = researchProgress(research);
             const anotherActive = !progress.active && data.researches.some((r) => researchProgress(r).active);
+            // The Research Center caps every research's level (owner decision, 2026-10-14).
+            const needsCenter = !progress.active && !!research.nextLevelCost && research.level + 1 > data.researchCap;
             return (
               <section key={research.key} className="overflow-hidden rounded-lg border border-panelBorder bg-panel">
                 <div className="flex items-center justify-between border-b border-panelBorder bg-panelHeader px-4 py-3">
@@ -129,9 +134,12 @@ export default function ResearchPage() {
                     <p className="mb-4 text-xs text-textMuted">{t('research.maxLevel')}</p>
                   )}
 
+                  <SpecialLevels levels={research.specialLevels} />
+                  {needsCenter && <p className="mb-2 text-center text-[11px] text-textMuted">{t('research.needsCenter', { level: research.level + 1 })}</p>}
+
                   <button
                     type="button"
-                    disabled={progress.active || !research.nextLevelCost}
+                    disabled={progress.active || !research.nextLevelCost || needsCenter}
                     aria-disabled={anotherActive}
                     onClick={() => handleStart(research.key)}
                     className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"

@@ -1,6 +1,6 @@
 'use client';
 
-import type { BaseResponseDto, BuildingStateDto, InventoryItemDto, ResourcesDto } from '@pentilius/shared';
+import type { ActiveResearchDto, BaseResponseDto, BuildingStateDto, ExchangeInfoDto, InventoryItemDto, ResourcesDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
@@ -10,10 +10,25 @@ import { GameLayout } from '@/components/GameLayout';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, cancelBuildQueue, consumeItem, getBase, getInventory, queueBuilding, upgradeBuilding } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
+import { timerPercent } from '@/lib/timer-progress';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { notifyNotificationsChanged } from '@/lib/notifications-events';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { ExchangePanel } from '@/components/ExchangePanel';
+import { Link } from '@/i18n/navigation';
+import { SpecialLevels } from '@/components/SpecialLevels';
+
+const RESEARCH_CENTER_KEY = 'research_center';
+
+/** Progress of the running research, shown on the Research Center (owner decision, 2026-10-14). */
+function researchProgress(research: ActiveResearchDto | null): { active: boolean; percent: number; secondsLeft: number } {
+  if (!research) return { active: false, percent: 0, secondsLeft: 0 };
+  const secondsLeft = Math.ceil((new Date(research.endsAt).getTime() - Date.now()) / 1000);
+  if (secondsLeft <= 0) return { active: false, percent: 100, secondsLeft: 0 };
+  const percent = Math.max(0, Math.min(100, ((research.totalSeconds - secondsLeft) / research.totalSeconds) * 100));
+  return { active: true, percent, secondsLeft };
+}
 
 function isConstructionSpeedup(item: InventoryItemDto): boolean {
   return item.itemDefinitionKey.startsWith('construction_speedup');
@@ -29,8 +44,10 @@ function buildingProgress(building: BuildingStateDto): { active: boolean; percen
     return { active: false, percent: 100, secondsLeft: 0 };
   }
   const totalSeconds = building.nextLevelCost.constructionSeconds;
+  // The real start when known, so speed-ups and research show correctly.
+  const exact = timerPercent(building.constructionStartedAt, building.constructionEndsAt, now);
   const secondsLeft = Math.ceil((endsAt - now) / 1000);
-  const percent = Math.max(0, Math.min(100, ((totalSeconds - secondsLeft) / totalSeconds) * 100));
+  const percent = exact ?? Math.max(0, Math.min(100, ((totalSeconds - secondsLeft) / totalSeconds) * 100));
   return { active: true, percent, secondsLeft };
 }
 
@@ -74,7 +91,7 @@ export default function BasePage() {
 
   // No polling (owner decision, 2026-10-13): refresh when a construction ends
   // (which also starts a queued one), after actions, and on returning to the tab.
-  useRefresh(load, { refreshAt: data?.buildings.map((b) => b.constructionEndsAt) ?? [] });
+  useRefresh(load, { refreshAt: [...(data?.buildings.map((b) => b.constructionEndsAt) ?? []), data?.activeResearch?.endsAt ?? null] });
 
   useEffect(() => {
     const clock = setInterval(() => setTick((n) => n + 1), 1000);
@@ -205,9 +222,12 @@ export default function BasePage() {
 
       {data && (
         <FortressFrame corners={toFramePart(defenseSystem)} walls={toFramePart(defensiveWall)}>
-          <div className="grid justify-center gap-x-4 gap-y-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 140px))' }}>
+          {/* Phones: always 2 per row (owner decision, 2026-10-14); wider screens: auto-fit tiles as before. */}
+          <div className="grid grid-cols-2 gap-x-2 gap-y-4 sm:justify-center sm:gap-x-4 sm:gap-y-6 sm:[grid-template-columns:repeat(auto-fit,minmax(110px,140px))]">
             {terrainBuildings.map((building) => {
               const progress = buildingProgress(building);
+              // The Research Center shows the running research when it isn't being built itself.
+              const research = building.key === RESEARCH_CENTER_KEY && !progress.active ? researchProgress(data.activeResearch) : null;
               const upgradeReady = !anyUnderConstruction && canAffordUpgrade(building, data.resources);
               return (
                 <button
@@ -221,7 +241,7 @@ export default function BasePage() {
                   )}
                   {/* Production as an overlay in the top-left corner, so it doesn't make the tile taller. */}
                   {building.currentProduction && (
-                    <span className="absolute left-0 top-0 z-10 flex items-center gap-1 rounded bg-black/35 px-1.5 py-0.5 text-[10px] tabular-nums text-positive">
+                    <span className="absolute left-0 top-0 z-10 flex items-center gap-0.5 rounded bg-black/35 px-1 py-0.5 text-[9px] tabular-nums text-positive sm:gap-1 sm:px-1.5 sm:text-[10px]">
                       <ResourceIcon type={building.currentProduction.resourceType} className="h-3 w-3" />+{building.currentProduction.perHour}/
                       {t('base.perHour')}
                     </span>
@@ -229,16 +249,16 @@ export default function BasePage() {
                   <AssetIcon
                     assetId={building.iconAssetId}
                     alt={t(building.nameKey)}
-                    className={`h-20 w-20 object-contain drop-shadow-lg sm:h-28 sm:w-28 ${building.level > 0 ? '' : 'opacity-40 grayscale'}`}
+                    className={`h-[72px] w-[72px] object-contain drop-shadow-lg sm:h-28 sm:w-28 ${building.level > 0 ? '' : 'opacity-40 grayscale'}`}
                     fallback={
                       <div
-                        className={`flex h-20 w-20 items-center justify-center rounded-sm bg-accent text-2xl font-semibold text-textMuted drop-shadow-lg sm:h-28 sm:w-28 ${building.level > 0 ? 'opacity-80' : 'opacity-30'}`}
+                        className={`flex h-[72px] w-[72px] items-center justify-center rounded-sm bg-accent text-2xl font-semibold text-textMuted drop-shadow-lg sm:h-28 sm:w-28 ${building.level > 0 ? 'opacity-80' : 'opacity-30'}`}
                       >
                         {t(building.nameKey).charAt(0)}
                       </div>
                     }
                   />
-                  <span className="rounded bg-black/30 px-1.5 py-0.5 text-[10px] font-semibold text-white sm:text-xs">
+                  <span className="rounded bg-black/30 px-1.5 py-0.5 text-center text-[10px] font-semibold leading-tight text-white sm:text-xs">
                     {t(building.nameKey)} <span className="text-white/60">({building.level})</span>
                   </span>
 
@@ -249,6 +269,14 @@ export default function BasePage() {
                         <div className="h-full bg-accent transition-all" style={{ width: `${progress.percent}%` }} />
                       </div>
                       <span className="mt-0.5 block text-[10px] tabular-nums text-white/80">{formatDuration(progress.secondsLeft)}</span>
+                    </div>
+                  )}
+                  {research?.active && (
+                    <div className="w-full max-w-[110px]">
+                      <div className="h-[4px] overflow-hidden rounded-full bg-black/50">
+                        <div className="h-full bg-positive transition-all" style={{ width: `${research.percent}%` }} />
+                      </div>
+                      <span className="mt-0.5 block text-[10px] tabular-nums text-white/80">{formatDuration(research.secondsLeft)}</span>
                     </div>
                   )}
                 </button>
@@ -290,6 +318,10 @@ export default function BasePage() {
             anotherActive={!buildingProgress(selected).active && anyUnderConstruction}
             canQueue={canQueue}
             resources={data.resources}
+            exchange={selected.key === 'exchange' ? data.exchange : null}
+            isResearchCenter={selected.key === RESEARCH_CENTER_KEY}
+            activeResearch={data.activeResearch}
+            onExchanged={(base) => setData(base)}
             speedupItems={speedupItems}
             error={error}
             onUpgrade={() => handleUpgrade(selected.key)}
@@ -308,6 +340,10 @@ function BuildingDetails({
   anotherActive,
   canQueue,
   resources,
+  exchange,
+  onExchanged,
+  isResearchCenter,
+  activeResearch,
   speedupItems,
   error,
   onUpgrade,
@@ -319,6 +355,11 @@ function BuildingDetails({
   anotherActive: boolean;
   canQueue: boolean;
   resources: ResourcesDto;
+  // Only for the Exchange building, once built.
+  exchange: ExchangeInfoDto | null;
+  onExchanged: (base: BaseResponseDto) => void;
+  isResearchCenter: boolean;
+  activeResearch: ActiveResearchDto | null;
   speedupItems: InventoryItemDto[];
   error: string | null;
   onUpgrade: () => void;
@@ -354,6 +395,9 @@ function BuildingDetails({
       </div>
 
       <BuildingEffect building={building} />
+      <SpecialLevels levels={building.specialLevels} />
+      {exchange && <ExchangePanel info={exchange} onDone={onExchanged} />}
+      {isResearchCenter && <ResearchEntry research={activeResearch} />}
 
       {progress.active ? (
         <>
@@ -460,6 +504,10 @@ function describeEffect(building: BuildingStateDto, side: EffectSide, t: ReturnT
   const defense = side === 'current' ? building.currentDefenseBonusPercent : building.nextLevelDefenseBonusPercent;
   const protection = side === 'current' ? building.currentPvpProtectionMinutes : building.nextLevelPvpProtectionMinutes;
   const hidden = side === 'current' ? building.currentProtectedResources : building.nextLevelProtectedResources;
+  const researchCap = side === 'current' ? building.currentResearchCap : building.nextResearchCap;
+  const regen = side === 'current' ? building.currentEnergyRegenPercent : building.nextEnergyRegenPercent;
+  const maxEnergy = side === 'current' ? building.currentMaxEnergyBonus : building.nextMaxEnergyBonus;
+  const exchangeLimit = side === 'current' ? building.currentExchangeLimit : building.nextExchangeLimit;
 
   if (production) return `+${production.perHour} ${t(`resource.${production.resourceType}`)}/${t('base.perHour')}`;
   if (capacity !== null) return `+${capacity} ${t('base.inventorySlots')}`;
@@ -467,6 +515,9 @@ function describeEffect(building: BuildingStateDto, side: EffectSide, t: ReturnT
   if (defense !== null) return t('base.defenseBonus', { percent: defense });
   if (protection !== null) return t('base.pvpProtectionBonus', { minutes: protection });
   if (hidden) return t('base.protectedResources', { metal: hidden.metal, crystal: hidden.crystal, credits: hidden.credits });
+  if (researchCap !== null) return t('base.researchCap', { level: researchCap });
+  if (regen !== null) return maxEnergy ? `${t('base.energyRegen', { percent: regen })}, ${t('base.maxEnergyBonus', { amount: maxEnergy })}` : t('base.energyRegen', { percent: regen });
+  if (exchangeLimit !== null) return t('base.exchangeLimit', { amount: exchangeLimit.toLocaleString() });
   return null;
 }
 
@@ -619,6 +670,35 @@ function FortressFrame({ children, corners, walls }: { children: React.ReactNode
       {cornerCell(270, false)}
       {wallCell(horizontalFillLayer)}
       {cornerCell(180, false)}
+    </div>
+  );
+}
+
+/** Research is opened from the Research Center, not the menu (owner decision, 2026-10-14). */
+function ResearchEntry({ research }: { research: ActiveResearchDto | null }) {
+  const t = useTranslations();
+  const progress = researchProgress(research);
+  return (
+    <div className="mb-3 rounded border border-wellBorder bg-well p-2.5">
+      {research && progress.active ? (
+        <>
+          <div className="mb-1 flex justify-between gap-2 text-[10px] text-textMuted">
+            <span>{t('base.researching', { name: t(research.nameKey), level: research.level })}</span>
+            <span className="tabular-nums">{formatDuration(progress.secondsLeft)}</span>
+          </div>
+          <div className="mb-2.5 h-[7px] overflow-hidden rounded-full bg-wellBorder">
+            <div className="h-full bg-positive transition-all" style={{ width: `${progress.percent}%` }} />
+          </div>
+        </>
+      ) : (
+        <p className="mb-2.5 text-[11px] text-textMuted">{t('base.noResearch')}</p>
+      )}
+      <Link
+        href="/research"
+        className="block w-full rounded-md border border-accent bg-accentBg py-2.5 text-center text-xs uppercase text-text hover:bg-accentBgHover"
+      >
+        {t('base.openResearch')}
+      </Link>
     </div>
   );
 }

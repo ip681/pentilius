@@ -184,6 +184,14 @@ model Player {
   // accounts created before the checkbox existed (2026-10-12).
   termsAcceptedAt DateTime?
 
+  // Reactor bonus, kept on the player so energy settling needs no extra query
+  // (updated when a Reactor level finishes). Fraction off the regen interval.
+  energyRegenBonus Float @default(0)
+
+  // Exchange daily usage (owner decision, 2026-10-14) — day in Europe/Sofia.
+  exchangeDay       String?
+  exchangeUsedToday Int     @default(0)
+
   // Email confirmation (owner decision, 2026-10-13) — optional; null until the
   // player opens the emailed link (or resets the password via email).
   emailVerifiedAt DateTime?
@@ -422,13 +430,28 @@ model BuildingType {
   // listing capacity is a building, not a research — same "buildings =
   // capacity, research = % bonuses" split as the Warehouse above). Base
   // Market capacity is 0 — a player can't list anything until this reaches
-  // level 1.
-  marketSlotBonusPerLevel Int?
+  // level 1. A fraction since 2026-10-14 (0.5 = one listing every 2 levels,
+  // rounded up — see src/base/building-effects.ts).
+  marketSlotBonusPerLevel Float?
   // Only the Defense System sets this (owner decision, 2026-10-12): +defense
   // fraction per level (0.01 = +1%/level), applied ONLY while this player is
   // the one being attacked (PvP / clan-war defender) — never on their own
   // attacks. See CombatService.computeCombatBreakdown's `defending` option.
   defenseBonusPerLevel Float?
+
+  // Research Center (owner decision, 2026-10-14): researches can't go above
+  // level * this. Its first levels also unlock the longer expeditions
+  // (ExpeditionType.requiredNavigationLevel) — moved to the Navigation research on 2026-10-14.
+  researchCapPerLevel Int?
+
+  // Reactor (owner decision, 2026-10-14): faster Action Energy regeneration
+  // (fraction per level) and +1 max energy every maxEnergyBonusEvery levels.
+  energyRegenBonusPerLevel Float?
+  maxEnergyBonusEvery      Int?
+
+  // Exchange (owner decision, 2026-10-14): Metal <-> Crystal; the daily limit
+  // (input amount) grows by this per level. Rate/fee: GAME_BALANCE.exchange.
+  exchangeLimitPerLevel Int?
   // Only the Defensive Wall sets this (owner decision, 2026-10-12): extra
   // minutes per level added to the regular-PvP revenge protection a player
   // gets after LOSING a defense (GAME_BALANCE.pvp.revengeProtectionMinutes).
@@ -528,6 +551,9 @@ model PlayerBuilding {
   buildingTypeId     String
   level              Int       @default(0)
   constructionEndsAt DateTime?
+  // When the current construction started — for progress bars (2026-10-14).
+  // Null for constructions started before this existed.
+  constructionStartedAt DateTime?
 
   player       Player       @relation(fields: [playerId], references: [id])
   buildingType BuildingType @relation(fields: [buildingTypeId], references: [id])
@@ -646,6 +672,9 @@ model ExpeditionType {
   xpReward              Int
   bonusItemDefinitionId String?
   bonusItemChance       Float?
+  // Research Center level needed to start it (owner decision, 2026-10-14).
+  // Longer expeditions unlock at the Navigation research's first levels (owner decision, 2026-10-14).
+  requiredNavigationLevel Int @default(0)
 
   bonusItemDefinition ItemDefinition?    @relation(fields: [bonusItemDefinitionId], references: [id])
   playerExpeditions   PlayerExpedition[]
@@ -679,6 +708,12 @@ enum ResearchBonusType {
   CRYSTAL_PRODUCTION
   COMBAT_ATTACK
   COMBAT_HP
+  // Owner decision, 2026-10-14:
+  CONSTRUCTION_SPEED
+  RESEARCH_SPEED
+  EXPEDITION_REWARDS
+  UPGRADE_MATERIALS
+  RECYCLING
 }
 
 model ResearchType {
@@ -718,6 +753,8 @@ model PlayerResearch {
   researchTypeId String
   level          Int       @default(0)
   researchEndsAt DateTime?
+  // When the current research started — for progress bars (2026-10-14).
+  researchStartedAt DateTime?
 
   player       Player       @relation(fields: [playerId], references: [id])
   researchType ResearchType @relation(fields: [researchTypeId], references: [id])
@@ -976,6 +1013,10 @@ enum ClanBuildingBonusType {
   // (Clan Forge stays the general-purpose combat bonus). Applies only while
   // ClanBuilding.activeUntil is in the future — see clans/clan-tavern.ts.
   BOSS_CORE_DAMAGE
+  // Generator (owner decision, 2026-10-14): faster Action Energy regeneration
+  // for every member, plus +1 max energy at GAME_BALANCE.clanGenerator levels.
+  // Adds to the personal Reactor.
+  ENERGY_REGEN
 }
 
 model ClanBuildingType {

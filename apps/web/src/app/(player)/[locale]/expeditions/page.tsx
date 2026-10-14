@@ -181,10 +181,13 @@ export default function ExpeditionsPage() {
                 )}
               </div>
 
+              {/* Longer expeditions unlock with the Research Center (owner decision, 2026-10-14). */}
+              {type.locked && <p className="mb-2 text-center text-[11px] text-textMuted">{t('research.needsNavigation', { level: type.requiredNavigationLevel })}</p>}
               <button
                 type="button"
+                disabled={type.locked}
                 onClick={() => handleStart(type.key)}
-                className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase hover:bg-accentBgHover"
+                className="w-full rounded-md border border-accent bg-accentBg py-2.5 text-xs uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
               >
                 {t('expeditions.start')}
               </button>

@@ -707,7 +707,7 @@ export default function RobotPage() {
                     cancelLabel={t('common.cancel')}
                     message={
                       selected.recycleValue
-                        ? t('robot.recycleConfirm', { name: t(`items.${selected.recycleValue.fragmentItemDefinitionKey}.name`) })
+                        ? t('robot.recycleConfirm', { name: t(`items.${selected.recycleValue.fragmentItemDefinitionKey}.name`), count: selected.recycleValue.fragments })
                         : undefined
                     }
                     onConfirm={handleRecycle}

@@ -1,4 +1,5 @@
 import { ClanBuilding, Prisma } from '@prisma/client';
+import { productionScaled } from '../base/building-effects';
 import { GAME_BALANCE } from '../config/game-config';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -23,9 +24,9 @@ export interface TavernActivationCost {
 export function tavernActivationCost(level: number): TavernActivationCost {
   const t = GAME_BALANCE.clanTavern;
   return {
-    metal: level * t.activationMetalPerLevel,
-    crystal: level * t.activationCrystalPerLevel,
-    credits: level * t.activationCreditsPerLevel,
+    metal: productionScaled(level, t.activationMetalPerLevel),
+    crystal: productionScaled(level, t.activationCrystalPerLevel),
+    credits: productionScaled(level, t.activationCreditsPerLevel),
   };
 }
 

@@ -14,6 +14,7 @@ import { formatDuration } from '@/lib/format-duration';
 import { setPendingBattle } from '@/lib/pending-battle';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { EnergyRefill } from '@/components/EnergyRefill';
 
 // Planet layout geometry — a fixed viewBox so the whole thing scales
 // responsively via the SVG's own width:100%, no JS resize handling needed.
@@ -122,7 +123,7 @@ export default function ZonesPage() {
   const [selectedPentiliId, setSelectedPentiliId] = useState<string | null>(null);
   const [attackingFromPlanet, setAttackingFromPlanet] = useState(false);
   const [attackError, setAttackError] = useState<string | null>(null);
-  const { profile } = usePlayerEnergy();
+  const { profile, refreshProfile } = usePlayerEnergy();
   const multiCount = multiAttackCount(profile);
 
   // Fires the attack right here, before navigating — otherwise the player
@@ -482,6 +483,7 @@ export default function ZonesPage() {
                       </button>
                     )}
                   </div>
+                  {selectedPentiliId && <EnergyRefill profile={profile} onRefilled={refreshProfile} />}
                   {attackError && <p className="mt-2 text-center text-xs text-danger">{attackError}</p>}
                 </div>
               )}

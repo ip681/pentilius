@@ -894,3 +894,261 @@ only gap is the few seconds while the api/web containers restart.
   - The app reads the same `MAINTENANCE` answer and `/health`.
   - The app must stay backward compatible with older installed versions. A
     "minimum supported app version" check can force an update when unavoidable.
+
+## Energy packs at the attack buttons (2026-10-14)
+
+When energy isn't enough for an action, the owned energy packs appear right
+under the disabled attack button (`EnergyRefill`), like construction speed-ups
+in the Base. Each pack shows its gain and how many you own. One click uses it;
+the button becomes active again. With no packs, it shows when the next point
+regenerates.
+
+- **Where:** Pentili in the zone and on the planet, PvP, the Core, clan war.
+  Boss formations cost no energy.
+- **"Use and attack" in one click was rejected (owner decision):**
+  - a pack is worth 5-10 attacks, so it saves only one click;
+  - a failed attack (expedition, cooldown, opponent gone) would waste the pack
+    unless every attack type checked everything first.
+- **Overflow:** packs only appear when energy is (nearly) empty, so no energy
+  is lost and no confirmation is needed.
+- **Data:** the inventory DTO carries `energyGain` from the item's
+  `baseStats.energy`, so the client never hard-codes pack sizes.
+
+## Base buildings and research: agreed plan (2026-10-14, built the same day)
+
+**Review of what exists:** all 7 base buildings and the 4 researches are kept
+as ideas. The researches cover only attack and HP of the robot's stats; that
+is accepted for now.
+
+**Rule of thumb:**
+- **Building:** something physical in the base that gives capacity, slots or
+  a new action.
+- **Research:** a permanent percentage bonus or a rule improvement.
+
+**New buildings:**
+- **Research Center.**
+  - Its level caps every research's level, including the existing 4.
+  - Its first (low) levels unlock the longer expeditions. They are meant to be
+    easy to reach.
+- **Exchange.**
+  - Metal ↔ Crystal only.
+  - Each exchange costs a small amount of Credits, proportional to the amount
+    exchanged.
+  - Never Credits → resources: that would be pay-to-win (owner decision).
+- **Reactor.**
+  - +1 max Action Energy at certain levels.
+  - A small percentage of faster energy regeneration per level.
+  - It stacks with VIP. It is available to everyone, so it counts as
+    progression, not pay-to-win.
+
+**New researches:**
+- **Construction technologies:** less construction time.
+- **Research methods:** less research time.
+- **Navigation:** more expedition rewards.
+- **Metallurgy:** fewer stones for item upgrades.
+- **Recycling:** more resources from recycling, plus one extra *fragment* at
+  every 5th level (recycling yields fragments).
+
+**Dropped:**
+- the Hangar (too few expedition types; the Research Center unlocks longer
+  expeditions instead);
+- the old "buildings consume Power" concept, replaced by the Reactor as a
+  bonus building.
+
+**Later or maybe:**
+- Workshop, only if crafting ever comes;
+- Defensive systems and Maneuverability researches.
+
+**Levels and display:**
+- All base buildings and researches, old and new, go up to level 30. Costs,
+  times and effects are placeholders until one overall balancing pass once
+  everything exists.
+- In the UI: current and next level as now, a short list of "special levels"
+  with a ✓ when reached (e.g. Reactor +1 max energy, the Recycling fragment).
+  There is no full table of all levels (owner decision): what higher levels
+  give stays a bit of a discovery.
+
+### How it was built (2026-10-14)
+
+All numbers below are placeholders for the later balancing pass.
+
+- **Levels to 30:** a milder placeholder curve continues each building from
+  its last defined level (×1.25 cost, ×1.12 time and production per level).
+  Researches go ×1.3 cost and ×1.15 time per level.
+- **Research Center** (`researchCapPerLevel` 1):
+  - research level ≤ Research Center level;
+  - the 5 h expedition needs level 1 and the 10 h expedition level 2
+    (`ExpeditionType.requiredResearchCenterLevel`).
+- **Exchange:**
+  - Metal ↔ Crystal with 1 crystal = 2 metal at par;
+  - rate factor 0.7 + 0.01 per level (max 1);
+  - fee 1 Credit per 100 exchanged, rounded up;
+  - daily limit 5,000 × level of input amount, counted per day in
+    Europe/Sofia;
+  - what a higher level gives (limit + rate) was my recommendation, applied
+    while the owner was away.
+- **Reactor:** 1% faster regeneration per level (`Player.energyRegenBonus`)
+  and +1 max energy every 10 levels (`actionEnergyMax`). It applies as soon
+  as the level finishes: finished constructions are now also finalized on
+  profile load (`base/building-finalizer.ts`).
+- **New researches:**
+
+  | Research | Effect per level |
+  |---|---|
+  | Construction | −1% build time |
+  | Methods | −1% research time |
+  | Navigation | +2% expedition resources |
+  | Metallurgy | −1% upgrade stones, minimum 1 |
+  | Recycling | +2% sell resources, +1 fragment every 5 levels |
+
+- **UI:** a "Special levels" list (Reactor energy, Research Center unlocks,
+  the Recycling fragment) with a ✓ when reached; the Exchange form in its
+  building sheet; "Requires Research Center level X" on research and
+  expedition cards.
+
+## Base balance for buildings and research (2026-10-14)
+
+The owner asked for a first, basic balance of the base buildings and the
+researches and approved the plan ("давай"). Clan buildings, Pentili, XP and
+rewards were not touched. All numbers are still placeholders, but they now
+follow one model instead of separate guesses.
+
+**Assumption:** a season of about 6 months, with level 30 as a late-season
+goal rather than something reached in the first weeks.
+
+**One model for everything** (`prisma/seed.ts`):
+- **Production:** 100 Metal/h × L × 1.08^(L−1) for the Metal Mine, 60 Crystal/h
+  for the Crystal Extractor (L1 100, L10 ~2,000, L20 ~8,600, L30 ~28,000
+  Metal/h). The growth factor is `GAME_BALANCE.buildingEffects.amountGrowth`.
+- **Cost:** a "value" of L/2 hours of a level-L Metal Mine, times a factor per
+  building. Each level costs ~×1.2 more while production grows ~×1.12, so late
+  levels take more than a day of income. Factors:
+
+  | Building | Metal | Crystal | Time |
+  |---|---|---|---|
+  | Metal Mine | — | 1 | 1 |
+  | Crystal Extractor | 1.6 | — | 1 |
+  | Warehouse, Trading Post | 0.6 | 0.25 | 0.8 |
+  | Defense System, Wall, Hideout, Exchange | 0.8 | 0.35 | 1 |
+  | Research Center | 1 | 0.5 | 1.2 |
+  | Reactor | 1.2 | 0.6 | 1.2 |
+
+- **Time:** 60 s × L^2.2 × the factor: 1 min at L1, ~35 min at L5, ~2.5 h at
+  L10, ~12 h at L20, ~30 h at L30.
+- **Researches:** value × 1.5 Metal, × 0.6 Crystal, × 0.03 Credits; time
+  2 min × L^2.1 (~4 h at L10, ~42 h at L30).
+- The seed now updates existing cost rows (`update: cost`, not `{}`), so a
+  re-run applies a rebalance.
+
+**Effects:**
+
+| Building / research | Before | Now |
+|---|---|---|
+| Warehouse | +3 slots/level | +2 slots/level (+60 at L30) |
+| Trading Post | +1 listing/level | +1 listing every 2 levels, rounded up (L1 = 1, L30 = 15) |
+| Defense System | +1%/level | +0.5%/level (+15% at L30) |
+| Defensive Wall | +5 min/level | +2 min/level (10 → 70 min at L30) |
+| Hideout | 500 / 200 / 100 per level | ~3 h of that level's Metal and Crystal production (300 / 180 × L × 1.08^(L−1)); Credits stay 100 × L |
+| Exchange daily limit | 5,000 × L | ~10 h of Metal production (1,000 × L × 1.08^(L−1)) |
+| Metal / Crystal research | +5%/level | +2%/level (+60% at L30) |
+| Weapon Systems / Hull | +5%/level | +1%/level (+30% at L30) |
+
+The Research Center, Reactor and the 5 new researches keep their effects;
+only their costs and times changed.
+
+**How it was built:**
+- `src/base/building-effects.ts` holds the non-linear effects
+  (`productionScaled`, `marketSlots`, `hideoutProtection`). The Base screen,
+  PvP theft (`player/base-defense.ts`) and the Market all use it, so the
+  number shown is the number applied.
+- `BuildingType.marketSlotBonusPerLevel` became a Float (migration
+  `trading_post_fractional_slots`).
+- Production deploy needs `prisma migrate deploy` **and** a seed re-run.
+
+## Research opens from the Research Center (2026-10-14)
+
+Owner decision: research is opened from the Research Center, not from the
+menu.
+- The "Research" menu item was removed (`nav-items.ts`). The Command Center's
+  Quick Access tile stays, for players who use research often.
+- The Research Center's sheet in the Base shows the running research with a
+  countdown and a "Research" button that opens the research page.
+- The Research Center tile shows a green progress bar while something is
+  researched (and the usual construction bar while the building itself is
+  being upgraded). `BaseResponseDto.activeResearch` carries it.
+- The `/research` page keeps its own address, so the "research finished"
+  notification still links straight to it, and the future mobile app can
+  have the same screen. The API did not change otherwise.
+
+## Longer expeditions unlock with Navigation (2026-10-14)
+
+Owner decision: the longer expeditions now unlock with the **Navigation**
+research instead of the Research Center, so everything about expeditions sits
+in one place. Navigation unlocks them and also adds its +% to expedition
+resources. The Research Center keeps one role: the research level cap.
+- Navigation's special levels:
+  - level 1 unlocks the 5 h expedition;
+  - level 2 unlocks the 10 h expedition.
+- Still easy at the start: Navigation 1 costs ~75 Metal and 2 minutes, but it
+  needs Research Center level 1 first.
+- `ExpeditionType.requiredResearchCenterLevel` was renamed to
+  `requiredNavigationLevel` (migration `expedition_unlock_by_navigation`, a
+  rename, so the values stay). The error code is `NAVIGATION_LEVEL_REQUIRED`.
+- A Navigation level whose time is up counts at once, even before the
+  research screen finalizes it.
+
+## Progress bars on Command Center timers (2026-10-14)
+
+Owner decision: timers in the Command Center's "Active operations" get a
+progress bar, like the Base tiles.
+- With a bar: construction, research (green, as on the Base), expedition, the
+  open Core window, the active Tavern, clan war, open boss formation.
+- Without a bar: "Core opens in…" and "season reset in…", since they have no
+  start.
+- Exact start times are now stored: `PlayerBuilding.constructionStartedAt`
+  and `PlayerResearch.researchStartedAt` (migration `timer_started_at`).
+  Timers started before that are estimated from the level's time. A
+  speed-up moves the end, so the bar jumps forward, which is correct.
+- The Tavern's start is its end minus one activation
+  (`CoreTavernStatusDto.activeSince`).
+- Using speed-ups from the Command Center was discussed and left out for now
+  (owner, 2026-10-14).
+- Shared helper: `apps/web/src/lib/timer-progress.ts`.
+
+## Clan buildings: base balance and the Generator (2026-10-14)
+
+Owner decisions after reviewing the clan buildings:
+
+| Shown as | Key | Effect | Levels |
+|---|---|---|---|
+| Member Hall | `member_hall` | 10 places + 2 per level (unchanged) | 10 |
+| Forge | `clan_forge` | +1% attack and defense per level (was +5%) | 30 (was 10) |
+| Refinery | `clan_depot` | +1% Metal and Crystal production per level (was +5%) | 30 (was 10) |
+| Generator (new) | `clan_generator` | +0.5% faster energy regeneration per level; +1 max energy at levels 15 and 30 | 30 |
+| Cantina | `clan_tavern` | unchanged effect | no designed cap |
+
+- **Why the cut:** +5% per level made the clan buildings stronger than the
+  personal researches (now +1–2% per level).
+- **Names:** the interface drops "Clan" from the names (the player is in the
+  clan screen anyway); the keys keep `clan_` so the code still shows they are
+  clan buildings. The old Depot is now shown as Refinery and keeps its level
+  and image.
+- **Generator:** half the personal Reactor. Bonuses add up against the base
+  value (Reactor 20% + Generator 10% = 30% faster than base), not one on top
+  of the other. Max energy also adds up (10 + Reactor + Generator).
+  `building-finalizer.ts`'s `refreshEnergyBonuses` recomputes both on every
+  profile load, so joining or leaving a clan and a finished Generator level
+  apply on the player's next action. New enum value
+  `ClanBuildingBonusType.ENERGY_REGEN` (migration `clan_generator`); the
+  max-energy levels are `GAME_BALANCE.clanGenerator.maxEnergyLevels`.
+- **Costs:** the personal model × 10 (`CLAN_COST_FACTOR` in `seed.ts`), since
+  the whole clan pays. The Member Hall's 10 levels each cost like 3 levels of
+  the others. The Cantina uses the same model × 0.8, time capped at 7 days.
+- **Cantina activation:** was 150 Metal + 60 Crystal × level per 12 h, far
+  too cheap in the new economy. Now it grows like production:
+  3,000 Metal / 1,200 Crystal / 50 Credits × level × 1.08^(level−1) per
+  activation (`GAME_BALANCE.clanTavern`, `clan-tavern.ts`). Keeping it always
+  on costs a 20-member clan ~12% of its Metal income at any level, so
+  activating stays a decision before the Core or a boss.
+- **Dropped for now:** a HQ capping building levels, a clan doctrine, Barracks,
+  splitting the Refinery into Metal and Crystal buildings.

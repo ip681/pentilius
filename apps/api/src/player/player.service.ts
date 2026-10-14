@@ -3,11 +3,12 @@ import { CosmeticsCatalogDto, NotificationTimerDto, NotificationsDto, PlayerLead
 import { Race } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { GAME_BALANCE } from '../config/game-config';
-import { EconomyService } from './economy.service';
+import { EconomyService, energyIntervalMs } from './economy.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
-import { readNotificationSettings } from '../notifications/push.service';
+import { PushService, readNotificationSettings } from '../notifications/push.service';
+import { finalizeDueBuildings, refreshEnergyBonuses } from '../base/building-finalizer';
 import { PrismaService } from '../prisma/prisma.service';
 import { coreStatus, getCurrentSeason } from '../season/season.service';
 
@@ -21,9 +22,14 @@ export class PlayerService {
     private readonly contentFilter: ContentFilterService,
     private readonly dailyTasks: DailyTasksService,
     private readonly achievements: AchievementsService,
+    private readonly push: PushService,
   ) {}
 
   async getProfile(playerId: string): Promise<PlayerProfileDto> {
+    // Finished constructions apply even without a Base visit (the Reactor's energy bonus).
+    await finalizeDueBuildings({ prisma: this.prisma, economy: this.economy, push: this.push }, playerId);
+    // Reactor + clan Generator; also catches joining/leaving a clan.
+    await refreshEnergyBonuses({ prisma: this.prisma, economy: this.economy, push: this.push }, playerId);
     const player = await this.economy.settleAll(playerId);
     const xpForNextLevel = await this.economy.getXpForNextLevel(player.level);
 
@@ -46,12 +52,12 @@ export class PlayerService {
         max: player.actionEnergyMax,
         nextRegenAt:
           player.actionEnergy < player.actionEnergyMax
-            ? new Date(player.energyUpdatedAt.getTime() + GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000).toISOString()
+            ? new Date(player.energyUpdatedAt.getTime() + energyIntervalMs(player)).toISOString()
             : null,
         fullAt:
           player.actionEnergy < player.actionEnergyMax
             ? new Date(
-                player.energyUpdatedAt.getTime() + (player.actionEnergyMax - player.actionEnergy) * GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000,
+                player.energyUpdatedAt.getTime() + (player.actionEnergyMax - player.actionEnergy) * energyIntervalMs(player),
               ).toISOString()
             : null,
       },
@@ -86,7 +92,7 @@ export class PlayerService {
       this.prisma.supportTicket.count({ where: { playerId, playerUnread: true } }),
       this.prisma.player.findUniqueOrThrow({
         where: { id: playerId },
-        select: { actionEnergy: true, actionEnergyMax: true, energyUpdatedAt: true, notificationSettings: true },
+        select: { actionEnergy: true, actionEnergyMax: true, energyUpdatedAt: true, energyRegenBonus: true, notificationSettings: true },
       }),
       this.prisma.playerBuilding.findMany({
         where: { playerId, constructionEndsAt: { gte: since } },
@@ -109,7 +115,7 @@ export class PlayerService {
 
     const timers: NotificationTimerDto[] = [];
     if (player.actionEnergy < player.actionEnergyMax) {
-      const fullAt = player.energyUpdatedAt.getTime() + (player.actionEnergyMax - player.actionEnergy) * GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000;
+      const fullAt = player.energyUpdatedAt.getTime() + (player.actionEnergyMax - player.actionEnergy) * energyIntervalMs(player);
       timers.push({ type: 'ENERGY_FULL', at: new Date(fullAt).toISOString(), nameKey: null, level: null });
     }
     for (const b of buildings) timers.push({ type: 'CONSTRUCTION_DONE', at: b.constructionEndsAt!.toISOString(), nameKey: b.buildingType.nameKey, level: b.level + 1 });

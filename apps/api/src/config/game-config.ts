@@ -290,13 +290,47 @@ export const GAME_BALANCE = {
     //
     // Bonus only applies while active. One activation lasts activationHours
     // and is NOT renewed automatically (owner decision) — afterwards a
-    // leader/officer has to activate it again by hand. Activation cost = level × the per-level amounts below (owner decision:
-    // cost grows with level). Placeholder amounts.
+    // leader/officer has to activate it again by hand. Activation cost grows
+    // with the level like mine production (owner decision; since the base
+    // balance, 2026-10-14): perLevel * level * buildingEffects.amountGrowth^(level-1).
+    // Keeping it always on costs a 20-member clan ~12% of its Metal income,
+    // so activating stays a decision (before the Core or a boss). Placeholder.
     activationHours: 12,
-    activationMetalPerLevel: 150,
-    activationCrystalPerLevel: 60,
-    activationCreditsPerLevel: 0,
+    activationMetalPerLevel: 3000,
+    activationCrystalPerLevel: 1200,
+    activationCreditsPerLevel: 50,
   },
+  // New base buildings (owner decision, 2026-10-14). Placeholder numbers.
+  buildingKeys: {
+    researchCenter: 'research_center',
+    exchange: 'exchange',
+    reactor: 'reactor',
+  },
+  clanGenerator: {
+    // Generator clan building (owner decision, 2026-10-14): half the personal
+    // Reactor — +0.5% regeneration per level (seed.ts) and +1 max energy at
+    // each of these levels. Placeholder, may be tuned later.
+    maxEnergyLevels: [15, 30],
+  },
+  buildingEffects: {
+    // Base balance (2026-10-14). Mine production per level is
+    // basePerHour * level * amountGrowth^(level-1) (prisma/seed.ts), and the
+    // Hideout's Metal/Crystal and the Exchange's daily limit grow the same way,
+    // so they stay worth the same number of hours of income at every level.
+    amountGrowth: 1.08,
+  },
+  exchange: {
+    // Crystal is rarer (produced ~1.7x less), so 1 crystal is worth 2 metal at par.
+    metalPerCrystal: 2,
+    // The rate improves with the level: factor = base + perLevel * level (max 1).
+    baseRateFactor: 0.7,
+    rateFactorPerLevel: 0.01,
+    // Credits per 100 resources exchanged (rounded up).
+    creditsPer100: 1,
+  },
+  // Recycling research: one extra fragment every this many levels.
+  recyclingExtraFragmentEvery: 5,
+
   // Email links (owner decision, 2026-10-13).
   email: {
     verifyTokenHours: 72,
@@ -504,7 +538,7 @@ export const GAME_BALANCE = {
     // (only removed by sale or cancellation). Equipment only for now (see
     // MarketListing's schema comment). Listing capacity itself moved off
     // this flat constant on 2026-09-11 — it's now driven entirely by the
-    // Trading Post building (base 0, +1 slot/level — see
+    // Trading Post building (base 0, +1 slot every 2 levels since 2026-10-14 — see
     // schema.prisma's BuildingType.marketSlotBonusPerLevel and
     // MarketService.getEffectiveListingCapacity).
   },

@@ -73,7 +73,7 @@ export class EconomyService {
       return player;
     }
 
-    const intervalMs = GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000;
+    const intervalMs = energyIntervalMs(player);
     const elapsedMs = Date.now() - player.energyUpdatedAt.getTime();
     const pointsGained = Math.floor(elapsedMs / intervalMs);
     if (pointsGained <= 0) {
@@ -149,6 +149,12 @@ export class EconomyService {
     return threshold?.xpRequired ?? null;
   }
 
+  /** Level of the (single) research of this bonus type, 0 if none. */
+  async getResearchLevel(playerId: string, bonusType: ResearchBonusType, tx: Tx = this.prisma): Promise<number> {
+    const research = await tx.playerResearch.findFirst({ where: { playerId, researchType: { bonusType } }, select: { level: true } });
+    return research?.level ?? 0;
+  }
+
   /** 1 + sum(level * bonusPerLevel) across every researched technology of this bonus type. */
   async getResearchMultiplier(playerId: string, bonusType: ResearchBonusType, tx: Tx = this.prisma): Promise<number> {
     const researches = await tx.playerResearch.findMany({
@@ -158,4 +164,9 @@ export class EconomyService {
     const totalBonus = researches.reduce((sum, research) => sum + research.level * research.researchType.bonusPerLevel, 0);
     return 1 + totalBonus;
   }
+}
+
+/** Time per Action Energy point, shortened by the Reactor (owner decision, 2026-10-14). */
+export function energyIntervalMs(player: { energyRegenBonus?: number | null }): number {
+  return GAME_BALANCE.actionEnergy.regenIntervalMinutes * 60_000 * (1 - Math.min(0.9, player.energyRegenBonus ?? 0));
 }

@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { GAME_BALANCE } from '../src/config/game-config';
 
 const prisma = new PrismaClient();
 
@@ -124,128 +125,105 @@ async function main() {
 
   const buildingTypes = await Promise.all(
     [
-      { key: 'metal_mine', nameKey: 'buildings.metal_mine.name', maxLevel: 10, iconAssetId: 'buildings.metal_mine.icon' },
+      { key: 'metal_mine', nameKey: 'buildings.metal_mine.name', maxLevel: 30, iconAssetId: 'buildings.metal_mine.icon' },
       {
         key: 'crystal_extractor',
         nameKey: 'buildings.crystal_extractor.name',
-        maxLevel: 10,
+        maxLevel: 30,
         iconAssetId: 'buildings.crystal_extractor.icon',
       },
       // capacityBonusPerLevel: raises personal inventory capacity — owner
       // decision, resolving the Warehouse's previous lack of any coded effect.
-      { key: 'warehouse', nameKey: 'buildings.warehouse.name', maxLevel: 10, iconAssetId: 'buildings.warehouse.icon', capacityBonusPerLevel: 3 },
+      { key: 'warehouse', nameKey: 'buildings.warehouse.name', maxLevel: 30, iconAssetId: 'buildings.warehouse.icon', capacityBonusPerLevel: 2 },
       // marketSlotBonusPerLevel: raises Market listing capacity, base 0 —
       // owner decision, 2026-09-11 (see schema.prisma's comment on
-      // BuildingType.marketSlotBonusPerLevel).
-      { key: 'trading_post', nameKey: 'buildings.trading_post.name', maxLevel: 10, iconAssetId: 'buildings.trading_post.icon', marketSlotBonusPerLevel: 1 },
+      // BuildingType.marketSlotBonusPerLevel). 0.5 = one listing every 2
+      // levels, rounded up (base balance, 2026-10-14).
+      { key: 'trading_post', nameKey: 'buildings.trading_post.name', maxLevel: 30, iconAssetId: 'buildings.trading_post.icon', marketSlotBonusPerLevel: 0.5 },
       // Defense System (owner decision, 2026-10-12): drawn as the 4 corner
       // towers of the base's wall frame, reusing the existing guard_tower art.
-      // +1% defense per level, only while this player is being attacked.
-      { key: 'defense_system', nameKey: 'buildings.defense_system.name', maxLevel: 10, iconAssetId: 'buildings.guard_tower.icon', defenseBonusPerLevel: 0.01 },
+      // +0.5% defense per level (+15% at level 30; base balance, 2026-10-14),
+      // only while this player is being attacked.
+      { key: 'defense_system', nameKey: 'buildings.defense_system.name', maxLevel: 30, iconAssetId: 'buildings.guard_tower.icon', defenseBonusPerLevel: 0.005 },
       // Defensive Wall (owner decision, 2026-10-12): drawn as the wall segments
-      // of the frame. +5 min/level of regular-PvP revenge protection after a
-      // lost defense (base 10 min -> 60 min at level 10). PvP only, not clan war.
-      { key: 'defensive_wall', nameKey: 'buildings.defensive_wall.name', maxLevel: 10, iconAssetId: 'buildings.defensive_wall.icon', pvpProtectionMinutesPerLevel: 5 },
-      // Hideout (owner decision, 2026-10-12): this much per level of each
-      // resource can't be stolen when losing a defense (PvP and clan-war
-      // duels). Placeholder amounts, not tuned against real income yet.
+      // of the frame. +2 min/level of regular-PvP revenge protection after a
+      // lost defense (base 10 min -> 70 min at level 30; base balance,
+      // 2026-10-14). PvP only, not clan war.
+      { key: 'defensive_wall', nameKey: 'buildings.defensive_wall.name', maxLevel: 30, iconAssetId: 'buildings.defensive_wall.icon', pvpProtectionMinutesPerLevel: 2 },
+      // Hideout (owner decision, 2026-10-12): this much of each resource can't
+      // be stolen when losing a defense (PvP and clan-war duels). Metal and
+      // Crystal grow like mine production (building-effects.ts), so the
+      // Hideout always shields ~3 hours of that level's income; Credits stay
+      // linear (base balance, 2026-10-14).
       {
         key: 'hideout',
         nameKey: 'buildings.hideout.name',
-        maxLevel: 10,
+        maxLevel: 30,
         iconAssetId: 'buildings.hideout.icon',
-        protectedMetalPerLevel: 500,
-        protectedCrystalPerLevel: 200,
+        protectedMetalPerLevel: 300,
+        protectedCrystalPerLevel: 180,
         protectedCreditsPerLevel: 100,
       },
+      // New buildings (owner decision, 2026-10-14) — placeholder numbers.
+      // Research Center: researches up to its level; low levels unlock the longer expeditions.
+      { key: 'research_center', nameKey: 'buildings.research_center.name', maxLevel: 30, iconAssetId: 'buildings.research_center.icon', researchCapPerLevel: 1 },
+      // Exchange: Metal <-> Crystal for a small Credits fee. The daily limit
+      // grows like mine production (~10 hours of Metal income per day).
+      { key: 'exchange', nameKey: 'buildings.exchange.name', maxLevel: 30, iconAssetId: 'buildings.exchange.icon', exchangeLimitPerLevel: 1000 },
+      // Reactor: +1% faster energy regeneration per level, +1 max energy every 10 levels.
+      { key: 'reactor', nameKey: 'buildings.reactor.name', maxLevel: 30, iconAssetId: 'buildings.reactor.icon', energyRegenBonusPerLevel: 0.01, maxEnergyBonusEvery: 10 },
       // update: data (not {}) — capacityBonusPerLevel/marketSlotBonusPerLevel
       // must follow this list when it changes, not freeze at whatever an
       // existing row already has.
     ].map((data) => prisma.buildingType.upsert({ where: { key: data.key }, update: data, create: data })),
   );
-  const [metalMine, crystalExtractor, warehouse, tradingPost, defenseSystem, defensiveWall, hideout] = buildingTypes;
+  const [metalMine, crystalExtractor, warehouse, tradingPost, defenseSystem, defensiveWall, hideout, researchCenter, exchange, reactor] = buildingTypes;
 
-  const levelCosts = [
-    { buildingTypeId: metalMine.id, level: 1, metalCost: 0, crystalCost: 50, constructionSeconds: 60, producesResourceType: 'METAL' as const, producesPerHour: 100 },
-    { buildingTypeId: metalMine.id, level: 2, metalCost: 0, crystalCost: 120, constructionSeconds: 180, producesResourceType: 'METAL' as const, producesPerHour: 220 },
-    { buildingTypeId: metalMine.id, level: 3, metalCost: 0, crystalCost: 250, constructionSeconds: 420, producesResourceType: 'METAL' as const, producesPerHour: 400 },
-    // Levels 4-10 (maxLevel is already 10 on the BuildingType) — continues the
-    // same placeholder curve as levels 1-3 (see instructions/OPEN_DECISIONS.md's
-    // "Construction costs/times, building production rates").
-    { buildingTypeId: metalMine.id, level: 4, metalCost: 0, crystalCost: 480, constructionSeconds: 900, producesResourceType: 'METAL' as const, producesPerHour: 700 },
-    { buildingTypeId: metalMine.id, level: 5, metalCost: 0, crystalCost: 900, constructionSeconds: 1800, producesResourceType: 'METAL' as const, producesPerHour: 1200 },
-    { buildingTypeId: metalMine.id, level: 6, metalCost: 0, crystalCost: 1700, constructionSeconds: 3600, producesResourceType: 'METAL' as const, producesPerHour: 2000 },
-    { buildingTypeId: metalMine.id, level: 7, metalCost: 0, crystalCost: 3200, constructionSeconds: 7200, producesResourceType: 'METAL' as const, producesPerHour: 3400 },
-    { buildingTypeId: metalMine.id, level: 8, metalCost: 0, crystalCost: 6000, constructionSeconds: 14400, producesResourceType: 'METAL' as const, producesPerHour: 5600 },
-    { buildingTypeId: metalMine.id, level: 9, metalCost: 0, crystalCost: 11000, constructionSeconds: 28800, producesResourceType: 'METAL' as const, producesPerHour: 9200 },
-    { buildingTypeId: metalMine.id, level: 10, metalCost: 0, crystalCost: 20000, constructionSeconds: 57600, producesResourceType: 'METAL' as const, producesPerHour: 15000 },
-    { buildingTypeId: crystalExtractor.id, level: 1, metalCost: 80, crystalCost: 0, constructionSeconds: 90, producesResourceType: 'CRYSTAL' as const, producesPerHour: 60 },
-    { buildingTypeId: crystalExtractor.id, level: 2, metalCost: 180, crystalCost: 0, constructionSeconds: 240, producesResourceType: 'CRYSTAL' as const, producesPerHour: 130 },
-    { buildingTypeId: crystalExtractor.id, level: 3, metalCost: 350, crystalCost: 0, constructionSeconds: 480, producesResourceType: 'CRYSTAL' as const, producesPerHour: 240 },
-    { buildingTypeId: crystalExtractor.id, level: 4, metalCost: 650, crystalCost: 0, constructionSeconds: 960, producesResourceType: 'CRYSTAL' as const, producesPerHour: 420 },
-    { buildingTypeId: crystalExtractor.id, level: 5, metalCost: 1200, crystalCost: 0, constructionSeconds: 1920, producesResourceType: 'CRYSTAL' as const, producesPerHour: 720 },
-    { buildingTypeId: crystalExtractor.id, level: 6, metalCost: 2200, crystalCost: 0, constructionSeconds: 3840, producesResourceType: 'CRYSTAL' as const, producesPerHour: 1200 },
-    { buildingTypeId: crystalExtractor.id, level: 7, metalCost: 4000, crystalCost: 0, constructionSeconds: 7680, producesResourceType: 'CRYSTAL' as const, producesPerHour: 2000 },
-    { buildingTypeId: crystalExtractor.id, level: 8, metalCost: 7200, crystalCost: 0, constructionSeconds: 15360, producesResourceType: 'CRYSTAL' as const, producesPerHour: 3300 },
-    { buildingTypeId: crystalExtractor.id, level: 9, metalCost: 13000, crystalCost: 0, constructionSeconds: 30720, producesResourceType: 'CRYSTAL' as const, producesPerHour: 5400 },
-    { buildingTypeId: crystalExtractor.id, level: 10, metalCost: 23000, crystalCost: 0, constructionSeconds: 61440, producesResourceType: 'CRYSTAL' as const, producesPerHour: 8800 },
-    { buildingTypeId: warehouse.id, level: 1, metalCost: 60, crystalCost: 20, constructionSeconds: 60 },
-    { buildingTypeId: warehouse.id, level: 2, metalCost: 150, crystalCost: 60, constructionSeconds: 200 },
-    { buildingTypeId: warehouse.id, level: 3, metalCost: 300, crystalCost: 120, constructionSeconds: 400 },
-    { buildingTypeId: warehouse.id, level: 4, metalCost: 550, crystalCost: 220, constructionSeconds: 750 },
-    { buildingTypeId: warehouse.id, level: 5, metalCost: 1000, crystalCost: 400, constructionSeconds: 1500 },
-    { buildingTypeId: warehouse.id, level: 6, metalCost: 1800, crystalCost: 720, constructionSeconds: 3000 },
-    { buildingTypeId: warehouse.id, level: 7, metalCost: 3200, crystalCost: 1300, constructionSeconds: 6000 },
-    { buildingTypeId: warehouse.id, level: 8, metalCost: 5800, crystalCost: 2300, constructionSeconds: 12000 },
-    { buildingTypeId: warehouse.id, level: 9, metalCost: 10000, crystalCost: 4100, constructionSeconds: 24000 },
-    { buildingTypeId: warehouse.id, level: 10, metalCost: 18000, crystalCost: 7300, constructionSeconds: 48000 },
-    { buildingTypeId: tradingPost.id, level: 1, metalCost: 60, crystalCost: 20, constructionSeconds: 60 },
-    { buildingTypeId: tradingPost.id, level: 2, metalCost: 150, crystalCost: 60, constructionSeconds: 200 },
-    { buildingTypeId: tradingPost.id, level: 3, metalCost: 300, crystalCost: 120, constructionSeconds: 400 },
-    { buildingTypeId: tradingPost.id, level: 4, metalCost: 550, crystalCost: 220, constructionSeconds: 750 },
-    { buildingTypeId: tradingPost.id, level: 5, metalCost: 1000, crystalCost: 400, constructionSeconds: 1500 },
-    { buildingTypeId: tradingPost.id, level: 6, metalCost: 1800, crystalCost: 720, constructionSeconds: 3000 },
-    { buildingTypeId: tradingPost.id, level: 7, metalCost: 3200, crystalCost: 1300, constructionSeconds: 6000 },
-    { buildingTypeId: tradingPost.id, level: 8, metalCost: 5800, crystalCost: 2300, constructionSeconds: 12000 },
-    { buildingTypeId: tradingPost.id, level: 9, metalCost: 10000, crystalCost: 4100, constructionSeconds: 24000 },
-    { buildingTypeId: tradingPost.id, level: 10, metalCost: 18000, crystalCost: 7300, constructionSeconds: 48000 },
-    // Defense System — placeholder curve (~1.8x cost, 2x time per level), not tuned yet.
-    { buildingTypeId: defenseSystem.id, level: 1, metalCost: 100, crystalCost: 50, constructionSeconds: 120 },
-    { buildingTypeId: defenseSystem.id, level: 2, metalCost: 180, crystalCost: 90, constructionSeconds: 240 },
-    { buildingTypeId: defenseSystem.id, level: 3, metalCost: 320, crystalCost: 160, constructionSeconds: 480 },
-    { buildingTypeId: defenseSystem.id, level: 4, metalCost: 580, crystalCost: 290, constructionSeconds: 960 },
-    { buildingTypeId: defenseSystem.id, level: 5, metalCost: 1050, crystalCost: 520, constructionSeconds: 1920 },
-    { buildingTypeId: defenseSystem.id, level: 6, metalCost: 1900, crystalCost: 950, constructionSeconds: 3840 },
-    { buildingTypeId: defenseSystem.id, level: 7, metalCost: 3400, crystalCost: 1700, constructionSeconds: 7680 },
-    { buildingTypeId: defenseSystem.id, level: 8, metalCost: 6100, crystalCost: 3050, constructionSeconds: 15360 },
-    { buildingTypeId: defenseSystem.id, level: 9, metalCost: 11000, crystalCost: 5500, constructionSeconds: 30720 },
-    { buildingTypeId: defenseSystem.id, level: 10, metalCost: 19800, crystalCost: 9900, constructionSeconds: 61440 },
-    // Defensive Wall and Hideout — same placeholder curve as the Defense System, not tuned yet.
-    { buildingTypeId: defensiveWall.id, level: 1, metalCost: 100, crystalCost: 50, constructionSeconds: 120 },
-    { buildingTypeId: defensiveWall.id, level: 2, metalCost: 180, crystalCost: 90, constructionSeconds: 240 },
-    { buildingTypeId: defensiveWall.id, level: 3, metalCost: 320, crystalCost: 160, constructionSeconds: 480 },
-    { buildingTypeId: defensiveWall.id, level: 4, metalCost: 580, crystalCost: 290, constructionSeconds: 960 },
-    { buildingTypeId: defensiveWall.id, level: 5, metalCost: 1050, crystalCost: 520, constructionSeconds: 1920 },
-    { buildingTypeId: defensiveWall.id, level: 6, metalCost: 1900, crystalCost: 950, constructionSeconds: 3840 },
-    { buildingTypeId: defensiveWall.id, level: 7, metalCost: 3400, crystalCost: 1700, constructionSeconds: 7680 },
-    { buildingTypeId: defensiveWall.id, level: 8, metalCost: 6100, crystalCost: 3050, constructionSeconds: 15360 },
-    { buildingTypeId: defensiveWall.id, level: 9, metalCost: 11000, crystalCost: 5500, constructionSeconds: 30720 },
-    { buildingTypeId: defensiveWall.id, level: 10, metalCost: 19800, crystalCost: 9900, constructionSeconds: 61440 },
-    { buildingTypeId: hideout.id, level: 1, metalCost: 100, crystalCost: 50, constructionSeconds: 120 },
-    { buildingTypeId: hideout.id, level: 2, metalCost: 180, crystalCost: 90, constructionSeconds: 240 },
-    { buildingTypeId: hideout.id, level: 3, metalCost: 320, crystalCost: 160, constructionSeconds: 480 },
-    { buildingTypeId: hideout.id, level: 4, metalCost: 580, crystalCost: 290, constructionSeconds: 960 },
-    { buildingTypeId: hideout.id, level: 5, metalCost: 1050, crystalCost: 520, constructionSeconds: 1920 },
-    { buildingTypeId: hideout.id, level: 6, metalCost: 1900, crystalCost: 950, constructionSeconds: 3840 },
-    { buildingTypeId: hideout.id, level: 7, metalCost: 3400, crystalCost: 1700, constructionSeconds: 7680 },
-    { buildingTypeId: hideout.id, level: 8, metalCost: 6100, crystalCost: 3050, constructionSeconds: 15360 },
-    { buildingTypeId: hideout.id, level: 9, metalCost: 11000, crystalCost: 5500, constructionSeconds: 30720 },
-    { buildingTypeId: hideout.id, level: 10, metalCost: 19800, crystalCost: 9900, constructionSeconds: 61440 },
+  // Base balance (2026-10-14), aiming at level 30 as a late-season goal in a
+  // ~6-month season. Everything follows mine production:
+  //   production(L) = perHour * L * growth^(L-1)        (growth: GAME_BALANCE.buildingEffects)
+  //   cost(L)       = value(L) * the building's factor  (value = L/2 hours of a level-L metal mine)
+  //   time(L)       = 60 s * L^2.2 * the building's factor (~2.5 h at level 10, ~30 h at 30)
+  // so each level costs ~x1.2 more than the last while production grows
+  // only ~x1.12 — late levels take more than a day of income. Placeholder,
+  // not final balance (instructions/OPEN_DECISIONS.md).
+  const buildingCurves: Array<{
+    type: { id: string };
+    metal: number;
+    crystal: number;
+    time: number;
+    produces?: { resource: 'METAL' | 'CRYSTAL'; perHour: number };
+  }> = [
+    { type: metalMine, metal: 0, crystal: 1, time: 1, produces: { resource: 'METAL', perHour: 100 } },
+    { type: crystalExtractor, metal: 1.6, crystal: 0, time: 1, produces: { resource: 'CRYSTAL', perHour: 60 } },
+    { type: warehouse, metal: 0.6, crystal: 0.25, time: 0.8 },
+    { type: tradingPost, metal: 0.6, crystal: 0.25, time: 0.8 },
+    { type: defenseSystem, metal: 0.8, crystal: 0.35, time: 1 },
+    { type: defensiveWall, metal: 0.8, crystal: 0.35, time: 1 },
+    { type: hideout, metal: 0.8, crystal: 0.35, time: 1 },
+    { type: researchCenter, metal: 1, crystal: 0.5, time: 1.2 },
+    { type: exchange, metal: 0.8, crystal: 0.35, time: 1 },
+    { type: reactor, metal: 1.2, crystal: 0.6, time: 1.2 },
   ];
+  const levelCosts = buildingCurves.flatMap((curve) =>
+    Array.from({ length: 30 }, (_, i) => {
+      const level = i + 1;
+      return {
+        buildingTypeId: curve.type.id,
+        level,
+        metalCost: niceRound(balanceValue(level) * curve.metal),
+        crystalCost: niceRound(balanceValue(level) * curve.crystal),
+        constructionSeconds: Math.round(60 * Math.pow(level, 2.2) * curve.time),
+        producesResourceType: curve.produces?.resource ?? null,
+        producesPerHour: curve.produces ? Math.round(curve.produces.perHour * level * Math.pow(GAME_BALANCE.buildingEffects.amountGrowth, level - 1)) : null,
+      };
+    }),
+  );
+  // update: cost (not {}) so a rebalance reaches existing rows.
   for (const cost of levelCosts) {
     await prisma.buildingLevelCost.upsert({
       where: { buildingTypeId_level: { buildingTypeId: cost.buildingTypeId, level: cost.level } },
-      update: {},
+      update: cost,
       create: cost,
     });
   }
@@ -583,9 +561,10 @@ async function main() {
   // per-hour as duration grows (short = efficient, long = bigger total,
   // better for offline play) — see instructions/OPEN_DECISIONS.md.
   const expeditionTypes = [
-    { key: 'expedition_short', nameKey: 'expeditions.short.name', durationMinutes: 60, metalReward: 60, crystalReward: 20, creditsReward: 10, xpReward: 15, bonusItemDefinitionId: itemsByKey.ascendant_left_leg_actuator.id, bonusItemChance: 0.03 },
-    { key: 'expedition_medium', nameKey: 'expeditions.medium.name', durationMinutes: 300, metalReward: 250, crystalReward: 90, creditsReward: 50, xpReward: 70, bonusItemDefinitionId: itemsByKey.ascendant_right_arm_guard.id, bonusItemChance: 0.06 },
-    { key: 'expedition_long', nameKey: 'expeditions.long.name', durationMinutes: 600, metalReward: 450, crystalReward: 160, creditsReward: 100, xpReward: 130, bonusItemDefinitionId: itemsByKey.ascendant_core_battery.id, bonusItemChance: 0.1 },
+    // requiredNavigationLevel (owner decision, 2026-10-14): longer ones unlock at the Navigation research's first levels.
+    { key: 'expedition_short', requiredNavigationLevel: 0, nameKey: 'expeditions.short.name', durationMinutes: 60, metalReward: 60, crystalReward: 20, creditsReward: 10, xpReward: 15, bonusItemDefinitionId: itemsByKey.ascendant_left_leg_actuator.id, bonusItemChance: 0.03 },
+    { key: 'expedition_medium', requiredNavigationLevel: 1, nameKey: 'expeditions.medium.name', durationMinutes: 300, metalReward: 250, crystalReward: 90, creditsReward: 50, xpReward: 70, bonusItemDefinitionId: itemsByKey.ascendant_right_arm_guard.id, bonusItemChance: 0.06 },
+    { key: 'expedition_long', requiredNavigationLevel: 2, nameKey: 'expeditions.long.name', durationMinutes: 600, metalReward: 450, crystalReward: 160, creditsReward: 100, xpReward: 130, bonusItemDefinitionId: itemsByKey.ascendant_core_battery.id, bonusItemChance: 0.1 },
   ];
   for (const data of expeditionTypes) {
     // update: data (not {}) — bonusItemDefinitionId must follow the item catalog
@@ -715,28 +694,48 @@ async function main() {
   }
 
   // Branches, technology list, costs and effects are UNDEFINED
-  // (instructions/OPEN_DECISIONS.md: "Research"). +5%/level is a placeholder
-  // rate, not a decided balance value.
+  // (instructions/OPEN_DECISIONS.md: "Research"). Base balance (2026-10-14):
+  // production +2%/level and combat +1%/level, since they now go to level 30.
   const researchTypes = await Promise.all(
     [
-      { key: 'research_metal_production', nameKey: 'research.metal_production.name', descriptionKey: 'research.metal_production.description', bonusType: 'METAL_PRODUCTION' as const, bonusPerLevel: 0.05, maxLevel: 5, iconAssetId: 'research.metal_production.icon' },
-      { key: 'research_crystal_production', nameKey: 'research.crystal_production.name', descriptionKey: 'research.crystal_production.description', bonusType: 'CRYSTAL_PRODUCTION' as const, bonusPerLevel: 0.05, maxLevel: 5, iconAssetId: 'research.crystal_production.icon' },
-      { key: 'research_weapon_systems', nameKey: 'research.weapon_systems.name', descriptionKey: 'research.weapon_systems.description', bonusType: 'COMBAT_ATTACK' as const, bonusPerLevel: 0.05, maxLevel: 5, iconAssetId: 'research.weapon_systems.icon' },
-      { key: 'research_hull_engineering', nameKey: 'research.hull_engineering.name', descriptionKey: 'research.hull_engineering.description', bonusType: 'COMBAT_HP' as const, bonusPerLevel: 0.05, maxLevel: 5, iconAssetId: 'research.hull_engineering.icon' },
-    ].map((data) => prisma.researchType.upsert({ where: { key: data.key }, update: {}, create: data })),
+      { key: 'research_metal_production', nameKey: 'research.metal_production.name', descriptionKey: 'research.metal_production.description', bonusType: 'METAL_PRODUCTION' as const, bonusPerLevel: 0.02, maxLevel: 5, iconAssetId: 'research.metal_production.icon' },
+      { key: 'research_crystal_production', nameKey: 'research.crystal_production.name', descriptionKey: 'research.crystal_production.description', bonusType: 'CRYSTAL_PRODUCTION' as const, bonusPerLevel: 0.02, maxLevel: 5, iconAssetId: 'research.crystal_production.icon' },
+      { key: 'research_weapon_systems', nameKey: 'research.weapon_systems.name', descriptionKey: 'research.weapon_systems.description', bonusType: 'COMBAT_ATTACK' as const, bonusPerLevel: 0.01, maxLevel: 5, iconAssetId: 'research.weapon_systems.icon' },
+      { key: 'research_hull_engineering', nameKey: 'research.hull_engineering.name', descriptionKey: 'research.hull_engineering.description', bonusType: 'COMBAT_HP' as const, bonusPerLevel: 0.01, maxLevel: 5, iconAssetId: 'research.hull_engineering.icon' },
+      // New researches (owner decision, 2026-10-14) — placeholder rates.
+      { key: 'research_construction', nameKey: 'research.construction.name', descriptionKey: 'research.construction.description', bonusType: 'CONSTRUCTION_SPEED' as const, bonusPerLevel: 0.01, maxLevel: 30, iconAssetId: 'research.construction.icon' },
+      { key: 'research_methods', nameKey: 'research.methods.name', descriptionKey: 'research.methods.description', bonusType: 'RESEARCH_SPEED' as const, bonusPerLevel: 0.01, maxLevel: 30, iconAssetId: 'research.methods.icon' },
+      { key: 'research_navigation', nameKey: 'research.navigation.name', descriptionKey: 'research.navigation.description', bonusType: 'EXPEDITION_REWARDS' as const, bonusPerLevel: 0.02, maxLevel: 30, iconAssetId: 'research.navigation.icon' },
+      { key: 'research_metallurgy', nameKey: 'research.metallurgy.name', descriptionKey: 'research.metallurgy.description', bonusType: 'UPGRADE_MATERIALS' as const, bonusPerLevel: 0.01, maxLevel: 30, iconAssetId: 'research.metallurgy.icon' },
+      { key: 'research_recycling', nameKey: 'research.recycling.name', descriptionKey: 'research.recycling.description', bonusType: 'RECYCLING' as const, bonusPerLevel: 0.02, maxLevel: 30, iconAssetId: 'research.recycling.icon' },
+    ]
+      // Every research goes up to level 30 (owner decision, 2026-10-14); update
+      // existing rows too, so the cap follows this list.
+      .map((data) => ({ ...data, maxLevel: 30 }))
+      .map((data) => prisma.researchType.upsert({ where: { key: data.key }, update: data, create: data })),
   );
 
-  const researchLevelCosts = researchTypes.flatMap((researchType) => [
-    { researchTypeId: researchType.id, level: 1, metalCost: 200, crystalCost: 80, creditsCost: 0, researchSeconds: 120 },
-    { researchTypeId: researchType.id, level: 2, metalCost: 450, crystalCost: 180, creditsCost: 50, researchSeconds: 360 },
-    { researchTypeId: researchType.id, level: 3, metalCost: 800, crystalCost: 320, creditsCost: 120, researchSeconds: 900 },
-    { researchTypeId: researchType.id, level: 4, metalCost: 1300, crystalCost: 520, creditsCost: 220, researchSeconds: 1800 },
-    { researchTypeId: researchType.id, level: 5, metalCost: 2000, crystalCost: 800, creditsCost: 350, researchSeconds: 3600 },
-  ]);
+  // Same production-tied value as the buildings (base balance, 2026-10-14):
+  // ~x1.2 cost per level, time 2 min * L^2.1 (~4 h at level 10, ~42 h at 30). The
+  // Research Center's level caps how far any research can go.
+  const researchLevelCosts = researchTypes.flatMap((researchType) =>
+    Array.from({ length: 30 }, (_, i) => {
+      const level = i + 1;
+      return {
+        researchTypeId: researchType.id,
+        level,
+        metalCost: niceRound(balanceValue(level) * 1.5),
+        crystalCost: niceRound(balanceValue(level) * 0.6),
+        creditsCost: niceRound(balanceValue(level) * 0.03),
+        researchSeconds: Math.round(120 * Math.pow(level, 2.1)),
+      };
+    }),
+  );
+  // update: cost (not {}) so a rebalance reaches existing rows.
   for (const cost of researchLevelCosts) {
     await prisma.researchLevelCost.upsert({
       where: { researchTypeId_level: { researchTypeId: cost.researchTypeId, level: cost.level } },
-      update: {},
+      update: cost,
       create: cost,
     });
   }
@@ -821,27 +820,35 @@ async function main() {
   const clanBuildingTypes = await Promise.all(
     [
       { key: 'member_hall', nameKey: 'clanBuildings.member_hall.name', descriptionKey: 'clanBuildings.member_hall.description', bonusType: 'MEMBER_CAPACITY' as const, bonusPerLevel: 2, maxLevel: 10, iconAssetId: 'clanBuildings.member_hall.icon' },
-      { key: 'clan_forge', nameKey: 'clanBuildings.clan_forge.name', descriptionKey: 'clanBuildings.clan_forge.description', bonusType: 'COMBAT_BONUS' as const, bonusPerLevel: 0.05, maxLevel: 10, iconAssetId: 'clanBuildings.clan_forge.icon' },
-      { key: 'clan_depot', nameKey: 'clanBuildings.clan_depot.name', descriptionKey: 'clanBuildings.clan_depot.description', bonusType: 'PRODUCTION_BONUS' as const, bonusPerLevel: 0.05, maxLevel: 10, iconAssetId: 'clanBuildings.clan_depot.icon' },
+      // Forge and Refinery (shown as "Refinery", key kept as clan_depot): +1%/level
+      // up to 30 since the base balance (2026-10-14) — they were +5% up to 10,
+      // more than the personal researches.
+      { key: 'clan_forge', nameKey: 'clanBuildings.clan_forge.name', descriptionKey: 'clanBuildings.clan_forge.description', bonusType: 'COMBAT_BONUS' as const, bonusPerLevel: 0.01, maxLevel: 30, iconAssetId: 'clanBuildings.clan_forge.icon' },
+      { key: 'clan_depot', nameKey: 'clanBuildings.clan_depot.name', descriptionKey: 'clanBuildings.clan_depot.description', bonusType: 'PRODUCTION_BONUS' as const, bonusPerLevel: 0.01, maxLevel: 30, iconAssetId: 'clanBuildings.clan_depot.icon' },
+      // Generator (owner decision, 2026-10-14): half the personal Reactor.
+      { key: 'clan_generator', nameKey: 'clanBuildings.clan_generator.name', descriptionKey: 'clanBuildings.clan_generator.description', bonusType: 'ENERGY_REGEN' as const, bonusPerLevel: 0.005, maxLevel: 30, iconAssetId: 'clanBuildings.clan_generator.icon' },
       // update: data (not {}) — bonusType/bonusPerLevel/maxLevel must follow
       // this list when it changes, not freeze at whatever an existing row has.
     ].map((data) => prisma.clanBuildingType.upsert({ where: { key: data.key }, update: data, create: data })),
   );
 
-  const clanBuildingLevelCosts = clanBuildingTypes.flatMap((buildingType) => [
-    { clanBuildingTypeId: buildingType.id, level: 1, metalCost: 500, crystalCost: 200, creditsCost: 100, constructionSeconds: 300 },
-    { clanBuildingTypeId: buildingType.id, level: 2, metalCost: 1200, crystalCost: 500, creditsCost: 300, constructionSeconds: 900 },
-    { clanBuildingTypeId: buildingType.id, level: 3, metalCost: 2500, crystalCost: 1000, creditsCost: 700, constructionSeconds: 1800 },
-    { clanBuildingTypeId: buildingType.id, level: 4, metalCost: 4500, crystalCost: 1800, creditsCost: 1300, constructionSeconds: 3600 },
-    { clanBuildingTypeId: buildingType.id, level: 5, metalCost: 7500, crystalCost: 3000, creditsCost: 2200, constructionSeconds: 7200 },
-    // Levels 6-10 (owner-specified extension to level 10) continue the same
-    // placeholder growth curve as 1-5 — see instructions/OPEN_DECISIONS.md.
-    { clanBuildingTypeId: buildingType.id, level: 6, metalCost: 12500, crystalCost: 5000, creditsCost: 3800, constructionSeconds: 14400 },
-    { clanBuildingTypeId: buildingType.id, level: 7, metalCost: 20000, crystalCost: 8000, creditsCost: 6200, constructionSeconds: 28800 },
-    { clanBuildingTypeId: buildingType.id, level: 8, metalCost: 32000, crystalCost: 13000, creditsCost: 10000, constructionSeconds: 57600 },
-    { clanBuildingTypeId: buildingType.id, level: 9, metalCost: 50000, crystalCost: 20000, creditsCost: 16000, constructionSeconds: 115200 },
-    { clanBuildingTypeId: buildingType.id, level: 10, metalCost: 78000, crystalCost: 31000, creditsCost: 25000, constructionSeconds: 230400 },
-  ]);
+  // Base balance (2026-10-14): the personal model (balanceValue) x 10, since
+  // the whole clan pays from the treasury. The Member Hall has 10 levels, so
+  // each of its levels costs like 3 levels of the others. Placeholder.
+  const clanBuildingLevelCosts = clanBuildingTypes.flatMap((buildingType) =>
+    Array.from({ length: buildingType.maxLevel }, (_, i) => {
+      const level = i + 1;
+      const step = buildingType.maxLevel === 10 ? level * 3 : level;
+      return {
+        clanBuildingTypeId: buildingType.id,
+        level,
+        metalCost: niceRound(balanceValue(step) * CLAN_COST_FACTOR),
+        crystalCost: niceRound(balanceValue(step) * CLAN_COST_FACTOR * 0.4),
+        creditsCost: niceRound(balanceValue(step) * CLAN_COST_FACTOR * 0.03),
+        constructionSeconds: Math.round(90 * Math.pow(step, 2.2)),
+      };
+    }),
+  );
   for (const cost of clanBuildingLevelCosts) {
     await prisma.clanBuildingLevelCost.upsert({
       where: { clanBuildingTypeId_level: { clanBuildingTypeId: cost.clanBuildingTypeId, level: cost.level } },
@@ -856,30 +863,19 @@ async function main() {
   // rows are generated until the next level's cost would overflow a 32-bit
   // Int, which becomes maxLevel; in practice the cost stops clans far earlier.
   // Placeholder curve, not tuned against real clan income yet.
-  const tavernCurve = {
-    baseMetal: 1000,
-    baseCrystal: 400,
-    baseCredits: 200,
-    costGrowth: 1.15,
-    baseConstructionSeconds: 600,
-    constructionGrowth: 1.1,
-    maxConstructionSeconds: 7 * 24 * 3600,
-  };
+  // Base balance (2026-10-14): the same model as the other clan buildings
+  // (x0.8, since it's only active part of the time), time capped at 7 days.
   const intLimit = 2_000_000_000;
   const tavernLevelCosts: { level: number; metalCost: number; crystalCost: number; creditsCost: number; constructionSeconds: number }[] = [];
   for (let level = 1; ; level += 1) {
-    const factor = tavernCurve.costGrowth ** (level - 1);
-    const metalCost = Math.round(tavernCurve.baseMetal * factor);
-    if (metalCost > intLimit) break;
+    const value = balanceValue(level) * CLAN_COST_FACTOR * 0.8;
+    if (value > intLimit) break;
     tavernLevelCosts.push({
       level,
-      metalCost,
-      crystalCost: Math.round(tavernCurve.baseCrystal * factor),
-      creditsCost: Math.round(tavernCurve.baseCredits * factor),
-      constructionSeconds: Math.min(
-        tavernCurve.maxConstructionSeconds,
-        Math.round(tavernCurve.baseConstructionSeconds * tavernCurve.constructionGrowth ** (level - 1)),
-      ),
+      metalCost: niceRound(value),
+      crystalCost: niceRound(value * 0.4),
+      creditsCost: niceRound(value * 0.03),
+      constructionSeconds: Math.min(7 * 24 * 3600, Math.round(90 * Math.pow(level, 2.2))),
     });
   }
   const tavernData = {
@@ -1014,3 +1010,24 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+/**
+ * Placeholder level curve (owner decision, 2026-10-14: levels up to 30, real
+ * balancing later): continues from the last given level with x1.25 cost,
+ * x1.12 time and x1.12 production per level.
+ */
+/** Clan buildings cost this many times a personal building (the whole clan pays). */
+const CLAN_COST_FACTOR = 10;
+
+/** Metal-equivalent value of a level: L/2 hours of a level-L metal mine (base balance, 2026-10-14). */
+function balanceValue(level: number): number {
+  return 100 * level * Math.pow(GAME_BALANCE.buildingEffects.amountGrowth, level - 1) * (level / 2);
+}
+
+/** Rounds a cost to a tidy number (whole units below 100, tens above, hundreds above 10 000). */
+function niceRound(value: number): number {
+  if (value < 100) return Math.round(value);
+  if (value < 10000) return Math.round(value / 10) * 10;
+  return Math.round(value / 100) * 100;
+}
+

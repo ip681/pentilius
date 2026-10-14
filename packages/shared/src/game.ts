@@ -211,6 +211,8 @@ export interface BuildingStateDto {
   level: number;
   maxLevel: number;
   constructionEndsAt: string | null;
+  // Null when unknown (started before 2026-10-14) — progress is then estimated.
+  constructionStartedAt: string | null;
   nextLevelCost: BuildingCostDto | null;
   // The level after that — what a VIP queues while this building is itself under construction.
   afterNextLevelCost: BuildingCostDto | null;
@@ -235,6 +237,38 @@ export interface BuildingStateDto {
   // Hideout only: amount of each resource that can't be stolen.
   currentProtectedResources: ResourcesDto | null;
   nextLevelProtectedResources: ResourcesDto | null;
+  // New buildings (owner decision, 2026-10-14); null when not this building.
+  currentResearchCap: number | null;
+  nextResearchCap: number | null;
+  currentEnergyRegenPercent: number | null;
+  nextEnergyRegenPercent: number | null;
+  currentMaxEnergyBonus: number | null;
+  nextMaxEnergyBonus: number | null;
+  currentExchangeLimit: number | null;
+  nextExchangeLimit: number | null;
+  // Levels where something special happens (shown with a check when reached).
+  specialLevels: SpecialLevelDto[];
+}
+
+export type SpecialLevelKind = 'MAX_ENERGY' | 'EXPEDITION_UNLOCK' | 'EXTRA_FRAGMENT';
+
+export interface SpecialLevelDto {
+  level: number;
+  reached: boolean;
+  kind: SpecialLevelKind;
+  // EXPEDITION_UNLOCK: the expedition's name key.
+  nameKey: string | null;
+}
+
+// Exchange (owner decision, 2026-10-14): Metal <-> Crystal for a small Credits fee.
+export interface ExchangeInfoDto {
+  level: number;
+  dailyLimit: number;
+  usedToday: number;
+  // Fraction of the par value received (improves with the level).
+  rateFactor: number;
+  metalPerCrystal: number;
+  creditsPer100: number;
 }
 
 export interface BuildQueueDto {
@@ -250,6 +284,20 @@ export interface BaseResponseDto {
   // VIP one-slot build queue (owner decision, 2026-10-13) — null when empty.
   buildQueue: BuildQueueDto | null;
   isVip: boolean;
+  // Null until the Exchange is built.
+  exchange: ExchangeInfoDto | null;
+  // Shown on the Research Center tile (owner decision, 2026-10-14: research
+  // is opened from the Research Center). Null when nothing is being researched.
+  activeResearch: ActiveResearchDto | null;
+}
+
+export interface ActiveResearchDto {
+  nameKey: string;
+  // The level being researched.
+  level: number;
+  endsAt: string;
+  // Full duration, for the progress bar.
+  totalSeconds: number;
 }
 
 export interface MultiAttackResultDto {
@@ -308,6 +356,8 @@ export interface RecycleValueDto {
   fragmentItemDefinitionKey: string;
   ownedFragments: number;
   fragmentsPerStone: number;
+  // Fragments this recycle yields (1 + the Recycling research's extra ones).
+  fragments: number;
 }
 
 export interface BoxOpenResultDto {
@@ -373,6 +423,8 @@ export interface InventoryItemDto {
   // Set only for COREFORGED items — this specific dropped instance can only be
   // equipped by a player of this race. Null for everything else.
   race: Race | null;
+  // Energy packs: how much Action Energy using it gives; null otherwise.
+  energyGain: number | null;
   // Null for CONSUMABLE items. Effective stat contribution of this specific
   // item at its current/next upgrade level (baseStats scaled by upgrade bonus).
   currentStats: ItemStatsDto | null;
@@ -523,6 +575,10 @@ export interface ExpeditionTypeDto {
   bonusItemNameKey: string | null;
   bonusItemIconAssetId: string | null;
   bonusItemChance: number | null;
+  // Research Center level needed (owner decision, 2026-10-14).
+  // Navigation research level needed (owner decision, 2026-10-14).
+  requiredNavigationLevel: number;
+  locked: boolean;
 }
 
 export interface ActiveExpeditionDto {
@@ -545,7 +601,17 @@ export interface ExpeditionClaimResultDto {
   playerLevel: number;
 }
 
-export type ResearchBonusType = 'METAL_PRODUCTION' | 'CRYSTAL_PRODUCTION' | 'COMBAT_ATTACK' | 'COMBAT_HP';
+export type ResearchBonusType =
+  | 'METAL_PRODUCTION'
+  | 'CRYSTAL_PRODUCTION'
+  | 'COMBAT_ATTACK'
+  | 'COMBAT_HP'
+  // Owner decision, 2026-10-14:
+  | 'CONSTRUCTION_SPEED'
+  | 'RESEARCH_SPEED'
+  | 'EXPEDITION_REWARDS'
+  | 'UPGRADE_MATERIALS'
+  | 'RECYCLING';
 
 export interface ResearchCostDto {
   metalCost: number;
@@ -564,12 +630,17 @@ export interface ResearchStateDto {
   level: number;
   maxLevel: number;
   researchEndsAt: string | null;
+  // Null when unknown (started before 2026-10-14) — progress is then estimated.
+  researchStartedAt: string | null;
   nextLevelCost: ResearchCostDto | null;
+  specialLevels: SpecialLevelDto[];
 }
 
 export interface ResearchResponseDto {
   resources: ResourcesDto;
   researches: ResearchStateDto[];
+  // Researches can't go above this (Research Center level, owner decision 2026-10-14).
+  researchCap: number;
 }
 
 // Boss Formations (owner decision, 2026-09-11 — fully replaces the old
@@ -744,7 +815,7 @@ export interface ClanMemberDto {
   lastActiveAt: string;
 }
 
-export type ClanBuildingBonusType = 'MEMBER_CAPACITY' | 'COMBAT_BONUS' | 'PRODUCTION_BONUS' | 'BOSS_CORE_DAMAGE';
+export type ClanBuildingBonusType = 'MEMBER_CAPACITY' | 'COMBAT_BONUS' | 'PRODUCTION_BONUS' | 'BOSS_CORE_DAMAGE' | 'ENERGY_REGEN';
 
 export interface ClanBuildingCostDto {
   metalCost: number;
@@ -766,6 +837,8 @@ export interface ClanBuildingStateDto {
   nextLevelCost: ClanBuildingCostDto | null;
   // Activatable buildings only (the Tavern) — null for every other building.
   activation: ClanBuildingActivationDto | null;
+  // Levels with something extra (the Generator's +1 max energy).
+  specialLevels: SpecialLevelDto[];
 }
 
 // Tavern activation state (owner decision, 2026-10-12). activeUntil null =
@@ -1041,6 +1114,8 @@ export interface CoreTavernStatusDto {
   bonusPercent: number;
   active: boolean;
   activeUntil: string | null;
+  // activeUntil minus one activation's length — for the progress bar.
+  activeSince: string | null;
 }
 
 export interface CoreStateDto {

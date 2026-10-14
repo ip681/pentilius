@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ResearchStateDto, ResourcesDto } from '@pentilius/shared';
-import { Player, PlayerResearch, ResearchType } from '@prisma/client';
+import { ResearchResponseDto, ResearchStateDto, ResourcesDto, SpecialLevelDto } from '@pentilius/shared';
+import { Player, PlayerResearch, ResearchBonusType, ResearchType } from '@prisma/client';
+import { GAME_BALANCE } from '../config/game-config';
 import { EconomyService } from '../player/economy.service';
 import { PushService } from '../notifications/push.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -26,13 +27,27 @@ export class ResearchService {
     private readonly push: PushService,
   ) {}
 
-  async getResearches(playerId: string) {
+  async getResearches(playerId: string): Promise<ResearchResponseDto> {
     const player = await this.economy.settleResources(playerId);
     await this.ensurePlayerResearchesExist(playerId);
     await this.finalizeCompletedResearches(playerId);
 
-    const researches = await this.loadResearches(playerId);
-    return { resources: toResourcesDto(player), researches: researches.map(toResearchStateDto) };
+    const [researches, researchCap, expeditionUnlocks] = await Promise.all([this.loadResearches(playerId), this.researchCap(playerId), this.loadExpeditionUnlocks()]);
+    return { resources: toResourcesDto(player), researches: researches.map((r) => toResearchStateDto(r, expeditionUnlocks)), researchCap };
+  }
+
+  /** Expeditions unlocked by the Navigation research (shown as its special levels). */
+  private loadExpeditionUnlocks(): Promise<{ nameKey: string; requiredNavigationLevel: number }[]> {
+    return this.prisma.expeditionType.findMany({ where: { requiredNavigationLevel: { gt: 0 } }, select: { nameKey: true, requiredNavigationLevel: true } });
+  }
+
+  /** Research Center level x researchCapPerLevel (owner decision, 2026-10-14); 0 until it's built. */
+  private async researchCap(playerId: string, tx: Pick<PrismaService, 'playerBuilding'> = this.prisma): Promise<number> {
+    const center = await tx.playerBuilding.findFirst({
+      where: { playerId, buildingType: { key: GAME_BALANCE.buildingKeys.researchCenter } },
+      include: { buildingType: true },
+    });
+    return center ? center.level * (center.buildingType.researchCapPerLevel ?? 1) : 0;
   }
 
   async startResearch(playerId: string, researchKey: string): Promise<ResearchStateDto> {
@@ -69,6 +84,9 @@ export class ResearchService {
       }
 
       const player = await tx.player.findUniqueOrThrow({ where: { id: playerId } });
+      if (playerResearch.level + 1 > (await this.researchCap(playerId, tx))) {
+        throw new BadRequestException('RESEARCH_CENTER_LEVEL_REQUIRED');
+      }
       if (player.metal < nextLevelCost.metalCost || player.crystal < nextLevelCost.crystalCost || player.credits < nextLevelCost.creditsCost) {
         throw new BadRequestException('Not enough resources');
       }
@@ -84,11 +102,18 @@ export class ResearchService {
 
       const updated = await tx.playerResearch.update({
         where: { id: playerResearch.id },
-        data: { researchEndsAt: new Date(Date.now() + nextLevelCost.researchSeconds * 1000) },
+        // Research Methods shortens it (owner decision, 2026-10-14).
+        data: {
+          researchStartedAt: new Date(),
+          researchEndsAt: new Date(
+            Date.now() +
+              Math.max(1, Math.round(nextLevelCost.researchSeconds * (1 - Math.min(0.9, (await this.economy.getResearchMultiplier(playerId, ResearchBonusType.RESEARCH_SPEED, tx)) - 1)))) * 1000,
+          ),
+        },
         include: { researchType: { include: { levelCosts: true } } },
       });
 
-      return toResearchStateDto(updated);
+      return toResearchStateDto(updated, await this.loadExpeditionUnlocks());
     });
   }
 
@@ -133,7 +158,9 @@ function toResourcesDto(player: Player): ResourcesDto {
   };
 }
 
-function toResearchStateDto(research: ResearchWithType): ResearchStateDto {
+type ExpeditionUnlock = { nameKey: string; requiredNavigationLevel: number };
+
+function toResearchStateDto(research: ResearchWithType, expeditionUnlocks: ExpeditionUnlock[] = []): ResearchStateDto {
   const nextLevelCost = research.researchType.levelCosts.find((cost) => cost.level === research.level + 1);
   return {
     key: research.researchType.key,
@@ -145,6 +172,7 @@ function toResearchStateDto(research: ResearchWithType): ResearchStateDto {
     level: research.level,
     maxLevel: research.researchType.maxLevel,
     researchEndsAt: research.researchEndsAt?.toISOString() ?? null,
+    researchStartedAt: research.researchEndsAt ? (research.researchStartedAt?.toISOString() ?? null) : null,
     nextLevelCost: nextLevelCost
       ? {
           metalCost: nextLevelCost.metalCost,
@@ -153,5 +181,25 @@ function toResearchStateDto(research: ResearchWithType): ResearchStateDto {
           researchSeconds: nextLevelCost.researchSeconds,
         }
       : null,
+    specialLevels: researchSpecialLevels(research, expeditionUnlocks),
   };
+}
+
+/**
+ * Recycling: one extra fragment every N levels; Navigation: the levels that
+ * unlock the longer expeditions (owner decisions, 2026-10-14).
+ */
+function researchSpecialLevels(research: ResearchWithType, expeditionUnlocks: ExpeditionUnlock[]): SpecialLevelDto[] {
+  if (research.researchType.bonusType === 'EXPEDITION_REWARDS') {
+    return [...expeditionUnlocks]
+      .sort((a, b) => a.requiredNavigationLevel - b.requiredNavigationLevel)
+      .map((e) => ({ level: e.requiredNavigationLevel, reached: research.level >= e.requiredNavigationLevel, kind: 'EXPEDITION_UNLOCK' as const, nameKey: e.nameKey }));
+  }
+  if (research.researchType.bonusType !== 'RECYCLING') return [];
+  const every = GAME_BALANCE.recyclingExtraFragmentEvery;
+  const levels: SpecialLevelDto[] = [];
+  for (let level = every; level <= research.researchType.maxLevel; level += every) {
+    levels.push({ level, reached: research.level >= level, kind: 'EXTRA_FRAGMENT', nameKey: null });
+  }
+  return levels;
 }

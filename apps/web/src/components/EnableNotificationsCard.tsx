@@ -64,21 +64,21 @@ export function EnableNotificationsCard() {
 
   if (!visible) return null;
   return (
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent bg-panel px-4 py-3">
+    <div className="mb-6 flex flex-col gap-3 rounded-lg border border-accent bg-panel px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 flex-1">
         <h3 className="text-sm font-semibold">{enabled ? t('dashboard.enableNotifications.enabled') : t('dashboard.enableNotifications.title')}</h3>
         {!enabled && <p className="text-xs text-textMuted">{t('dashboard.enableNotifications.body')}</p>}
       </div>
       {!enabled && (
-        <div className="flex gap-2">
-          <button type="button" onClick={handleLater} className="rounded-md border border-panelBorder px-3 py-1.5 text-[11px] uppercase text-textMuted hover:bg-accentBgHover">
+        <div className="flex gap-2 sm:shrink-0">
+          <button type="button" onClick={handleLater} className="flex-1 rounded-md border border-panelBorder px-3 py-1.5 text-[11px] uppercase text-textMuted hover:bg-accentBgHover sm:flex-none">
             {t('dashboard.enableNotifications.later')}
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={handleEnable}
-            className="rounded-md border border-accent bg-accentBg px-4 py-1.5 text-[11px] uppercase hover:bg-accentBgHover disabled:opacity-30"
+            className="flex-1 rounded-md border border-accent bg-accentBg px-4 py-1.5 text-[11px] uppercase hover:bg-accentBgHover disabled:opacity-30 sm:flex-none"
           >
             {t('dashboard.enableNotifications.enable')}
           </button>

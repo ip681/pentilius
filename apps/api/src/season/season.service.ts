@@ -319,6 +319,7 @@ export class SeasonService {
       bonusPercent: Math.round(tavern.level * type.bonusPerLevel * 1000) / 10,
       active,
       activeUntil: active ? tavern.activeUntil!.toISOString() : null,
+      activeSince: active ? new Date(tavern.activeUntil!.getTime() - GAME_BALANCE.clanTavern.activationHours * 3_600_000).toISOString() : null,
     };
   }
 

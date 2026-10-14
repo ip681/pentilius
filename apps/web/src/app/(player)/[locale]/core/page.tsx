@@ -15,6 +15,7 @@ import { notifyProfileChanged } from '@/lib/profile-events';
 import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { EnergyRefill } from '@/components/EnergyRefill';
 
 // Sliders refresh on their own so other clans' attacks show up without a
 // reload (owner decision) — paused while the tab is hidden.
@@ -170,6 +171,7 @@ export default function CorePage() {
                       : t('core.attack', { energy: state.attackCostEnergy })}
                   </button>
                   {energy < state.attackCostEnergy && <p className="mt-2 text-xs text-textMuted">{t('core.errorNotEnoughEnergy')}</p>}
+                  <EnergyRefill profile={profile} needed={state.attackCostEnergy} onRefilled={refreshProfile} />
 
                   {lastAttack && (
                     <div className="mt-4 rounded-md border border-wellBorder bg-well p-3 text-xs">

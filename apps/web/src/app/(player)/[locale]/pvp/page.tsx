@@ -15,6 +15,7 @@ import { notifyProfileChanged } from '@/lib/profile-events';
 import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
+import { EnergyRefill } from '@/components/EnergyRefill';
 
 interface LogLine {
   text: React.ReactNode;
@@ -282,6 +283,7 @@ export default function PvpPage() {
                 </button>
               </div>
               <p className="mt-2 text-center text-[10px] text-textFaint">{t('pvp.attackCost', { amount: status.attackCostEnergy })}</p>
+              <EnergyRefill profile={profile} needed={status.attackCostEnergy} onRefilled={refreshProfile} />
             </div>
           ) : (
             <div className="text-center">

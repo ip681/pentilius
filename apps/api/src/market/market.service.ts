@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { MarketListingDto, MyMarketListingsDto } from '@pentilius/shared';
 import { ItemDefinition, ItemInstance, MarketListing, Player, Prisma } from '@prisma/client';
 import { computeItemStats } from '../inventory/inventory.service';
+import { marketSlots } from '../base/building-effects';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
@@ -190,7 +191,7 @@ export class MarketService {
       where: { playerId: sellerId, level: { gt: 0 }, buildingType: { marketSlotBonusPerLevel: { not: null } } },
       include: { buildingType: true },
     });
-    return buildings.reduce((sum, building) => sum + building.level * (building.buildingType.marketSlotBonusPerLevel ?? 0), 0);
+    return buildings.reduce((sum, building) => sum + marketSlots(building.level, building.buildingType.marketSlotBonusPerLevel), 0);
   }
 }
 

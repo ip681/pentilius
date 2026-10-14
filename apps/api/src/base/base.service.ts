@@ -1,6 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { BaseResponseDto, BuildingProductionDto, BuildingStateDto, BuildQueueDto, ResourcesDto } from '@pentilius/shared';
-import { BuildingLevelCost, BuildingType, Player, PlayerBuilding } from '@prisma/client';
+import { ActiveResearchDto, BaseResponseDto, BuildingProductionDto, BuildingStateDto, BuildQueueDto, ExchangeInfoDto, ResourcesDto, SpecialLevelDto } from '@pentilius/shared';
+import { BuildingLevelCost, BuildingType, Player, PlayerBuilding, ResearchBonusType } from '@prisma/client';
+import { GAME_BALANCE } from '../config/game-config';
+import { hideoutProtection, marketSlots, productionScaled } from './building-effects';
+import { dailyTaskDay } from '../daily-tasks/daily-tasks.service';
+import { constructionMs, finalizeDueBuildings } from './building-finalizer';
 import { EconomyService } from '../player/economy.service';
 import { PushService } from '../notifications/push.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,13 +25,42 @@ export class BaseService {
     await this.ensurePlayerBuildingsExist(playerId);
     await this.finalizeCompletedBuildings(playerId);
 
-    const buildings = await this.loadBuildings(playerId);
-    const fresh = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+    const [buildings, fresh, activeResearch] = await Promise.all([
+      this.loadBuildings(playerId),
+      this.prisma.player.findUniqueOrThrow({ where: { id: playerId } }),
+      this.loadActiveResearch(playerId),
+    ]);
+    const exchangeBuilding = buildings.find((b) => b.buildingType.key === GAME_BALANCE.buildingKeys.exchange);
     return {
       resources: toResourcesDto(fresh),
       buildings: buildings.map(toBuildingStateDto),
       buildQueue: toBuildQueueDto(fresh, buildings),
       isVip: isVip(fresh),
+      exchange: exchangeBuilding && exchangeBuilding.level > 0 ? toExchangeInfo(fresh, exchangeBuilding) : null,
+      activeResearch,
+    };
+  }
+
+  /** The research in progress, for the Research Center tile's timer. */
+  private async loadActiveResearch(playerId: string): Promise<ActiveResearchDto | null> {
+    const research = await this.prisma.playerResearch.findFirst({
+      where: { playerId, researchEndsAt: { gt: new Date() } },
+      include: { researchType: { include: { levelCosts: true } } },
+    });
+    if (!research) return null;
+    const level = research.level + 1;
+    const cost = research.researchType.levelCosts.find((c) => c.level === level);
+    // Same speed-up as when it started; the bar is only a visual aid.
+    const speedBonus = (await this.economy.getResearchMultiplier(playerId, ResearchBonusType.RESEARCH_SPEED)) - 1;
+    const endsAt = research.researchEndsAt!;
+    return {
+      nameKey: research.researchType.nameKey,
+      level,
+      endsAt: endsAt.toISOString(),
+      // Exact when the start is known; otherwise estimated from the level's time.
+      totalSeconds: research.researchStartedAt
+        ? Math.max(1, Math.round((endsAt.getTime() - research.researchStartedAt.getTime()) / 1000))
+        : Math.max(1, Math.round((cost?.researchSeconds ?? 1) * (1 - Math.min(0.9, speedBonus)))),
     };
   }
 
@@ -157,9 +190,11 @@ export class BaseService {
         data: { metal: { decrement: nextLevelCost.metalCost }, crystal: { decrement: nextLevelCost.crystalCost } },
       });
 
+      // Construction Technologies research shortens it (owner decision, 2026-10-14).
+      const speedBonus = (await this.economy.getResearchMultiplier(playerId, ResearchBonusType.CONSTRUCTION_SPEED, tx)) - 1;
       const updated = await tx.playerBuilding.update({
         where: { id: playerBuilding.id },
-        data: { constructionEndsAt: new Date(Date.now() + nextLevelCost.constructionSeconds * 1000) },
+        data: { constructionStartedAt: new Date(), constructionEndsAt: new Date(Date.now() + constructionMs(nextLevelCost.constructionSeconds, speedBonus)) },
         include: { buildingType: { include: { levelCosts: true } } },
       });
 
@@ -178,64 +213,45 @@ export class BaseService {
     }
   }
 
-  private async finalizeCompletedBuildings(playerId: string): Promise<void> {
-    // Loops because a queued building may itself have finished while the player was away.
-    for (let pass = 0; pass < 3; pass++) {
-      const due = await this.prisma.playerBuilding.findMany({
-        where: { playerId, constructionEndsAt: { lte: new Date() } },
+  /**
+   * Exchange (owner decision, 2026-10-14): Metal <-> Crystal only (never
+   * Credits -> resources, that would be pay-to-win). A small Credits fee,
+   * proportional to the amount; a daily limit and the rate grow with the level.
+   */
+  async exchange(playerId: string, from: 'METAL' | 'CRYSTAL', amount: number): Promise<BaseResponseDto> {
+    await this.economy.settleResources(playerId);
+    await this.ensurePlayerBuildingsExist(playerId);
+    await this.prisma.$transaction(async (tx) => {
+      const building = await tx.playerBuilding.findFirst({
+        where: { playerId, buildingType: { key: GAME_BALANCE.buildingKeys.exchange } },
+        include: { buildingType: true },
       });
-      let lastEnd: Date | null = null;
-      for (const building of due) {
-        await this.prisma.playerBuilding.update({
-          where: { id: building.id },
-          data: { level: building.level + 1, constructionEndsAt: null },
-        });
-        if (!lastEnd || building.constructionEndsAt! > lastEnd) lastEnd = building.constructionEndsAt;
-        // Same key as the minute scan, so it goes out once whichever sees it first.
-        void this.push
-          .sendOnce(playerId, 'CONSTRUCTION_DONE', `${building.id}:${building.constructionEndsAt!.toISOString()}`)
-          .catch(() => undefined);
-      }
-      if (!(await this.startQueuedBuilding(playerId, lastEnd))) return;
-    }
+      if (!building || building.level < 1) throw new BadRequestException('EXCHANGE_NOT_BUILT');
+      const player = await tx.player.findUniqueOrThrow({ where: { id: playerId } });
+      const info = toExchangeInfo(player, building);
+      if (info.usedToday + amount > info.dailyLimit) throw new BadRequestException('EXCHANGE_DAILY_LIMIT');
+      const fee = exchangeFee(amount);
+      const received = exchangeOutput(from, amount, info.rateFactor);
+      if (received < 1) throw new BadRequestException('EXCHANGE_AMOUNT_TOO_SMALL');
+      const balance = from === 'METAL' ? player.metal : player.crystal;
+      if (balance < amount) throw new BadRequestException('Not enough resources');
+      if (player.credits < fee) throw new BadRequestException('NOT_ENOUGH_CREDITS');
+      const day = dailyTaskDay();
+      await tx.player.update({
+        where: { id: playerId },
+        data: {
+          ...(from === 'METAL' ? { metal: { decrement: amount }, crystal: { increment: received } } : { crystal: { decrement: amount }, metal: { increment: received } }),
+          credits: { decrement: fee },
+          exchangeDay: day,
+          exchangeUsedToday: info.usedToday + amount,
+        },
+      });
+    });
+    return this.getBase(playerId);
   }
 
-  /**
-   * Starts the VIP-queued building once nothing is under construction. It
-   * starts when the previous one ended (not when the player came back), so
-   * offline time is respected. Returns true if it started.
-   */
-  private async startQueuedBuilding(playerId: string, previousEnd: Date | null): Promise<boolean> {
-    return this.prisma.$transaction(async (tx) => {
-      const player = await tx.player.findUniqueOrThrow({ where: { id: playerId } });
-      const buildingTypeId = player.buildQueueBuildingTypeId;
-      if (!buildingTypeId) return false;
-      const busy = await tx.playerBuilding.findFirst({ where: { playerId, constructionEndsAt: { not: null } } });
-      if (busy) return false;
-
-      const claimed = await tx.player.updateMany({
-        where: { id: playerId, buildQueueBuildingTypeId: buildingTypeId },
-        data: { buildQueueBuildingTypeId: null, buildQueueMetal: 0, buildQueueCrystal: 0 },
-      });
-      if (claimed.count !== 1) return false;
-
-      const building = await tx.playerBuilding.findUniqueOrThrow({ where: { playerId_buildingTypeId: { playerId, buildingTypeId } } });
-      const cost = await tx.buildingLevelCost.findUnique({ where: { buildingTypeId_level: { buildingTypeId, level: building.level + 1 } } });
-      if (!cost) {
-        // Can't happen in normal play (the level was checked when queued) — refund rather than lose it.
-        await tx.player.update({
-          where: { id: playerId },
-          data: { metal: { increment: player.buildQueueMetal }, crystal: { increment: player.buildQueueCrystal } },
-        });
-        return false;
-      }
-      const start = previousEnd ?? new Date();
-      await tx.playerBuilding.update({
-        where: { id: building.id },
-        data: { constructionEndsAt: new Date(start.getTime() + cost.constructionSeconds * 1000) },
-      });
-      return true;
-    });
+  private finalizeCompletedBuildings(playerId: string): Promise<void> {
+    return finalizeDueBuildings({ prisma: this.prisma, economy: this.economy, push: this.push }, playerId, { checkQueue: true });
   }
 
   private loadBuildings(playerId: string): Promise<BuildingWithType[]> {
@@ -266,6 +282,28 @@ function toResourcesDto(player: Player): ResourcesDto {
   };
 }
 
+/** What the Exchange allows today — the day is the daily-task day (Europe/Sofia). */
+function toExchangeInfo(player: Player, building: PlayerBuilding & { buildingType: BuildingType }): ExchangeInfoDto {
+  const config = GAME_BALANCE.exchange;
+  return {
+    level: building.level,
+    dailyLimit: productionScaled(building.level, building.buildingType.exchangeLimitPerLevel),
+    usedToday: player.exchangeDay === dailyTaskDay() ? player.exchangeUsedToday : 0,
+    rateFactor: Math.min(1, config.baseRateFactor + config.rateFactorPerLevel * building.level),
+    metalPerCrystal: config.metalPerCrystal,
+    creditsPer100: config.creditsPer100,
+  };
+}
+
+export function exchangeFee(amount: number): number {
+  return Math.ceil((amount * GAME_BALANCE.exchange.creditsPer100) / 100);
+}
+
+export function exchangeOutput(from: 'METAL' | 'CRYSTAL', amount: number, rateFactor: number): number {
+  const { metalPerCrystal } = GAME_BALANCE.exchange;
+  return Math.floor(from === 'METAL' ? (amount / metalPerCrystal) * rateFactor : amount * metalPerCrystal * rateFactor);
+}
+
 function toBuildingStateDto(building: BuildingWithType): BuildingStateDto {
   const currentLevelCost = building.buildingType.levelCosts.find((cost) => cost.level === building.level);
   const nextLevelCost = building.buildingType.levelCosts.find((cost) => cost.level === building.level + 1);
@@ -277,6 +315,7 @@ function toBuildingStateDto(building: BuildingWithType): BuildingStateDto {
     level: building.level,
     maxLevel: building.buildingType.maxLevel,
     constructionEndsAt: building.constructionEndsAt?.toISOString() ?? null,
+    constructionStartedAt: building.constructionEndsAt ? (building.constructionStartedAt?.toISOString() ?? null) : null,
     nextLevelCost: nextLevelCost
       ? {
           metalCost: nextLevelCost.metalCost,
@@ -295,15 +334,42 @@ function toBuildingStateDto(building: BuildingWithType): BuildingStateDto {
     nextLevelProduction: toProductionDto(nextLevelCost),
     currentCapacityBonus: toBonusDto(building.level, building.buildingType.capacityBonusPerLevel),
     nextLevelCapacityBonus: nextLevelCost ? toBonusDto(building.level + 1, building.buildingType.capacityBonusPerLevel) : null,
-    currentMarketSlotBonus: toBonusDto(building.level, building.buildingType.marketSlotBonusPerLevel),
-    nextLevelMarketSlotBonus: nextLevelCost ? toBonusDto(building.level + 1, building.buildingType.marketSlotBonusPerLevel) : null,
+    currentMarketSlotBonus: orNull(marketSlots(building.level, building.buildingType.marketSlotBonusPerLevel)),
+    nextLevelMarketSlotBonus: nextLevelCost ? orNull(marketSlots(building.level + 1, building.buildingType.marketSlotBonusPerLevel)) : null,
     currentDefenseBonusPercent: toPercentDto(building.level, building.buildingType.defenseBonusPerLevel),
     nextLevelDefenseBonusPercent: nextLevelCost ? toPercentDto(building.level + 1, building.buildingType.defenseBonusPerLevel) : null,
     currentPvpProtectionMinutes: toBonusDto(building.level, building.buildingType.pvpProtectionMinutesPerLevel),
     nextLevelPvpProtectionMinutes: nextLevelCost ? toBonusDto(building.level + 1, building.buildingType.pvpProtectionMinutesPerLevel) : null,
     currentProtectedResources: toProtectedDto(building.level, building.buildingType),
     nextLevelProtectedResources: nextLevelCost ? toProtectedDto(building.level + 1, building.buildingType) : null,
+    currentResearchCap: toBonusDto(building.level, building.buildingType.researchCapPerLevel),
+    nextResearchCap: nextLevelCost ? toBonusDto(building.level + 1, building.buildingType.researchCapPerLevel) : null,
+    currentEnergyRegenPercent: toPercentDto(building.level, building.buildingType.energyRegenBonusPerLevel),
+    nextEnergyRegenPercent: nextLevelCost ? toPercentDto(building.level + 1, building.buildingType.energyRegenBonusPerLevel) : null,
+    currentMaxEnergyBonus: maxEnergyBonus(building.level, building.buildingType.maxEnergyBonusEvery),
+    nextMaxEnergyBonus: nextLevelCost ? maxEnergyBonus(building.level + 1, building.buildingType.maxEnergyBonusEvery) : null,
+    currentExchangeLimit: orNull(productionScaled(building.level, building.buildingType.exchangeLimitPerLevel)),
+    nextExchangeLimit: nextLevelCost ? orNull(productionScaled(building.level + 1, building.buildingType.exchangeLimitPerLevel)) : null,
+    specialLevels: buildingSpecialLevels(building),
   };
+}
+
+function maxEnergyBonus(level: number, every: number | null): number | null {
+  if (!every || level <= 0) return null;
+  return Math.floor(level / every);
+}
+
+/** Reactor: +1 max energy levels. (Expedition unlocks moved to the Navigation research, 2026-10-14.) */
+function buildingSpecialLevels(building: BuildingWithType): SpecialLevelDto[] {
+  const every = building.buildingType.maxEnergyBonusEvery;
+  if (every) {
+    const levels: SpecialLevelDto[] = [];
+    for (let level = every; level <= building.buildingType.maxLevel; level += every) {
+      levels.push({ level, reached: building.level >= level, kind: 'MAX_ENERGY', nameKey: null });
+    }
+    return levels;
+  }
+  return [];
 }
 
 function toProductionDto(levelCost: BuildingLevelCost | undefined): BuildingProductionDto | null {
@@ -317,11 +383,11 @@ function toProtectedDto(level: number, type: BuildingType): ResourcesDto | null 
   if (!type.protectedMetalPerLevel || level <= 0) {
     return null;
   }
-  return {
-    metal: level * (type.protectedMetalPerLevel ?? 0),
-    crystal: level * (type.protectedCrystalPerLevel ?? 0),
-    credits: level * (type.protectedCreditsPerLevel ?? 0),
-  };
+  return hideoutProtection(level, type);
+}
+
+function orNull(value: number): number | null {
+  return value > 0 ? value : null;
 }
 
 function toPercentDto(level: number, fractionPerLevel: number | null): number | null {

@@ -25,6 +25,7 @@ import { MessageActions } from '@/components/MessageActions';
 import { NextLevelValue } from '@/components/NextLevelValue';
 import { PlayerLink } from '@/components/PlayerLink';
 import { ResourceIcon } from '@/components/ResourceIcon';
+import { SpecialLevels } from '@/components/SpecialLevels';
 import { Link } from '@/i18n/navigation';
 import { hasAnyRequirement, meetsJoinRequirements } from '@/lib/clan-requirements';
 import { formatDateTime } from '@/lib/format-datetime';
@@ -113,7 +114,8 @@ const CLAN_OPTION_CONFIRM_KEY: Record<ClanOptionAction, string> = {
 
 /** Current bonus at this building's level, and next level's if it isn't already maxed — e.g. "+10 (+12 at next level)". */
 function bonusLabel(building: ClanBuildingStateDto): { current: string; next: string | null } {
-  const format = (value: number) => (building.bonusType === 'MEMBER_CAPACITY' ? `+${Math.round(value)}` : `+${Math.round(value * 100)}%`);
+  // One decimal, since the Generator gives +0.5% per level.
+  const format = (value: number) => (building.bonusType === 'MEMBER_CAPACITY' ? `+${Math.round(value)}` : `+${Math.round(value * 1000) / 10}%`);
   const current = format(building.level * building.bonusPerLevel);
   if (!building.nextLevelCost) return { current, next: null };
   return { current, next: format((building.level + 1) * building.bonusPerLevel) };
@@ -1328,6 +1330,7 @@ function ClanBuildingDetails({
       <p className="mb-3 text-xs text-accent">
         <NextLevelValue current={bonus.current} next={bonus.next} />
       </p>
+      <SpecialLevels levels={building.specialLevels} />
 
       {progress.active ? (
         <>

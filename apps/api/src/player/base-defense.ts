@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { hideoutProtection } from '../base/building-effects';
 
 type Tx = PrismaService | Prisma.TransactionClient;
 
@@ -35,12 +36,7 @@ export async function getHideoutProtection(playerId: string, tx: Tx): Promise<Pr
   if (!building) {
     return { metal: 0, crystal: 0, credits: 0 };
   }
-  const type = building.buildingType;
-  return {
-    metal: building.level * (type.protectedMetalPerLevel ?? 0),
-    crystal: building.level * (type.protectedCrystalPerLevel ?? 0),
-    credits: building.level * (type.protectedCreditsPerLevel ?? 0),
-  };
+  return hideoutProtection(building.level, building.buildingType);
 }
 
 /** The part of a resource stock that can be stolen — whatever is above the Hideout's protected amount. */

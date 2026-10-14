@@ -23,6 +23,7 @@ import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
+import { EnergyRefill } from '@/components/EnergyRefill';
 
 interface LogLine {
   text: React.ReactNode;
@@ -322,6 +323,8 @@ export default function ClanWarPage() {
                   );
                 })}
               </div>
+              {/* Out of energy: packs right under the targets' attack buttons (owner decision, 2026-10-14). */}
+              <EnergyRefill profile={profile} onRefilled={refreshProfile} />
             </section>
           )}
 

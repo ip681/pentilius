@@ -130,6 +130,13 @@
     "seasonResetIn": "New season starts in"
   },
   "base": {
+    "researchCap": "Research up to level {level}",
+    "energyRegen": "+{percent}% faster energy regeneration",
+    "maxEnergyBonus": "+{amount} max energy",
+    "exchangeLimit": "Exchange up to {amount} per day",
+    "openResearch": "Research",
+    "researching": "Researching: {name} (level {level})",
+    "noResearch": "Nothing is being researched right now.",
     "queued": "Queued: {building} → level {level}",
     "cancelQueue": "Cancel (resources are refunded)",
     "addToQueue": "Add to queue (level {level})",
@@ -185,7 +192,7 @@
     "sellConfirm": "Sell this item for {metal} Metal and {crystal} Crystal?",
     "recycle": "Recycle",
     "recycleProgress": "{name}: {owned}/{required}",
-    "recycleConfirm": "Recycle this item into 1 {name}?",
+    "recycleConfirm": "Recycle this item into {count} × {name}?",
     "consumables": "Consumables",
     "quantity": "Quantity",
     "use": "Use",
@@ -321,7 +328,14 @@
     "metal_production": { "name": "Metal Production", "description": "Improves the yield of every metal-producing building." },
     "crystal_production": { "name": "Crystal Production", "description": "Improves the yield of every crystal-producing building." },
     "weapon_systems": { "name": "Weapon Systems", "description": "Increases the attack power of your robot's equipped weapons." },
-    "hull_engineering": { "name": "Hull Engineering", "description": "Increases the maximum structural integrity of your robot." }
+    "hull_engineering": { "name": "Hull Engineering", "description": "Increases the maximum structural integrity of your robot." },
+    "construction": { "name": "Construction Technologies", "description": "Shortens construction time for base buildings." },
+    "methods": { "name": "Research Methods", "description": "Shortens research time." },
+    "navigation": { "name": "Navigation", "description": "Increases the resources from expeditions." },
+    "metallurgy": { "name": "Metallurgy", "description": "Reduces the stones needed to upgrade items." },
+    "recycling": { "name": "Recycling", "description": "Increases the resources from selling items. Every 5th level, recycling gives an extra fragment." },
+    "needsNavigation": "Requires Navigation level {level}",
+    "needsCenter": "Requires Research Center level {level}"
   },
   "leaderboard": {
     "title": "Leaderboard",
@@ -661,8 +675,9 @@
   },
   "clanBuildings": {
     "member_hall": { "name": "Member Hall", "description": "Raises the clan's maximum member count." },
-    "clan_forge": { "name": "Clan Forge", "description": "Grants every member a combat attack and defense bonus." },
-    "clan_depot": { "name": "Clan Production", "description": "Grants every member a Metal and Crystal production bonus." },
+    "clan_forge": { "name": "Forge", "description": "Grants every member a combat attack and defense bonus." },
+    "clan_depot": { "name": "Refinery", "description": "Grants every member a Metal and Crystal production bonus." },
+    "clan_generator": { "name": "Generator", "description": "Gives every member faster energy regeneration and extra max energy at some levels. Adds to the personal Reactor." },
     "clan_tavern": {
       "name": "Cantina",
       "description": "While active, grants every member bonus damage against bosses and the Core."
@@ -753,7 +768,10 @@
     "trading_post": { "name": "Trading Post" },
     "defense_system": { "name": "Defense System" },
     "defensive_wall": { "name": "Defensive Wall" },
-    "hideout": { "name": "Hideout" }
+    "hideout": { "name": "Hideout" },
+    "research_center": { "name": "Research Center" },
+    "exchange": { "name": "Exchange" },
+    "reactor": { "name": "Reactor" }
   },
   "items": {
     "pioneer_head_scanner": { "name": "Pioneer Head Scanner", "description": "A basic targeting sensor." },
@@ -1329,5 +1347,32 @@
   "connection": {
     "maintenance": "We're improving Pentilius for you — back in a moment…",
     "lost": "Lost connection to the server — reconnecting…"
+  },
+  "energyRefill": {
+    "usePack": "Out of energy. Use a pack:",
+    "noPacks": "You have no energy and no energy packs.",
+    "noPacksNext": "Out of energy — next point in {time}."
+  },
+  "specialLevels": {
+    "title": "Special levels",
+    "level": "Level {level}",
+    "kinds": {
+      "MAX_ENERGY": "+1 max energy",
+      "EXPEDITION_UNLOCK": "unlocks \"{name}\"",
+      "EXTRA_FRAGMENT": "+1 fragment when recycling"
+    }
+  },
+  "exchange": {
+    "title": "Exchange",
+    "left": "Left today: {left} / {limit}",
+    "amount": "Amount",
+    "youGet": "You get:",
+    "fee": "Fee:",
+    "submit": "Exchange",
+    "done": "Exchanged!",
+    "errorLimit": "That exceeds the daily exchange limit.",
+    "errorCredits": "You do not have enough Credits for the fee.",
+    "errorTooSmall": "The amount is too small.",
+    "errorResources": "You do not have enough of that resource."
   }
 }

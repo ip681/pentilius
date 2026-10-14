@@ -17,8 +17,8 @@ touching application code. Full rationale: `instructions/DECISIONS_LOG.md`.
 - **Item upgrade cost/success rules** → `game-config.ts` (`itemUpgrade.stonesPerLevel`); no failure chance or protection stones yet.
 - **Final damage formula** → `apps/api/src/pve/combat.service.ts` (a simple power-ratio win-probability model), isolated so it can be replaced without touching callers.
 - **Core Attributes point-buy curves** → flat, not compounding (`game-config.ts`'s `robotAttributes`). Defense Success Rate and a "Combat Power" summary score remain undecided (see Combat below).
-- **Construction costs/times, building production rates** → `BuildingLevelCost` seed rows.
-- **Research tree size/rate** → 4 technologies, +5%/level, cap level 5 — placeholder numbers, not a final tree.
+- **Construction costs/times, building production rates** → one production-tied model in `seed.ts` (base balance, 2026-10-14; see `instructions/DECISIONS_LOG.md`). Not yet checked against real player income.
+- **Research tree size/rate** → 9 technologies, cap level 30, production +2%/level, combat +1%/level (base balance, 2026-10-14) — placeholder numbers, not a final tree.
 - **PvP placeholders** → targeting pool (random among level-5+ players), attack cooldown minutes, revenge-protection window minutes — see `game-config.ts`'s `pvp` block.
 - **Clan placeholders** → exact role set beyond LEADER/OFFICER/MEMBER, flat base member cap (10), Member Hall/Forge/Depot bonus rates — see `game-config.ts`.
 - **Boss Formations** → the 4 bosses' names/art are still placeholder-named (`boss_verdant_warden` etc. — combat stats themselves are now calibrated, see the log); no ranking/reward-tier UI for `BossFormationDailyPoints` yet.
@@ -66,14 +66,20 @@ touching application code. Full rationale: `instructions/DECISIONS_LOG.md`.
 - final building list
 - max building levels
 - construction costs/times
-- Hideout protected amounts and Defense System / Defensive Wall / Hideout costs (placeholders in `seed.ts`; the mechanics were decided 2026-10-12)
+- Hideout protected amounts and Defense System / Defensive Wall / Hideout costs (base balance 2026-10-14 in `seed.ts`, still placeholders; the mechanics were decided 2026-10-12)
 
 ## Research
-- final branch/technology list beyond the current 4 (see Milestone 1 placeholders above)
-- costs/effects beyond the current flat +5%/level
+- Built 2026-10-14 (see `instructions/DECISIONS_LOG.md`):
+  - the Research Center, Exchange and Reactor buildings;
+  - five new researches;
+  - level cap 30 for buildings and researches.
+- Still open: all numbers (costs, times, effects) in one balancing pass once
+  everything exists.
 
 ## Clans
-- final role set, clan building list beyond the current 3, contribution rules, clan-war rules (see Milestone 1 placeholders above)
+- final role set, contribution rules, clan-war rules (see Milestone 1 placeholders above)
+- clan building numbers and the Cantina's activation cost (base balance 2026-10-14, still placeholders)
+- discussed and parked (2026-10-14): a clan doctrine (economy vs war focus), Barracks, splitting the Refinery per resource
 
 ## Notifications
 `instructions/GAME_SYSTEMS.md`'s Notifications section is LOCKED only for the
@@ -105,6 +111,20 @@ The attacked-Core model was decided on 2026-10-12 (see `instructions/GAME_SYSTEM
 - Core combat stats and round cap (placeholders: `game-config.ts`'s `core` block)
 - Tavern level-cost curve and activation cost (placeholders: `seed.ts`'s Tavern block, `game-config.ts`'s `clanTavern` block)
 - the season reset is built (2026-10-13, see `instructions/DECISIONS_LOG.md`). Still open: the Core's lore
+- **Energy-pack hoarding vs the Core (raised 2026-10-14, to discuss further
+  before building).** Packs can be stockpiled all season and dumped while the
+  Core is open, which would decide the season by hoarding, not steady play,
+  and become pay-to-win if packs are ever sold for money. Energy is fungible,
+  so a "not for the Core" rule must limit *when/how many*, not where.
+  Preferred direction (owner, 2026-10-14):
+  - a daily cap on packs used while the Core is open, e.g. 3 per day;
+  - a cap on packs held, e.g. 20 in the inventory.
+
+  Both caps belong in `GAME_BALANCE`. Rejected for now:
+  - a full ban during the Core window (too blunt);
+  - separate Core energy (too big a rule change).
+
+  Decide before packs are sold for real money.
 
 ## Monetization
 - VIP tiers

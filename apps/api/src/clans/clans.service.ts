@@ -658,6 +658,10 @@ function toBuildingStateDto(building: BuildingWithType): ClanBuildingStateDto {
             cost: tavernActivationCost(Math.max(1, building.level)),
           }
         : null,
+    specialLevels:
+      building.clanBuildingType.bonusType === 'ENERGY_REGEN'
+        ? GAME_BALANCE.clanGenerator.maxEnergyLevels.map((level) => ({ level, reached: building.level >= level, kind: 'MAX_ENERGY' as const, nameKey: null }))
+        : [],
   };
 }
 

@@ -5,6 +5,7 @@ import { grantItem } from '../inventory/inventory-capacity';
 import { EconomyService } from '../player/economy.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
+import { ResearchBonusType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -17,16 +18,17 @@ export class ExpeditionsService {
   ) {}
 
   async getExpeditions(playerId: string): Promise<ExpeditionsResponseDto> {
-    const [types, active] = await Promise.all([
+    const [types, active, navigationLevel] = await Promise.all([
       this.prisma.expeditionType.findMany({ include: { bonusItemDefinition: true }, orderBy: { durationMinutes: 'asc' } }),
       this.prisma.playerExpedition.findFirst({
         where: { playerId, claimedAt: null },
         include: { expeditionType: true },
       }),
+      this.navigationLevel(playerId),
     ]);
 
     return {
-      types: types.map(toExpeditionTypeDto),
+      types: types.map((type) => toExpeditionTypeDto(type, navigationLevel)),
       active: active
         ? {
             expeditionKey: active.expeditionType.key,
@@ -39,6 +41,20 @@ export class ExpeditionsService {
     };
   }
 
+  /**
+   * Navigation research level (owner decision, 2026-10-14: it unlocks the
+   * longer expeditions). A level whose time is already up counts, even if the
+   * research screen hasn't been opened to finalize it yet.
+   */
+  private async navigationLevel(playerId: string): Promise<number> {
+    const research = await this.prisma.playerResearch.findFirst({
+      where: { playerId, researchType: { bonusType: ResearchBonusType.EXPEDITION_REWARDS } },
+      select: { level: true, researchEndsAt: true },
+    });
+    if (!research) return 0;
+    return research.level + (research.researchEndsAt && research.researchEndsAt <= new Date() ? 1 : 0);
+  }
+
   async start(playerId: string, key: string): Promise<ActiveExpeditionDto> {
     const existing = await this.prisma.playerExpedition.findFirst({ where: { playerId, claimedAt: null } });
     if (existing) {
@@ -48,6 +64,10 @@ export class ExpeditionsService {
     const expeditionType = await this.prisma.expeditionType.findUnique({ where: { key } });
     if (!expeditionType) {
       throw new NotFoundException('Unknown expedition');
+    }
+    // Longer expeditions unlock with the Navigation research (owner decision, 2026-10-14).
+    if (expeditionType.requiredNavigationLevel > (await this.navigationLevel(playerId))) {
+      throw new BadRequestException('NAVIGATION_LEVEL_REQUIRED');
     }
 
     const startedAt = new Date();
@@ -79,13 +99,16 @@ export class ExpeditionsService {
       }
 
       const { expeditionType } = active;
+      // Navigation research raises the resource rewards (owner decision, 2026-10-14).
+      const navigation = await this.economy.getResearchMultiplier(playerId, ResearchBonusType.EXPEDITION_REWARDS, tx);
+      const resources = {
+        metal: Math.floor(expeditionType.metalReward * navigation),
+        crystal: Math.floor(expeditionType.crystalReward * navigation),
+        credits: Math.floor(expeditionType.creditsReward * navigation),
+      };
       await tx.player.update({
         where: { id: playerId },
-        data: {
-          metal: { increment: expeditionType.metalReward },
-          crystal: { increment: expeditionType.crystalReward },
-          credits: { increment: expeditionType.creditsReward },
-        },
+        data: { metal: { increment: resources.metal }, crystal: { increment: resources.crystal }, credits: { increment: resources.credits } },
       });
 
       const { leveledUp, player } = await this.economy.applyXp(playerId, expeditionType.xpReward, tx);
@@ -108,12 +131,7 @@ export class ExpeditionsService {
       await this.achievements.record(playerId, 'EXPEDITION_COMPLETED', 1, tx);
 
       return {
-        rewards: {
-          metal: expeditionType.metalReward,
-          crystal: expeditionType.crystalReward,
-          credits: expeditionType.creditsReward,
-          xp: expeditionType.xpReward,
-        },
+        rewards: { ...resources, xp: expeditionType.xpReward },
         bonusItem,
         leveledUp,
         playerLevel: player.level,
@@ -162,6 +180,7 @@ export class ExpeditionsService {
 }
 
 function toExpeditionTypeDto(type: {
+  requiredNavigationLevel: number;
   key: string;
   nameKey: string;
   durationMinutes: number;
@@ -171,7 +190,7 @@ function toExpeditionTypeDto(type: {
   xpReward: number;
   bonusItemChance: number | null;
   bonusItemDefinition: { nameKey: string; iconAssetId: string } | null;
-}): ExpeditionTypeDto {
+}, navigationLevel: number): ExpeditionTypeDto {
   return {
     key: type.key,
     nameKey: type.nameKey,
@@ -180,5 +199,7 @@ function toExpeditionTypeDto(type: {
     bonusItemNameKey: type.bonusItemDefinition?.nameKey ?? null,
     bonusItemIconAssetId: type.bonusItemDefinition?.iconAssetId ?? null,
     bonusItemChance: type.bonusItemChance,
+    requiredNavigationLevel: type.requiredNavigationLevel,
+    locked: type.requiredNavigationLevel > navigationLevel,
   };
 }

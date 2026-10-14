@@ -31,6 +31,7 @@ import { isVipActive, multiAttackCount } from '@/lib/vip';
 import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { EnergyRefill } from '@/components/EnergyRefill';
 
 interface LogLine {
   text: React.ReactNode;
@@ -377,6 +378,7 @@ function ZonePentiliPageInner() {
                     )}
                   </div>
                 </div>
+                <div className="flex flex-col items-end">
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -396,6 +398,9 @@ function ZonePentiliPageInner() {
                       {t('pve.attackMulti', { count: multiCount >= 2 ? multiCount : (profile?.vipMultiAttackCount ?? 3) })}
                     </button>
                   )}
+                </div>
+                {/* Out of energy: use a pack right under the attack buttons (owner decision, 2026-10-14). */}
+                <EnergyRefill profile={profile} onRefilled={refreshProfile} />
                 </div>
               </li>
             ))}
@@ -449,6 +454,7 @@ function ZonePentiliPageInner() {
           ))}
         </ul>
       )}
+      {pentili && !focusBoss && !targetPentiliId && <EnergyRefill profile={profile} onRefilled={refreshProfile} />}
 
       {!targetPentiliId && <ZoneBossPanel zoneId={zoneId} />}
     </GameLayout>
