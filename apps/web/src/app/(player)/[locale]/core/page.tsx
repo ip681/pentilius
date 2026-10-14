@@ -341,7 +341,7 @@ function PlayerRankingRow({ row, showClanTag }: { row: CorePlayerStandingDto; sh
           {row.rank ? `#${row.rank}` : '—'}
         </span>
         <span className="truncate">
-          <PlayerLink playerId={row.playerId} username={row.username} />
+          <PlayerLink playerId={row.playerId} username={row.username} isVip={row.isVip} />
           {showClanTag && row.clanTag && <span className="ml-1 text-textFaint">[{row.clanTag}]</span>}
         </span>
       </span>

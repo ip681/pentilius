@@ -11,7 +11,7 @@ import { AuthService } from './auth.service';
 describe('AuthService', () => {
   let authService: AuthService;
   let prisma: {
-    player: { findUnique: jest.Mock; create: jest.Mock };
+    player: { findUnique: jest.Mock; findFirst: jest.Mock; findMany: jest.Mock; create: jest.Mock };
     avatarDefinition: { findMany: jest.Mock };
     frameDefinition: { findMany: jest.Mock };
   };
@@ -19,7 +19,10 @@ describe('AuthService', () => {
   beforeEach(async () => {
     prisma = {
       player: {
-        findUnique: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(null),
+        // Email (any letter case) and the login lookups.
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn(),
       },
       avatarDefinition: { findMany: jest.fn().mockResolvedValue([{ key: 'avatar1' }]) },
@@ -48,12 +51,10 @@ describe('AuthService', () => {
 
   describe('register', () => {
     it('throws a ConflictException when the email is already taken', async () => {
-      prisma.player.findUnique.mockImplementation(({ where }: { where: { email?: string; username?: string } }) =>
-        Promise.resolve(where.email ? { id: '1', email: 'a@b.com' } : null),
-      );
+      prisma.player.findFirst.mockResolvedValue({ id: '1', email: 'a@b.com' });
 
       await expect(
-        authService.register({ email: 'a@b.com', username: 'playerone', password: 'password123', race: 'LUXARI', acceptedTerms: true }),
+        authService.register({ email: 'A@b.com', username: 'playerone', password: 'password123', race: 'LUXARI', acceptedTerms: true }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -86,8 +87,6 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('throws an UnauthorizedException when the player does not exist', async () => {
-      prisma.player.findUnique.mockResolvedValue(null);
-
       await expect(authService.login({ email: 'missing@b.com', password: 'password123' })).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
@@ -95,7 +94,7 @@ describe('AuthService', () => {
 
     it('throws an UnauthorizedException when the password does not match', async () => {
       const passwordHash = await bcrypt.hash('correct-password', 10);
-      prisma.player.findUnique.mockResolvedValue({ id: '1', email: 'a@b.com', passwordHash });
+      prisma.player.findFirst.mockResolvedValue({ id: '1', email: 'a@b.com', passwordHash });
 
       await expect(authService.login({ email: 'a@b.com', password: 'wrong-password' })).rejects.toBeInstanceOf(
         UnauthorizedException,
@@ -104,12 +103,21 @@ describe('AuthService', () => {
 
     it('returns tokens when credentials are valid', async () => {
       const passwordHash = await bcrypt.hash('correct-password', 10);
-      prisma.player.findUnique.mockResolvedValue({ id: '1', email: 'a@b.com', username: 'playerone', race: 'LUXARI', passwordHash, createdAt: new Date() });
+      prisma.player.findFirst.mockResolvedValue({ id: '1', email: 'a@b.com', username: 'playerone', race: 'LUXARI', passwordHash, createdAt: new Date() });
 
       const result = await authService.login({ email: 'a@b.com', password: 'correct-password' });
 
       expect(result.accessToken).toBe('signed-token');
       expect(result.refreshToken).toBe('signed-token');
+    });
+
+    it('accepts a username in any letter case when only one player matches', async () => {
+      const passwordHash = await bcrypt.hash('correct-password', 10);
+      prisma.player.findMany.mockResolvedValue([{ id: '1', email: 'a@b.com', username: 'PlayerOne', race: 'LUXARI', passwordHash, createdAt: new Date() }]);
+
+      const result = await authService.login({ login: 'playerone', password: 'correct-password' });
+
+      expect(result.accessToken).toBe('signed-token');
     });
   });
 });

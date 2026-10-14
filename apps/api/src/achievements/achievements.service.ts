@@ -72,7 +72,7 @@ export class AchievementsService {
 
   private async buildView(playerId: string, tx: Tx): Promise<AchievementsDto> {
     const [player, progressRows, claims] = await Promise.all([
-      tx.player.findUniqueOrThrow({ where: { id: playerId }, select: { level: true } }),
+      tx.player.findUniqueOrThrow({ where: { id: playerId }, select: { level: true, xp: true } }),
       tx.achievementProgress.findMany({ where: { playerId } }),
       tx.achievementClaim.findMany({ where: { playerId }, select: { key: true } }),
     ]);
@@ -101,15 +101,19 @@ export class AchievementsService {
       };
     });
 
-    return { levelReward: this.nextLevelReward(player.level, claimed), achievements };
+    // Rewards are claimed in order, so an unreached one is always the next level: its bar is this level's XP.
+    const threshold = await tx.levelThreshold.findUnique({ where: { level: player.level } });
+    const xpPercent = threshold && threshold.xpRequired > 0 ? Math.min(100, Math.floor((player.xp / threshold.xpRequired) * 100)) : null;
+    return { levelReward: this.nextLevelReward(player.level, claimed, xpPercent), achievements };
   }
 
   /** The lowest level from 2 up whose reward is unclaimed — reached or the next one to reach. */
-  private nextLevelReward(currentLevel: number, claimed: Set<string>): LevelRewardDto | null {
+  private nextLevelReward(currentLevel: number, claimed: Set<string>, xpPercent: number | null): LevelRewardDto | null {
     const { maxLevel } = GAME_BALANCE.levelRewards;
     for (let level = 2; level <= maxLevel; level++) {
       if (claimed.has(`${LEVEL_KEY_PREFIX}${level}`)) continue;
-      return { level, claimKey: `${LEVEL_KEY_PREFIX}${level}`, currentLevel, reached: currentLevel >= level, reward: levelReward(level) };
+      const reached = currentLevel >= level;
+      return { level, claimKey: `${LEVEL_KEY_PREFIX}${level}`, currentLevel, reached, reward: levelReward(level), xpPercent: reached ? null : xpPercent };
     }
     return null;
   }

@@ -260,7 +260,7 @@ export default function ClanDetailPage() {
               {clan.members.map((member) => (
                 <tr key={member.playerId} className="border-t border-wellBorder">
                   <td className="py-2">
-                    <PlayerLink playerId={member.playerId} username={member.username} />
+                    <PlayerLink playerId={member.playerId} username={member.username} isVip={member.isVip} />
                   </td>
                   <td className="py-2">{member.level}</td>
                   <td className="py-2">{t(`clans.roleLabel.${member.role}`)}</td>

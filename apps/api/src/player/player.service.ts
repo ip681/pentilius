@@ -9,6 +9,7 @@ import { AchievementsService } from '../achievements/achievements.service';
 import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
 import { PushService, readNotificationSettings } from '../notifications/push.service';
 import { finalizeDueBuildings, refreshEnergyBonuses } from '../base/building-finalizer';
+import { isVip } from '../vip/vip';
 import { PrismaService } from '../prisma/prisma.service';
 import { coreStatus, getCurrentSeason } from '../season/season.service';
 
@@ -70,6 +71,7 @@ export class PlayerService {
       vipUntil: player.vipUntil?.toISOString() ?? null,
       emailVerified: player.emailVerifiedAt !== null,
       vipMultiAttackCount: GAME_BALANCE.vip.multiAttackCount,
+      vipMaxEnergyBonus: GAME_BALANCE.vip.maxEnergyBonus,
     };
   }
 
@@ -181,6 +183,7 @@ export class PlayerService {
     return {
       id: player.id,
       username: player.username,
+      isVip: isVip(player),
       race: player.race,
       level: player.level,
       bio: player.bio,
@@ -256,6 +259,7 @@ export class PlayerService {
         select: {
           id: true,
           username: true,
+          vipUntil: true,
           race: true,
           level: true,
           selectedAvatarKey: true,
@@ -284,6 +288,7 @@ export class PlayerService {
     const enriched = allPlayers.map((p) => ({
       id: p.id,
       username: p.username,
+      isVip: isVip(p),
       race: p.race,
       level: p.level,
       clanId: p.clanMembership?.clan.id ?? null,
@@ -327,6 +332,7 @@ export class PlayerService {
     const toEntry = (p: (typeof sorted)[number]): PlayerLeaderboardEntryDto => ({
       id: p.id,
       username: p.username,
+      isVip: p.isVip,
       race: p.race,
       level: p.level,
       clanId: p.clanId,

@@ -16,6 +16,7 @@ import { aggregateFormationCombatStats, CombatService } from '../pve/combat.serv
 import { EconomyService } from '../player/economy.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
+import { isVip } from '../vip/vip';
 import { PrismaService } from '../prisma/prisma.service';
 
 const RESOURCE_FIELD: Record<ResourceType, 'metal' | 'crystal' | 'credits'> = {
@@ -461,6 +462,7 @@ function toFormationDto(formation: FormationWithRelations, viewerId: string): Bo
     race: slot.race,
     playerId: slot.playerId,
     playerUsername: slot.player?.username ?? null,
+    playerIsVip: slot.player ? isVip(slot.player) : false,
     joinedAt: slot.joinedAt?.toISOString() ?? null,
     isCurrentPlayer: slot.playerId === viewerId,
     xpGained: slot.xpGained,
@@ -483,6 +485,7 @@ function toFormationDto(formation: FormationWithRelations, viewerId: string): Bo
     bossKey: formation.boss.key,
     creatorId: formation.creatorId,
     creatorUsername: formation.creator.username,
+    creatorIsVip: isVip(formation.creator),
     status: formation.status,
     createdAt: formation.createdAt.toISOString(),
     resolvesAt: formation.resolvesAt.toISOString(),

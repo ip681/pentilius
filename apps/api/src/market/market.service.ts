@@ -3,6 +3,7 @@ import { MarketListingDto, MyMarketListingsDto } from '@pentilius/shared';
 import { ItemDefinition, ItemInstance, MarketListing, Player, Prisma } from '@prisma/client';
 import { computeItemStats } from '../inventory/inventory.service';
 import { marketSlots } from '../base/building-effects';
+import { isVip } from '../vip/vip';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
@@ -200,6 +201,7 @@ function toListingDto(listing: ListingWithRelations): MarketListingDto {
     id: listing.id,
     sellerId: listing.sellerId,
     sellerUsername: listing.seller.username,
+    sellerIsVip: isVip(listing.seller),
     itemInstanceId: listing.itemInstanceId,
     itemDefinitionKey: listing.itemInstance.itemDefinition.key,
     nameKey: listing.itemInstance.itemDefinition.nameKey,

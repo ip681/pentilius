@@ -250,7 +250,7 @@ export default function FriendsPage() {
                 className={`flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-semibold hover:text-accent ${friend.id === selectedFriendId ? 'text-accent' : ''}`}
               >
                 {friend.hasUnread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger" />}
-                <span className={`truncate ${friend.isVip && friend.id !== selectedFriendId ? 'text-vip' : ''}`}>{friend.username}</span>
+                <span className={`truncate ${friend.isVip && friend.id !== selectedFriendId ? 'text-vipGold' : ''}`}>{friend.username}</span>
               </Link>
               <ConfirmButton
                 label={t('friends.remove')}
@@ -281,7 +281,7 @@ export default function FriendsPage() {
                     return (
                       <div key={message.id} className="mb-1.5 text-xs">
                         <span className="text-[9px] text-textFaint">{formatDateTime(message.createdAt)}</span>{' '}
-                        <span className={`font-semibold ${fromFriend ? (selectedFriend?.isVip ? 'text-vip' : 'text-textMuted') : 'text-accent'}`}>
+                        <span className={`font-semibold ${fromFriend ? (selectedFriend?.isVip ? 'text-vipGold' : 'text-textMuted') : 'text-accent'}`}>
                           {fromFriend ? selectedFriend?.username : t('friends.you')}
                         </span>
                         {': '}

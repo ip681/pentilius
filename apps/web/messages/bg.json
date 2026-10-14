@@ -9,6 +9,8 @@
     "atNextLevel": "{value} на следващо ниво"
   },
   "auth": {
+    "emailOrUsername": "Имейл или потребителско име",
+    "errorTooManyAttempts": "Твърде много неуспешни опити за вход. Опитай отново след около 15 минути.",
     "login": "Вход",
     "register": "Регистрация",
     "email": "Имейл",
@@ -20,7 +22,7 @@
     "errorConflict": "Вече има акаунт с този имейл.",
     "errorEmailTaken": "Вече има акаунт с този имейл.",
     "errorUsernameTaken": "Това потребителско име вече е заето.",
-    "errorInvalidCredentials": "Грешен имейл или парола.",
+    "errorInvalidCredentials": "Грешни данни за вход или парола.",
     "bannedTitle": "Акаунтът е временно ограничен",
     "bannedReason": "Причина: {reason}",
     "bannedTimeRemaining": "Остава: {time}"
@@ -500,6 +502,20 @@
     "visibilityClanAndFriends": "Клан и приятели"
   },
   "settings": {
+    "vip": {
+      "title": "VIP",
+      "activeFor": "Активен · остава {time}",
+      "activeUntil": "VIP е активен още {time} (до {date}).",
+      "inactive": "Нямаш активен VIP.",
+      "perksTitle": "Какво дава VIP",
+      "perks": {
+        "multiAttack": "„Атака ×{count}“ срещу Пентили с едно натискане",
+        "buildQueue": "Опашка за още една сграда, докато се строи друга",
+        "maxEnergy": "+{amount} максимална енергия",
+        "autoClaim": "Невзетите награди от дневните мисии се получават автоматично след края на деня",
+        "goldName": "Името ти е в златисто навсякъде в играта"
+      }
+    },
     "cards": {
       "cosmetics": "Избери аватар и рамка",
       "password": "Смени паролата си",
@@ -1204,12 +1220,22 @@
     "confirm": "Започни сезона",
     "error": "Изборът не можа да бъде записан. Опитай отново."
   },
+  "claimedSection": { "title": "Взети ({count})" },
   "dailyTasks": {
-    "title": "Ежедневни задачи",
-    "resetsIn": "Нови задачи след {time}",
+    "title": "Дневни мисии",
+    "resetsIn": "Нови мисии след {time}",
     "claim": "Вземи",
     "claimed": "Взето",
-    "allDoneBonus": "Бонус за всички задачи: {item}",
+    "allDoneHeading": "Дневна награда",
+    "allClaimed": "Поздравления, всичките ти мисии за деня са изпълнени!",
+    "allDoneBonus": "Бонус за всички мисии: {item}",
+    "streak": {
+      "heading": "Седмична награда",
+      "title": "Серия",
+      "misses": "Пропуски",
+      "hint": "Изпълни всички дневни мисии {days} дни. Можеш да пропуснеш до {misses} дни, без да губиш серията.",
+      "restarted": "Серията започна отначало."
+    },
     "types": {
       "PVE_BATTLE": "Битки с Пентили: {count}",
       "EXPEDITION_COMPLETED": "Завърши експедиция",
@@ -1219,6 +1245,9 @@
     }
   },
   "achievements": {
+    "allFinished": "Поздравления, завърши всички постижения за този сезон!",
+    "levelHeading": "Награда за ниво",
+    "listHeading": "Постижения на сезона",
     "title": "Постижения",
     "claim": "Вземи",
     "done": "Готово",
@@ -1240,7 +1269,7 @@
       "buildings": "Всички сгради в базата на ниво {count}",
       "clan_donations": "Дари {count} ресурса на клана",
       "core_attacks": "Атакувай Ядрото {count} пъти",
-      "daily_all_done": "Изпълни всички дневни задачи {count} дни"
+      "daily_all_done": "Изпълни всички дневни мисии {count} дни"
     }
   },
   "support": {

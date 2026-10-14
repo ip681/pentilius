@@ -143,7 +143,7 @@ export default function PlayerProfilePage() {
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <PlayerAvatarFrame avatarKey={profile.selectedAvatarKey} frameKey={profile.selectedFrameKey} className="h-14 w-14 shrink-0" />
-              <h2 className="text-xl font-semibold">{displayPlayerName(t, profile.username)}</h2>
+              <h2 className={`text-xl font-semibold ${profile.isVip ? 'text-vipGold' : ''}`}>{displayPlayerName(t, profile.username)}</h2>
             </div>
             <span className="text-xs text-textFaint">{t('dashboard.level')} {profile.level}</span>
           </div>

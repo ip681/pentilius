@@ -86,7 +86,7 @@ export default function LoginPage() {
     try {
       const result =
         mode === 'login'
-          ? await login({ email, password })
+          ? await login({ login: email, password })
           : await register({ email, username, password, race: race as Race, acceptedTerms, locale: locale === 'en' ? 'en' : 'bg' });
       storeTokens(result);
       router.push('/dashboard');
@@ -101,6 +101,8 @@ export default function LoginPage() {
               ? 'auth.errorEmailTaken'
               : 'auth.errorConflict';
         setStatus({ kind: 'error', messageKey });
+      } else if (error instanceof ApiError && error.status === 429) {
+        setStatus({ kind: 'error', messageKey: 'auth.errorTooManyAttempts' });
       } else if (error instanceof ApiError && error.status === 401) {
         setStatus({ kind: 'error', messageKey: 'auth.errorInvalidCredentials' });
       } else if (error instanceof ApiError && error.status === 403 && error.code === 'PLAYER_BANNED') {
@@ -151,9 +153,10 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-6">
             <label className="flex flex-col gap-1.5 text-xs text-textMuted">
-              {t('auth.email')}
+              {mode === 'login' ? t('auth.emailOrUsername') : t('auth.email')}
               <input
-                type="email"
+                type={mode === 'login' ? 'text' : 'email'}
+                autoComplete={mode === 'login' ? 'username' : 'email'}
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}

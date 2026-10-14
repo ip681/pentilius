@@ -191,6 +191,13 @@ model Player {
   // Exchange daily usage (owner decision, 2026-10-14) — day in Europe/Sofia.
   exchangeDay       String?
   exchangeUsedToday Int     @default(0)
+  // Daily-task streak (owner decision, 2026-10-14): days with every daily task
+  // done, misses used in this series, the last completed day, and whether
+  // the reward is waiting. See DailyTasksService.
+  dailyStreakDays     Int     @default(0)
+  dailyStreakMisses   Int     @default(0)
+  dailyStreakLastDay  String?
+  dailyStreakReady    Boolean @default(false)
 
   // Email confirmation (owner decision, 2026-10-13) — optional; null until the
   // player opens the emailed link (or resets the password via email).

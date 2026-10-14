@@ -4,6 +4,7 @@ import type { AchievementDto, AchievementRewardDto, AchievementsDto } from '@pen
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
+import { ClaimedSection } from '@/components/ClaimedSection';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, claimAchievement, getAchievements } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
@@ -44,9 +45,26 @@ export function AchievementsPanel({ onChanged }: { onChanged?: () => void }) {
     }
   }
 
-  // Claimable first, finished last; otherwise the configured order.
-  const rank = (a: AchievementDto) => (a.finished ? 2 : a.completed ? 0 : 1);
-  const achievements = data ? [...data.achievements].sort((a, b) => rank(a) - rank(b)) : [];
+  // Claimable first, then in progress; fully claimed chains fold away (owner decision, 2026-10-14).
+  const achievements = data ? data.achievements.filter((a) => !a.finished).sort((a, b) => Number(b.completed) - Number(a.completed)) : [];
+  const finished = data ? data.achievements.filter((a) => a.finished) : [];
+  const row = (achievement: AchievementDto) => (
+    <RewardRow
+      key={achievement.key}
+      label={t(`achievements.items.${achievement.key}`, {
+        count: achievement.target.toLocaleString(),
+        set: achievement.setTier ? t(`achievements.sets.${achievement.setTier}`) : '',
+      })}
+      tierText={`(${achievement.tier}/${achievement.tierCount})`}
+      reward={achievement.reward}
+      progress={achievement.progress}
+      target={achievement.target}
+      completed={achievement.completed}
+      finished={achievement.finished}
+      busy={busyKey === achievement.tierKey}
+      onClaim={() => handleClaim(achievement.tierKey)}
+    />
+  );
 
   return (
     <div>
@@ -56,35 +74,33 @@ export function AchievementsPanel({ onChanged }: { onChanged?: () => void }) {
 
       <div className="flex flex-col gap-2">
         {data?.levelReward && (
+          <h4 className="text-[11px] uppercase tracking-wide text-textFaint">{t('achievements.levelHeading')}</h4>
+        )}
+        {data?.levelReward && (
           // Same layout as an achievement: progress = current level toward the reward's level.
           <RewardRow
             label={t('achievements.levelReward', { level: data.levelReward.level })}
             reward={data.levelReward.reward}
-            progress={Math.min(data.levelReward.currentLevel, data.levelReward.level)}
-            target={data.levelReward.level}
+            // The bar is XP toward that level, shown as a percent (owner decision, 2026-10-14).
+            progress={data.levelReward.xpPercent ?? 100}
+            target={100}
+            percentText
             completed={data.levelReward.reached}
             finished={false}
             busy={busyKey === data.levelReward.claimKey}
             onClaim={() => handleClaim(data.levelReward!.claimKey)}
           />
         )}
-        {achievements.map((achievement) => (
-          <RewardRow
-            key={achievement.key}
-            label={t(`achievements.items.${achievement.key}`, {
-              count: achievement.target.toLocaleString(),
-              set: achievement.setTier ? t(`achievements.sets.${achievement.setTier}`) : '',
-            })}
-            tierText={`(${achievement.tier}/${achievement.tierCount})`}
-            reward={achievement.reward}
-            progress={achievement.progress}
-            target={achievement.target}
-            completed={achievement.completed}
-            finished={achievement.finished}
-            busy={busyKey === achievement.tierKey}
-            onClaim={() => handleClaim(achievement.tierKey)}
-          />
-        ))}
+        {achievements.length + finished.length > 0 && (
+          <h4 className={`text-[11px] uppercase tracking-wide text-textFaint ${data?.levelReward ? 'mt-2 border-t border-wellBorder pt-3' : ''}`}>
+            {t('achievements.listHeading')}
+          </h4>
+        )}
+        {achievements.map(row)}
+        {data && achievements.length === 0 && finished.length > 0 && (
+          <p className="rounded-md border border-accent bg-accentBg px-3 py-2 text-xs text-text">{t('achievements.allFinished')}</p>
+        )}
+        <ClaimedSection count={finished.length}>{finished.map(row)}</ClaimedSection>
       </div>
     </div>
   );
@@ -94,6 +110,7 @@ export function AchievementsPanel({ onChanged }: { onChanged?: () => void }) {
 function RewardRow({
   label,
   tierText,
+  percentText = false,
   reward,
   progress,
   target,
@@ -104,6 +121,7 @@ function RewardRow({
 }: {
   label: string;
   tierText?: string;
+  percentText?: boolean;
   reward: AchievementRewardDto;
   progress: number;
   target: number;
@@ -114,25 +132,33 @@ function RewardRow({
 }) {
   const t = useTranslations();
   const percent = Math.round((progress / target) * 100);
+  // Same look as the daily missions (owner decision, 2026-10-14): a reward
+  // waiting to be claimed stands out through the row itself, a finished one fades.
+  const look = finished ? 'border-wellBorder bg-well opacity-60' : completed ? 'border-accent bg-accentBg' : 'border-wellBorder bg-well';
   return (
-    <div className={`rounded-md border border-wellBorder bg-well px-3 py-2 ${finished ? 'opacity-50' : ''}`}>
+    <div className={`rounded-md border px-3 py-2 transition-colors ${look}`}>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs">
         <span className="text-text">
           {label} {tierText && <span className="text-[10px] text-textFaint">{tierText}</span>}
         </span>
-        {!finished && <RewardLine reward={reward} />}
+        {/* Shown on claimed rows too, like the daily missions. */}
+        <RewardLine reward={reward} />
       </div>
-      <div className="flex items-center gap-3">
-        <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-wellBorder">
-          <div className={`h-full transition-all ${completed ? 'bg-positive' : 'bg-accent'}`} style={{ width: `${percent}%` }} />
-        </div>
-        <span className="w-20 text-right text-[11px] tabular-nums text-textMuted">
-          {progress.toLocaleString()}/{target.toLocaleString()}
-        </span>
+      {/* The bar until done, then Claim in its place (fixed height, no jumping). */}
+      <div className="flex h-7 items-center gap-3">
         {finished ? (
-          <span className="w-16 text-center text-[11px] uppercase text-textFaint">{t('achievements.done')}</span>
+          <span className="text-[11px] uppercase text-textFaint">✓ {t('dailyTasks.claimed')}</span>
+        ) : completed ? (
+          <ClaimButton disabled={busy} onClick={onClaim} />
         ) : (
-          <ClaimButton disabled={!completed || busy} onClick={onClaim} />
+          <>
+            <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-wellBorder">
+              <div className="h-full bg-accent transition-all" style={{ width: `${percent}%` }} />
+            </div>
+            <span className="w-20 text-right text-[11px] tabular-nums text-textMuted">
+              {percentText ? `${percent}%` : `${progress.toLocaleString()}/${target.toLocaleString()}`}
+            </span>
+          </>
         )}
       </div>
     </div>
@@ -146,7 +172,7 @@ function ClaimButton({ disabled, onClick }: { disabled: boolean; onClick: () => 
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="w-16 rounded-md border border-accent bg-accentBg py-1 text-[11px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+      className="h-7 w-full rounded-md border border-accent bg-panel text-[11px] uppercase text-text hover:bg-accentBgHover disabled:opacity-50"
     >
       {t('achievements.claim')}
     </button>

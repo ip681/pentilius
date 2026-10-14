@@ -256,7 +256,7 @@ export default function PvpPage() {
                 )}
                 <BattleDivider />
                 <CombatStatsCard
-                  title={<PlayerLink playerId={scout.opponentId} username={scout.opponentUsername} className="hover:text-accent" />}
+                  title={<PlayerLink playerId={scout.opponentId} username={scout.opponentUsername} className="hover:text-accent" isVip={scout.opponentIsVip} />}
                   subtitle={`${t(`race.${scout.opponentRace}.name`)} · ${t('pvp.level')} ${scout.opponentLevel} · ${scout.opponentClanTag ? `[${scout.opponentClanTag}]` : '-'}`}
                   stats={scout.opponentStats}
                   variant="enemy"

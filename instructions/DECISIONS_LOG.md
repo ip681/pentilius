@@ -1152,3 +1152,100 @@ Owner decisions after reviewing the clan buildings:
   activating stays a decision before the Core or a boss.
 - **Dropped for now:** a HQ capping building levels, a clan doctrine, Barracks,
   splitting the Refinery into Metal and Crystal buildings.
+
+## Daily-task streak and claim buttons (2026-10-14)
+
+Owner decisions:
+- **Streak:** finishing every daily task on 7 days gives a large energy pack
+  (first planned as a small construction kit, changed the same day), claimed by hand. Up to 2 days may be skipped along the way; a third
+  skip starts the series over. After the claim the series starts from 0.
+  The reward may be replaced later. Values: `GAME_BALANCE.dailyTasks.streak`.
+- **Why 7 + 2 skips:** the players are busy; one bad day shouldn't erase a
+  week, but the reward still needs steady play.
+- **Display:** a row below the all-tasks bonus with dots — full dots for
+  completed days (7) and for skips still available (2) — and the reward icon
+  (in full colour, normal text colour), then a Claim button once earned. A note says when a series started
+  over. The Command Center's green dot also covers a waiting streak reward.
+- **Light on the server:** the streak is updated only when an action just
+  finished a task and the whole day became complete (a few times a day), and
+  kept as 4 fields on `Player` (migration `daily_streak`). Skipped days are
+  counted from the last completed day when shown, so nothing runs at
+  midnight. While the reward waits, the series is frozen.
+- **Claim buttons:** a task shows its progress bar until done, then a green
+  Claim button in the bar's place (same height, so the list doesn't jump),
+  then "✓ Claimed". No disabled button before a task is done. Same for the
+  all-tasks bonus, which also got a progress bar (tasks done / all tasks) and
+  its picture on the right.
+- **Style:** no bright green buttons. A done-but-unclaimed row stands out
+  with the accent border and background; Claim uses the normal game button;
+  a claimed row fades back. The weekly reward has its own "Weekly reward"
+  heading below the daily ones.
+- **Order and claimed items (both the daily missions and the achievements):**
+  rewards ready to claim first, then those in progress; claimed ones leave
+  the list and fold into a "Claimed (N)" line at the bottom that opens on
+  tap. Both say "✓ Claimed". The daily and weekly rewards keep their own
+  sections and never move. When every mission is claimed, the list says
+  "Congratulations, all your missions for today are done!".
+- **Level reward bar:** shows the XP toward the next level as a percent
+  (`LevelRewardDto.xpPercent`), instead of "level 22/23". No full numbers —
+  they grow large and would squeeze the bar. Level rewards are claimed in
+  order, so an unreached one is always the next level.
+- **All achievements done:** "Congratulations, you finished every achievement
+  this season!" in a highlighted box; claimed rows show their reward in both
+  panels.
+
+## VIP names in gold (2026-10-14)
+
+Owner decision: a VIP player's name is shown in the energy bar's gold
+(`vipGold`, #c5a873) wherever it matters, and the VIP-only buttons (Attack ×3,
+build queue) use the same gold. The old pale `vip` colour stays only in
+godmaster, which was deliberately not touched.
+- **Where:** the player list, a player's profile, clan members (own and other
+  clans), the clan list's leader, the Market seller, the Core player
+  rankings, the PvP opponent, clan-war targets, boss formations (creator and
+  slots), the player's own name in the top bar, plus the clan chat and
+  friends, which already had it.
+- **Left out on purpose:** PvP and clan-war battle reports, the general
+  battle report, clan-war contributions, friend requests — history or rarely
+  viewed, and VIP status changes over time.
+- Each of those responses gained an `isVip`-style flag (current status),
+  coloured in one place (`PlayerLink`'s `isVip`), so the mobile app gets the
+  same data. No database change.
+
+## VIP: +3 max energy (2026-10-14)
+
+Owner decision: VIP gives +3 max Action Energy (`GAME_BALANCE.vip.maxEnergyBonus`).
+I raised the Core/pay-to-win angle and recommended +3 over +5; the owner's
+view: it is more room between sessions, not faster regeneration, so it gives
+no edge over a more active player. It adds to the Reactor and the clan
+Generator (base 10 → 13; with Reactor 30 and Generator 30, 15 → 18) and is
+recomputed with them (`refreshEnergyBonuses`), so it starts and ends on the
+player's next action after VIP is granted or expires.
+- **VIP in Settings:** a "VIP" card first in Settings shows the time left
+  (live countdown, in gold) or "You don't have VIP right now"; its popup
+  repeats it with the end date and lists the perks (Attack ×N, build queue,
+  +max energy, automatic daily-mission rewards, gold name). The numbers come
+  from the profile (`vipMultiAttackCount`, `vipMaxEnergyBonus`), not
+  hard-coded text. No purchase button — VIP is only granted from godmaster
+  for now.
+
+## Login: email or username, any letter case, failed-attempt limit (2026-10-14)
+
+Owner decisions:
+- **One login field** for email or username (usernames can't contain "@").
+  Both match without regard to upper/lower case — a player who registered
+  with a capital letter couldn't log in before. If two accounts ever differ
+  only by case, the exact spelling is needed. Registration refuses an email
+  that differs from an existing one only by case. Older clients sending
+  `email` still work. Password reset stays by email.
+- **Failed-login limit** (there was none — checked the code, packages and
+  Caddy): 10 wrong attempts per account or per address within 15 minutes
+  block further tries until the window ends (`GAME_BALANCE.loginLimits`,
+  `auth/login-limiter.ts`, kept in memory). A correct login clears the
+  account's counter. The API now trusts one proxy hop (`trust proxy`), so it
+  sees the player's real address behind Caddy, not Caddy's.
+- **Godmaster's login** had no limit either (it had its own accounts, its own
+  session key, deactivation and session revocation, but nothing against
+  guessing). It now has the same limit, stricter: 5 wrong attempts per
+  account or address in 15 minutes (`loginLimits.adminMaxFailures`),
+  counted separately from player logins.

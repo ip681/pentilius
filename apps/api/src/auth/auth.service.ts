@@ -9,6 +9,7 @@ import * as bcrypt from 'bcryptjs';
 import { AccountEmailService } from '../email/account-email.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertLoginAllowed, recordLoginFailure, recordLoginSuccess } from './login-limiter';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -29,7 +30,8 @@ export class AuthService {
   async register(dto: RegisterDto): Promise<AuthResponse> {
     await this.contentFilter.assertClean(dto.username);
     const [existingEmail, existingUsername] = await Promise.all([
-      this.prisma.player.findUnique({ where: { email: dto.email } }),
+      // Emails don't depend on upper/lower case (owner decision, 2026-10-14).
+      this.prisma.player.findFirst({ where: { email: { equals: dto.email.trim(), mode: 'insensitive' } } }),
       this.prisma.player.findUnique({ where: { username: dto.username } }),
     ]);
     if (existingEmail) {
@@ -66,16 +68,19 @@ export class AuthService {
     return this.buildAuthResponse(player.id, player.email, player.username, player.race, player.createdAt);
   }
 
-  async login(dto: LoginDto): Promise<AuthResponse> {
-    const player = await this.prisma.player.findUnique({ where: { email: dto.email } });
-    if (!player) {
+  async login(dto: LoginDto, ip?: string): Promise<AuthResponse> {
+    const identifier = (dto.login ?? dto.email ?? '').trim();
+    if (!identifier) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    assertLoginAllowed(identifier, ip);
 
-    const passwordMatches = await bcrypt.compare(dto.password, player.passwordHash);
-    if (!passwordMatches) {
+    const player = await this.findForLogin(identifier);
+    if (!player || !(await bcrypt.compare(dto.password, player.passwordHash))) {
+      recordLoginFailure(identifier, ip);
       throw new UnauthorizedException('Invalid credentials');
     }
+    recordLoginSuccess(identifier);
 
     // Admin-issued suspension (godmaster panel) — checked only after the
     // password is confirmed, so a wrong-password guess can't be used to probe
@@ -139,6 +144,20 @@ export class AuthService {
     const frames = await this.prisma.frameDefinition.findMany({ select: { key: true } });
     if (frames.length === 0) return null;
     return frames[Math.floor(Math.random() * frames.length)].key;
+  }
+
+  /**
+   * Email or username (owner decision, 2026-10-14), both without regard to
+   * upper/lower case; if two players differ only by case, the exact spelling
+   * is needed.
+   */
+  private async findForLogin(identifier: string) {
+    // Both without regard to upper/lower case (owner decision, 2026-10-14).
+    const field = identifier.includes('@') ? 'email' : 'username';
+    const exact = await this.prisma.player.findFirst({ where: { [field]: identifier } });
+    if (exact) return exact;
+    const matches = await this.prisma.player.findMany({ where: { [field]: { equals: identifier, mode: 'insensitive' } }, take: 2 });
+    return matches.length === 1 ? matches[0] : null;
   }
 
   private async buildAuthResponse(id: string, email: string, username: string, race: Race, createdAt: Date): Promise<AuthResponse> {

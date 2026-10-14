@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { AdminActionType, AdminRole, AdminUser, Prisma } from '@prisma/client';
+import { assertLoginAllowed, recordLoginFailure, recordLoginSuccess } from '../auth/login-limiter';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
@@ -21,17 +22,16 @@ export class AdminAuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async login(dto: AdminLoginDto): Promise<{ accessToken: string }> {
+  async login(dto: AdminLoginDto, ip?: string): Promise<{ accessToken: string }> {
+    // Failed-attempt limit, stricter than for players (owner decision, 2026-10-14).
+    assertLoginAllowed(dto.username, ip, 'admin');
     const admin = await this.prisma.adminUser.findUnique({ where: { username: dto.username } });
     // A deactivated account gets the same generic error as a wrong password.
-    if (!admin || !admin.isActive) {
+    if (!admin || !admin.isActive || !(await bcrypt.compare(dto.password, admin.passwordHash))) {
+      recordLoginFailure(dto.username, ip, 'admin');
       throw new UnauthorizedException('Invalid credentials');
     }
-
-    const passwordMatches = await bcrypt.compare(dto.password, admin.passwordHash);
-    if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    recordLoginSuccess(dto.username, 'admin');
 
     await this.prisma.adminUser.update({ where: { id: admin.id }, data: { lastLoginAt: new Date() } });
     return { accessToken: await this.signToken(admin) };

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DailyTaskDto, DailyTaskRewardDto, DailyTasksDto } from '@pentilius/shared';
+import { DailyStreakDto, DailyTaskDto, DailyTaskRewardDto, DailyTasksDto } from '@pentilius/shared';
 import { Player, Prisma } from '@prisma/client';
 import { DailyTaskConfig, DailyTaskType, GAME_BALANCE } from '../config/game-config';
 import { grantItem } from '../inventory/inventory-capacity';
@@ -11,6 +11,8 @@ import { isVip } from '../vip/vip';
 type Tx = PrismaService | Prisma.TransactionClient;
 
 const ALL_DONE_KEY = 'ALL_DONE';
+const STREAK_KEY = 'STREAK';
+const STREAK = GAME_BALANCE.dailyTasks.streak;
 const TASKS = GAME_BALANCE.dailyTasks.tasks;
 
 /** Calendar day ("2026-10-13") in the daily-task time zone. */
@@ -46,30 +48,55 @@ export class DailyTasksService {
   async record(playerId: string, type: DailyTaskType, amount = 1, tx: Tx = this.prisma): Promise<void> {
     if (amount <= 0) return;
     const day = dailyTaskDay();
-    await tx.dailyTaskProgress.upsert({
+    const row = await tx.dailyTaskProgress.upsert({
       where: { playerId_day_type: { playerId, day, type } },
       update: { count: { increment: amount } },
       create: { playerId, day, type, count: amount },
     });
+    // Only when this action just finished a task can the whole day have
+    // become complete — so the streak check runs a few times a day, not on
+    // every action.
+    const before = row.count - amount;
+    if (TASKS.some((t) => t.type === type && before < t.target && row.count >= t.target)) {
+      await this.checkStreak(playerId, day, tx);
+    }
+  }
+
+  /** Counts today toward the streak once every visible task is done. */
+  private async checkStreak(playerId: string, day: string, tx: Tx): Promise<void> {
+    const view = await this.buildDay(playerId, day, tx);
+    if (!view.allDone.completed) return;
+    const player = await tx.player.findUniqueOrThrow({
+      where: { id: playerId },
+      select: { dailyStreakDays: true, dailyStreakMisses: true, dailyStreakLastDay: true, dailyStreakReady: true },
+    });
+    if (player.dailyStreakLastDay === day) return;
+    const next = advanceStreak(player, day);
+    await tx.player.update({ where: { id: playerId }, data: next });
   }
 
   async getTasks(playerId: string): Promise<DailyTasksDto> {
     await this.settlePastDays(playerId);
     const day = dailyTaskDay();
     const view = await this.buildDay(playerId, day, this.prisma);
-    return { day, resetAt: nextReset().toISOString(), tasks: view.tasks, allDone: view.allDone };
+    return { day, resetAt: nextReset().toISOString(), tasks: view.tasks, allDone: view.allDone, streak: view.streak };
   }
 
   /** True if anything can be claimed right now — drives the nav dot. */
   async hasClaimable(playerId: string): Promise<boolean> {
     const view = await this.buildDay(playerId, dailyTaskDay(), this.prisma);
-    return view.tasks.some((t) => t.completed && !t.claimed) || (view.allDone.completed && !view.allDone.claimed);
+    return view.tasks.some((t) => t.completed && !t.claimed) || (view.allDone.completed && !view.allDone.claimed) || view.streak.ready;
   }
 
   async claim(playerId: string, taskKey: string): Promise<DailyTasksDto> {
     const day = dailyTaskDay();
     await this.prisma.$transaction(async (tx) => {
       const view = await this.buildDay(playerId, day, tx);
+      if (taskKey === STREAK_KEY) {
+        if (!view.streak.ready) throw new BadRequestException('NOT_COMPLETED');
+        await this.grantStreak(playerId, tx);
+        return;
+      }
       if (taskKey === ALL_DONE_KEY) {
         if (!view.allDone.completed) throw new BadRequestException('NOT_COMPLETED');
         if (view.allDone.claimed) throw new BadRequestException('ALREADY_CLAIMED');
@@ -93,9 +120,12 @@ export class DailyTasksService {
     playerId: string,
     day: string,
     tx: Tx,
-  ): Promise<{ tasks: (DailyTaskDto & { reward: DailyTaskRewardDto })[]; allDone: DailyTasksDto['allDone'] }> {
+  ): Promise<{ tasks: (DailyTaskDto & { reward: DailyTaskRewardDto })[]; allDone: DailyTasksDto['allDone']; streak: DailyStreakDto }> {
     const [player, membership, lowestBoss, progressRows, claims] = await Promise.all([
-      tx.player.findUniqueOrThrow({ where: { id: playerId }, select: { level: true } }),
+      tx.player.findUniqueOrThrow({
+        where: { id: playerId },
+        select: { level: true, dailyStreakDays: true, dailyStreakMisses: true, dailyStreakLastDay: true, dailyStreakReady: true },
+      }),
       tx.clanMembership.findUnique({ where: { playerId }, select: { id: true } }),
       tx.boss.findFirst({ orderBy: { minLevel: 'asc' }, select: { minLevel: true } }),
       tx.dailyTaskProgress.findMany({ where: { playerId, day } }),
@@ -133,7 +163,14 @@ export class DailyTasksService {
     const allCompleted = visible.length > 0 && visible.every((t) => (progress.get(t.type) ?? 0) >= t.target);
     return {
       tasks,
-      allDone: { completed: allCompleted, claimed: claimed.has(ALL_DONE_KEY), bonusItemKey: GAME_BALANCE.dailyTasks.allDoneBonusItemKey },
+      allDone: {
+        completed: allCompleted,
+        claimed: claimed.has(ALL_DONE_KEY),
+        bonusItemKey: GAME_BALANCE.dailyTasks.allDoneBonusItemKey,
+        progress: visible.filter((t) => (progress.get(t.type) ?? 0) >= t.target).length,
+        target: visible.length,
+      },
+      streak: streakView(player, day),
     };
   }
 
@@ -188,6 +225,16 @@ export class DailyTasksService {
     if (reward.xp > 0) await this.economy.applyXp(playerId, reward.xp, tx);
   }
 
+  /** The streak reward; the series then starts over. Refused (and kept) if the inventory is full. */
+  private async grantStreak(playerId: string, tx: Prisma.TransactionClient): Promise<void> {
+    const item = await tx.itemDefinition.findUnique({ where: { key: STREAK.rewardItemKey } });
+    if (item && !(await grantItem(playerId, item.id, tx))) throw new BadRequestException('INVENTORY_FULL');
+    await tx.player.update({
+      where: { id: playerId },
+      data: { dailyStreakDays: 0, dailyStreakMisses: 0, dailyStreakLastDay: null, dailyStreakReady: false },
+    });
+  }
+
   /** The all-tasks bonus item; if the inventory is full, its energy is given directly instead. */
   private async grantBonus(playerId: string, day: string, auto: boolean, tx: Prisma.TransactionClient): Promise<void> {
     await tx.dailyTaskClaim.create({ data: { playerId, day, taskKey: ALL_DONE_KEY, auto } });
@@ -211,6 +258,42 @@ export class DailyTasksService {
     });
     await tx.player.update({ where: { id: playerId }, data: { actionEnergy: Math.min(player.actionEnergyMax, player.actionEnergy + amount) } });
   }
+}
+
+type StreakState = { dailyStreakDays: number; dailyStreakMisses: number; dailyStreakLastDay: string | null; dailyStreakReady: boolean };
+
+/** Whole days between two "YYYY-MM-DD" days. */
+function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/** Skipped days since the last completed day, not counting today (it can still be done). */
+function pendingMisses(state: StreakState, today: string): number {
+  return state.dailyStreakLastDay ? Math.max(0, daysBetween(state.dailyStreakLastDay, today) - 1) : 0;
+}
+
+/** The streak after `day` was fully completed. A waiting reward freezes it until claimed. */
+function advanceStreak(state: StreakState, day: string): Partial<StreakState> {
+  if (state.dailyStreakReady) return {};
+  const misses = state.dailyStreakMisses + pendingMisses(state, day);
+  if (misses > STREAK.allowedMisses) {
+    return { dailyStreakDays: 1, dailyStreakMisses: 0, dailyStreakLastDay: day, dailyStreakReady: false };
+  }
+  const days = state.dailyStreakDays + 1;
+  return { dailyStreakDays: days, dailyStreakMisses: misses, dailyStreakLastDay: day, dailyStreakReady: days >= STREAK.days };
+}
+
+/** What the player sees today; skipped days count as soon as they're over. */
+function streakView(state: StreakState, today: string): DailyStreakDto {
+  const base = { target: STREAK.days, allowedMisses: STREAK.allowedMisses, rewardItemKey: STREAK.rewardItemKey };
+  if (state.dailyStreakReady) {
+    return { ...base, days: STREAK.days, missesUsed: state.dailyStreakMisses, ready: true, restarted: false };
+  }
+  const misses = state.dailyStreakMisses + (state.dailyStreakLastDay === today ? 0 : pendingMisses(state, today));
+  if (misses > STREAK.allowedMisses) {
+    return { ...base, days: 0, missesUsed: 0, ready: false, restarted: true };
+  }
+  return { ...base, days: state.dailyStreakDays, missesUsed: misses, ready: false, restarted: false };
 }
 
 /** When a daily-task day ended (its next local midnight). Noon UTC always falls inside that local day. */

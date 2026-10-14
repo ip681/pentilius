@@ -312,6 +312,15 @@ export const GAME_BALANCE = {
     // each of these levels. Placeholder, may be tuned later.
     maxEnergyLevels: [15, 30],
   },
+  loginLimits: {
+    // Failed logins (owner decision, 2026-10-14): this many wrong attempts on
+    // one account, or from one address, within the window block further tries
+    // until the window ends. Usernames are public, so this stops guessing.
+    maxFailures: 10,
+    windowMinutes: 15,
+    // Godmaster's login is stricter (owner decision, 2026-10-14).
+    adminMaxFailures: 5,
+  },
   buildingEffects: {
     // Base balance (2026-10-14). Mine production per level is
     // basePerHour * level * amountGrowth^(level-1) (prisma/seed.ts), and the
@@ -353,6 +362,10 @@ export const GAME_BALANCE = {
     // "Attack xN" against Pentili: up to this many battles in one click
     // (fewer when energy is short; stops at the first loss).
     multiAttackCount: 3,
+    // Extra max Action Energy while VIP (owner decision, 2026-10-14): more
+    // room between sessions, no faster regeneration — no edge over an active
+    // player. Added on top of the Reactor and the clan Generator.
+    maxEnergyBonus: 3,
   },
 
   // Level rewards (owner decision, 2026-10-13): claimed by hand, one level at a
@@ -489,6 +502,11 @@ export const GAME_BALANCE = {
     ] as DailyTaskConfig[],
     // Bonus for completing every task shown to the player that day.
     allDoneBonusItemKey: 'energy_pack_small',
+    // Streak (owner decision, 2026-10-14): every daily task done on `days`
+    // days gives the reward item, claimed by hand. Up to `allowedMisses` days
+    // may be skipped along the way; one more and the series starts over.
+    // The reward is a placeholder and may change later.
+    streak: { days: 7, allowedMisses: 2, rewardItemKey: 'energy_pack_large' },
   },
   moderation: {
     // Report-abuse limits (owner decision, 2026-10-12). A report never acts on

@@ -9,6 +9,7 @@ import { EconomyService } from '../player/economy.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
 import { PushService } from '../notifications/push.service';
+import { isVip } from '../vip/vip';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
@@ -78,6 +79,7 @@ export class PvpService {
     return {
       opponentId: opponent.id,
       opponentUsername: opponent.username,
+      opponentIsVip: isVip(opponent),
       opponentRace: opponent.race,
       opponentLevel: opponent.level,
       opponentClanTag: opponentMembership?.clan.tag ?? null,

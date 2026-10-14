@@ -90,7 +90,7 @@ function PlayersTab() {
         <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-accent bg-accentBg px-4 py-2.5 text-xs">
           <span className="font-semibold uppercase text-textFaint">{t('leaderboard.yourPosition')}</span>
           <PlayerAvatarFrame avatarKey={data.viewerEntry.selectedAvatarKey} frameKey={data.viewerEntry.selectedFrameKey} className="h-6 w-6" />
-          <PlayerLink playerId={data.viewerEntry.id} username={data.viewerEntry.username} />
+          <PlayerLink playerId={data.viewerEntry.id} username={data.viewerEntry.username} isVip={data.viewerEntry.isVip} />
           <span className="tabular-nums">#{data.viewerEntry.globalRank}</span>
           <span className="text-textFaint">{t('leaderboard.raceRankLabel', { rank: data.viewerEntry.raceRank })}</span>
         </div>
@@ -123,7 +123,7 @@ function PlayersTab() {
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2">
                     <PlayerAvatarFrame avatarKey={player.selectedAvatarKey} frameKey={player.selectedFrameKey} className="h-8 w-8" />
-                    <PlayerLink playerId={player.id} username={player.username} />
+                    <PlayerLink playerId={player.id} username={player.username} isVip={player.isVip} />
                   </div>
                 </td>
                 <td className="px-4 py-2.5 text-textMuted">

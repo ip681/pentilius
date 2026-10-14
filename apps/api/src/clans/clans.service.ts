@@ -621,6 +621,7 @@ function toSummaryDto(clan: ClanWithDetails): ClanSummaryDto {
     memberCap: effectiveMemberCap(clan),
     leaderId: leader?.player.id ?? '',
     leaderUsername: leader?.player.username ?? '',
+    leaderIsVip: leader ? isVip(leader.player) : false,
     treasury: { metal: clan.treasuryMetal, crystal: clan.treasuryCrystal, credits: clan.treasuryCredits },
     joinRequirements: {
       minLevel: clan.joinMinLevel,
@@ -693,6 +694,7 @@ async function toDetailDto(clan: ClanWithDetails, currentPlayerId: string, tx: T
       .map((m) => ({
         playerId: m.playerId,
         username: m.player.username,
+        isVip: isVip(m.player),
         race: m.player.race,
         level: m.player.level,
         role: m.role,

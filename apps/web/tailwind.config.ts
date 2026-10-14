@@ -37,6 +37,10 @@ const config: Config = {
         // VIP (owner decision, 2026-10-13): a pale, not bright, yellow — VIP names
         // in chat and the VIP-only buttons.
         vip: '#e6d9a2',
+        // VIP in the game since 2026-10-14 (owner decision): the same gold as the
+        // energy bar — VIP names everywhere and the VIP-only buttons. `vip`
+        // above stays only for godmaster.
+        vipGold: '#c5a873',
         // Per-race brand colors (instructions/PRODUCT_SPEC.md's 5 races), matched
         // to each race's icon art — used at low opacity as an inventory slot's
         // background tint for a race-locked item, never at full strength.

@@ -12,7 +12,8 @@ export interface RegisterRequest {
 }
 
 export interface LoginRequest {
-  email: string;
+  // Email or username (owner decision, 2026-10-14).
+  login: string;
   password: string;
 }
 

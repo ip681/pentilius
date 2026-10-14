@@ -173,7 +173,7 @@ function ListingCard({
         </p>
         {!isMine && (
           <p className="mt-0.5 text-[10px] text-textFaint">
-            {t('market.seller')}: <PlayerLink playerId={listing.sellerId} username={listing.sellerUsername} className="hover:text-accent" />
+            {t('market.seller')}: <PlayerLink playerId={listing.sellerId} username={listing.sellerUsername} className="hover:text-accent" isVip={listing.sellerIsVip} />
           </p>
         )}
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">

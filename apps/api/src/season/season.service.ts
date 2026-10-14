@@ -16,6 +16,7 @@ import { GAME_BALANCE } from '../config/game-config';
 import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { EconomyService } from '../player/economy.service';
 import { AchievementsService } from '../achievements/achievements.service';
+import { isVip } from '../vip/vip';
 import { PrismaService } from '../prisma/prisma.service';
 import { CombatService } from '../pve/combat.service';
 
@@ -238,7 +239,7 @@ export class SeasonService {
    */
   private async loadClanPlayers(seasonId: number, clanId: string, viewerId: string, tx: Tx): Promise<CorePlayerStandingDto[]> {
     const [members, sums] = await Promise.all([
-      tx.clanMembership.findMany({ where: { clanId }, include: { player: { select: { username: true, race: true } }, clan: { select: { tag: true } } } }),
+      tx.clanMembership.findMany({ where: { clanId }, include: { player: { select: { username: true, race: true, vipUntil: true } }, clan: { select: { tag: true } } } }),
       tx.coreAttack.groupBy({ by: ['playerId'], where: { seasonId, clanId }, _sum: { damageDealt: true } }),
     ]);
     const damageByPlayer = new Map(sums.map((row) => [row.playerId, row._sum.damageDealt ?? 0]));
@@ -250,6 +251,7 @@ export class SeasonService {
       rank: damage > 0 ? index + 1 : null,
       playerId: member.playerId,
       username: member.player.username,
+      isVip: isVip(member.player),
       race: member.player.race,
       clanTag: member.clan.tag,
       damage,
@@ -281,7 +283,7 @@ export class SeasonService {
 
     const players = await this.prisma.player.findMany({
       where: { id: { in: wanted.map((row) => row.playerId) } },
-      select: { id: true, username: true, race: true, clanMembership: { select: { clan: { select: { tag: true } } } } },
+      select: { id: true, username: true, race: true, vipUntil: true, clanMembership: { select: { clan: { select: { tag: true } } } } },
     });
     const byId = new Map(players.map((p) => [p.id, p]));
     const toDto = (row: { playerId: string; damage: number; index: number }): CorePlayerStandingDto => {
@@ -290,6 +292,7 @@ export class SeasonService {
         rank: row.index >= 0 ? row.index + 1 : null,
         playerId: row.playerId,
         username: p.username,
+        isVip: isVip(p),
         race: p.race,
         clanTag: p.clanMembership?.clan.tag ?? null,
         damage: row.damage,

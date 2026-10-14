@@ -44,7 +44,7 @@ export function ProgressTiles() {
   }, []);
 
   const dailyDone = daily ? daily.tasks.filter((task) => task.completed).length : 0;
-  const dailyClaimable = !!daily && (daily.tasks.some((task) => task.completed && !task.claimed) || (daily.allDone.completed && !daily.allDone.claimed));
+  const dailyClaimable = !!daily && (daily.tasks.some((task) => task.completed && !task.claimed) || (daily.allDone.completed && !daily.allDone.claimed) || daily.streak.ready);
   const achievementsClaimableCount = achievements
     ? achievements.achievements.filter((a) => a.completed && !a.finished).length + (achievements.levelReward?.reached ? 1 : 0)
     : 0;

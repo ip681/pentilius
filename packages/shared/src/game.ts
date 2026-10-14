@@ -56,6 +56,8 @@ export interface PlayerProfileDto {
   emailVerified: boolean;
   // GAME_BALANCE.vip.multiAttackCount — the "Attack xN" size.
   vipMultiAttackCount: number;
+  // Extra max energy while VIP (GAME_BALANCE.vip.maxEnergyBonus) — shown in Settings.
+  vipMaxEnergyBonus: number;
   // Once the Core has closed: when the season resets — the client counts down to it
   // on every page and, at zero, moves the player to the new season's race picker.
   seasonResetAt: string | null;
@@ -97,6 +99,8 @@ export type PlayerLeaderboardSortBy = 'level' | 'pvpWins' | 'clanWarDamage' | 'b
 export interface PlayerLeaderboardEntryDto {
   id: string;
   username: string;
+  // VIP name colour (owner decision, 2026-10-14).
+  isVip: boolean;
   race: Race;
   level: number;
   clanId: string | null;
@@ -170,6 +174,8 @@ export interface ClanLeaderboardPageDto {
 export interface PlayerPublicProfileDto {
   id: string;
   username: string;
+  // VIP name colour (owner decision, 2026-10-14).
+  isVip: boolean;
   race: Race;
   level: number;
   bio: string | null;
@@ -653,6 +659,8 @@ export interface BossFormationSlotDto {
   race: Race;
   playerId: string | null;
   playerUsername: string | null;
+  // VIP name colour (owner decision, 2026-10-14).
+  playerIsVip: boolean;
   joinedAt: string | null;
   isCurrentPlayer: boolean;
   // Only set once the formation is RESOLVED and this slot was filled.
@@ -675,6 +683,8 @@ export interface BossFormationDto {
   bossKey: string;
   creatorId: string;
   creatorUsername: string;
+  // VIP name colour (owner decision, 2026-10-14).
+  creatorIsVip: boolean;
   status: BossFormationStatus;
   createdAt: string;
   resolvesAt: string;
@@ -741,6 +751,8 @@ export interface CombatStatsDto {
 export interface PvpScoutDto {
   opponentId: string;
   opponentUsername: string;
+  // VIP name colour (owner decision, 2026-10-14).
+  opponentIsVip: boolean;
   opponentRace: Race;
   opponentLevel: number;
   opponentClanTag: string | null;
@@ -796,6 +808,8 @@ export interface ClanSummaryDto {
   memberCap: number;
   leaderId: string;
   leaderUsername: string;
+  // VIP name colour (owner decision, 2026-10-14).
+  leaderIsVip: boolean;
   treasury: ClanTreasuryDto;
   joinRequirements: ClanJoinRequirementsDto;
 }
@@ -803,6 +817,8 @@ export interface ClanSummaryDto {
 export interface ClanMemberDto {
   playerId: string;
   username: string;
+  // VIP name colour (owner decision, 2026-10-14).
+  isVip: boolean;
   race: Race;
   level: number;
   role: ClanRole;
@@ -926,6 +942,8 @@ export interface ClanWarStateDto {
 export interface ClanWarTargetDto {
   playerId: string;
   username: string;
+  // VIP name colour (owner decision, 2026-10-14).
+  isVip: boolean;
   race: Race;
   level: number;
   // Real current combat stats (equipment included) — what the fight actually
@@ -1050,6 +1068,8 @@ export interface MarketListingDto {
   id: string;
   sellerId: string;
   sellerUsername: string;
+  // VIP name colour (owner decision, 2026-10-14).
+  sellerIsVip: boolean;
   itemInstanceId: string;
   itemDefinitionKey: string;
   nameKey: string;
@@ -1103,6 +1123,8 @@ export interface CorePlayerStandingDto {
   rank: number | null;
   playerId: string;
   username: string;
+  // VIP name colour (owner decision, 2026-10-14).
+  isVip: boolean;
   race: Race;
   clanTag: string | null;
   damage: number;
@@ -1251,7 +1273,24 @@ export interface DailyTasksDto {
   resetAt: string;
   // Only the tasks this player can see right now (level/clan gating; one per chain).
   tasks: DailyTaskDto[];
-  allDone: { completed: boolean; claimed: boolean; bonusItemKey: string };
+  // progress/target: how many of today's tasks (every tier of every chain) are done.
+  allDone: { completed: boolean; claimed: boolean; bonusItemKey: string; progress: number; target: number };
+  streak: DailyStreakDto;
+}
+
+// Daily-task streak (owner decision, 2026-10-14).
+export interface DailyStreakDto {
+  // Days with every task done in this series, out of `target`.
+  days: number;
+  target: number;
+  // Skipped days used in this series, out of `allowedMisses`.
+  missesUsed: number;
+  allowedMisses: number;
+  // The reward can be claimed now.
+  ready: boolean;
+  // The previous series was lost to too many skipped days (shown once as a note).
+  restarted: boolean;
+  rewardItemKey: string;
 }
 
 // Season achievements and level rewards (owner decision, 2026-10-13).
@@ -1269,6 +1308,9 @@ export interface LevelRewardDto {
   currentLevel: number;
   reached: boolean;
   reward: AchievementRewardDto;
+  // XP toward the next level, 0-100 (owner decision, 2026-10-14: the bar
+  // shows experience, as a percent). Null once reached.
+  xpPercent: number | null;
 }
 
 export interface AchievementDto {

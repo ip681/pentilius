@@ -126,10 +126,32 @@ The attacked-Core model was decided on 2026-10-12 (see `instructions/GAME_SYSTEM
 
   Decide before packs are sold for real money.
 
+## Name and race change (discussed 2026-10-14, not built — finish discussing first)
+Agreed so far (owner):
+- **Name change** for Credits. Same rules as registration (unique, content
+  filter). The old name is **never shown** to other players; only a log
+  visible in godmaster.
+- **Race change** for Credits, once per season, pricier than a name change.
+  Not allowed in an open boss formation, during a clan war, or with
+  race-locked items equipped. A clear warning that race-locked items in the
+  inventory become unusable (they can still be sold). A clan's race
+  requirement doesn't remove members already in it.
+  Note: `instructions/PRODUCT_SPEC.md` says the race is chosen once at
+  registration (LOCKED) — this changes that, so update the spec when built.
+
+Still open:
+- where to keep the old-name log (recommended: its own small "name history"
+  table, shown in godmaster's player lookup — not the admin action log, which
+  is for staff actions);
+- cooldown between name changes (proposed: 30 days);
+- how long an old name stays reserved so nobody else can take it right away
+  (proposed: 7 days);
+- prices for both (owner's own, or a proposal based on Credits income).
+
 ## Monetization
 - VIP tiers
 - exact benefits — a first set was built 2026-10-13 (see `instructions/DECISIONS_LOG.md`).
-  Still open: VIP frames, a VIP badge, max energy 12, pricing and payment.
+  VIP +3 max energy was added 2026-10-14. Still open: VIP frames, a VIP badge, pricing and payment.
 - premium currency
 - shop contents
 - limits preventing pay-to-win

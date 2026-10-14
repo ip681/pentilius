@@ -9,6 +9,8 @@
     "atNextLevel": "{value} at next level"
   },
   "auth": {
+    "emailOrUsername": "Email or username",
+    "errorTooManyAttempts": "Too many failed login attempts. Try again in about 15 minutes.",
     "login": "Log in",
     "register": "Register",
     "email": "Email",
@@ -20,7 +22,7 @@
     "errorConflict": "An account with this email already exists.",
     "errorEmailTaken": "An account with this email already exists.",
     "errorUsernameTaken": "This username is already taken.",
-    "errorInvalidCredentials": "Invalid email or password.",
+    "errorInvalidCredentials": "Invalid login details or password.",
     "bannedTitle": "Account temporarily restricted",
     "bannedReason": "Reason: {reason}",
     "bannedTimeRemaining": "Time remaining: {time}"
@@ -500,6 +502,20 @@
     "visibilityClanAndFriends": "Clan & friends"
   },
   "settings": {
+    "vip": {
+      "title": "VIP",
+      "activeFor": "Active · {time} left",
+      "activeUntil": "VIP is active for {time} more (until {date}).",
+      "inactive": "You don't have VIP right now.",
+      "perksTitle": "What VIP gives",
+      "perks": {
+        "multiAttack": "\"Attack ×{count}\" against Pentili in one click",
+        "buildQueue": "Queue one more building while another is being built",
+        "maxEnergy": "+{amount} max energy",
+        "autoClaim": "Unclaimed daily mission rewards are given automatically after the day ends",
+        "goldName": "Your name in gold everywhere in the game"
+      }
+    },
     "cards": {
       "cosmetics": "Choose your avatar and frame",
       "password": "Change your password",
@@ -1204,12 +1220,22 @@
     "confirm": "Start the season",
     "error": "Your choice could not be saved. Please try again."
   },
+  "claimedSection": { "title": "Claimed ({count})" },
   "dailyTasks": {
     "title": "Daily tasks",
     "resetsIn": "New tasks in {time}",
     "claim": "Claim",
     "claimed": "Claimed",
+    "allDoneHeading": "Daily reward",
+    "allClaimed": "Congratulations, all your missions for today are done!",
     "allDoneBonus": "Bonus for all tasks: {item}",
+    "streak": {
+      "heading": "Weekly reward",
+      "title": "Streak",
+      "misses": "Skips",
+      "hint": "Finish all daily tasks on {days} days. You can skip up to {misses} days without losing the streak.",
+      "restarted": "The streak started over."
+    },
     "types": {
       "PVE_BATTLE": "Pentili battles: {count}",
       "EXPEDITION_COMPLETED": "Complete an expedition",
@@ -1219,6 +1245,9 @@
     }
   },
   "achievements": {
+    "allFinished": "Congratulations, you finished every achievement this season!",
+    "levelHeading": "Level reward",
+    "listHeading": "Season achievements",
     "title": "Achievements",
     "claim": "Claim",
     "done": "Done",

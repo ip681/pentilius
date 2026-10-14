@@ -16,6 +16,7 @@ import { getHideoutProtection, stealableAmount } from '../player/base-defense';
 import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { CombatService, toStatsDto } from '../pve/combat.service';
 import { EconomyService } from '../player/economy.service';
+import { isVip } from '../vip/vip';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
@@ -168,6 +169,7 @@ export class ClanWarsService {
         return {
           playerId: member.playerId,
           username: member.player.username,
+          isVip: isVip(member.player),
           race: member.player.race,
           level: member.player.level,
           stats: toStatsDto(stats),

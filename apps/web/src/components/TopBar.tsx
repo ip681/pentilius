@@ -11,6 +11,7 @@ import { StatBar } from '@/components/StatBar';
 import { Link, useRouter } from '@/i18n/navigation';
 import { clearTokens } from '@/lib/auth';
 import { disableDeviceNotifications } from '@/lib/push';
+import { isVipActive } from '@/lib/vip';
 
 function ResourcesRow({ profile, className, iconClassName }: { profile: PlayerProfileDto; className?: string; iconClassName?: string }) {
   const amounts: [ResourceType, number][] = [
@@ -64,7 +65,7 @@ export function TopBar({
             // logo, same protection the mobile row already relies on elsewhere.
             <Link href={`/players/${profile.id}`} className="flex min-w-0 items-center gap-2 hover:opacity-80">
               <PlayerAvatarFrame avatarKey={profile.selectedAvatarKey} frameKey={profile.selectedFrameKey} className="h-10 w-10 shrink-0 md:h-11 md:w-11" />
-              <span className="min-w-0 truncate text-xs font-semibold sm:text-sm">{profile.username}</span>
+              <span className={`min-w-0 truncate text-xs font-semibold sm:text-sm ${isVipActive(profile) ? 'text-vipGold' : ''}`}>{profile.username}</span>
             </Link>
           )}
         </div>

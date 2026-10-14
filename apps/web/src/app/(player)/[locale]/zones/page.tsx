@@ -477,7 +477,7 @@ export default function ZonesPage() {
                         type="button"
                         disabled={!selectedPentiliId || attackingFromPlanet || multiCount < 2}
                         onClick={() => selectedPentiliId && handleAttackFromPlanet(selected.id, selectedPentiliId, true)}
-                        className="rounded-md border border-vip bg-accentBg px-4 py-2 text-center text-xs uppercase text-vip hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-md border border-vipGold bg-accentBg px-4 py-2 text-center text-xs uppercase text-vipGold hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {t('pve.attackMulti', { count: multiCount >= 2 ? multiCount : (profile?.vipMultiAttackCount ?? 3) })}
                       </button>

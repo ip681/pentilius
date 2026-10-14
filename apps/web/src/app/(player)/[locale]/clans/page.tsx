@@ -529,7 +529,7 @@ export default function ClansPage() {
                     </div>
                     {clan.description && <p className="mb-3 text-xs text-textMuted">{clan.description}</p>}
                     <p className="mb-3 text-[10px] text-textFaint">
-                      {t('clans.leader')}: <PlayerLink playerId={clan.leaderId} username={clan.leaderUsername} />
+                      {t('clans.leader')}: <PlayerLink playerId={clan.leaderId} username={clan.leaderUsername} isVip={clan.leaderIsVip} />
                     </p>
 
                     {hasAnyRequirement(clan.joinRequirements) && (
@@ -877,7 +877,7 @@ export default function ClansPage() {
                         className="h-4 w-4 shrink-0 object-contain"
                         fallback={<div className="h-4 w-4 shrink-0 rounded-sm bg-accent opacity-60" />}
                       />
-                      <PlayerLink playerId={member.playerId} username={member.username} />
+                      <PlayerLink playerId={member.playerId} username={member.username} isVip={member.isVip} />
                       {member.isCurrentPlayer && <span className="text-textFaint">({t('clans.you')})</span>}
                     </div>
                   </td>
@@ -1023,7 +1023,7 @@ export default function ClansPage() {
                     <PlayerLink
                       playerId={message.playerId}
                       username={message.username}
-                      className={`font-semibold hover:text-accent ${message.isVip ? 'text-vip' : ''}`}
+                      className={`font-semibold hover:text-accent ${message.isVip ? 'text-vipGold' : ''}`}
                     />
                     {': '}
                     <span className="text-textMuted">{message.text}</span>

@@ -3,6 +3,7 @@ import { GAME_BALANCE } from '../config/game-config';
 import { PushService } from '../notifications/push.service';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { isVip } from '../vip/vip';
 
 type Deps = { prisma: PrismaService; economy: EconomyService; push: PushService };
 
@@ -38,16 +39,18 @@ export async function finalizeDueBuildings(deps: Deps, playerId: string, options
 /**
  * Energy bonuses stored on the player (owner decisions, 2026-10-14):
  * - the personal Reactor: faster regeneration, +1 max energy every N levels;
- * - the clan Generator: half of that, +1 max energy at fixed levels.
+ * - the clan Generator: half of that, +1 max energy at fixed levels;
+ * - VIP: +GAME_BALANCE.vip.maxEnergyBonus max energy while active.
  * Recomputed on profile load and when the Reactor finishes, so joining or
- * leaving a clan and the clan's Generator apply on the player's next action.
+ * leaving a clan, the clan's Generator and VIP starting or ending apply on
+ * the player's next action.
  * Energy accrued so far is settled first with the old rate.
  */
 export async function refreshEnergyBonuses(deps: Deps, playerId: string): Promise<void> {
   const [reactor, generatorLevel, player] = await Promise.all([
     deps.prisma.playerBuilding.findFirst({ where: { playerId, buildingType: { key: GAME_BALANCE.buildingKeys.reactor } }, include: { buildingType: true } }),
     clanGeneratorLevel(deps.prisma, playerId),
-    deps.prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { energyRegenBonus: true, actionEnergyMax: true } }),
+    deps.prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { energyRegenBonus: true, actionEnergyMax: true, vipUntil: true } }),
   ]);
   const reactorLevel = reactor?.level ?? 0;
   const every = reactor?.buildingType.maxEnergyBonusEvery ?? 0;
@@ -55,7 +58,8 @@ export async function refreshEnergyBonuses(deps: Deps, playerId: string): Promis
   const max =
     GAME_BALANCE.newPlayer.actionEnergy +
     (every > 0 ? Math.floor(reactorLevel / every) : 0) +
-    GAME_BALANCE.clanGenerator.maxEnergyLevels.filter((level) => generatorLevel.level >= level).length;
+    GAME_BALANCE.clanGenerator.maxEnergyLevels.filter((level) => generatorLevel.level >= level).length +
+    (isVip(player) ? GAME_BALANCE.vip.maxEnergyBonus : 0);
   if (Math.abs(player.energyRegenBonus - regen) < 1e-9 && player.actionEnergyMax === max) return;
   await deps.economy.settleEnergy(playerId);
   await deps.prisma.player.update({ where: { id: playerId }, data: { energyRegenBonus: regen, actionEnergyMax: max } });

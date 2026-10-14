@@ -212,8 +212,8 @@ export default function BasePage() {
       )}
 
       {data?.buildQueue && queued && (
-        <div className="-mt-2 mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-vip/40 bg-panel px-4 py-2 text-xs">
-          <span className="text-vip">{t('base.queued', { building: t(queued.nameKey), level: data.buildQueue.targetLevel })}</span>
+        <div className="-mt-2 mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-vipGold/40 bg-panel px-4 py-2 text-xs">
+          <span className="text-vipGold">{t('base.queued', { building: t(queued.nameKey), level: data.buildQueue.targetLevel })}</span>
           <button type="button" onClick={handleCancelQueue} className="text-[11px] text-textFaint underline hover:text-text">
             {t('base.cancelQueue')}
           </button>
@@ -458,7 +458,7 @@ function BuildingDetails({
       </button>
 
       {showQueue && queueCost && (
-        <div className="mt-3 rounded border border-vip/40 bg-well p-2.5">
+        <div className="mt-3 rounded border border-vipGold/40 bg-well p-2.5">
           {progress.active && (
             <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               <span className="text-[10px] uppercase text-textFaint">{t('base.queueLevelCost', { level: queueLevel })}</span>
@@ -477,7 +477,7 @@ function BuildingDetails({
             type="button"
             disabled={!canAffordQueue}
             onClick={onQueue}
-            className="w-full rounded-md border border-vip bg-accentBg py-2 text-xs uppercase text-vip hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+            className="w-full rounded-md border border-vipGold bg-accentBg py-2 text-xs uppercase text-vipGold hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
           >
             {t('base.addToQueue', { level: queueLevel })}
           </button>

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Ip, Param, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { createReadStream } from 'fs';
 import type { Response } from 'express';
 import { AdminAuthService } from './admin-auth.service';
@@ -32,8 +32,8 @@ export class AdminController {
   ) {}
 
   @Post('login')
-  login(@Body() dto: AdminLoginDto) {
-    return this.adminAuthService.login(dto);
+  login(@Body() dto: AdminLoginDto, @Ip() ip: string) {
+    return this.adminAuthService.login(dto, ip);
   }
 
   @UseGuards(AdminJwtAuthGuard)

@@ -212,7 +212,7 @@ Used for reward-generating actions such as normal PvE.
 
 Example:
 - standard max: 10
-- VIP max: 12
+- VIP: +3 (owner decision, 2026-10-14; `GAME_BALANCE.vip.maxEnergyBonus`), on top of the Reactor and clan Generator
 
 Exact regeneration rate is **UNDEFINED**.
 

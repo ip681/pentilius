@@ -393,7 +393,7 @@ function ZonePentiliPageInner() {
                       type="button"
                       onClick={() => multiCount >= 2 && handleAttack(entry, true)}
                       aria-disabled={attacking || (battle !== null && !battle.finished) || multiCount < 2}
-                      className="rounded-md border border-vip bg-accentBg px-4 py-2 text-xs uppercase text-vip hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
+                      className="rounded-md border border-vipGold bg-accentBg px-4 py-2 text-xs uppercase text-vipGold hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
                     >
                       {t('pve.attackMulti', { count: multiCount >= 2 ? multiCount : (profile?.vipMultiAttackCount ?? 3) })}
                     </button>
@@ -445,7 +445,7 @@ function ZonePentiliPageInner() {
                   type="button"
                   onClick={() => multiCount >= 2 && handleAttack(entry, true)}
                   aria-disabled={attacking || (battle !== null && !battle.finished) || multiCount < 2}
-                  className="w-full rounded-md border border-vip bg-accentBg py-1.5 text-[10px] uppercase text-vip hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
+                  className="w-full rounded-md border border-vipGold bg-accentBg py-1.5 text-[10px] uppercase text-vipGold hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
                 >
                   {t('pve.attackMulti', { count: multiCount >= 2 ? multiCount : (profile?.vipMultiAttackCount ?? 3) })}
                 </button>

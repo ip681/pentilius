@@ -28,6 +28,7 @@ import {
   updatePreferredLocale,
 } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format-datetime';
+import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { getDeviceState } from '@/lib/push';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -53,6 +54,15 @@ export default function SettingsPage() {
   const [selectedAvatarKey, setSelectedAvatarKey] = useState<string | null>(null);
   const [selectedFrameKey, setSelectedFrameKey] = useState<string | null>(null);
   const [cosmeticsError, setCosmeticsError] = useState<string | null>(null);
+
+  // VIP card (owner decision, 2026-10-14): time left and what VIP gives.
+  const [vip, setVip] = useState<{ until: string | null; multiAttack: number; maxEnergy: number } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const clock = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(clock);
+  }, []);
+  const vipSecondsLeft = vip?.until ? Math.max(0, Math.floor((new Date(vip.until).getTime() - now) / 1000)) : 0;
 
   // Settings as cards that open a popup (owner decision, 2026-10-13).
   const [open, setOpen] = useState<SettingsCardKey | null>(null);
@@ -94,6 +104,7 @@ export default function SettingsPage() {
         setSelectedLocale(data.preferredLocale ?? locale);
         setSelectedAvatarKey(data.selectedAvatarKey);
         setSelectedFrameKey(data.selectedFrameKey);
+        setVip({ until: data.vipUntil, multiAttack: data.vipMultiAttackCount, maxEnergy: data.vipMaxEnergyBonus });
       })
       .catch(() => undefined);
     getCosmeticsCatalog()
@@ -171,6 +182,13 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <SettingsCard title={t('settings.vip.title')} onClick={() => setOpen('vip')}>
+          {vipSecondsLeft > 0 ? (
+            <span className="text-vipGold">{t('settings.vip.activeFor', { time: formatDuration(vipSecondsLeft) })}</span>
+          ) : (
+            t('settings.vip.inactive')
+          )}
+        </SettingsCard>
         <SettingsCard title={t('settings.cosmeticsSection')} onClick={() => setOpen('cosmetics')}>
           <span className="flex items-center gap-2">
             <PlayerAvatarFrame avatarKey={selectedAvatarKey} frameKey={selectedFrameKey} className="h-8 w-8" />
@@ -202,6 +220,24 @@ export default function SettingsPage() {
       </div>
 
       <BottomSheet open={open !== null} onClose={closeSheet} wide={open !== 'password' && open !== 'language'}>
+        {open === 'vip' && (
+          <section>
+            <h2 className="mb-3 text-sm font-semibold">{t('settings.vip.title')}</h2>
+            <p className={`mb-3 rounded-md border px-3 py-2 text-xs ${vipSecondsLeft > 0 ? 'border-vipGold text-vipGold' : 'border-wellBorder text-textMuted'}`}>
+              {vipSecondsLeft > 0 && vip?.until
+                ? t('settings.vip.activeUntil', { time: formatDuration(vipSecondsLeft), date: formatDateTime(vip.until) })
+                : t('settings.vip.inactive')}
+            </p>
+            <h3 className="mb-2 text-[11px] uppercase tracking-wide text-textFaint">{t('settings.vip.perksTitle')}</h3>
+            <ul className="flex flex-col gap-1.5 text-xs text-text">
+              <li>• {t('settings.vip.perks.multiAttack', { count: vip?.multiAttack ?? 3 })}</li>
+              <li>• {t('settings.vip.perks.buildQueue')}</li>
+              <li>• {t('settings.vip.perks.maxEnergy', { amount: vip?.maxEnergy ?? 3 })}</li>
+              <li>• {t('settings.vip.perks.autoClaim')}</li>
+              <li>• {t('settings.vip.perks.goldName')}</li>
+            </ul>
+          </section>
+        )}
         {open === 'password' && (
           <section>
             <h2 className="mb-3 text-sm font-semibold">{t('settings.passwordSection')}</h2>
@@ -335,7 +371,7 @@ export default function SettingsPage() {
   );
 }
 
-type SettingsCardKey = 'cosmetics' | 'language' | 'password' | 'notifications' | 'support' | 'blocked' | 'delete';
+type SettingsCardKey = 'vip' | 'cosmetics' | 'language' | 'password' | 'notifications' | 'support' | 'blocked' | 'delete';
 
 /** One settings card: a title and a status line; a click opens its popup. */
 function SettingsCard({

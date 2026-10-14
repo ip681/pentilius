@@ -301,7 +301,7 @@ export default function ClanWarPage() {
                         fallback={<div className="h-8 w-8 shrink-0 rounded-full bg-accent opacity-60" />}
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">{displayPlayerName(t, target.username)}</p>
+                        <p className={`truncate text-sm font-semibold ${target.isVip ? 'text-vipGold' : ''}`}>{displayPlayerName(t, target.username)}</p>
                         <p className="text-[10px] text-textFaint">{t('pvp.level')} {target.level}</p>
                         <p className="mt-0.5 flex flex-wrap gap-x-2 text-[9px] text-textFaint">
                           <span>{t('robot.stat.damage')} {Math.round(target.stats.attack)}</span>
