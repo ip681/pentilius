@@ -1218,7 +1218,8 @@ function ClanBuildingsGrid({
 
   return (
     <>
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {/* Smaller tiles (owner, 2026-10-14): 3 per row on phones, all 5 in one row on wide screens. */}
+      <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5">
         {buildings.map((building) => {
           const progress = buildingProgress(building);
           const upgradeReady = canManage && !progress.active && !!building.nextLevelCost && canAffordCost(treasury, building.nextLevelCost);
@@ -1230,12 +1231,12 @@ function ClanBuildingsGrid({
               key={building.key}
               type="button"
               onClick={() => setSelectedKey(building.key)}
-              className="relative flex flex-col items-center rounded-lg border border-wellBorder bg-well p-3 text-center transition-all hover:-translate-y-0.5 hover:border-accent"
+              className="relative flex flex-col items-center rounded-lg border border-wellBorder bg-well p-2 text-center transition-all hover:-translate-y-0.5 hover:border-accent sm:p-2.5"
             >
               {upgradeReady && (
                 <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-positive" title={t('clans.buildingUpgradeAvailable')} />
               )}
-              <div className="mb-2 flex h-24 w-24 items-center justify-center sm:h-28 sm:w-28">
+              <div className="mb-1.5 flex h-[72px] w-[72px] items-center justify-center sm:h-24 sm:w-24">
                 <AssetIcon
                   assetId={`clanBuildings.${building.key}.icon`}
                   alt={t(building.nameKey)}
@@ -1243,7 +1244,7 @@ function ClanBuildingsGrid({
                   fallback={<span className="text-3xl font-semibold text-textMuted">{t(building.nameKey).charAt(0)}</span>}
                 />
               </div>
-              <span className="text-xs font-semibold">
+              <span className="text-[11px] font-semibold leading-tight sm:text-xs">
                 {t(building.nameKey)} <span className="text-textMuted">({building.level})</span>
               </span>
 
