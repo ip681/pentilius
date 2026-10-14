@@ -28,10 +28,23 @@ files for game design and architecture rules.
   - `/opt/pentilius-backups`: backup and status scripts, dumps, logs;
   - `/opt/pentilius-secrets`: the rclone config;
   - `/opt/pentilius/.env`: app secrets.
-- Deploy flow: `git pull` → `docker compose -f docker-compose.prod.yml build <service>`
-  (sequentially, not in parallel — the box has ~3.8GB RAM) → `up -d` →
-  `docker compose ... exec api npx prisma migrate deploy` → re-run the seed
-  script if static content (buildings, items, zones, etc.) changed.
+- Deploy flow (order changed 2026-10-14):
+  1. predeploy dump, then `git pull`;
+  2. `docker compose -f docker-compose.prod.yml build <service>` (sequentially,
+     not in parallel — the box has ~3.8GB RAM);
+  3. **migrations before the restart**, from the new image in a throwaway
+     container: `docker compose ... run --rm api npx prisma migrate deploy`.
+     The old version keeps serving players meanwhile. If it fails, stop here:
+     nothing was restarted, fix and retry;
+  4. `up -d` — the new API starts on an already-migrated database, so there
+     are no errors from missing columns. Only a migration that renames or
+     drops a column can trouble the old version for those few seconds;
+  5. re-run the seed
+  (`docker compose ... exec -T api npx prisma db seed`) if static content
+  (buildings, items, zones, etc.) changed. The seed reads
+  `src/config/game-config.ts`, so the API image includes `src/config` and
+  `tsconfig.json` (`apps/api/Dockerfile`, since 2026-10-14) — no manual
+  copying into the container.
 - During the few seconds a container restarts, Caddy serves the "we're
   updating" page (`deploy/maintenance/`) and a JSON 503 `MAINTENANCE` to API
   calls; the game shows a reconnect banner. When only one side changed,

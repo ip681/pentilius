@@ -26,6 +26,10 @@ COPY --from=builder /repo/packages/shared/package.json ./packages/shared/package
 COPY --from=builder /repo/apps/api/dist ./apps/api/dist
 COPY --from=builder /repo/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /repo/apps/api/prisma ./apps/api/prisma
+# The seed (ts-node prisma/seed.ts) reads balance values from src/config and
+# needs the tsconfig to compile — without these it fails after every deploy.
+COPY --from=builder /repo/apps/api/src/config ./apps/api/src/config
+COPY --from=builder /repo/apps/api/tsconfig.json ./apps/api/tsconfig.json
 
 WORKDIR /repo/apps/api
 EXPOSE 3001
