@@ -58,6 +58,9 @@ export interface PlayerProfileDto {
   vipMultiAttackCount: number;
   // Extra max energy while VIP (GAME_BALANCE.vip.maxEnergyBonus) — shown in Settings.
   vipMaxEnergyBonus: number;
+  // Real-money purchases are offered to this player (by country; owner decision, 2026-10-15).
+  // Only on GET /player/me.
+  paymentsAvailable?: boolean;
   // Once the Core has closed: when the season resets — the client counts down to it
   // on every page and, at zero, moves the player to the new season's race picker.
   seasonResetAt: string | null;
@@ -1414,4 +1417,87 @@ export interface NotificationsDto {
   // The latest PvP battle where this player was the defender.
   lastAttack: { at: string; attacker: string; defenderWon: boolean } | null;
   settings: NotificationSettingsDto;
+}
+
+// Real-money purchases (owner decision, 2026-10-15).
+export type PaymentProductKind = 'CREDITS' | 'VIP';
+export type PurchaseStatus = 'PENDING' | 'COMPLETED' | 'CANCELED' | 'REFUNDED';
+
+export interface PaymentProductDto {
+  key: string;
+  // Names come from godmaster, in both languages.
+  nameBg: string;
+  nameEn: string;
+  kind: PaymentProductKind;
+  credits: number | null;
+  vipDays: number | null;
+  // Shown price in cents (e.g. 500 = 5.00).
+  priceCents: number;
+  currency: string;
+}
+
+export interface PaymentsCatalogDto {
+  // False outside the countries where payments are offered — then nothing is shown.
+  available: boolean;
+  products: PaymentProductDto[];
+}
+
+export interface PurchaseDto {
+  id: string;
+  productKey: string;
+  nameBg: string;
+  nameEn: string;
+  kind: PaymentProductKind;
+  status: PurchaseStatus;
+  amountCents: number;
+  currency: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+// godmaster's Payments tab (owner decision, 2026-10-17).
+export interface AdminPaymentProductDto {
+  key: string;
+  nameBg: string;
+  nameEn: string;
+  kind: PaymentProductKind;
+  credits: number | null;
+  vipDays: number | null;
+  stripePriceId: string | null;
+  // Read from Stripe when the price ID is saved.
+  priceCents: number;
+  currency: string;
+  sortOrder: number;
+  active: boolean;
+  purchaseCount: number;
+}
+
+export interface AdminPurchaseDto {
+  id: string;
+  username: string;
+  productNameBg: string;
+  status: PurchaseStatus;
+  amountCents: number;
+  currency: string;
+  credits: number | null;
+  vipDays: number | null;
+  ipCountry: string | null;
+  cardCountry: string | null;
+  // Paid with a card from outside the allowed countries.
+  flagged: boolean;
+  createdAt: string;
+  completedAt: string | null;
+  refundedAt: string | null;
+}
+
+export interface AdminPurchasesResponseDto {
+  purchases: AdminPurchaseDto[];
+  todayCents: number;
+  monthCents: number;
+}
+
+export interface AdminPaymentsSettingsDto {
+  allowedCountries: string[];
+  // A Stripe key is set on this server.
+  paymentsEnabled: boolean;
 }

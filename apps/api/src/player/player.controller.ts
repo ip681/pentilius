@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Ip, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentPlayer } from '../auth/decorators/current-player.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/jwt-payload.interface';
@@ -9,12 +9,19 @@ import { UpdateAvatarDto } from './dto/update-avatar.dto';
 import { UpdateBioDto } from './dto/update-bio.dto';
 import { UpdateFrameDto } from './dto/update-frame.dto';
 import { UpdateLocaleDto } from './dto/update-locale.dto';
+import { ConfigService } from '@nestjs/config';
+import { paymentsOfferedTo } from '../payments/payment-country';
+import { PrismaService } from '../prisma/prisma.service';
 import { PlayerService } from './player.service';
 
 @Controller('player')
 @UseGuards(JwtAuthGuard)
 export class PlayerController {
-  constructor(private readonly playerService: PlayerService) {}
+  constructor(
+    private readonly playerService: PlayerService,
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get()
   listPlayers(@CurrentPlayer() currentPlayer: JwtPayload, @Query() query: ListPlayersDto) {
@@ -22,8 +29,10 @@ export class PlayerController {
   }
 
   @Get('me')
-  getMe(@CurrentPlayer() currentPlayer: JwtPayload) {
-    return this.playerService.getProfile(currentPlayer.sub);
+  async getMe(@CurrentPlayer() currentPlayer: JwtPayload, @Ip() ip: string) {
+    const profile = await this.playerService.getProfile(currentPlayer.sub);
+    // Real-money purchases are offered only in some countries (owner decision, 2026-10-15).
+    return { ...profile, paymentsAvailable: await paymentsOfferedTo(ip, this.prisma, this.config) };
   }
 
   @Get('me/notifications')

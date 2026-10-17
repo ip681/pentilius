@@ -21,6 +21,16 @@ export default () => ({
     privateKey: process.env.VAPID_PRIVATE_KEY,
     subject: process.env.VAPID_SUBJECT ?? 'mailto:support@pentilius.com',
   },
+  // Payments (owner decision, 2026-10-15) — no key = payments off.
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+  },
+  payments: {
+    // The allowed countries are set in godmaster (GameSettings).
+    // Local development has no country (localhost) — allow it there only.
+    allowUnknownCountry: process.env.PAYMENTS_ALLOW_UNKNOWN_COUNTRY === 'true',
+  },
   adminJwt: {
     secret: process.env.ADMIN_JWT_SECRET,
     expiresIn: process.env.ADMIN_JWT_EXPIRES_IN ?? '2h',

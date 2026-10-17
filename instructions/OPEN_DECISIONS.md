@@ -148,6 +148,137 @@ Still open:
   (proposed: 7 days);
 - prices for both (owner's own, or a proposal based on Credits income).
 
+## Player acquisition and analytics (discussed 2026-10-15, plan — not built)
+Owner's goal: know where players come from, later see which of them pay, and
+then decide where advertising is worth it. Planned in three steps:
+1. **Where a player came from, saved at registration** (small, ~half a day):
+   - campaign tags from the link (`utm_source`, `utm_campaign`, …);
+   - the referring site when there is no campaign (Google, a forum, …);
+   - the **country** from the IP at registration — only the country is kept,
+     not the IP;
+   - device type and browser.
+
+   All of it stays in our own database, so it can later be joined with
+   payments ("this campaign brought 200 players, 12 paid").
+2. **Analytics in godmaster** (later, once there is real data): registrations
+   by source / country / device, how many still play after 1 / 7 / 30 days,
+   how many pay and how much each source brings.
+3. **Ad-platform pixels** (Facebook, Google) — only when paid ads start. They
+   need a consent banner and a lawyer's review.
+
+Open questions (need a lawyer, not decided):
+- whether keeping the campaign tags in the browser until the player
+  registers counts as cookie-like storage needing consent; an alternative is
+  to carry them in the address up to the registration form;
+- the privacy policy text for steps 1–3;
+- the mobile apps: install attribution works through the Apple/Google stores,
+  a separate topic.
+
+Related: the security-only record of the last login IP/device for
+multi-account detection (see the admin-tools notes) is a different purpose
+(legitimate interest, no consent) — keep the two apart.
+
+## Email and registration counts (plan, discussed 2026-10-15 — not built)
+Brevo's free plan allows **300 emails a day** (owner checked it). If the
+limit is hit, verification and password-reset emails silently stop going
+out. Plan (~half a day):
+- registrations per day — the data already exists (account creation time),
+  only needs showing;
+- a small email log: type (verification / password reset), time, and
+  whether Brevo accepted or refused it — no address or content kept;
+- in godmaster's Server tab: today, yesterday and a 7-day chart; emails as
+  "120 of 300", gold from 70%, red from 90% (like swap); failed sends counted
+  separately, since they are the sign the limit was hit;
+- the daily limit as a setting, so a paid plan only changes one number;
+- optional: Brevo's API may report the remaining quota directly — check what
+  it returns before relying on it.
+
+## Announcements and surveys (plan, discussed 2026-10-15 — not built)
+Owner wants both; recommended order: announcements first, surveys once
+there are a few dozen players.
+
+**Announcements from godmaster** (~1 day):
+- a banner at the very top of **every** page (where the account-deletion
+  notice is), not only the Command Center;
+- two kinds: "info" (closable with ×) and "important" (more prominent, e.g.
+  before maintenance);
+- closing is saved on the server, so it stays closed on every device and in
+  the future app;
+- start and end time (e.g. a national-holiday greeting only on that day);
+- text in Bulgarian and English, falling back to English;
+- target: everyone or by language. **By country isn't possible yet** — the
+  player's country isn't stored (see "Player acquisition and analytics");
+- delivered with the existing light `/player/me/notifications` request, so no
+  extra polling.
+
+**Surveys** (~2–3 days):
+- question types: single choice, multiple choice, 1–5 rating; free text
+  later (it needs moderation);
+- one answer per player (who answered is kept to prevent repeats); godmaster
+  shows aggregated results;
+- reward small or none — a big one makes people click through blindly;
+- announced through the announcement banner.
+
+## Payments (plan, discussed 2026-10-15 — not built)
+Owner decisions so far:
+- **Phase 1: Stripe only, web only, Bulgaria only.** Plain Stripe (not its
+  merchant-of-record service yet), so purchases are shown only to players in
+  Bulgaria. Later the owner moves to a merchant of record (Stripe Managed
+  Payments or Paddle) and opens other countries.
+- **No VIP subscription at first:** VIP is bought one month at a time
+  (extends `vipUntil`, no auto-renewal) — Stripe Billing needs VAT
+  registration first. Subscriptions come later.
+- **Credits** can be bought, and will **not give direct game advantages**
+  (owner will adjust what Credits buy); a little will also be earnable.
+- **Mobile apps** sell through the App Store and Google Play billing; Stripe
+  stays on the web (store rules forbid other payment methods in the apps in
+  most countries).
+
+Architecture (agreed direction):
+- Our own **product catalog** (`credits_500`, `vip_month`, …) with a mapping
+  per provider (Stripe / App Store / Google Play product IDs). The game only
+  knows our products; a new provider = a new adapter + mappings.
+- A **purchases ledger**: player, provider, the provider's transaction ID
+  (**unique** — duplicate webhooks can never grant twice), product, amount,
+  currency, status. Rewards only after the provider confirms (webhook /
+  receipt check), never because the client says it paid; granted in the
+  same DB transaction.
+- **VIP as a result:** `vipUntil` = the latest end across all sources
+  (one-month purchases, later subscriptions on any platform, godmaster
+  grants), recomputed by one function on every event — no conflicts between
+  platforms. Show "VIP already active via …" instead of a second purchase.
+- **Refunds / chargebacks** reverse the grant (VIP recomputed, Credits taken
+  back); the rule for already-spent Credits is still open.
+- Order: tables + VIP recompute → Stripe on the web → godmaster purchases
+  view → stores when the apps exist.
+
+Later — direct for Bulgaria, merchant of record for everyone else (owner,
+2026-10-17): the owner isn't VAT-registered (only Art. 97a), so Bulgarian
+players should **not** go through Stripe Managed Payments (no MoR fee, no tax
+withheld for them). Stripe enables Managed Payments **per Checkout Session**,
+so one Stripe account can do both:
+- route by country when the checkout starts: "direct countries" (BG) → plain
+  Stripe; everyone else → Stripe with Managed Payments once it's switched on;
+- two settings: the direct countries, and MoR on/off (off now — so only
+  Bulgaria can pay, as today);
+- the purchases ledger records which path each payment took (direct or MoR),
+  so the accountant can separate them;
+- a direct payment from a Bulgarian IP with a foreign card is flagged for
+  review;
+- questions for the accountant: documenting direct sales to Bulgarian
+  consumers without VAT (incl. any card-payment receipt rules, Наредба Н-18),
+  the supply to Stripe under MoR and Art. 97a, and what proof of the
+  customer's country is needed.
+
+Still open:
+- how "only Bulgaria" is decided (proposed: country from the IP at checkout,
+  plus Stripe's card/billing country as a second check);
+- product list and prices; what Credits buy once they're sold;
+- energy packs vs the Core (see Seasons/Core above) — decide before packs can
+  be bought with purchased Credits;
+- VAT/invoicing, terms of sale and right of withdrawal — owner's lawyer/
+  accountant.
+
 ## Monetization
 - VIP tiers
 - exact benefits — a first set was built 2026-10-13 (see `instructions/DECISIONS_LOG.md`).
@@ -172,7 +303,8 @@ Still open:
   - a legal review of the Rules and Privacy texts;
   - checking the current Apple/Google terms before submission;
   - filling in the store age-rating and data-safety forms;
-  - a real support@pentilius.com mailbox;
+  - a real support@pentilius.com mailbox (until then the public pages show
+    contact@optiscalesolutions.com, since 2026-10-15);
     (an in-game "Contact the team" form exists since 2026-10-13, but
     logged-out players and store reviewers still need the email);
   - a password-reset flow (the game can't send email yet, so password resets

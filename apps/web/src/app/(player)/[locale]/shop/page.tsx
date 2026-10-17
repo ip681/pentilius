@@ -1,6 +1,6 @@
 'use client';
 
-import type { EquipmentSlot, ItemTier, ResourceType, ShopItemDto, ShopResponseDto } from '@pentilius/shared';
+import type { EquipmentSlot, ItemTier, PaymentsCatalogDto, PlayerProfileDto, ResourceType, ShopItemDto, ShopResponseDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
@@ -8,12 +8,14 @@ import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
 import { ItemHoverTooltip, useItemHoverTooltip } from '@/components/ItemHoverTooltip';
 import { ResourceIcon } from '@/components/ResourceIcon';
-import { ApiError, buyItem, getShop } from '@/lib/api-client';
+import { CheckoutResult, ShopOffers } from '@/components/ShopOffers';
+import { ApiError, buyItem, getPaymentsCatalog, getProfile, getShop } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 const SLOTS: EquipmentSlot[] = ['HEAD', 'LEFT_ARM', 'RIGHT_ARM', 'ARMOR', 'CORE', 'LEFT_LEG', 'RIGHT_LEG'];
 const TIERS: ItemTier[] = ['PIONEER', 'ASCENDANT', 'COREFORGED'];
+
 
 export default function ShopPage() {
   useRequireAuth();
@@ -23,6 +25,33 @@ export default function ShopPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<EquipmentSlot | 'ALL' | 'CONSUMABLE'>('ALL');
   const [tierFilter, setTierFilter] = useState<ItemTier | 'ALL'>('ALL');
+
+  // Real-money offers at the top (owner decision, 2026-10-17), only where
+  // payments are offered. ?checkout= comes back from Stripe; #offers (from the
+  // "+" next to Credits or "Buy VIP") scrolls to them.
+  const [catalog, setCatalog] = useState<PaymentsCatalogDto | null>(null);
+  const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
+  const [checkout, setCheckout] = useState<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setCheckout(params.get('checkout'));
+    getPaymentsCatalog()
+      .then((result) => {
+        setCatalog(result);
+        if (window.location.hash === '#offers') setTimeout(scrollToOffers, 50);
+      })
+      .catch(() => undefined);
+    getProfile().then(setProfile).catch(() => undefined);
+  }, []);
+  function scrollToOffers() {
+    document.getElementById('offers')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  // Drop ?checkout= once the result is known, so a reload doesn't show it again.
+  function clearCheckoutParam() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('checkout');
+    window.history.replaceState(null, '', url.toString());
+  }
 
   async function load() {
     try {
@@ -93,7 +122,24 @@ export default function ShopPage() {
         <p className="text-xs text-textMuted">{t('shop.subtitle')}</p>
       </div>
 
-      {error && <p className="mb-4 text-red-400">{error}</p>}
+      {checkout && <CheckoutResult checkout={checkout} onDone={clearCheckoutParam} />}
+
+      {catalog?.available && <ShopOffers catalog={catalog} profile={profile} />}
+
+      {error && (
+        <p className="mb-4 text-red-400">
+          {error}
+          {/* Not enough Credits: a way to get more, where payments are offered. */}
+          {error === t('shop.notEnoughResources') && catalog?.available && (
+            <>
+              {' '}
+              <button type="button" onClick={scrollToOffers} className="underline hover:text-text">
+                {t('payments.getCredits')}
+              </button>
+            </>
+          )}
+        </p>
+      )}
       {successMessage && <p className="mb-4 text-positive">{successMessage}</p>}
 
       <div className="mb-3 flex flex-wrap gap-1">

@@ -507,6 +507,7 @@
       "activeFor": "Active · {time} left",
       "activeUntil": "VIP is active for {time} more (until {date}).",
       "inactive": "You don't have VIP right now.",
+      "buy": "Buy VIP",
       "perksTitle": "What VIP gives",
       "perks": {
         "multiAttack": "\"Attack ×{count}\" against Pentili in one click",
@@ -921,35 +922,47 @@
     "acceptTermsRequired": "To register you must accept the Rules and the Privacy Policy.",
     "about": {
       "title": "About the game",
-      "intro": "Pentilius is a seasonal strategy game in your browser — made for people who don't have all day to spend in front of a screen, but want every session to count.",
+      "intro": "Pentilius is a strategy game for busy people. A meteorite changes Earth forever. Over generations, the survivors become five distinct races and realise they need one another. Together they leave Earth and colonise Pentilius — a planet with a hostile atmosphere, home to dangerous creatures called the Pentili. Somewhere deep inside the planet lies the Core — the Pentili's nest.",
       "sections": [
         {
-          "heading": "How it plays",
+          "heading": "What you do in the game",
           "bullets": [
-            "Develop your base — mines, a warehouse, a trading post and defenses.",
-            "Build a combat robot from parts, upgrade them, and spend your points every time you level up.",
-            "Spend energy fighting the Pentili — the planet's native creatures — for experience, resources and items.",
-            "Unlock new lands with tougher enemies and better loot.",
-            "Join a clan with players of all five races — together you are stronger, and the clan has its own buildings, treasury, chat and wars.",
-            "Send your robot on expeditions and form squads against the bosses."
+            "Develop your base. Build Metal and Crystal mines, a warehouse, a research center, a reactor and defenses. Construction keeps going while you're away.",
+            "Build a combat robot. There are no classes — your robot is whatever you equip: head, arms, armor, core and legs. Upgrade the parts, hunt for rare items with bonus effects and spend points on your attributes.",
+            "Hunt the Pentili. Battles are automatic — you choose the opponent and your robot fights on its own. Earn experience, resources and items, and unlock new, more dangerous lands.",
+            "Send expeditions. Missions of 1, 5 or 10 hours that bring rewards while you're busy with something else.",
+            "Attack other players. Steal part of their resources — but be careful, their defenses grow too.",
+            "Play in a clan. The five races aren't enemies — a clan with more different races gets a bonus. Together you build clan buildings, form squads against bosses and fight clan wars.",
+            "Attack the Core. Every season ends with the clans attacking the Pentili's nest. The clan that deals the most damage wins the season. Then everything starts over — and everyone starts on equal footing again."
           ]
         },
         {
-          "heading": "Short sessions that matter",
-          "paragraphs": [
-            "No manual controls and no need to be online all the time. Battles play out automatically, and timers — construction, research, expeditions — keep running while you are away."
+          "heading": "You don't play alone",
+          "bullets": [
+            "The clan chat is where attacks are planned, places in boss squads are shared out and resources are gathered for the clan's buildings.",
+            "Friends and private messages — add people you know or meet in the game and chat with them.",
+            "Market — sell equipment you don't need to other players and buy the parts you're missing, at a price that works for you."
           ]
         },
         {
-          "heading": "Seasons and the Core",
-          "paragraphs": [
-            "Every season ends with a race for the Core. When it opens, clans from the whole server attack it, and the clan that deals the most damage wins the season. Then a new season begins — your account stays, but progress starts over."
+          "heading": "Why it's different",
+          "bullets": [
+            "It's made for people with little time. A few minutes a day are enough: collect, build, send your robot into battle and get on with your day.",
+            "You don't need to be online all the time. Timers keep running while you're away, and energy refills on its own.",
+            "No manual control and no reflexes. What matters is your decisions: equipment, development, choice of target and teamwork with your clan.",
+            "There's always something to do: daily missions, rewards for a streak of active days and achievements through the season.",
+            "It plays in your browser, with nothing to install."
           ]
         },
         {
           "heading": "Who is behind the game",
           "paragraphs": [
             "Pentilius is developed and run by {company}, {address}. Questions: {email}."
+          ]
+        },
+        {
+          "paragraphs": [
+            "Choose your race and join the battle for Pentilius!"
           ]
         }
       ]
@@ -1221,6 +1234,28 @@
     "error": "Your choice could not be saved. Please try again."
   },
   "claimedSection": { "title": "Claimed ({count})" },
+  "payments": {
+    "vipTitle": "VIP",
+    "vipActiveFor": "Active for {days} more days",
+    "perksSummary": "Attack ×{count}, build queue, +{amount} energy and more…",
+    "showPerks": "See all",
+    "hidePerks": "Hide",
+    "days": "{days} days",
+    "perDay": "{price} a day",
+    "bestValue": "Best value",
+    "bonus": "+{percent}%",
+    "offersTitle": "Special offers",
+    "buyFor": "Buy for {price}",
+    "redirecting": "Redirecting…",
+    "startError": "The payment couldn't start. Please try again.",
+    "processing": "Processing your payment…",
+    "completed": "Done! You received: {name}.",
+    "canceled": "Payment canceled. You were not charged.",
+    "failed": "The payment wasn't completed.",
+    "slow": "Your payment is still being processed. You'll get the reward as soon as it's confirmed.",
+    "getCredits": "Buy Credits",
+    "history": { "title": "My purchases", "empty": "No purchases yet.", "count": "Purchases: {count}", "refunded": "refunded" }
+  },
   "dailyTasks": {
     "title": "Daily tasks",
     "resetsIn": "New tasks in {time}",

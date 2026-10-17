@@ -11,6 +11,7 @@ import configuration from './config/configuration';
 import { ExpeditionsModule } from './expeditions/expeditions.module';
 import { FriendsModule } from './friends/friends.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { PaymentsModule } from './payments/payments.module';
 import { MarketModule } from './market/market.module';
 import { ContentFilterModule } from './moderation/content-filter.service';
 import { ModerationModule } from './moderation/moderation.module';
@@ -54,6 +55,7 @@ import { ZonesModule } from './zones/zones.module';
     SupportModule,
     FriendsModule,
     MarketModule,
+    PaymentsModule,
     AdminModule,
   ],
 })

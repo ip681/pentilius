@@ -1,4 +1,6 @@
 import type {
+  PaymentsCatalogDto,
+  PurchaseDto,
   AccountDeletionCodeDto,
   AccountDeletionStatusDto,
   ActiveExpeditionDto,
@@ -518,6 +520,23 @@ export function openBox(itemInstanceId: string): Promise<BoxOpenResultDto> {
 // Shop
 export function getShop(): Promise<ShopResponseDto> {
   return request<ShopResponseDto>('/shop', { auth: true });
+}
+
+// Real-money purchases (owner decision, 2026-10-15).
+export function getPaymentsCatalog(): Promise<PaymentsCatalogDto> {
+  return request<PaymentsCatalogDto>('/payments/products', { auth: true });
+}
+
+export function startCheckout(productKey: string, locale: 'bg' | 'en'): Promise<{ url: string }> {
+  return request<{ url: string }>('/payments/checkout', { method: 'POST', auth: true, body: { productKey, locale } });
+}
+
+export function getCheckoutStatus(sessionId: string): Promise<PurchaseDto> {
+  return request<PurchaseDto>(`/payments/checkout/${encodeURIComponent(sessionId)}`, { auth: true });
+}
+
+export function getPurchases(): Promise<PurchaseDto[]> {
+  return request<PurchaseDto[]>('/payments/purchases', { auth: true });
 }
 
 export function buyItem(itemDefinitionKey: string): Promise<void> {

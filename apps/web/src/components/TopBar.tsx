@@ -25,6 +25,16 @@ function ResourcesRow({ profile, className, iconClassName }: { profile: PlayerPr
         <span key={type} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
           <ResourceIcon type={type} className={iconClassName ?? 'h-4 w-4'} />
           <strong className="font-semibold text-text">{amount.toLocaleString()}</strong>
+          {/* Buy Credits (owner decision, 2026-10-15) — only where payments are offered. */}
+          {type === 'CREDITS' && profile.paymentsAvailable && (
+            <Link
+              href="/shop#offers"
+              aria-label="+"
+              className="flex h-4 w-4 items-center justify-center rounded-full border border-accent text-[11px] leading-none text-text hover:bg-accentBgHover"
+            >
+              +
+            </Link>
+          )}
         </span>
       ))}
     </div>

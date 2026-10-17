@@ -8,7 +8,9 @@ export const LEGAL = {
   companyLatin: 'OPTISCALE SOLUTIONS EOOD',
   eik: '208772002',
   address: { bg: 'София, България', en: 'Sofia, Bulgaria' },
-  email: 'support@pentilius.com',
+  // Owner decision (2026-10-15): the company's working address until a
+  // support@pentilius.com mailbox exists.
+  email: 'contact@optiscalesolutions.com',
   // Minimum age to register — must also match the store age declarations.
   minAge: 13,
   // Default only — the live value is set in godmaster (GameSettings).

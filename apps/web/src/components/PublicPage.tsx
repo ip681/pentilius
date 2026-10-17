@@ -57,7 +57,8 @@ export function PublicPage({ pageKey, showUpdated = false }: { pageKey: string; 
         </div>
 
         <article className="rounded-lg border border-panelBorder bg-panel p-6 text-sm leading-relaxed">
-          <h1 className="mb-2 text-xl font-semibold">{content.title}</h1>
+          {/* Headings in the same grey as the text (owner decision, 2026-10-15) — set apart by size and weight only. */}
+          <h1 className="mb-2 text-xl font-semibold text-textMuted">{content.title}</h1>
           {showUpdated && (
             <p className="mb-4 text-[11px] text-textFaint">
               {t('pages.updated', { updated: new Date(LEGAL.updated).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-GB') })}
@@ -67,7 +68,7 @@ export function PublicPage({ pageKey, showUpdated = false }: { pageKey: string; 
 
           {content.sections.map((section, index) => (
             <section key={index} className="mb-5 last:mb-0">
-              {section.heading && <h2 className="mb-2 text-base font-semibold text-text">{fill(section.heading)}</h2>}
+              {section.heading && <h2 className="mb-2 text-base font-semibold text-textMuted">{fill(section.heading)}</h2>}
               {section.paragraphs?.map((paragraph, i) => (
                 <p key={i} className="mb-2 text-textMuted">
                   {fill(paragraph)}

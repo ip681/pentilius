@@ -1,6 +1,12 @@
 'use client';
 
-import type { AdminSupportTicketDetailDto, AdminSupportTicketsDto } from '@pentilius/shared';
+import type {
+  AdminPaymentProductDto,
+  AdminPaymentsSettingsDto,
+  AdminPurchasesResponseDto,
+  AdminSupportTicketDetailDto,
+  AdminSupportTicketsDto,
+} from '@pentilius/shared';
 import { Fragment, useEffect, useRef, useState } from 'react';
 // Plain JSON import — godmaster deliberately has no next-intl setup (see the
 // (admin) layout comment), so item display names are resolved by hand from
@@ -212,6 +218,7 @@ const TABS = [
   { key: 'filter', label: 'Филтър' },
   { key: 'admins', label: 'Админи' },
   { key: 'settings', label: 'Настройки' },
+  { key: 'payments', label: 'Плащания' },
 ] as const;
 type AdminTab = (typeof TABS)[number]['key'];
 
@@ -250,8 +257,9 @@ function AdminPanel({
       .finally(() => setLoading(false));
   }
 
-  // Every tab is visible to both roles; the Admins tab shows a MODERATOR only their own account.
-  const visibleTabs = TABS;
+  // Every tab is visible to both roles (the Admins tab shows a MODERATOR only
+  // their own account) — except Payments, which is ADMIN only (the API re-checks).
+  const visibleTabs = TABS.filter((t) => t.key !== 'payments' || role === 'ADMIN');
 
   // Conversations waiting for staff — the badge on the "Обратна връзка" tab.
   const [supportOpen, setSupportOpen] = useState(0);
@@ -312,6 +320,8 @@ function AdminPanel({
       {tab === 'admins' && <AdminAccountsPanel myId={myId} isAdmin={role === 'ADMIN'} onTokenChange={onTokenChange} />}
 
       {tab === 'filter' && <ContentFilterPanel />}
+
+      {tab === 'payments' && role === 'ADMIN' && <PaymentsPanel />}
 
       {tab === 'settings' && (
         <>
@@ -2602,3 +2612,414 @@ function ResetSeasonNow({ currentSeasonId, onDone }: { currentSeasonId: number; 
   );
 }
 
+// ---------------------------------------------------------------------------
+// Payments (owner decision, 2026-10-17): products, purchases with refunds and
+// the countries where payments are offered. ADMIN only (the API re-checks).
+// The price is never typed here — it's read from Stripe when the price ID is
+// saved, so the game can't show a different price than Stripe charges.
+
+function euro(cents: number, currency = 'eur'): string {
+  return new Intl.NumberFormat('bg-BG', { style: 'currency', currency: currency.toUpperCase() }).format(cents / 100);
+}
+
+const EMPTY_PRODUCT: AdminPaymentProductDto = {
+  key: '',
+  nameBg: '',
+  nameEn: '',
+  kind: 'CREDITS',
+  credits: 500,
+  vipDays: null,
+  stripePriceId: '',
+  priceCents: 0,
+  currency: 'eur',
+  sortOrder: 0,
+  active: true,
+  purchaseCount: 0,
+};
+
+function PaymentsPanel() {
+  return (
+    <>
+      <PaymentSettingsPanel />
+      <PaymentProductsPanel />
+      <PurchasesPanel />
+    </>
+  );
+}
+
+function PaymentSettingsPanel() {
+  const [settings, setSettings] = useState<AdminPaymentsSettingsDto | null>(null);
+  const [countries, setCountries] = useState('');
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminFetch<AdminPaymentsSettingsDto>('/admin/payments/settings')
+      .then((res) => {
+        setSettings(res);
+        setCountries(res.allowedCountries.join(', '));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }, []);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSaved(false);
+    try {
+      const res = await adminFetch<AdminPaymentsSettingsDto>('/admin/payments/settings', {
+        method: 'PUT',
+        body: { allowedCountries: countries.split(',').map((c) => c.trim()).filter(Boolean) },
+      });
+      setSettings(res);
+      setCountries(res.allowedCountries.join(', '));
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <h2 className="mb-1 text-sm font-semibold">Плащания: настройки</h2>
+      {settings && (
+        <p className={`mb-3 text-xs ${settings.paymentsEnabled ? 'text-positive' : 'text-textMuted'}`}>
+          {settings.paymentsEnabled
+            ? 'Stripe е свързан на този сървър — плащанията са включени.'
+            : 'Stripe не е свързан на този сървър (няма ключ) — плащанията са изключени и офертите не се показват.'}
+        </p>
+      )}
+      <form onSubmit={handleSave} className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+          държави, в които се предлагат (кодове с запетая, напр. BG)
+          <input
+            value={countries}
+            onChange={(e) => setCountries(e.target.value)}
+            className="w-64 rounded-md border border-wellBorder bg-well px-3 py-2 text-sm uppercase outline-none focus:border-accent"
+          />
+        </label>
+        <button type="submit" className="rounded-md border border-accent bg-accentBg px-3 py-2 text-xs hover:bg-accentBgHover">
+          Запази
+        </button>
+        {saved && <span className="text-xs text-positive">Запазено.</span>}
+      </form>
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+    </section>
+  );
+}
+
+function PaymentProductsPanel() {
+  const [products, setProducts] = useState<AdminPaymentProductDto[] | null>(null);
+  const [editing, setEditing] = useState<AdminPaymentProductDto | null>(null);
+  const [isNew, setIsNew] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    adminFetch<AdminPaymentProductDto[]>('/admin/payments/products')
+      .then(setProducts)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editing) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await adminFetch<AdminPaymentProductDto>('/admin/payments/products', {
+        method: 'POST',
+        body: {
+          key: editing.key.trim(),
+          nameBg: editing.nameBg,
+          nameEn: editing.nameEn,
+          kind: editing.kind,
+          credits: editing.kind === 'CREDITS' ? Number(editing.credits) : undefined,
+          vipDays: editing.kind === 'VIP' ? Number(editing.vipDays) : undefined,
+          stripePriceId: editing.stripePriceId?.trim() || undefined,
+          sortOrder: Number(editing.sortOrder),
+          active: editing.active,
+        },
+      });
+      setEditing(null);
+      load();
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      const messages: Record<string, string> = {
+        STRIPE_PRICE_NOT_FOUND: 'Няма такава цена в Stripe (провери номера и дали е от същата среда — тест/истинска).',
+        STRIPE_PRICE_NOT_ONE_TIME: 'Цената в Stripe не е еднократна (One-off).',
+        STRIPE_PRICE_INACTIVE: 'Цената в Stripe е архивирана.',
+        STRIPE_PRICE_ALREADY_USED: 'Тази цена вече е свързана с друг продукт.',
+        KIND_CANNOT_CHANGE: 'Видът на продукт не може да се сменя.',
+        CREDITS_REQUIRED: 'Въведи колко кредита дава.',
+        VIP_DAYS_REQUIRED: 'Въведи колко дни VIP дава.',
+      };
+      setError(messages[code] ?? code ?? 'Грешка');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const input = 'rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent';
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">Продукти</h2>
+        <button
+          type="button"
+          onClick={() => {
+            setEditing({ ...EMPTY_PRODUCT });
+            setIsNew(true);
+          }}
+          className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover"
+        >
+          + Нов продукт
+        </button>
+      </div>
+
+      {products && products.length === 0 && <p className="text-xs text-textFaint">Няма продукти.</p>}
+      {products && products.length > 0 && (
+        <table className="w-full text-left text-xs">
+          <thead className="text-[10px] uppercase text-textFaint">
+            <tr>
+              <th className="py-1">Име</th>
+              <th>Дава</th>
+              <th>Цена (Stripe)</th>
+              <th>Състояние</th>
+              <th>Покупки</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((p) => (
+              <tr key={p.key} className="border-t border-wellBorder">
+                <td className="py-1.5">
+                  {p.nameBg} <span className="text-textFaint">({p.key})</span>
+                </td>
+                <td>{p.kind === 'CREDITS' ? `${p.credits} кредита` : `VIP ${p.vipDays} дни`}</td>
+                <td>{p.stripePriceId ? euro(p.priceCents, p.currency) : <span className="text-textFaint">няма цена</span>}</td>
+                <td>
+                  {!p.active ? (
+                    <span className="text-textFaint">скрит</span>
+                  ) : p.stripePriceId ? (
+                    <span className="text-positive">предлага се</span>
+                  ) : (
+                    <span className="text-textFaint">чака цена</span>
+                  )}
+                </td>
+                <td>{p.purchaseCount}</td>
+                <td className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing({ ...p, stripePriceId: p.stripePriceId ?? '' });
+                      setIsNew(false);
+                    }}
+                    className="rounded-md border border-panelBorder px-2 py-1 text-[11px] hover:bg-accentBgHover"
+                  >
+                    Редактирай
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {editing && (
+        <form onSubmit={handleSave} className="mt-4 flex flex-col gap-2 rounded-md border border-wellBorder bg-well p-3">
+          <h3 className="text-xs font-semibold">{isNew ? 'Нов продукт' : `Редакция: ${editing.key}`}</h3>
+          <div className="flex flex-wrap gap-2">
+            {isNew && (
+              <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+                ключ (латиница, напр. credits_1200)
+                <input value={editing.key} onChange={(e) => setEditing({ ...editing, key: e.target.value })} className={input} />
+              </label>
+            )}
+            <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+              име (български)
+              <input value={editing.nameBg} onChange={(e) => setEditing({ ...editing, nameBg: e.target.value })} className={input} />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+              име (английски)
+              <input value={editing.nameEn} onChange={(e) => setEditing({ ...editing, nameEn: e.target.value })} className={input} />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+              вид
+              <select
+                value={editing.kind}
+                disabled={!isNew}
+                onChange={(e) => {
+                  const kind = e.target.value as 'CREDITS' | 'VIP';
+                  setEditing({ ...editing, kind, credits: kind === 'CREDITS' ? 500 : null, vipDays: kind === 'VIP' ? 30 : null });
+                }}
+                className={`${input} disabled:opacity-50`}
+              >
+                <option value="CREDITS">Кредити</option>
+                <option value="VIP">VIP</option>
+              </select>
+            </label>
+            {editing.kind === 'CREDITS' ? (
+              <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+                брой кредити
+                <input type="number" min={1} value={editing.credits ?? ''} onChange={(e) => setEditing({ ...editing, credits: Number(e.target.value) })} className={`${input} w-28`} />
+              </label>
+            ) : (
+              <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+                дни VIP
+                <input type="number" min={1} value={editing.vipDays ?? ''} onChange={(e) => setEditing({ ...editing, vipDays: Number(e.target.value) })} className={`${input} w-28`} />
+              </label>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+              номер на цената в Stripe (price_…); празно = не се предлага
+              <input value={editing.stripePriceId ?? ''} onChange={(e) => setEditing({ ...editing, stripePriceId: e.target.value })} className={`${input} w-80 font-mono`} />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] text-textFaint">
+              подредба
+              <input type="number" value={editing.sortOrder} onChange={(e) => setEditing({ ...editing, sortOrder: Number(e.target.value) })} className={`${input} w-24`} />
+            </label>
+            <label className="flex items-center gap-2 self-end pb-2 text-xs">
+              <input type="checkbox" checked={editing.active} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} />
+              активен
+            </label>
+          </div>
+          <p className="text-[10px] text-textFaint">Цената не се въвежда тук — прочита се от Stripe при запис. Продукт с покупки не се изтрива, само се скрива.</p>
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              {saving ? 'Записване…' : 'Запази'}
+            </button>
+            <button type="button" onClick={() => setEditing(null)} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover">
+              Откажи
+            </button>
+          </div>
+        </form>
+      )}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+    </section>
+  );
+}
+
+const PURCHASE_STATUS_LABEL: Record<string, string> = { COMPLETED: 'платена', REFUNDED: 'върната', CANCELED: 'отказана', PENDING: 'чака' };
+
+function PurchasesPanel() {
+  const [data, setData] = useState<AdminPurchasesResponseDto | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
+  const [flagged, setFlagged] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  function load() {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (status) params.set('status', status);
+    if (flagged) params.set('flagged', 'true');
+    adminFetch<AdminPurchasesResponseDto>(`/admin/payments/purchases?${params.toString()}`)
+      .then(setData)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [status, flagged]);
+
+  async function handleRefund(id: string, label: string) {
+    if (!window.confirm(`Да върна ли парите за ${label}? Наградата ще бъде отнета от играча.`)) return;
+    setBusyId(id);
+    setError(null);
+    try {
+      await adminFetch(`/admin/payments/purchases/${id}/refund`, { method: 'POST' });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const input = 'rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent';
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold">Покупки</h2>
+        {data && (
+          <span className="text-xs text-textMuted">
+            Днес: <strong className="text-text">{euro(data.todayCents)}</strong> · Този месец: <strong className="text-text">{euro(data.monthCents)}</strong>
+          </span>
+        )}
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          load();
+        }}
+        className="mb-3 flex flex-wrap items-end gap-2"
+      >
+        <input placeholder="играч" value={search} onChange={(e) => setSearch(e.target.value)} className={`${input} w-48`} />
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className={input}>
+          <option value="">всички (без чакащите)</option>
+          <option value="COMPLETED">платени</option>
+          <option value="REFUNDED">върнати</option>
+          <option value="CANCELED">отказани</option>
+          <option value="PENDING">чакащи</option>
+        </select>
+        <label className="flex items-center gap-2 pb-2 text-xs">
+          <input type="checkbox" checked={flagged} onChange={(e) => setFlagged(e.target.checked)} />
+          само за преглед (карта извън разрешените държави)
+        </label>
+        <button type="submit" className="rounded-md border border-accent bg-accentBg px-3 py-2 text-xs hover:bg-accentBgHover">
+          Търси
+        </button>
+      </form>
+
+      {data && data.purchases.length === 0 && <p className="text-xs text-textFaint">Няма покупки.</p>}
+      {data && data.purchases.length > 0 && (
+        <table className="w-full text-left text-xs">
+          <thead className="text-[10px] uppercase text-textFaint">
+            <tr>
+              <th className="py-1">Дата</th>
+              <th>Играч</th>
+              <th>Продукт</th>
+              <th>Сума</th>
+              <th>Състояние</th>
+              <th>IP / карта</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {data.purchases.map((p) => (
+              <tr key={p.id} className={`border-t border-wellBorder ${p.flagged ? 'bg-danger/10' : ''}`}>
+                <td className="py-1.5">{new Date(p.createdAt).toLocaleString('bg-BG')}</td>
+                <td>{p.username}</td>
+                <td>
+                  {p.productNameBg}
+                  <span className="text-textFaint"> ({p.credits ? `${p.credits} кр.` : `VIP ${p.vipDays} дни`})</span>
+                </td>
+                <td>{euro(p.amountCents, p.currency)}</td>
+                <td>{PURCHASE_STATUS_LABEL[p.status] ?? p.status}</td>
+                <td>
+                  {p.ipCountry ?? '—'} / {p.cardCountry ?? '—'}
+                  {p.flagged && <span className="ml-1 text-danger">⚠</span>}
+                </td>
+                <td className="text-right">
+                  {p.status === 'COMPLETED' && (
+                    <button
+                      type="button"
+                      disabled={busyId === p.id}
+                      onClick={() => handleRefund(p.id, `${p.username} — ${euro(p.amountCents, p.currency)}`)}
+                      className="rounded-md border border-panelBorderDanger px-2 py-1 text-[11px] text-danger hover:bg-accentBgHover disabled:opacity-50"
+                    >
+                      Върни парите
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+    </section>
+  );
+}

@@ -5,7 +5,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // rawBody: Stripe's webhook signature is checked against the exact bytes received.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   // In production the API sits behind Caddy (one hop): read the player's real
   // address from X-Forwarded-For, or every request would look like Caddy's
   // and the failed-login limit would block everyone at once.

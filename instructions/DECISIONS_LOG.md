@@ -1249,3 +1249,79 @@ Owner decisions:
   guessing). It now has the same limit, stricter: 5 wrong attempts per
   account or address in 15 minutes (`loginLimits.adminMaxFailures`),
   counted separately from player logins.
+
+## Public contact email (2026-10-15)
+
+Owner decision: the public pages (About, Rules, Privacy, Support, Delete
+account) show **contact@optiscalesolutions.com** instead of
+support@pentilius.com, which has no mailbox yet. One setting
+(`apps/web/src/lib/legal.ts`'s `LEGAL.email`) feeds every page, in both
+languages. The Web Push contact (`VAPID_SUBJECT`) is technical, not shown to
+players, and was left as it is.
+
+## Payments foundation: Stripe on the web (2026-10-15, test mode)
+
+Built after the owner approved the plan (see `instructions/OPEN_DECISIONS.md`,
+Payments). Phase 1: Stripe Checkout (hosted page), one-time payments, web
+only, Bulgaria only.
+- **Server** (`apps/api/src/payments/`): our own product catalog
+  (`PaymentProduct`, seeded: `credits_500`, `vip_month`), a purchases ledger
+  (`Purchase`, unique per provider + provider reference), `StripeProvider` as
+  the only Stripe-specific code. Endpoints: `GET /payments/products`,
+  `POST /payments/checkout`, `GET /payments/checkout/:sessionId`,
+  `GET /payments/purchases`, `POST /payments/stripe/webhook` (signature
+  checked against the raw body).
+- **Granting:** only on Stripe's confirmation (`checkout.session.completed`
+  when paid, or `async_payment_succeeded`), exactly once — a conditional
+  status change, so repeated notifications do nothing (tested by resending an
+  event). Expired/failed sessions become CANCELED. A full refund
+  (`charge.refunded`) takes the purchase back: VIP is shortened, Credits are
+  taken back down to 0 (the rule for spent Credits is still open).
+- **Country:** `geoip-lite` (offline) decides from the IP; only
+  `PAYMENTS_ALLOWED_COUNTRIES` (default BG). Local development has no country
+  and is allowed only with `PAYMENTS_ALLOW_UNKNOWN_COUNTRY=true`. The card's
+  country is stored as a second check and logged if it's outside the list.
+  `/player/me` returns `paymentsAvailable` for the UI.
+- **Environment:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+  `STRIPE_PRICES` ("productKey=price_…", since test and live IDs differ).
+  A product is offered only when it's mapped. Keys never in git (local copy:
+  `secrets/stripe-test-key.txt`).
+- **Web:** Shop tabs Items / Credits / VIP (the last two only where payments
+  are offered), "processing… / done / canceled" after returning from Stripe,
+  "+" next to Credits in the top bar, "Buy VIP" in Settings' VIP card, a "My
+  purchases" card in Settings.
+- **Local testing:** Stripe CLI (installed with winget) forwards webhooks:
+  `stripe listen --api-key <test key> --forward-to localhost:3001/api/v1/payments/stripe/webhook`.
+  Not deployed to production yet: it needs the env vars there and a webhook
+  endpoint registered in the Stripe dashboard.
+
+## Payments in godmaster, offers at the top of the Shop (2026-10-17)
+
+Owner decisions:
+- **Offers at the top of the Shop, not tabs** (tabs hide them — most games
+  show them first): a "Special offers" block above the items with the VIP card
+  (gold) and the Credits packs in one row that scrolls sideways on phones,
+  clearly marked as a card payment. The "+" next to Credits and "Buy VIP" in
+  Settings lead to it (`/shop#offers`). Visible but not pushy — no fake
+  urgency (players can be 13+).
+- **Shown only when payments are really on:** a Stripe key is set on the
+  server **and** the player's country is allowed **and** at least one product
+  has a Stripe price. Otherwise the Shop looks as before and there is no "+".
+- **godmaster → Payments** (ADMIN only, logged):
+  - settings: the allowed countries (moved from the environment into
+    `GameSettings.paymentsAllowedCountries`), and whether Stripe is connected;
+  - products: Bulgarian/English names, Credits or VIP days, the Stripe price
+    ID — the amount is **read from Stripe** on save (must exist, be one-time
+    and active), never typed by hand; sort order, active. The kind can't
+    change; a product with purchases is hidden, not deleted. Product names now
+    live in the database instead of translation files. `STRIPE_PRICES` was
+    removed — local and production databases hold their own test/live IDs;
+    the seed only creates the first rows and never overwrites them;
+  - purchases: search by player, status filter, "for review" (card from
+    outside the allowed countries), totals for today and this month, and
+    "Refund" — refunds through Stripe and takes the purchase back at once
+    (Stripe's own notice afterwards changes nothing).
+- **A purchase keeps what it granted** (`Purchase.credits` / `vipDays`), so a
+  refund takes back exactly that even if the product changes later.
+- Tested locally against Stripe test mode: checkout, grant, repeated notice,
+  refund from godmaster.

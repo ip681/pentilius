@@ -1,6 +1,6 @@
 'use client';
 
-import type { AccountDeletionStatusDto, BlockedPlayerDto, CosmeticsCatalogDto } from '@pentilius/shared';
+import type { AccountDeletionStatusDto, BlockedPlayerDto, CosmeticsCatalogDto, PurchaseDto } from '@pentilius/shared';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
@@ -10,7 +10,7 @@ import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { PlayerLink } from '@/components/PlayerLink';
 import { NotificationSettingsSection } from '@/components/NotificationSettingsSection';
 import { SupportSection } from '@/components/SupportSection';
-import { usePathname, useRouter } from '@/i18n/navigation';
+import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import {
   ApiError,
   cancelAccountDeletion,
@@ -20,6 +20,7 @@ import {
   getBlockedPlayers,
   getCosmeticsCatalog,
   getProfile,
+  getPurchases,
   getSupportTickets,
   requestAccountDeletion,
   unblockPlayer,
@@ -29,6 +30,8 @@ import {
 } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format-datetime';
 import { formatDuration } from '@/lib/format-duration';
+import { formatPrice } from '@/lib/format-price';
+import { productName } from '@/components/ShopOffers';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { getDeviceState } from '@/lib/push';
 import { useRequireAuth } from '@/lib/use-require-auth';
@@ -56,7 +59,8 @@ export default function SettingsPage() {
   const [cosmeticsError, setCosmeticsError] = useState<string | null>(null);
 
   // VIP card (owner decision, 2026-10-14): time left and what VIP gives.
-  const [vip, setVip] = useState<{ until: string | null; multiAttack: number; maxEnergy: number } | null>(null);
+  const [vip, setVip] = useState<{ until: string | null; multiAttack: number; maxEnergy: number; canBuy: boolean } | null>(null);
+  const [purchases, setPurchases] = useState<PurchaseDto[] | null>(null);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const clock = setInterval(() => setNow(Date.now()), 1000);
@@ -104,7 +108,8 @@ export default function SettingsPage() {
         setSelectedLocale(data.preferredLocale ?? locale);
         setSelectedAvatarKey(data.selectedAvatarKey);
         setSelectedFrameKey(data.selectedFrameKey);
-        setVip({ until: data.vipUntil, multiAttack: data.vipMultiAttackCount, maxEnergy: data.vipMaxEnergyBonus });
+        setVip({ until: data.vipUntil, multiAttack: data.vipMultiAttackCount, maxEnergy: data.vipMaxEnergyBonus, canBuy: !!data.paymentsAvailable });
+        if (data.paymentsAvailable) getPurchases().then(setPurchases).catch(() => undefined);
       })
       .catch(() => undefined);
     getCosmeticsCatalog()
@@ -189,6 +194,11 @@ export default function SettingsPage() {
             t('settings.vip.inactive')
           )}
         </SettingsCard>
+        {vip?.canBuy && (
+          <SettingsCard title={t('payments.history.title')} onClick={() => setOpen('purchases')}>
+            {purchases && purchases.length > 0 ? t('payments.history.count', { count: purchases.length }) : t('payments.history.empty')}
+          </SettingsCard>
+        )}
         <SettingsCard title={t('settings.cosmeticsSection')} onClick={() => setOpen('cosmetics')}>
           <span className="flex items-center gap-2">
             <PlayerAvatarFrame avatarKey={selectedAvatarKey} frameKey={selectedFrameKey} className="h-8 w-8" />
@@ -236,6 +246,36 @@ export default function SettingsPage() {
               <li>• {t('settings.vip.perks.autoClaim')}</li>
               <li>• {t('settings.vip.perks.goldName')}</li>
             </ul>
+            {vip?.canBuy && (
+              <Link
+                href="/shop#offers"
+                className="mt-4 block rounded-md border border-vipGold bg-accentBg py-2 text-center text-xs uppercase text-vipGold hover:bg-accentBgHover"
+              >
+                {t('settings.vip.buy')}
+              </Link>
+            )}
+          </section>
+        )}
+        {open === 'purchases' && (
+          <section>
+            <h2 className="mb-3 text-sm font-semibold">{t('payments.history.title')}</h2>
+            {!purchases || purchases.length === 0 ? (
+              <p className="text-xs text-textMuted">{t('payments.history.empty')}</p>
+            ) : (
+              <ul className="flex flex-col gap-1.5">
+                {purchases.map((purchase) => (
+                  <li key={purchase.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-wellBorder bg-well px-3 py-2 text-xs">
+                    <span>
+                      {productName(purchase, locale)} <span className="text-textFaint">· {formatDateTime(purchase.createdAt)}</span>
+                    </span>
+                    <span className="tabular-nums">
+                      {formatPrice(purchase.amountCents, purchase.currency, locale)}
+                      {purchase.status === 'REFUNDED' && <span className="ml-2 text-textFaint">{t('payments.history.refunded')}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
         {open === 'password' && (
@@ -371,7 +411,7 @@ export default function SettingsPage() {
   );
 }
 
-type SettingsCardKey = 'vip' | 'cosmetics' | 'language' | 'password' | 'notifications' | 'support' | 'blocked' | 'delete';
+type SettingsCardKey = 'vip' | 'purchases' | 'cosmetics' | 'language' | 'password' | 'notifications' | 'support' | 'blocked' | 'delete';
 
 /** One settings card: a title and a status line; a click opens its popup. */
 function SettingsCard({

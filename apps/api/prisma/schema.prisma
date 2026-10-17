@@ -171,8 +171,8 @@ model Player {
   // is wiped, the username becomes a "~deleted~…" marker (shown translated as
   // "Deleted player"), and deletedAt is set. The row itself stays so every
   // history record (battles, wars, market, Core points, donations) keeps working.
-  deletionScheduledFor  DateTime?
-  deletedAt             DateTime?
+  deletionScheduledFor DateTime?
+  deletedAt            DateTime?
 
   // Set for everyone by a season reset (owner decision, 2026-10-13): race is
   // re-chosen every season, so the player must pick one (POST
@@ -189,15 +189,15 @@ model Player {
   energyRegenBonus Float @default(0)
 
   // Exchange daily usage (owner decision, 2026-10-14) — day in Europe/Sofia.
-  exchangeDay       String?
-  exchangeUsedToday Int     @default(0)
+  exchangeDay        String?
+  exchangeUsedToday  Int     @default(0)
   // Daily-task streak (owner decision, 2026-10-14): days with every daily task
   // done, misses used in this series, the last completed day, and whether
   // the reward is waiting. See DailyTasksService.
-  dailyStreakDays     Int     @default(0)
-  dailyStreakMisses   Int     @default(0)
-  dailyStreakLastDay  String?
-  dailyStreakReady    Boolean @default(false)
+  dailyStreakDays    Int     @default(0)
+  dailyStreakMisses  Int     @default(0)
+  dailyStreakLastDay String?
+  dailyStreakReady   Boolean @default(false)
 
   // Email confirmation (owner decision, 2026-10-13) — optional; null until the
   // player opens the emailed link (or resets the password via email).
@@ -213,10 +213,10 @@ model Player {
   // construction ends. Its cost is paid when queued (stored here so a cancel
   // refunds exactly what was paid). Plain id, not a relation — at most one row.
   buildQueueBuildingTypeId String?
-  buildQueueMetal          Int     @default(0)
-  buildQueueCrystal        Int     @default(0)
-  deletionCode          String?
-  deletionCodeExpiresAt DateTime?
+  buildQueueMetal          Int       @default(0)
+  buildQueueCrystal        Int       @default(0)
+  deletionCode             String?
+  deletionCodeExpiresAt    DateTime?
 
   // Admin-issued suspension (godmaster panel) — null means not banned. Login
   // rejects with the remaining time while now < bannedUntil; the ban simply
@@ -252,45 +252,46 @@ model Player {
   selectedAvatarKey String @default("avatar1")
   selectedFrameKey  String @default("frame1")
 
-  buildings              PlayerBuilding[]
-  items                  ItemInstance[]
-  battleReports          BattleReport[]
-  expeditions            PlayerExpedition[]
-  researches             PlayerResearch[]
+  buildings                PlayerBuilding[]
+  items                    ItemInstance[]
+  battleReports            BattleReport[]
+  expeditions              PlayerExpedition[]
+  researches               PlayerResearch[]
   bossFormationsCreated    BossFormation[]            @relation("BossFormationsCreated")
   bossFormationSlots       BossFormationSlot[]
   bossFormationDailyPoints BossFormationDailyPoints[]
-  pvpAttacks             PvpBattleReport[] @relation("PvpAttacks")
-  pvpDefenses            PvpBattleReport[] @relation("PvpDefenses")
-  clanWarAttacksSent     ClanWarAttack[] @relation("ClanWarAttacksAsAttacker")
-  clanWarAttacksReceived ClanWarAttack[] @relation("ClanWarAttacksAsDefender")
-  clanMembership         ClanMembership?
-  clanMessages           ClanMessage[]
-  friendRequestsSent     Friendship[] @relation("FriendRequestsSent")
-  friendRequestsReceived Friendship[] @relation("FriendRequestsReceived")
-  directMessagesSent     DirectMessage[] @relation("DirectMessagesSent")
-  directMessagesReceived DirectMessage[] @relation("DirectMessagesReceived")
-  marketListingsSold     MarketListing[] @relation("MarketListingsSold")
-  marketListingsBought   MarketListing[] @relation("MarketListingsBought")
-  adminActionLogs        AdminActionLog[]
-  coreAttacks            CoreAttack[]
-  seasonResults          SeasonPlayerResult[]
-  dailyTaskProgress      DailyTaskProgress[]
-  dailyTaskClaims        DailyTaskClaim[]
-  achievementProgress    AchievementProgress[]
-  achievementClaims      AchievementClaim[]
-  supportTickets         SupportTicket[]
-  pushSubscriptions      PushSubscription[]
-  pushDispatches         PushDispatch[]
-  emailTokens            EmailToken[]
+  pvpAttacks               PvpBattleReport[]          @relation("PvpAttacks")
+  pvpDefenses              PvpBattleReport[]          @relation("PvpDefenses")
+  clanWarAttacksSent       ClanWarAttack[]            @relation("ClanWarAttacksAsAttacker")
+  clanWarAttacksReceived   ClanWarAttack[]            @relation("ClanWarAttacksAsDefender")
+  clanMembership           ClanMembership?
+  clanMessages             ClanMessage[]
+  friendRequestsSent       Friendship[]               @relation("FriendRequestsSent")
+  friendRequestsReceived   Friendship[]               @relation("FriendRequestsReceived")
+  directMessagesSent       DirectMessage[]            @relation("DirectMessagesSent")
+  directMessagesReceived   DirectMessage[]            @relation("DirectMessagesReceived")
+  marketListingsSold       MarketListing[]            @relation("MarketListingsSold")
+  marketListingsBought     MarketListing[]            @relation("MarketListingsBought")
+  adminActionLogs          AdminActionLog[]
+  coreAttacks              CoreAttack[]
+  seasonResults            SeasonPlayerResult[]
+  dailyTaskProgress        DailyTaskProgress[]
+  dailyTaskClaims          DailyTaskClaim[]
+  achievementProgress      AchievementProgress[]
+  achievementClaims        AchievementClaim[]
+  supportTickets           SupportTicket[]
+  pushSubscriptions        PushSubscription[]
+  purchases                Purchase[]
+  pushDispatches           PushDispatch[]
+  emailTokens              EmailToken[]
 
   // Which notifications the player wants (owner decision, 2026-10-13) —
   // { TYPE: false } switches one off; missing = on. Shared by every channel.
-  notificationSettings Json @default("{}")
-  blocksMade             PlayerBlock[]  @relation("BlocksMade")
-  blocksReceived         PlayerBlock[]  @relation("BlocksReceived")
-  reportsFiled           PlayerReport[] @relation("ReportsFiled")
-  reportsReceived        PlayerReport[] @relation("ReportsReceived")
+  notificationSettings Json           @default("{}")
+  blocksMade           PlayerBlock[]  @relation("BlocksMade")
+  blocksReceived       PlayerBlock[]  @relation("BlocksReceived")
+  reportsFiled         PlayerReport[] @relation("ReportsFiled")
+  reportsReceived      PlayerReport[] @relation("ReportsReceived")
 
   @@map("players")
 }
@@ -306,11 +307,11 @@ enum FriendshipStatus {
 // resend in the same direction, so the service layer must also check the
 // reverse direction before creating a new request.
 model Friendship {
-  id          String           @id @default(uuid())
-  requesterId String
-  addresseeId String
-  status      FriendshipStatus @default(PENDING)
-  createdAt   DateTime         @default(now())
+  id                  String           @id @default(uuid())
+  requesterId         String
+  addresseeId         String
+  status              FriendshipStatus @default(PENDING)
+  createdAt           DateTime         @default(now())
   // Owner decision (2026-09-11): powers both the friends-list sort ("most
   // recent conversation first") and the unread indicator, without per-message
   // read receipts. lastMessageAt is set on every sendMessage() regardless of
@@ -423,16 +424,16 @@ model LootDrop {
 }
 
 model BuildingType {
-  id          String @id @default(uuid())
-  key         String @unique
-  nameKey     String
-  maxLevel    Int
-  iconAssetId String
+  id                      String @id @default(uuid())
+  key                     String @unique
+  nameKey                 String
+  maxLevel                Int
+  iconAssetId             String
   // Only the Warehouse sets this (owner decision: Warehouse raises personal
   // inventory capacity — it previously had no coded effect at all). Null/0
   // for every other building. Mirrors ClanBuildingType.bonusPerLevel's flat
   // per-level pattern, scoped to the one building that needs it.
-  capacityBonusPerLevel Int?
+  capacityBonusPerLevel   Int?
   // Only the Trading Post sets this (owner decision, 2026-09-11: Market
   // listing capacity is a building, not a research — same "buildings =
   // capacity, research = % bonuses" split as the Warehouse above). Base
@@ -444,7 +445,7 @@ model BuildingType {
   // fraction per level (0.01 = +1%/level), applied ONLY while this player is
   // the one being attacked (PvP / clan-war defender) — never on their own
   // attacks. See CombatService.computeCombatBreakdown's `defending` option.
-  defenseBonusPerLevel Float?
+  defenseBonusPerLevel    Float?
 
   // Research Center (owner decision, 2026-10-14): researches can't go above
   // level * this. Its first levels also unlock the longer expeditions
@@ -458,7 +459,7 @@ model BuildingType {
 
   // Exchange (owner decision, 2026-10-14): Metal <-> Crystal; the daily limit
   // (input amount) grows by this per level. Rate/fee: GAME_BALANCE.exchange.
-  exchangeLimitPerLevel Int?
+  exchangeLimitPerLevel        Int?
   // Only the Defensive Wall sets this (owner decision, 2026-10-12): extra
   // minutes per level added to the regular-PvP revenge protection a player
   // gets after LOSING a defense (GAME_BALANCE.pvp.revengeProtectionMinutes).
@@ -467,9 +468,9 @@ model BuildingType {
   // Only the Hideout sets these (owner decision, 2026-10-12): this much of
   // each resource per level can't be stolen when the player loses a defense
   // (PvP and clan-war duels) — steals are taken from the amount above it.
-  protectedMetalPerLevel   Int?
-  protectedCrystalPerLevel Int?
-  protectedCreditsPerLevel Int?
+  protectedMetalPerLevel       Int?
+  protectedCrystalPerLevel     Int?
+  protectedCreditsPerLevel     Int?
 
   levelCosts      BuildingLevelCost[]
   playerBuildings PlayerBuilding[]
@@ -503,13 +504,13 @@ enum ItemCategory {
 }
 
 model ItemDefinition {
-  id              String        @id @default(uuid())
-  key             String        @unique
+  id              String         @id @default(uuid())
+  key             String         @unique
   nameKey         String
   descriptionKey  String
   // Null for CONSUMABLE items — they have no equipment slot.
   slot            EquipmentSlot?
-  category        ItemCategory  @default(EQUIPMENT)
+  category        ItemCategory   @default(EQUIPMENT)
   // Flexible bag, not fixed columns: exact stat schema is UNDEFINED
   // (instructions/OPEN_DECISIONS.md: "final slot list"). EQUIPMENT reads
   // attack/defense/hp keys from it (see pve/combat.service.ts); CONSUMABLE
@@ -536,10 +537,10 @@ model ItemDefinition {
   shopPriceCrystal Int @default(0)
   shopPriceCredits Int @default(0)
 
-  itemInstances       ItemInstance[]
-  lootDrops           LootDrop[]
-  bossLootDrops       BossLootDrop[]
-  expeditionTypes     ExpeditionType[]
+  itemInstances          ItemInstance[]
+  lootDrops              LootDrop[]
+  bossLootDrops          BossLootDrop[]
+  expeditionTypes        ExpeditionType[]
   guaranteedBoxForBosses Boss[]
 
   @@map("item_definitions")
@@ -553,11 +554,11 @@ model LevelThreshold {
 }
 
 model PlayerBuilding {
-  id                 String    @id @default(uuid())
-  playerId           String
-  buildingTypeId     String
-  level              Int       @default(0)
-  constructionEndsAt DateTime?
+  id                    String    @id @default(uuid())
+  playerId              String
+  buildingTypeId        String
+  level                 Int       @default(0)
+  constructionEndsAt    DateTime?
   // When the current construction started — for progress bars (2026-10-14).
   // Null for constructions started before this existed.
   constructionStartedAt DateTime?
@@ -618,23 +619,23 @@ enum MarketListingStatus {
 // enforced in the service — IP/device heuristics were discussed and
 // deliberately deferred.
 model MarketListing {
-  id             String              @id @default(uuid())
-  sellerId       String
-  itemInstanceId String
-  priceMetal     Int                 @default(0)
-  priceCrystal   Int                 @default(0)
-  priceCredits   Int                 @default(0)
-  status         MarketListingStatus @default(ACTIVE)
-  createdAt      DateTime            @default(now())
-  resolvedAt     DateTime?
-  buyerId        String?
+  id                   String              @id @default(uuid())
+  sellerId             String
+  itemInstanceId       String
+  priceMetal           Int                 @default(0)
+  priceCrystal         Int                 @default(0)
+  priceCredits         Int                 @default(0)
+  status               MarketListingStatus @default(ACTIVE)
+  createdAt            DateTime            @default(now())
+  resolvedAt           DateTime?
+  buyerId              String?
   // Visibility restriction (owner decision, 2026-09-10) — both false (default)
   // means public, same as before. When either is set, the listing is hidden
   // entirely from everyone else's browse view, not just unbuyable. Checking
   // BOTH means visible to clanmates OR friends (union), not an intersection.
   // Membership/friendship is checked live at browse time, not snapshotted.
-  visibleToClanOnly    Boolean @default(false)
-  visibleToFriendsOnly Boolean @default(false)
+  visibleToClanOnly    Boolean             @default(false)
+  visibleToFriendsOnly Boolean             @default(false)
 
   seller       Player       @relation("MarketListingsSold", fields: [sellerId], references: [id], onDelete: Cascade)
   buyer        Player?      @relation("MarketListingsBought", fields: [buyerId], references: [id], onDelete: SetNull)
@@ -644,19 +645,19 @@ model MarketListing {
 }
 
 model BattleReport {
-  id            String        @id @default(uuid())
-  playerId      String
-  pentiliId     String
-  zoneId        String
-  outcome       BattleOutcome
-  xpGained      Int
-  lootSummary   Json
-  damageDealt   Int
-  damageTaken   Int
-  rounds        Json
-  playerMaxHp   Int
-  pentiliMaxHp  Int
-  createdAt     DateTime      @default(now())
+  id           String        @id @default(uuid())
+  playerId     String
+  pentiliId    String
+  zoneId       String
+  outcome      BattleOutcome
+  xpGained     Int
+  lootSummary  Json
+  damageDealt  Int
+  damageTaken  Int
+  rounds       Json
+  playerMaxHp  Int
+  pentiliMaxHp Int
+  createdAt    DateTime      @default(now())
 
   player  Player  @relation(fields: [playerId], references: [id])
   pentili Pentili @relation(fields: [pentiliId], references: [id])
@@ -669,19 +670,19 @@ model BattleReport {
 // "Timed automatic missions such as 1h/5h/10h... Exact values are
 // UNDEFINED"). 60/300/600 minutes are the doc's own example, not invented.
 model ExpeditionType {
-  id                    String   @id @default(uuid())
-  key                   String   @unique
-  nameKey               String
-  durationMinutes       Int
-  metalReward           Int
-  crystalReward         Int
-  creditsReward         Int
-  xpReward              Int
-  bonusItemDefinitionId String?
-  bonusItemChance       Float?
+  id                      String  @id @default(uuid())
+  key                     String  @unique
+  nameKey                 String
+  durationMinutes         Int
+  metalReward             Int
+  crystalReward           Int
+  creditsReward           Int
+  xpReward                Int
+  bonusItemDefinitionId   String?
+  bonusItemChance         Float?
   // Research Center level needed to start it (owner decision, 2026-10-14).
   // Longer expeditions unlock at the Navigation research's first levels (owner decision, 2026-10-14).
-  requiredNavigationLevel Int @default(0)
+  requiredNavigationLevel Int     @default(0)
 
   bonusItemDefinition ItemDefinition?    @relation(fields: [bonusItemDefinitionId], references: [id])
   playerExpeditions   PlayerExpedition[]
@@ -755,11 +756,11 @@ model ResearchLevelCost {
 }
 
 model PlayerResearch {
-  id             String    @id @default(uuid())
-  playerId       String
-  researchTypeId String
-  level          Int       @default(0)
-  researchEndsAt DateTime?
+  id                String    @id @default(uuid())
+  playerId          String
+  researchTypeId    String
+  level             Int       @default(0)
+  researchEndsAt    DateTime?
   // When the current research started — for progress bars (2026-10-14).
   researchStartedAt DateTime?
 
@@ -788,21 +789,21 @@ enum BossFormationStatus {
 }
 
 model Boss {
-  id       String @id @default(uuid())
-  key      String @unique
-  nameKey  String
-  zoneId   String
-  level    Int
+  id                            String @id @default(uuid())
+  key                           String @unique
+  nameKey                       String
+  zoneId                        String
+  level                         Int
   // Minimum player level to create/join a formation against this boss.
   // Owner decision (2026-10-11): per-boss (30/50/70/90, one per zone's own
   // boss) replacing the old flat GAME_BALANCE.bossFormations.minLevel that
   // applied the same threshold to all 4 bosses regardless of difficulty.
-  minLevel Int
-  maxHp    Int
-  attack   Int
-  defense  Int
-  xpReward Int
-  iconAssetId String
+  minLevel                      Int
+  maxHp                         Int
+  attack                        Int
+  defense                       Int
+  xpReward                      Int
+  iconAssetId                   String
   // Guaranteed, non-chance reward for every winning formation participant —
   // schema FK (not a game-config.ts mapping), mirroring how every other
   // "which item does X grant" relationship in this codebase already lives on
@@ -811,10 +812,10 @@ model Boss {
   // (pioneer_box/ascendant_box/coreforged_box) — see seed.ts.
   guaranteedBoxItemDefinitionId String
 
-  zone                Zone                @relation(fields: [zoneId], references: [id])
-  guaranteedBoxItem   ItemDefinition      @relation(fields: [guaranteedBoxItemDefinitionId], references: [id])
-  lootDrops           BossLootDrop[]
-  formations          BossFormation[]
+  zone              Zone            @relation(fields: [zoneId], references: [id])
+  guaranteedBoxItem ItemDefinition  @relation(fields: [guaranteedBoxItemDefinitionId], references: [id])
+  lootDrops         BossLootDrop[]
+  formations        BossFormation[]
 
   @@map("bosses")
 }
@@ -835,11 +836,11 @@ model BossLootDrop {
 }
 
 model BossFormation {
-  id        String              @id @default(uuid())
-  bossId    String
-  creatorId String
-  status    BossFormationStatus @default(OPEN)
-  createdAt DateTime            @default(now())
+  id         String              @id @default(uuid())
+  bossId     String
+  creatorId  String
+  status     BossFormationStatus @default(OPEN)
+  createdAt  DateTime            @default(now())
   // createdAt + GAME_BALANCE.bossFormations.enrollmentWindowHours, snapshotted at creation.
   resolvesAt DateTime
 
@@ -852,10 +853,10 @@ model BossFormation {
   visibleToClanOnly    Boolean @default(false)
   visibleToFriendsOnly Boolean @default(false)
 
-  outcome    BattleOutcome?
-  rounds     Json?
-  partyMaxHp Int?
-  bossMaxHp  Int?
+  outcome          BattleOutcome?
+  rounds           Json?
+  partyMaxHp       Int?
+  bossMaxHp        Int?
   // combat.simulate()'s damageDealt, snapshotted once on a WIN — credited in
   // full to every winning participant's BossFormationDailyPoints (not divided).
   totalDamageDealt Int?
@@ -983,21 +984,21 @@ model Clan {
   // the player's raw Core Attribute points (Player.baseDamage/baseDefense/
   // baseHp/baseEvasion) — equipment is deliberately excluded, same reasoning
   // as ClanWar's pool snapshot: gear is swappable at will, points are not.
-  joinMinLevel    Int    @default(0)
-  joinMinDamage   Int    @default(0)
-  joinMinDefense  Int    @default(0)
-  joinMinHp       Int    @default(0)
-  joinMinEvasion  Int    @default(0)
+  joinMinLevel     Int    @default(0)
+  joinMinDamage    Int    @default(0)
+  joinMinDefense   Int    @default(0)
+  joinMinHp        Int    @default(0)
+  joinMinEvasion   Int    @default(0)
   joinAllowedRaces Race[] @default([])
 
-  members   ClanMembership[]
-  buildings ClanBuilding[]
-  messages  ClanMessage[]
+  members        ClanMembership[]
+  buildings      ClanBuilding[]
+  messages       ClanMessage[]
   coreScores     ClanCoreScore[]
   reports        PlayerReport[]
   seasonResults  SeasonClanResult[]
-  warsAsAttacker ClanWar[] @relation("ClanWarsAsAttacker")
-  warsAsDefender ClanWar[] @relation("ClanWarsAsDefender")
+  warsAsAttacker ClanWar[]          @relation("ClanWarsAsAttacker")
+  warsAsDefender ClanWar[]          @relation("ClanWarsAsDefender")
 
   @@map("clans")
 }
@@ -1271,6 +1272,10 @@ enum AdminActionType {
   SUPPORT_CLOSE
   SUPPORT_REOPEN
   SET_PLAYER_PASSWORD
+  CREATE_PAYMENT_PRODUCT
+  UPDATE_PAYMENT_PRODUCT
+  REFUND_PURCHASE
+  UPDATE_PAYMENT_SETTINGS
 }
 
 // Audit trail for every godmaster mutation (owner decision, 2026-09-12) —
@@ -1282,14 +1287,14 @@ enum AdminActionType {
 // oldUsername/newUsername, banHours/reason, etc.) — one shape per actionType,
 // not a fixed column set, same "flexible bag" reasoning as ItemDefinition.baseStats.
 model AdminActionLog {
-  id             String           @id @default(uuid())
+  id             String          @id @default(uuid())
   adminId        String
   adminUsername  String
   actionType     AdminActionType
   targetPlayerId String?
   targetUsername String?
   details        Json
-  createdAt      DateTime         @default(now())
+  createdAt      DateTime        @default(now())
 
   admin  AdminUser @relation(fields: [adminId], references: [id])
   target Player?   @relation(fields: [targetPlayerId], references: [id], onDelete: SetNull)
@@ -1319,9 +1324,9 @@ model Season {
   resetAt          DateTime?
   createdAt        DateTime  @default(now())
 
-  clanScores  ClanCoreScore[]
-  coreAttacks CoreAttack[]
-  clanResults SeasonClanResult[]
+  clanScores    ClanCoreScore[]
+  coreAttacks   CoreAttack[]
+  clanResults   SeasonClanResult[]
   playerResults SeasonPlayerResult[]
 
   @@map("seasons")
@@ -1476,6 +1481,9 @@ model GameSettings {
   // reset — time for players to see the final standings (owner decision,
   // 2026-10-13). Also guarantees a nightly DB backup of the final state.
   seasonResetDelayDays     Int      @default(1)
+  // Countries where real-money purchases are offered, comma-separated
+  // (owner decision, 2026-10-15: Bulgaria first). Set in godmaster.
+  paymentsAllowedCountries String   @default("BG")
   updatedAt                DateTime @updatedAt
 
   @@map("game_settings")
@@ -1719,4 +1727,87 @@ model EmailToken {
 
   @@index([playerId, type, createdAt])
   @@map("email_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Payments (owner decision, 2026-10-15). The game only knows its own products;
+// each payment provider (Stripe now; App Store / Google Play later) is an
+// adapter mapped to them. Rewards are granted only after the provider
+// confirms, exactly once (unique provider reference).
+
+enum PaymentProductKind {
+  CREDITS
+  VIP
+}
+
+enum PaymentProvider {
+  STRIPE
+  APP_STORE
+  GOOGLE_PLAY
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  CANCELED
+  REFUNDED
+}
+
+// What can be bought for real money — managed in godmaster (owner decision,
+// 2026-10-17): names, what it grants, the Stripe price, on/off. The seed only
+// creates the first rows and never overwrites them. Test and live Stripe price
+// IDs differ, which is fine: local and production are separate databases.
+model PaymentProduct {
+  id            String             @id @default(uuid())
+  key           String             @unique
+  nameBg        String
+  nameEn        String
+  // Stripe's price ID (price_…); the product is offered only when set.
+  stripePriceId String?            @unique
+  kind          PaymentProductKind
+  // What the purchase grants.
+  credits       Int?
+  vipDays       Int?
+  // Shown price; the provider charges its own configured price.
+  priceCents    Int
+  currency      String             @default("eur")
+  sortOrder     Int                @default(0)
+  active        Boolean            @default(true)
+
+  purchases Purchase[]
+
+  @@map("payment_products")
+}
+
+// The purchases ledger — one row per checkout. providerRef is the provider's
+// own ID (Stripe: the Checkout Session ID), unique per provider, so a repeated
+// provider notification can never grant twice. Kept when an account is deleted
+// (accounting); the player row itself is anonymized, not removed.
+model Purchase {
+  id          String          @id @default(uuid())
+  playerId    String
+  productId   String
+  provider    PaymentProvider
+  providerRef String
+  status      PurchaseStatus  @default(PENDING)
+  amountCents Int
+  currency    String
+  // What it granted at the time of purchase — a refund takes back exactly
+  // this, even if the product was changed later.
+  credits     Int?
+  vipDays     Int?
+  // Country from the player's IP when the checkout started, and the card's
+  // country from the provider (a second check for the Bulgaria-only phase).
+  ipCountry   String?
+  cardCountry String?
+  createdAt   DateTime        @default(now())
+  completedAt DateTime?
+  refundedAt  DateTime?
+
+  player  Player         @relation(fields: [playerId], references: [id])
+  product PaymentProduct @relation(fields: [productId], references: [id])
+
+  @@unique([provider, providerRef])
+  @@index([playerId, createdAt])
+  @@map("purchases")
 }

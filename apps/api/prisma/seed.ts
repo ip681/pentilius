@@ -999,6 +999,18 @@ async function main() {
     }),
   );
 
+  // Real-money products (owner decision, 2026-10-15). Managed in godmaster
+  // since 2026-10-17: the seed only creates the first rows and never
+  // overwrites them (update: {}). A product is offered once godmaster gives it
+  // a Stripe price.
+  const paymentProducts = [
+    { key: 'credits_500', nameBg: '500 кредита', nameEn: '500 Credits', kind: 'CREDITS' as const, credits: 500, vipDays: null, priceCents: 500, sortOrder: 1 },
+    { key: 'vip_month', nameBg: 'VIP за 30 дни', nameEn: 'VIP for 30 days', kind: 'VIP' as const, credits: null, vipDays: 30, priceCents: 499, sortOrder: 10 },
+  ];
+  for (const data of paymentProducts) {
+    await prisma.paymentProduct.upsert({ where: { key: data.key }, update: {}, create: data });
+  }
+
   console.log('Seeded Milestone 1-2 static content.');
 }
 
