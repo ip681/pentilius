@@ -1,6 +1,8 @@
 node_modules/
 dist/
 build/
+# The phone app's build scripts are kept (their output, build/out, is ignored in apps/mobile/.gitignore).
+!apps/mobile/build/
 .next/
 out/
 next-env.d.ts

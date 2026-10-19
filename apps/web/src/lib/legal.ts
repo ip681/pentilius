@@ -3,20 +3,14 @@
 // 2026-10-12. One place to change them; the page texts in messages/*.json
 // reference these as {company}, {eik}, {address}, {email}, {minAge},
 // {graceDays} and {updated}.
-export const LEGAL = {
-  company: 'ОПТИСКЕЙЛ СЪЛЮШЪНС ЕООД',
-  companyLatin: 'OPTISCALE SOLUTIONS EOOD',
-  eik: '208772002',
-  address: { bg: 'София, България', en: 'Sofia, Bulgaria' },
-  // Owner decision (2026-10-15): the company's working address until a
-  // support@pentilius.com mailbox exists.
-  email: 'contact@optiscalesolutions.com',
-  // Minimum age to register — must also match the store age declarations.
-  minAge: 13,
-  // Default only — the live value is set in godmaster (GameSettings).
-  graceDays: 3,
-  updated: '2026-10-12',
-} as const;
+import legal from '@pentilius/shared/legal.json';
+
+// The values live in packages/shared/legal.json, so the phone app shows the same.
+// - email: the company's working address until a support@pentilius.com mailbox
+//   exists (owner decision, 2026-10-15).
+// - minAge: minimum age to register — must also match the store age declarations.
+// - graceDays: default only — the live value is set in godmaster (GameSettings).
+export const LEGAL = legal;
 
 /** Fills the {placeholders} above into a page text for the given locale. */
 export function fillLegal(text: string, locale: string): string {

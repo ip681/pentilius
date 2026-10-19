@@ -28,3 +28,9 @@ export function t(key: string, vars: Record<string, string | number> = {}): stri
   const text = lookup(MESSAGES[locale], key) ?? lookup(MESSAGES.en, key) ?? key;
   return Object.entries(vars).reduce((out, [name, value]) => out.split(`{${name}}`).join(String(value)), text);
 }
+
+/** A whole block of texts (e.g. an information page), in the current language or English. */
+export function tRaw<T>(key: string): T | undefined {
+  const find = (messages: Messages) => key.split('.').reduce<unknown>((acc, part) => (acc && typeof acc === 'object' ? (acc as Messages)[part] : undefined), messages);
+  return (find(MESSAGES[locale]) ?? find(MESSAGES.en)) as T | undefined;
+}

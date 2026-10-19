@@ -5,12 +5,25 @@ import { assetUrl } from '@/lib/assets';
 import { colors } from '@/theme';
 
 /** A game image by asset id; a letter when the art doesn't exist (yet). */
-export function AssetImage({ assetId, size, label, dimmed = false }: { assetId: string; size: number; label: string; dimmed?: boolean }) {
+export function AssetImage({
+  assetId,
+  size,
+  label,
+  dimmed = false,
+  hideFallback = false,
+}: {
+  assetId: string;
+  size: number;
+  label: string;
+  dimmed?: boolean;
+  hideFallback?: boolean;
+}) {
   const [failed, setFailed] = useState(false);
   if (failed) {
+    if (hideFallback) return null;
     return (
-      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentBg, borderRadius: 6, opacity: dimmed ? 0.4 : 0.9 }}>
-        <Text style={{ color: colors.textMuted, fontSize: size * 0.35, fontWeight: '600' }}>{label.charAt(0)}</Text>
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderRadius: 2, opacity: dimmed ? 0.3 : 0.8 }}>
+        <Text style={{ color: colors.textMuted, fontSize: Math.max(8, size * 0.35), fontWeight: '600' }}>{label.charAt(0)}</Text>
       </View>
     );
   }
@@ -20,7 +33,7 @@ export function AssetImage({ assetId, size, label, dimmed = false }: { assetId: 
       style={{ width: size, height: size, opacity: dimmed ? 0.4 : 1 }}
       contentFit="contain"
       cachePolicy="disk"
-      transition={150}
+      transition={120}
       onError={() => setFailed(true)}
     />
   );

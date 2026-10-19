@@ -509,7 +509,13 @@
     "comingBody": "This part isn't in the app yet. Until then, use it on the website — same account, shared progress.",
     "openWebsite": "Open the website",
     "loadError": "Couldn't load. Pull down to try again.",
-    "version": "Version {version}"
+    "version": "Version {version}",
+    "updateAvailable": "Version {version} is available.",
+    "updateDownload": "Download",
+    "updateHint": "Download it and open the file — Android will offer to update the app. Your account and progress stay.",
+    "upToDate": "You have the newest version.",
+    "notificationsLater": "Notifications on the phone come in a later version of the app. The choice below is shared by all your devices.",
+    "infoTitle": "Information"
   },
   "settings": {
     "app": {
@@ -863,6 +869,7 @@
     "joinClanFirst": "Only clan members can attack the Core. Join or create a clan first:",
     "myDamage": "Your damage this season",
     "tavernActive": "Tavern active: +{percent}% damage",
+    "tavernInactive": "Tavern inactive (+{percent}% when a leader or officer activates it)",
     "attack": "Attack ({energy} energy)",
     "attackCooldown": "Recharging… {seconds}s",
     "lastAttack": "Last attack",

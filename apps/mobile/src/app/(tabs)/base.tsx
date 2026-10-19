@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import type { ActiveResearchDto, BaseResponseDto, BuildingStateDto, ExchangeInfoDto, InventoryItemDto, ResourcesDto } from '@pentilius/shared';
 import { AssetImage, ResourceIcon } from '@/components/AssetImage';
+import { FortressFrame, FortressPart } from '@/components/FortressFrame';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { Button, ErrorText, Muted, Panel, ProgressBar, Sheet, Small, Title, Well } from '@/components/ui';
 import { ApiError, cancelBuildQueue, consumeItem, exchangeResources, getBase, getInventory, queueBuilding, upgradeBuilding } from '@/lib/api';
 import { formatDuration, secondsUntil } from '@/lib/duration';
@@ -15,6 +17,9 @@ import { colors } from '@/theme';
 // The same rules as the web's Base page (apps/web/src/app/(player)/[locale]/base/page.tsx).
 const RESEARCH_CENTER_KEY = 'research_center';
 const EXCHANGE_KEY = 'exchange';
+const DEFENSE_SYSTEM_KEY = 'defense_system';
+const DEFENSIVE_WALL_KEY = 'defensive_wall';
+const cardStyle = { backgroundColor: colors.panel, borderColor: colors.panelBorder, borderWidth: 1, borderRadius: 8, paddingHorizontal: 16 } as const;
 
 function buildingProgress(building: BuildingStateDto): { active: boolean; share: number; secondsLeft: number } {
   if (!building.constructionEndsAt || !building.nextLevelCost) return { active: false, share: 0, secondsLeft: 0 };
@@ -109,89 +114,107 @@ export default function BaseScreen() {
   const canQueue = !!data?.isVip && anyUnderConstruction && !data?.buildQueue;
   const selected = data?.buildings.find((b) => b.key === selectedKey) ?? null;
 
+  // Drawn as the wall frame instead of tiles (as on the web).
+  const defenseSystem = data?.buildings.find((b) => b.key === DEFENSE_SYSTEM_KEY) ?? null;
+  const defensiveWall = data?.buildings.find((b) => b.key === DEFENSIVE_WALL_KEY) ?? null;
+  const terrainBuildings = data?.buildings.filter((b) => b.key !== DEFENSE_SYSTEM_KEY && b.key !== DEFENSIVE_WALL_KEY) ?? [];
+  const framePart = (building: BuildingStateDto | null): FortressPart | null =>
+    building && data
+      ? {
+          level: building.level,
+          constructing: buildingProgress(building).active,
+          upgradeReady: !anyUnderConstruction && canAfford(building.nextLevelCost, data.resources),
+          onPress: () => setSelectedKey(building.key),
+        }
+      : null;
+
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.ink }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}>
-        <View>
-          <Title>{t('base.title')}</Title>
-          <Muted>{t('base.subtitle')}</Muted>
-        </View>
+    <View style={{ flex: 1, backgroundColor: colors.ink }}>
+      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 24 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}>
+        <ScreenTitle title={t('base.title')} subtitle={t('base.subtitle')} />
 
         {loadFailed && <ErrorText>{t('mobile.loadError')}</ErrorText>}
         {error && !selected && <ErrorText>{error}</ErrorText>}
 
-        {data && (
-          <Panel style={{ paddingVertical: 10 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
-              {(['METAL', 'CRYSTAL', 'CREDITS'] as const).map((type) => (
-                <View key={type} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <ResourceIcon type={type} size={18} />
-                  <Text style={{ color: colors.text, fontWeight: '600' }}>{formatNumber(data.resources[type.toLowerCase() as 'metal' | 'crystal' | 'credits'])}</Text>
-                </View>
-              ))}
-            </View>
-          </Panel>
-        )}
-
         {constructing && constructingProgress && (
-          <Pressable onPress={() => setSelectedKey(constructing.key)}>
-            <Panel style={{ gap: 6 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Muted>{t('base.constructing', { building: t(constructing.nameKey), level: constructing.level + 1 })}</Muted>
-                <Muted>{formatDuration(constructingProgress.secondsLeft)}</Muted>
-              </View>
-              <ProgressBar share={constructingProgress.share} />
-            </Panel>
+          <Pressable onPress={() => setSelectedKey(constructing.key)} style={[cardStyle, { marginBottom: 16, paddingVertical: 12 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+              <Text style={{ flex: 1, fontSize: 12, color: colors.text }}>{t('base.constructing', { building: t(constructing.nameKey), level: constructing.level + 1 })}</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted }}>{formatDuration(constructingProgress.secondsLeft)}</Text>
+            </View>
+            <ProgressBar share={constructingProgress.share} />
           </Pressable>
         )}
 
         {data?.buildQueue && queued && (
-          <Panel style={{ borderColor: colors.gold, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ color: colors.gold, fontSize: 12, flex: 1 }}>{t('base.queued', { building: t(queued.nameKey), level: data.buildQueue.targetLevel })}</Text>
+          <View style={[cardStyle, { marginTop: -8, marginBottom: 16, paddingVertical: 8, borderColor: 'rgba(197,168,115,0.4)', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }]}>
+            <Text style={{ color: colors.vipGold, fontSize: 12, flex: 1 }}>{t('base.queued', { building: t(queued.nameKey), level: data.buildQueue.targetLevel })}</Text>
             <Pressable onPress={() => act(() => cancelBuildQueue(), () => t('base.upgradeError'))}>
-              <Text style={{ color: colors.textFaint, fontSize: 12, textDecorationLine: 'underline' }}>{t('base.cancelQueue')}</Text>
+              <Text style={{ color: colors.textFaint, fontSize: 11, textDecorationLine: 'underline' }}>{t('base.cancelQueue')}</Text>
             </Pressable>
-          </Panel>
+          </View>
         )}
 
         {data && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 14 }}>
-            {data.buildings.map((building) => {
-              const progress = buildingProgress(building);
-              const research = building.key === RESEARCH_CENTER_KEY && !progress.active ? researchProgress(data.activeResearch) : null;
-              const upgradeReady = !anyUnderConstruction && canAfford(building.nextLevelCost, data.resources);
-              return (
-                <Pressable key={building.key} onPress={() => setSelectedKey(building.key)} style={{ width: '48%' }}>
-                  <Panel style={{ alignItems: 'center', padding: 10, gap: 6 }}>
-                    {upgradeReady && <View style={{ position: 'absolute', right: 8, top: 8, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.positive }} />}
+          <FortressFrame corners={framePart(defenseSystem)} walls={framePart(defensiveWall)}>
+            {/* Phones: always 2 per row (owner decision, 2026-10-14). */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16 }}>
+              {terrainBuildings.map((building) => {
+                const progress = buildingProgress(building);
+                const research = building.key === RESEARCH_CENTER_KEY && !progress.active ? researchProgress(data.activeResearch) : null;
+                const upgradeReady = !anyUnderConstruction && canAfford(building.nextLevelCost, data.resources);
+                return (
+                  <Pressable key={building.key} onPress={() => setSelectedKey(building.key)} style={{ width: '48%', alignItems: 'center', gap: 4, padding: 4 }}>
+                    {upgradeReady && <View style={{ position: 'absolute', right: 8, top: 4, zIndex: 2, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.positive }} />}
                     {building.currentProduction && (
-                      <View style={{ position: 'absolute', left: 6, top: 6, flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-                        <ResourceIcon type={building.currentProduction.resourceType} size={11} />
-                        <Text style={{ color: colors.positive, fontSize: 10 }}>
+                      <View style={{ position: 'absolute', left: 0, top: 0, zIndex: 2, flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 }}>
+                        <ResourceIcon type={building.currentProduction.resourceType} size={12} />
+                        <Text style={{ color: colors.positive, fontSize: 9 }}>
                           +{formatNumber(building.currentProduction.perHour)}/{t('base.perHour')}
                         </Text>
                       </View>
                     )}
-                    <AssetImage assetId={building.iconAssetId} size={76} label={t(building.nameKey)} dimmed={building.level === 0} />
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: '600', textAlign: 'center' }}>
-                      {t(building.nameKey)} <Text style={{ color: colors.textMuted }}>({building.level})</Text>
-                    </Text>
+                    <AssetImage assetId={building.iconAssetId} size={72} label={t(building.nameKey)} dimmed={building.level === 0} />
+                    <View style={{ backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '600', textAlign: 'center' }}>
+                        {t(building.nameKey)} <Text style={{ color: 'rgba(255,255,255,0.6)' }}>({building.level})</Text>
+                      </Text>
+                    </View>
                     {progress.active && (
-                      <View style={{ alignSelf: 'stretch', gap: 2 }}>
+                      <View style={{ alignSelf: 'stretch', maxWidth: 110, width: '100%', gap: 2 }}>
                         <ProgressBar share={progress.share} height={4} />
-                        <Small>{formatDuration(progress.secondsLeft)}</Small>
+                        <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{formatDuration(progress.secondsLeft)}</Text>
                       </View>
                     )}
                     {research?.active && (
-                      <View style={{ alignSelf: 'stretch', gap: 2 }}>
+                      <View style={{ alignSelf: 'stretch', maxWidth: 110, width: '100%', gap: 2 }}>
                         <ProgressBar share={research.share} color={colors.positive} height={4} />
-                        <Small>{formatDuration(research.secondsLeft)}</Small>
+                        <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{formatDuration(research.secondsLeft)}</Text>
                       </View>
                     )}
-                  </Panel>
-                </Pressable>
-              );
-            })}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </FortressFrame>
+        )}
+
+        {/* Compact list of every base building, opening the same sheet (as on the web). */}
+        {data && (
+          <View style={{ marginTop: 16, gap: 6 }}>
+            {data.buildings.map((building) => (
+              <Pressable
+                key={building.key}
+                onPress={() => setSelectedKey(building.key)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.wellBorder, backgroundColor: colors.well, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 }}
+              >
+                <AssetImage assetId={building.iconAssetId} size={24} label={t(building.nameKey)} dimmed={building.level === 0} />
+                <Text style={{ fontSize: 12, color: colors.textMuted }}>({building.level})</Text>
+                <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, color: colors.text }}>
+                  {t(building.nameKey)}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         )}
       </ScrollView>
@@ -222,7 +245,7 @@ export default function BaseScreen() {
           />
         )}
       </Sheet>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -415,6 +438,7 @@ function ResearchEntry({ research }: { research: ActiveResearchDto | null }) {
       ) : (
         <Muted>{t('base.noResearch')}</Muted>
       )}
+      <Button label={t('base.openResearch')} onPress={() => router.navigate('/research')} />
     </Well>
   );
 }

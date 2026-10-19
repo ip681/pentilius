@@ -1,0 +1,10 @@
+{
+  "company": "ОПТИСКЕЙЛ СЪЛЮШЪНС ЕООД",
+  "companyLatin": "OPTISCALE SOLUTIONS EOOD",
+  "eik": "208772002",
+  "address": { "bg": "София, България", "en": "Sofia, Bulgaria" },
+  "email": "contact@optiscalesolutions.com",
+  "minAge": 13,
+  "graceDays": 3,
+  "updated": "2026-10-12"
+}
