@@ -7,6 +7,7 @@ import { AccountEmailService } from '../email/account-email.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
+import { LoginEventsService } from './login-events.service';
 
 describe('AuthService', () => {
   let authService: AuthService;
@@ -43,6 +44,7 @@ describe('AuthService', () => {
         },
         { provide: ContentFilterService, useValue: { assertClean: jest.fn().mockResolvedValue(undefined) } },
         { provide: AccountEmailService, useValue: { sendVerification: jest.fn().mockResolvedValue(undefined) } },
+        { provide: LoginEventsService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 

@@ -13,6 +13,7 @@ import { notifyProfileChanged } from '@/lib/profile-events';
 import { notifyNotificationsChanged } from '@/lib/notifications-events';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { formatNumber } from '@/lib/format-number';
 
 function formatDurationMinutes(minutes: number): string {
   const hours = Math.round(minutes / 60);
@@ -86,6 +87,7 @@ export default function ExpeditionsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">{t('expeditions.title')}</h1>
         <p className="text-xs text-textMuted">{t('expeditions.subtitle')}</p>
+        <p className="text-[11px] text-textFaint">{t('expeditions.rewardsHint')}</p>
       </div>
 
       {error && <p className="mb-4 text-red-400">{error}</p>}
@@ -95,17 +97,13 @@ export default function ExpeditionsPage() {
           <div className="mb-2 font-medium">{t('expeditions.claimedTitle')}</div>
           <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-textMuted">
             <span className="flex items-center gap-1">
-              +{result.rewards.metal} <ResourceIcon type="METAL" className="h-4 w-4" />
+              +{formatNumber(result.rewards.metal)} <ResourceIcon type="METAL" className="h-4 w-4" />
             </span>
             ·
             <span className="flex items-center gap-1">
-              +{result.rewards.crystal} <ResourceIcon type="CRYSTAL" className="h-4 w-4" />
+              +{formatNumber(result.rewards.crystal)} <ResourceIcon type="CRYSTAL" className="h-4 w-4" />
             </span>
-            ·
-            <span className="flex items-center gap-1">
-              +{result.rewards.credits} <ResourceIcon type="CREDITS" className="h-4 w-4" />
-            </span>
-            · +{result.rewards.xp} {t('pve.xpGained')}
+            · +{formatNumber(result.rewards.xp)} {t('pve.xpGained')}
           </p>
           {result.bonusItem && (
             <p className="mt-1 flex items-center gap-1.5 text-xs text-positive">
@@ -145,13 +143,13 @@ export default function ExpeditionsPage() {
                 label={t('expeditions.cancel')}
                 confirmLabel={t('common.confirm')}
                 cancelLabel={t('common.cancel')}
-                message={t('expeditions.cancelConfirm')}
+                message={t('expeditions.cancelConfirm', { percent: Math.round((data?.earlyCancelPercentage ?? 0) * 100) })}
                 onConfirm={handleCancel}
                 className="rounded-md border border-panelBorderDanger bg-well px-5 py-2 text-[11px] uppercase text-danger hover:bg-accentBgHover"
                 confirmClassName="flex-1 rounded-md border border-panelBorderDanger bg-well px-5 py-2 text-[11px] uppercase text-danger hover:bg-accentBgHover"
                 cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel px-5 py-2 text-[11px] uppercase text-textMuted hover:bg-accentBgHover"
               />
-              <p className="mt-2 text-[10px] text-textFaint">{t('expeditions.cancelHint')}</p>
+              <p className="mt-2 text-[10px] text-textFaint">{t('expeditions.cancelHint', { percent: Math.round((data?.earlyCancelPercentage ?? 0) * 100) })}</p>
             </>
           )}
         </div>
@@ -163,20 +161,12 @@ export default function ExpeditionsPage() {
               <h2 className="mb-4 text-base font-semibold">{t(type.nameKey)}</h2>
 
               <div className="mb-4 flex flex-col gap-1 text-xs text-textMuted">
-                <span className="flex items-center gap-1.5">+{type.rewards.metal} <ResourceIcon type="METAL" className="h-4 w-4" /></span>
-                <span className="flex items-center gap-1.5">+{type.rewards.crystal} <ResourceIcon type="CRYSTAL" className="h-4 w-4" /></span>
-                <span className="flex items-center gap-1.5">+{type.rewards.credits} <ResourceIcon type="CREDITS" className="h-4 w-4" /></span>
-                <span>+{type.rewards.xp} {t('pve.xpGained')}</span>
-                {type.bonusItemNameKey && (
-                  <span className="flex items-center gap-1.5 text-textFaint">
-                    <span>{t('expeditions.bonusChance', { percent: Math.round((type.bonusItemChance ?? 0) * 100) })}:</span>
-                    <AssetIcon
-                      assetId={type.bonusItemIconAssetId ?? ''}
-                      alt={t(type.bonusItemNameKey)}
-                      className="h-4 w-4 object-contain"
-                      fallback={<span className="text-[9px] font-semibold">{t(type.bonusItemNameKey).charAt(0)}</span>}
-                    />
-                    {t(type.bonusItemNameKey)}
+                <span className="flex items-center gap-1.5">+{formatNumber(type.rewards.metal)} <ResourceIcon type="METAL" className="h-4 w-4" /></span>
+                <span className="flex items-center gap-1.5">+{formatNumber(type.rewards.crystal)} <ResourceIcon type="CRYSTAL" className="h-4 w-4" /></span>
+                <span>+{formatNumber(type.rewards.xp)} {t('pve.xpGained')}</span>
+                {type.bonusItemTier && !!type.bonusItemChance && (
+                  <span className="text-textFaint">
+                    {t('expeditions.bonusSetItem', { percent: Math.round(type.bonusItemChance * 100), set: t(`shop.tier.${type.bonusItemTier}`) })}
                   </span>
                 )}
               </div>

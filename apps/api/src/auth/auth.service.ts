@@ -9,6 +9,7 @@ import * as bcrypt from 'bcryptjs';
 import { AccountEmailService } from '../email/account-email.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { LoginEventsService } from './login-events.service';
 import { assertLoginAllowed, recordLoginFailure, recordLoginSuccess } from './login-limiter';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -25,9 +26,10 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly contentFilter: ContentFilterService,
     private readonly accountEmail: AccountEmailService,
+    private readonly loginEvents: LoginEventsService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<AuthResponse> {
+  async register(dto: RegisterDto, ip?: string, userAgent?: string): Promise<AuthResponse> {
     await this.contentFilter.assertClean(dto.username);
     const [existingEmail, existingUsername] = await Promise.all([
       // Emails don't depend on upper/lower case (owner decision, 2026-10-14).
@@ -64,11 +66,12 @@ export class AuthService {
     // Confirmation email (optional confirmation, owner decision 2026-10-13) — a
     // failure never blocks registration; the Command Center can send it again.
     void this.accountEmail.sendVerification(player, dto.locale ?? 'bg').catch(() => undefined);
+    await this.loginEvents.record(player.id, 'REGISTER', ip, userAgent);
 
     return this.buildAuthResponse(player.id, player.email, player.username, player.race, player.createdAt);
   }
 
-  async login(dto: LoginDto, ip?: string): Promise<AuthResponse> {
+  async login(dto: LoginDto, ip?: string, userAgent?: string): Promise<AuthResponse> {
     const identifier = (dto.login ?? dto.email ?? '').trim();
     if (!identifier) {
       throw new UnauthorizedException('Invalid credentials');
@@ -94,6 +97,7 @@ export class AuthService {
       });
     }
 
+    await this.loginEvents.record(player.id, 'LOGIN', ip, userAgent);
     return this.buildAuthResponse(player.id, player.email, player.username, player.race, player.createdAt);
   }
 
@@ -106,7 +110,7 @@ export class AuthService {
     return counts;
   }
 
-  async refresh(dto: RefreshDto): Promise<AuthTokens> {
+  async refresh(dto: RefreshDto, ip?: string, userAgent?: string): Promise<AuthTokens> {
     let payload: JwtPayload;
     try {
       payload = await this.jwtService.verifyAsync<JwtPayload>(dto.refreshToken, {
@@ -127,6 +131,7 @@ export class AuthService {
       throw new UnauthorizedException('PLAYER_BANNED');
     }
 
+    await this.loginEvents.record(player.id, 'REFRESH', ip, userAgent);
     return this.issueTokens(player.id, player.email);
   }
 

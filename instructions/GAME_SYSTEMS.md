@@ -43,7 +43,16 @@ Combat formula and drop rates remain **UNDEFINED**.
 Short expeditions may be more efficient per hour.
 Long expeditions are more convenient for offline players.
 
-Exact values are **UNDEFINED**.
+**Owner decisions (2026-10-19):**
+- Rewards grow with the player's level: an expedition pays as much as a set
+  number of fights against a Pentil of the player's level (Metal, Crystal,
+  XP).
+- No Credits.
+- The bonus item is a random item of the set of the player's highest
+  unlocked zone.
+
+Exact values are **PROVISIONAL** and edited in godmaster → Balance →
+Expeditions.
 
 ## Boss Hunts
 **LOCKED direction:** Multiple players may join or be invited.
@@ -57,7 +66,12 @@ Boss rewards may include:
 - boxes/caches;
 - item drops.
 
-Exact rules remain **UNDEFINED**.
+**Owner decisions (2026-10-19):**
+- Metal and Crystal follow the Pentili reward curves, as a number of fights
+  at the boss's minimum level.
+- Bosses give no Credits; the setting stays, default 0.
+
+Values are **PROVISIONAL** and edited in godmaster → Balance → Bosses.
 
 ## PvP
 **LOCKED direction:** PvP exists.
@@ -166,7 +180,7 @@ Discussed examples:
 
 **Defense System (owner decision, 2026-10-12):** shown as the 4 corner towers of the base's wall frame. It gives +0.5% defense per level, up to level 30 (+15%; base balance, 2026-10-14 — it was +1% up to level 10), and applies **only while another player attacks you**: as the PvP defender, or as the defender in a clan-war duel. It never applies to your own attacks, and never against Pentili, bosses or the Core. Costs are **PROVISIONAL** (`seed.ts`). **Defensive Wall (owner decision, same date):** the wall segments between the towers. +2 minutes per level, up to level 30, added to the regular-PvP revenge protection you get after **losing** a defense: a base of 10 minutes, so 70 minutes at level 30 (base balance, 2026-10-14 — it was +5 minutes up to level 10). Regular PvP only; clan-war protection is deliberately unaffected, so wars can't be stalled.
 
-**Hideout (owner decision, same date):** a terrain building. A fixed amount of each resource per level can't be stolen when another player defeats you, in PvP and in clan-war duels; the steal percentage is taken only from the amount above it. Since the base balance (2026-10-14), the Metal and Crystal amounts grow with mine production, so the Hideout always protects about 3 hours of that level's income; Credits stay at 100 per level. These are still placeholders. A fixed amount was chosen over a percentage on purpose, because it protects small and weaker players most.
+**Hideout (owner decision, same date):** a terrain building. A fixed amount of each resource per level can't be stolen when another player defeats you, in PvP and in clan-war duels; the steal percentage is taken only from the amount above it. Since the base balance (2026-10-14), the Metal and Crystal amounts grow with mine production, so the Hideout always protects about 3 hours of that level's income. These are still placeholders. **Credits are never stolen** — not in PvP, not in clan-war duels (owner decision, 2026-10-19, since Credits can be bought for real money), so the Hideout guards only Metal and Crystal. A fixed amount was chosen over a percentage on purpose, because it protects small and weaker players most.
 
 The three defense buildings each have one role:
 - the towers help you **win** the fight;
@@ -295,6 +309,6 @@ Exact member cap is **UNDEFINED**.
 - There are no season rewards. Each clan's final placement is recorded permanently so it can be shown on profiles later.
 - At a new season player accounts are kept, but all progress resets. The reset itself is not built yet.
 
-**Tavern (clan building, LOCKED direction, same date):** +1% damage per level against bosses and the Core only (Clan Forge stays the general combat bonus). No designed level cap — rising cost is the natural ceiling. The bonus only applies while the Tavern is **active**: a leader/officer activates it from the treasury for 12 h. It is **not** renewed automatically — once it expires, a leader/officer has to activate it again by hand (owner decision, revised the same day from an initial auto-renew design). The activation cost grows with level. While active, the Tavern and its countdown are shown in every member's Command Center. An inactive Tavern shows nothing there, to avoid noise. Called "Кръчма" in Bulgarian and "Cantina" in English.
+**Tavern (clan building, LOCKED direction, same date):** +1% damage per level against bosses and the Core only (Clan Forge stays the general combat bonus). Capped at level 30 like the other buildings (owner decision, 2026-10-19 — it first had no cap, so the richest clan's Core bonus could grow without end). The bonus only applies while the Tavern is **active**: a leader/officer activates it from the treasury for 12 h. It is **not** renewed automatically — once it expires, a leader/officer has to activate it again by hand (owner decision, revised the same day from an initial auto-renew design). The activation cost grows with level. While active, the Tavern and its countdown are shown in every member's Command Center. An inactive Tavern shows nothing there, to avoid noise. Called "Кръчма" in Bulgarian and "Cantina" in English.
 
-Core combat stats, round cap, Tavern costs and activation cost are **PROVISIONAL** (`apps/api/src/config/game-config.ts`'s `core`/`clanTavern` blocks; Tavern level costs are in `seed.ts`).
+Core combat stats, round cap, Tavern costs and activation cost are **PROVISIONAL** (Core: `apps/api/src/config/game-config.ts`'s `core` block; Tavern levels, costs and activation: godmaster → Balance → Clan buildings since 2026-10-19).

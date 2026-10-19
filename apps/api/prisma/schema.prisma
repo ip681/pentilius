@@ -283,6 +283,7 @@ model Player {
   pushSubscriptions        PushSubscription[]
   purchases                Purchase[]
   pushDispatches           PushDispatch[]
+  loginEvents              LoginEvent[]
   emailTokens              EmailToken[]
 
   // Which notifications the player wants (owner decision, 2026-10-13) —
@@ -390,16 +391,27 @@ model Zone {
 }
 
 model Pentili {
-  id          String @id @default(uuid())
-  key         String @unique
-  nameKey     String
-  zoneId      String
-  level       Int
-  maxHp       Int
-  attack      Int
-  defense     Int
-  xpReward    Int
-  iconAssetId String
+  id                String  @id @default(uuid())
+  key               String  @unique
+  nameKey           String
+  zoneId            String
+  level             Int
+  maxHp             Int
+  attack            Int
+  defense           Int
+  xpReward          Int
+  iconAssetId       String
+  // Pentili balance from godmaster (owner decision, 2026-10-18). Stats, XP
+  // and loot are generated from the curves in BalanceConfig "pentili"
+  // (src/config/pentili-balance.ts); only these few things are per Pentili:
+  // its place in the zone (level = zone start + place × zone step), an
+  // optional fixed level, a strength multiplier (rewards follow it), and an
+  // optional special drop.
+  orderInZone       Int     @default(0)
+  levelOverride     Int?
+  strength          Float   @default(1)
+  specialItemKey    String?
+  specialItemChance Float?
 
   zone          Zone           @relation(fields: [zoneId], references: [id])
   lootDrops     LootDrop[]
@@ -1274,6 +1286,17 @@ enum AdminActionType {
   SET_PLAYER_PASSWORD
   CREATE_PAYMENT_PRODUCT
   UPDATE_PAYMENT_PRODUCT
+  UPDATE_PENTILI_BALANCE
+  UPDATE_XP_BALANCE
+  UPDATE_BUILDING_BALANCE
+  UPDATE_CLAN_BALANCE
+  UPDATE_EQUIPMENT_BALANCE
+  UPDATE_EXPEDITION_BALANCE
+  UPDATE_BOSS_BALANCE
+  UPDATE_OTHER_BALANCE
+  UPDATE_TECHNICAL_SETTINGS
+  UPDATE_REWARD_BALANCE
+  VIEW_PLAYER_LOGINS
   REFUND_PURCHASE
   UPDATE_PAYMENT_SETTINGS
 }
@@ -1758,21 +1781,27 @@ enum PurchaseStatus {
 // creates the first rows and never overwrites them. Test and live Stripe price
 // IDs differ, which is fine: local and production are separate databases.
 model PaymentProduct {
-  id            String             @id @default(uuid())
-  key           String             @unique
-  nameBg        String
-  nameEn        String
-  // Stripe's price ID (price_…); the product is offered only when set.
-  stripePriceId String?            @unique
-  kind          PaymentProductKind
+  id              String             @id @default(uuid())
+  key             String             @unique
+  // Optional custom names (special offers). Empty = the name comes from a
+  // translated template, e.g. "VIP for {days} days" (owner decision,
+  // 2026-10-18), so a new product needs no typing in any language.
+  nameBg          String?
+  nameEn          String?
+  // Stripe's product and current price (price_…), created from godmaster.
+  // A price change makes a new Stripe price and archives the old one.
+  // The product is offered only when a price is set.
+  stripeProductId String?
+  stripePriceId   String?            @unique
+  kind            PaymentProductKind
   // What the purchase grants.
-  credits       Int?
-  vipDays       Int?
+  credits         Int?
+  vipDays         Int?
   // Shown price; the provider charges its own configured price.
-  priceCents    Int
-  currency      String             @default("eur")
-  sortOrder     Int                @default(0)
-  active        Boolean            @default(true)
+  priceCents      Int
+  currency        String             @default("eur")
+  sortOrder       Int                @default(0)
+  active          Boolean            @default(true)
 
   purchases Purchase[]
 
@@ -1810,4 +1839,38 @@ model Purchase {
   @@unique([provider, providerRef])
   @@index([playerId, createdAt])
   @@map("purchases")
+}
+
+// Balance settings edited in godmaster (owner decision, 2026-10-18 — balance
+// is tuned from godmaster, not only in code). One JSON document per area;
+// the code holds the defaults, and the seed never overwrites a saved one.
+model BalanceConfig {
+  key       String   @id
+  data      Json
+  updatedAt DateTime @updatedAt
+
+  @@map("balance_configs")
+}
+
+// Security record of logins (owner decision, 2026-10-19): only to spot
+// multi-accounts and ban evasion, shown to staff in godmaster. Deleted after
+// GAME_BALANCE.security.loginRetentionDays (90). See auth/login-events.service.ts.
+model LoginEvent {
+  id        String   @id @default(uuid())
+  playerId  String
+  createdAt DateTime @default(now())
+  // LOGIN | REGISTER | REFRESH
+  kind      String
+  ip        String
+  country   String?
+  // DESKTOP | MOBILE | TABLET
+  device    String?
+  browser   String?
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, createdAt])
+  @@index([ip])
+  @@index([createdAt])
+  @@map("login_events")
 }

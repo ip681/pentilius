@@ -8,6 +8,10 @@ import { EquipmentSlot, ItemOption, ItemQuality, ItemTier } from '@prisma/client
  * elsewhere; import from here so they stay tunable in one place. See
  * instructions/OPEN_DECISIONS.md for the list of what is still placeholder.
  */
+// Many single values here are DEFAULTS only since 2026-10-19: godmaster →
+// Balance → Other values overrides them in place at start-up and on save
+// (src/config/other-balance.ts lists which). Read them when needed — never
+// copy one into a module-level constant, or a change won't reach it.
 export const GAME_BALANCE = {
   // What a player starts with — on registration (Player's schema defaults,
   // keep both in sync) and again after every season reset.
@@ -23,6 +27,8 @@ export const GAME_BALANCE = {
     regenIntervalMinutes: 15,
   },
   itemUpgrade: {
+    // Only the default since 2026-10-19: edited in godmaster → Balance → Sets
+    // (src/config/equipment-balance.ts), and the game reads that.
     // Cost curve and success/failure rules are UNDEFINED — M1 always succeeds
     // if the player can pay; no failure/protection-stone mechanics yet. Each
     // set has its own upgrade material (seed.ts's pioneer_upgrade/ascendant_upgrade/
@@ -37,6 +43,8 @@ export const GAME_BALANCE = {
     baseCapacity: 30,
   },
   itemSell: {
+    // Only the default since 2026-10-19: edited in godmaster → Balance → Sets
+    // (src/config/equipment-balance.ts), and the game reads that.
     // Recycling value is UNDEFINED in GAME_SYSTEMS.md — flat by tier and quality,
     // deliberately ignoring upgradeLevel to keep the formula simple (owner
     // preference). Returns raw Metal/Crystal rather than Credits or the tier's
@@ -52,11 +60,15 @@ export const GAME_BALANCE = {
     // Reaching fragmentsPerStone auto-converts into that tier's own upgrade
     // stone (see inventory.service.ts's recycleItem), no separate combine step.
     fragmentsPerItem: 1,
+    // fragmentsPerStone: Only the default since 2026-10-19: edited in godmaster → Balance → Sets
+    // (src/config/equipment-balance.ts), and the game reads that.
     fragmentsPerStone: 10,
   },
   combat: {
     // Combat formula is UNDEFINED — placeholder linear model:
     // stat = sum(equipped baseStats) * (1 + upgradeLevel * bonusPerUpgradeLevel).
+    // Only the default since 2026-10-19: edited in godmaster → Balance → Sets
+    // (src/config/equipment-balance.ts), and the game reads that.
     bonusPerUpgradeLevel: 0.1,
     // Robots without hp-boosting gear equipped would otherwise start combat
     // with ~0 HP; this floor is a placeholder, not a real robot-frame rule.
@@ -153,6 +165,8 @@ export const GAME_BALANCE = {
     maxEvasionPercent: 20,
   },
   expeditions: {
+    // Only the default since 2026-10-19: edited in godmaster → Balance →
+    // Expeditions (src/config/expedition-balance.ts), and the game reads that.
     // Owner-specified: cancelling early pays out 70% of the reward earned
     // proportionally to elapsed time (not a placeholder — an actual decision).
     earlyCancelPercentage: 0.7,
@@ -282,11 +296,11 @@ export const GAME_BALANCE = {
     playerRankingPageSize: 10,
   },
   clanTavern: {
-    // Tavern clan building (owner decision, 2026-10-12): +1%/level damage vs
-    // bosses and the Core, no level cap — rising cost is the natural ceiling.
-    // The +1%/level and the per-level build costs are seeded content
-    // (seed.ts's Tavern block), like every other building — only the
-    // activation rules live here.
+    // Only the DEFAULTS since 2026-10-19: the activation is edited in
+    // godmaster → Balance → Clan buildings (src/config/clan-balance.ts), and
+    // the game reads that. Tavern clan building (owner decision, 2026-10-12):
+    // +1%/level damage vs bosses and the Core, capped at level 30 since
+    // 2026-10-19 (it had no cap before).
     //
     // Bonus only applies while active. One activation lasts activationHours
     // and is NOT renewed automatically (owner decision) — afterwards a
@@ -308,9 +322,16 @@ export const GAME_BALANCE = {
   },
   clanGenerator: {
     // Generator clan building (owner decision, 2026-10-14): half the personal
-    // Reactor — +0.5% regeneration per level (seed.ts) and +1 max energy at
-    // each of these levels. Placeholder, may be tuned later.
+    // Reactor — +0.5% regeneration per level and +1 max energy at each of
+    // these levels. Only the default since 2026-10-19: edited in godmaster →
+    // Balance → Clan buildings (src/config/clan-balance.ts).
     maxEnergyLevels: [15, 30],
+  },
+  security: {
+    // Login records (owner decision, 2026-10-19): how long they're kept, and
+    // how often a session refresh from the same address is recorded again.
+    loginRetentionDays: 90,
+    refreshRecordHours: 12,
   },
   loginLimits: {
     // Failed logins (owner decision, 2026-10-14): this many wrong attempts on

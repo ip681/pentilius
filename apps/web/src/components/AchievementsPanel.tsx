@@ -8,6 +8,7 @@ import { ClaimedSection } from '@/components/ClaimedSection';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, claimAchievement, getAchievements } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { formatNumber } from '@/lib/format-number';
 
 /**
  * Season achievements and level rewards (owner decision, 2026-10-13), shown in
@@ -52,7 +53,7 @@ export function AchievementsPanel({ onChanged }: { onChanged?: () => void }) {
     <RewardRow
       key={achievement.key}
       label={t(`achievements.items.${achievement.key}`, {
-        count: achievement.target.toLocaleString(),
+        count: formatNumber(achievement.target),
         set: achievement.setTier ? t(`achievements.sets.${achievement.setTier}`) : '',
       })}
       tierText={`(${achievement.tier}/${achievement.tierCount})`}
@@ -156,7 +157,7 @@ function RewardRow({
               <div className="h-full bg-accent transition-all" style={{ width: `${percent}%` }} />
             </div>
             <span className="w-20 text-right text-[11px] tabular-nums text-textMuted">
-              {percentText ? `${percent}%` : `${progress.toLocaleString()}/${target.toLocaleString()}`}
+              {percentText ? `${percent}%` : `${formatNumber(progress)}/${formatNumber(target)}`}
             </span>
           </>
         )}
@@ -186,13 +187,13 @@ function RewardLine({ reward }: { reward: AchievementRewardDto }) {
       {reward.metal > 0 && (
         <span className="flex items-center gap-0.5">
           <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
-          {reward.metal.toLocaleString()}
+          {formatNumber(reward.metal)}
         </span>
       )}
       {reward.crystal > 0 && (
         <span className="flex items-center gap-0.5">
           <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
-          {reward.crystal.toLocaleString()}
+          {formatNumber(reward.crystal)}
         </span>
       )}
       {reward.itemKey && (

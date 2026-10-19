@@ -42,6 +42,13 @@ export class AdminController {
     return this.adminService.searchPlayers(q);
   }
 
+  // Login records — staff only, every look is logged (owner decision, 2026-10-19).
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('players/:playerId/logins')
+  getPlayerLogins(@Param('playerId') playerId: string, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.adminService.getPlayerLogins(playerId, admin);
+  }
+
   @UseGuards(AdminJwtAuthGuard)
   @Get('players/:username')
   getPlayerDetail(@Param('username') username: string) {

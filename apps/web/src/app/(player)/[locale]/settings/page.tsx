@@ -266,7 +266,7 @@ export default function SettingsPage() {
                 {purchases.map((purchase) => (
                   <li key={purchase.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-wellBorder bg-well px-3 py-2 text-xs">
                     <span>
-                      {productName(purchase, locale)} <span className="text-textFaint">· {formatDateTime(purchase.createdAt)}</span>
+                      {productName(purchase, locale, t)} <span className="text-textFaint">· {formatDateTime(purchase.createdAt)}</span>
                     </span>
                     <span className="tabular-nums">
                       {formatPrice(purchase.amountCents, purchase.currency, locale)}

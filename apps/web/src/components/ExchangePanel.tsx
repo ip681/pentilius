@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import { ApiError, exchangeResources } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { formatNumber } from '@/lib/format-number';
 
 /**
  * Exchange (owner decision, 2026-10-14): Metal <-> Crystal only, a small
@@ -55,7 +56,7 @@ export function ExchangePanel({ info, onDone }: { info: ExchangeInfoDto; onDone:
     <div className="mb-3 rounded border border-wellBorder bg-well p-2.5 text-xs">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[8px] uppercase text-textFaint">{t('exchange.title')}</span>
-        <span className="text-[10px] text-textFaint">{t('exchange.left', { left: left.toLocaleString(), limit: info.dailyLimit.toLocaleString() })}</span>
+        <span className="text-[10px] text-textFaint">{t('exchange.left', { left: formatNumber(left), limit: formatNumber(info.dailyLimit) })}</span>
       </div>
       <div className="mb-2 grid grid-cols-2 gap-1.5">
         {(['METAL', 'CRYSTAL'] as const).map((option) => (
@@ -80,10 +81,10 @@ export function ExchangePanel({ info, onDone }: { info: ExchangeInfoDto; onDone:
       {value > 0 && (
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-textMuted">
           <span className="flex items-center gap-1">
-            {t('exchange.youGet')} <strong className="text-text">{received.toLocaleString()}</strong> <ResourceIcon type={to} className="h-3.5 w-3.5" />
+            {t('exchange.youGet')} <strong className="text-text">{formatNumber(received)}</strong> <ResourceIcon type={to} className="h-3.5 w-3.5" />
           </span>
           <span className="flex items-center gap-1">
-            {t('exchange.fee')} {fee.toLocaleString()} <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
+            {t('exchange.fee')} {formatNumber(fee)} <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
           </span>
         </div>
       )}

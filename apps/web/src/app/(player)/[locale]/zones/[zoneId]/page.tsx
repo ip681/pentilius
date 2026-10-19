@@ -32,6 +32,7 @@ import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { EnergyRefill } from '@/components/EnergyRefill';
+import { formatNumber } from '@/lib/format-number';
 
 interface LogLine {
   text: React.ReactNode;
@@ -367,7 +368,7 @@ function ZonePentiliPageInner() {
                     <p className="font-medium">
                       {t(entry.nameKey)} (Lv. {entry.level})
                     </p>
-                    <p className="text-xs text-textMuted">HP {entry.maxHp} · ATK {entry.attack} · DEF {entry.defense}</p>
+                    <p className="text-xs text-textMuted">HP {formatNumber(entry.maxHp)} · ATK {formatNumber(entry.attack)} · DEF {formatNumber(entry.defense)}</p>
                     {entry.lootDrops.length > 0 && (
                       <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
                         <span>{t('pve.drops')}:</span>
@@ -423,7 +424,7 @@ function ZonePentiliPageInner() {
                 {t(entry.nameKey)} (Lv. {entry.level})
               </p>
               <p className="text-[10px] tabular-nums text-textMuted">
-                HP {entry.maxHp} · ATK {entry.attack} · DEF {entry.defense}
+                HP {formatNumber(entry.maxHp)} · ATK {formatNumber(entry.attack)} · DEF {formatNumber(entry.defense)}
               </p>
               {entry.lootDrops.length > 0 && (
                 <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-[9px] text-textFaint">
@@ -590,18 +591,18 @@ function ZoneBossPanel({ zoneId }: { zoneId: string }) {
             />
             <div className="flex flex-col gap-1">
               <div className="flex flex-col gap-1 text-xs text-textMuted">
-                <span>HP {boss.maxHp}</span>
+                <span>HP {formatNumber(boss.maxHp)}</span>
                 <span>
-                  {t('bosses.attack')} {boss.attack}
+                  {t('bosses.attack')} {formatNumber(boss.attack)}
                 </span>
                 <span>
-                  {t('bosses.defense')} {boss.defense}
+                  {t('bosses.defense')} {formatNumber(boss.defense)}
                 </span>
               </div>
               <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
                 <span>{t('pve.drops')}:</span>
                 <span className="inline-flex items-center gap-1">
-                  {t('pve.xpGained')} +{boss.xpReward}
+                  {t('pve.xpGained')} +{formatNumber(boss.xpReward)}
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <AssetIcon

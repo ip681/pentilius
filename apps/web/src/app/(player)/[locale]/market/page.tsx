@@ -24,6 +24,7 @@ import {
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { RACE_BG_CLASS } from '@/lib/race-colors';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { formatNumber } from '@/lib/format-number';
 
 const SLOTS: EquipmentSlot[] = ['HEAD', 'LEFT_ARM', 'RIGHT_ARM', 'ARMOR', 'CORE', 'LEFT_LEG', 'RIGHT_LEG'];
 const RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
@@ -179,17 +180,17 @@ function ListingCard({
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
           {listing.price.metal > 0 && (
             <span className="flex items-center gap-1">
-              {listing.price.metal.toLocaleString()} <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
+              {formatNumber(listing.price.metal)} <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
             </span>
           )}
           {listing.price.crystal > 0 && (
             <span className="flex items-center gap-1">
-              {listing.price.crystal.toLocaleString()} <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
+              {formatNumber(listing.price.crystal)} <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
             </span>
           )}
           {listing.price.credits > 0 && (
             <span className="flex items-center gap-1">
-              {listing.price.credits.toLocaleString()} <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
+              {formatNumber(listing.price.credits)} <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
             </span>
           )}
         </div>

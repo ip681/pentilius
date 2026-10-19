@@ -15,6 +15,7 @@ import { setPendingBattle } from '@/lib/pending-battle';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { EnergyRefill } from '@/components/EnergyRefill';
+import { formatNumber } from '@/lib/format-number';
 
 // Planet layout geometry — a fixed viewBox so the whole thing scales
 // responsively via the SVG's own width:100%, no JS resize handling needed.
@@ -455,7 +456,7 @@ export default function ZonesPage() {
                             {t(pentili.nameKey)} (Lv. {pentili.level})
                           </span>
                           <span className="rounded bg-black/55 px-1.5 py-0.5 text-[9px] tabular-nums text-white/80">
-                            HP {pentili.maxHp} · ATK {pentili.attack} · DEF {pentili.defense}
+                            HP {formatNumber(pentili.maxHp)} · ATK {formatNumber(pentili.attack)} · DEF {formatNumber(pentili.defense)}
                           </span>
                         </button>
                       );
@@ -506,12 +507,12 @@ export default function ZonesPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-semibold uppercase text-gold">{t(selectedBoss.nameKey)}</p>
                         <div className="mt-1 flex flex-col text-[10px] text-textMuted">
-                          <span>HP {selectedBoss.maxHp}</span>
+                          <span>HP {formatNumber(selectedBoss.maxHp)}</span>
                           <span>
-                            {t('bosses.attack')} {selectedBoss.attack}
+                            {t('bosses.attack')} {formatNumber(selectedBoss.attack)}
                           </span>
                           <span>
-                            {t('bosses.defense')} {selectedBoss.defense}
+                            {t('bosses.defense')} {formatNumber(selectedBoss.defense)}
                           </span>
                         </div>
                         <p className="mt-1 text-[10px] text-textFaint">
@@ -532,12 +533,12 @@ export default function ZonesPage() {
                       <div className="min-w-0 flex-1 opacity-60">
                         <p className="truncate text-xs font-semibold uppercase text-gold">{t(selectedBoss.nameKey)}</p>
                         <div className="mt-1 flex flex-col text-[10px] text-textMuted">
-                          <span>HP {selectedBoss.maxHp}</span>
+                          <span>HP {formatNumber(selectedBoss.maxHp)}</span>
                           <span>
-                            {t('bosses.attack')} {selectedBoss.attack}
+                            {t('bosses.attack')} {formatNumber(selectedBoss.attack)}
                           </span>
                           <span>
-                            {t('bosses.defense')} {selectedBoss.defense}
+                            {t('bosses.defense')} {formatNumber(selectedBoss.defense)}
                           </span>
                         </div>
                         <p className="mt-1 text-[10px] text-textFaint">{t('bosses.locked', { level: selectedBoss.minLevel })}</p>

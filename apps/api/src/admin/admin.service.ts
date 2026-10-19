@@ -1,3 +1,4 @@
+import { AdminPlayerLoginsDto } from '@pentilius/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { AdminActionType, Prisma } from '@prisma/client';
@@ -622,6 +623,44 @@ export class AdminService {
       await tx.clanMessage.delete({ where: { id: messageId } });
       await this.logAction(tx, admin, 'DELETE_CLAN_MESSAGE', message.player, { messageId, clanId: message.clanId, text: message.text });
     });
+  }
+
+  /**
+   * A player's login records and the other accounts seen from the same
+   * addresses (owner decision, 2026-10-19). For staff only, and every look is
+   * logged — it's personal data kept for security, not for curiosity. Shared
+   * addresses are a hint (homes, offices and mobile networks share them),
+   * never a verdict.
+   */
+  async getPlayerLogins(playerId: string, admin: AdminJwtPayload): Promise<AdminPlayerLoginsDto> {
+    const player = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true, username: true } });
+    if (!player) throw new NotFoundException('PLAYER_NOT_FOUND');
+    const [events, ownIps] = await Promise.all([
+      this.prisma.loginEvent.findMany({ where: { playerId }, orderBy: { createdAt: 'desc' }, take: 50 }),
+      this.prisma.loginEvent.findMany({ where: { playerId }, distinct: ['ip'], select: { ip: true } }),
+    ]);
+    const ips = ownIps.map((r) => r.ip);
+    const shared = ips.length
+      ? await this.prisma.loginEvent.findMany({
+          where: { ip: { in: ips }, playerId: { not: playerId } },
+          distinct: ['playerId', 'ip'],
+          select: { playerId: true, ip: true, player: { select: { username: true, bannedUntil: true } } },
+        })
+      : [];
+    const byPlayer = new Map<string, { username: string; banned: boolean; ips: string[] }>();
+    for (const row of shared) {
+      const entry = byPlayer.get(row.playerId) ?? { username: row.player.username, banned: Boolean(row.player.bannedUntil && row.player.bannedUntil > new Date()), ips: [] };
+      entry.ips.push(row.ip);
+      byPlayer.set(row.playerId, entry);
+    }
+    await this.logAction(this.prisma, admin, 'VIEW_PLAYER_LOGINS', player, {});
+    return {
+      retentionDays: GAME_BALANCE.security.loginRetentionDays,
+      events: events.map((e) => ({ createdAt: e.createdAt.toISOString(), kind: e.kind, ip: e.ip, country: e.country, device: e.device, browser: e.browser })),
+      sharedAccounts: [...byPlayer.entries()]
+        .map(([id, v]) => ({ playerId: id, username: v.username, banned: v.banned, sharedIps: v.ips }))
+        .sort((a, b) => b.sharedIps.length - a.sharedIps.length),
+    };
   }
 
   private async logAction(

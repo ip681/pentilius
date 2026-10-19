@@ -73,14 +73,41 @@ export class StripeProvider {
    * A price as Stripe has it — godmaster shows this, so the price in the game
    * can't drift from what Stripe charges. Null if it doesn't exist.
    */
-  async retrievePrice(priceId: string): Promise<{ amountCents: number; currency: string; oneTime: boolean; active: boolean } | null> {
+  async retrievePrice(priceId: string): Promise<{ amountCents: number; currency: string; oneTime: boolean; active: boolean; productId: string } | null> {
     try {
       const price = await this.requireClient().prices.retrieve(priceId);
-      return { amountCents: price.unit_amount ?? 0, currency: price.currency, oneTime: price.type === 'one_time', active: price.active };
+      const productId = typeof price.product === 'string' ? price.product : price.product.id;
+      return { amountCents: price.unit_amount ?? 0, currency: price.currency, oneTime: price.type === 'one_time', active: price.active, productId };
     } catch (error) {
       if ((error as { statusCode?: number }).statusCode === 404) return null;
       throw error;
     }
+  }
+
+  /** Creates a product with its first one-time price (owner decision, 2026-10-18: products are created from godmaster). */
+  async createProduct(name: string, amountCents: number, currency: string): Promise<{ productId: string; priceId: string }> {
+    const product = await this.requireClient().products.create({ name, default_price_data: { currency, unit_amount: amountCents } });
+    const priceId = typeof product.default_price === 'string' ? product.default_price : product.default_price?.id;
+    if (!priceId) throw new ServiceUnavailableException('STRIPE_PRICE_NOT_CREATED');
+    return { productId: product.id, priceId };
+  }
+
+  /**
+   * A new price for an existing product. Stripe prices can't be edited, so a
+   * price change is a new price that becomes the default, and the old one is
+   * archived so nobody can pay it any more.
+   */
+  async replacePrice(productId: string, oldPriceId: string | null, amountCents: number, currency: string): Promise<string> {
+    const client = this.requireClient();
+    const price = await client.prices.create({ product: productId, currency, unit_amount: amountCents });
+    await client.products.update(productId, { default_price: price.id });
+    if (oldPriceId && oldPriceId !== price.id) await client.prices.update(oldPriceId, { active: false });
+    return price.id;
+  }
+
+  /** Keeps the Stripe product's name and on/off state in step with godmaster. */
+  async updateProduct(productId: string, data: { name?: string; active?: boolean }): Promise<void> {
+    await this.requireClient().products.update(productId, data);
   }
 
   /** Refunds the payment of a Checkout Session in full; Stripe then sends charge.refunded. */

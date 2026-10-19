@@ -12,6 +12,7 @@ import { Link, useRouter } from '@/i18n/navigation';
 import { clearTokens } from '@/lib/auth';
 import { disableDeviceNotifications } from '@/lib/push';
 import { isVipActive } from '@/lib/vip';
+import { formatNumber } from '@/lib/format-number';
 
 function ResourcesRow({ profile, className, iconClassName }: { profile: PlayerProfileDto; className?: string; iconClassName?: string }) {
   const amounts: [ResourceType, number][] = [
@@ -24,7 +25,7 @@ function ResourcesRow({ profile, className, iconClassName }: { profile: PlayerPr
       {amounts.map(([type, amount]) => (
         <span key={type} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
           <ResourceIcon type={type} className={iconClassName ?? 'h-4 w-4'} />
-          <strong className="font-semibold text-text">{amount.toLocaleString()}</strong>
+          <strong className="font-semibold text-text">{formatNumber(amount)}</strong>
           {/* Buy Credits (owner decision, 2026-10-15) — only where payments are offered. */}
           {type === 'CREDITS' && profile.paymentsAvailable && (
             <Link

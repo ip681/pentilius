@@ -59,6 +59,7 @@ import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
+import { formatNumber } from '@/lib/format-number';
 
 const ALL_RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
 
@@ -792,9 +793,9 @@ export default function ClansPage() {
             </div>
             <div className="mb-3 flex gap-5 text-sm">
               {/* getMyClan() always includes treasury for the viewer's own clan — only the public getClan() hides it. */}
-              <span className="flex items-center gap-1.5"><ResourceIcon type="METAL" /><strong>{myClan.treasury!.metal.toLocaleString()}</strong></span>
-              <span className="flex items-center gap-1.5"><ResourceIcon type="CRYSTAL" /><strong>{myClan.treasury!.crystal.toLocaleString()}</strong></span>
-              <span className="flex items-center gap-1.5"><ResourceIcon type="CREDITS" /><strong>{myClan.treasury!.credits.toLocaleString()}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="METAL" /><strong>{formatNumber(myClan.treasury!.metal)}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="CRYSTAL" /><strong>{formatNumber(myClan.treasury!.crystal)}</strong></span>
+              <span className="flex items-center gap-1.5"><ResourceIcon type="CREDITS" /><strong>{formatNumber(myClan.treasury!.credits)}</strong></span>
             </div>
             <form onSubmit={handleDonate} className="flex flex-wrap items-end gap-2">
               <label className="flex w-24 flex-col gap-1 text-[10px] text-textMuted">
@@ -938,19 +939,19 @@ export default function ClansPage() {
                         {entry.treasuryMetalChange !== 0 && (
                           <span className={entry.treasuryMetalChange > 0 ? 'text-positive' : 'text-danger'}>
                             {entry.treasuryMetalChange > 0 ? '+' : ''}
-                            {entry.treasuryMetalChange.toLocaleString()} <ResourceIcon type="METAL" className="inline h-3 w-3" />
+                            {formatNumber(entry.treasuryMetalChange)} <ResourceIcon type="METAL" className="inline h-3 w-3" />
                           </span>
                         )}
                         {entry.treasuryCrystalChange !== 0 && (
                           <span className={entry.treasuryCrystalChange > 0 ? 'text-positive' : 'text-danger'}>
                             {entry.treasuryCrystalChange > 0 ? '+' : ''}
-                            {entry.treasuryCrystalChange.toLocaleString()} <ResourceIcon type="CRYSTAL" className="inline h-3 w-3" />
+                            {formatNumber(entry.treasuryCrystalChange)} <ResourceIcon type="CRYSTAL" className="inline h-3 w-3" />
                           </span>
                         )}
                         {entry.treasuryCreditsChange !== 0 && (
                           <span className={entry.treasuryCreditsChange > 0 ? 'text-positive' : 'text-danger'}>
                             {entry.treasuryCreditsChange > 0 ? '+' : ''}
-                            {entry.treasuryCreditsChange.toLocaleString()} <ResourceIcon type="CREDITS" className="inline h-3 w-3" />
+                            {formatNumber(entry.treasuryCreditsChange)} <ResourceIcon type="CREDITS" className="inline h-3 w-3" />
                           </span>
                         )}
                       </div>
@@ -1150,16 +1151,16 @@ function TavernActivation({
         <span>{t('clans.tavern.costPer', { hours: activation.durationHours })}</span>
         <span className="flex items-center gap-1">
           <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
-          {activation.cost.metal}
+          {formatNumber(activation.cost.metal)}
         </span>
         <span className="flex items-center gap-1">
           <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
-          {activation.cost.crystal}
+          {formatNumber(activation.cost.crystal)}
         </span>
         {activation.cost.credits > 0 && (
           <span className="flex items-center gap-1">
             <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
-            {activation.cost.credits}
+            {formatNumber(activation.cost.credits)}
           </span>
         )}
       </p>
@@ -1347,15 +1348,15 @@ function ClanBuildingDetails({
         <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-textFaint">
           <span className="flex items-center gap-1">
             <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
-            {building.nextLevelCost.metalCost}
+            {formatNumber(building.nextLevelCost.metalCost)}
           </span>
           <span className="flex items-center gap-1">
             <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
-            {building.nextLevelCost.crystalCost}
+            {formatNumber(building.nextLevelCost.crystalCost)}
           </span>
           <span className="flex items-center gap-1">
             <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
-            {building.nextLevelCost.creditsCost}
+            {formatNumber(building.nextLevelCost.creditsCost)}
           </span>
           <span>· {formatDuration(building.nextLevelCost.constructionSeconds)}</span>
         </p>

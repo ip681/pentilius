@@ -1,4 +1,5 @@
 import { ResearchBonusType } from '@prisma/client';
+import { clanRuntime } from '../config/clan-balance';
 import { GAME_BALANCE } from '../config/game-config';
 import { PushService } from '../notifications/push.service';
 import { EconomyService } from '../player/economy.service';
@@ -58,7 +59,7 @@ export async function refreshEnergyBonuses(deps: Deps, playerId: string): Promis
   const max =
     GAME_BALANCE.newPlayer.actionEnergy +
     (every > 0 ? Math.floor(reactorLevel / every) : 0) +
-    GAME_BALANCE.clanGenerator.maxEnergyLevels.filter((level) => generatorLevel.level >= level).length +
+    clanRuntime().generatorMaxEnergyLevels.filter((level) => generatorLevel.level >= level).length +
     (isVip(player) ? GAME_BALANCE.vip.maxEnergyBonus : 0);
   if (Math.abs(player.energyRegenBonus - regen) < 1e-9 && player.actionEnergyMax === max) return;
   await deps.economy.settleEnergy(playerId);

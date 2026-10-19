@@ -12,6 +12,7 @@ import { notifyNotificationsChanged } from '@/lib/notifications-events';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { SpecialLevels } from '@/components/SpecialLevels';
+import { formatNumber } from '@/lib/format-number';
 
 function researchProgress(research: ResearchStateDto): { active: boolean; percent: number; secondsLeft: number } {
   if (!research.researchEndsAt || !research.nextLevelCost) {
@@ -112,16 +113,16 @@ export default function ResearchPage() {
                         <div className="mb-1 text-[8px] uppercase text-textFaint">{t('research.nextLevelCost')}</div>
                         <div className="flex items-center gap-1.5 text-sm">
                           <ResourceIcon type="METAL" className="h-4 w-4" />
-                          {research.nextLevelCost.metalCost}
+                          {formatNumber(research.nextLevelCost.metalCost)}
                         </div>
                         <div className="flex items-center gap-1.5 text-sm">
                           <ResourceIcon type="CRYSTAL" className="h-4 w-4" />
-                          {research.nextLevelCost.crystalCost}
+                          {formatNumber(research.nextLevelCost.crystalCost)}
                         </div>
                         {research.nextLevelCost.creditsCost > 0 && (
                           <div className="flex items-center gap-1.5 text-sm">
                             <ResourceIcon type="CREDITS" className="h-4 w-4" />
-                            {research.nextLevelCost.creditsCost}
+                            {formatNumber(research.nextLevelCost.creditsCost)}
                           </div>
                         )}
                       </div>

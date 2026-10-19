@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BoxOpenResultDto, InventoryItemDto, InventoryResponseDto, ItemStatsDto, RecycleValueDto, SellValueDto, UpgradeCostDto } from '@pentilius/shared';
 import { ItemQuality, ItemTier, Prisma, ResearchBonusType } from '@prisma/client';
+import { equipmentRuntime } from '../config/equipment-balance';
 import { GAME_BALANCE } from '../config/game-config';
 import { getEffectiveInventoryCapacity, getUsedInventorySlots, grantItem } from './inventory-capacity';
 import { EconomyService } from '../player/economy.service';
@@ -182,7 +183,7 @@ export class InventoryService {
       await tx.itemInstance.delete({ where: { id: itemInstanceId } });
 
       // Auto-convert every full stack of fragments into an upgrade stone (owner decision).
-      const fragmentsPerStone = GAME_BALANCE.itemRecycle.fragmentsPerStone;
+      const fragmentsPerStone = equipmentRuntime().upgrade.fragmentsPerStone;
       let fragmentStack = await tx.itemInstance.findFirst({ where: { playerId, itemDefinitionId: fragmentDefinition.id, equippedSlot: null } });
       if (fragmentStack && fragmentStack.quantity >= fragmentsPerStone) {
         const upgradeStoneDefinition = await tx.itemDefinition.findUniqueOrThrow({ where: { key: `${tier.toLowerCase()}_upgrade` } });
@@ -321,7 +322,7 @@ type ResearchEffects = { materialFactor: number; sellMultiplier: number; extraFr
 
 /** Materials for the next upgrade, after Metallurgy — never below 1. */
 function upgradeMaterials(upgradeLevel: number, materialFactor: number): number {
-  return Math.max(1, Math.round(GAME_BALANCE.itemUpgrade.materialsPerLevel * (upgradeLevel + 1) * materialFactor));
+  return Math.max(1, Math.round(equipmentRuntime().upgrade.materialsPerLevel * (upgradeLevel + 1) * materialFactor));
 }
 
 function toInventoryItemDto(
@@ -361,7 +362,7 @@ function toInventoryItemDto(
 
 /** This item's own effective attack/defense/hp contribution at the given upgrade level. */
 export function computeItemStats(baseStats: { attack?: number; defense?: number; hp?: number }, upgradeLevel: number): ItemStatsDto {
-  const multiplier = 1 + upgradeLevel * GAME_BALANCE.combat.bonusPerUpgradeLevel;
+  const multiplier = 1 + upgradeLevel * equipmentRuntime().upgrade.bonusPerLevel;
   const stats: ItemStatsDto = {};
   if (baseStats.attack) stats.attack = roundToOneDecimal(baseStats.attack * multiplier);
   if (baseStats.defense) stats.defense = roundToOneDecimal(baseStats.defense * multiplier);
@@ -383,12 +384,14 @@ function computeUpgradeCost(tier: string, upgradeLevel: number, materialFactor: 
 
 /** Mirrors inventory.service.ts's sellItem() payout formula, for display before the player commits. */
 function computeSellValue(tier: ItemTier, quality: ItemQuality, researchMultiplier: number): SellValueDto {
-  const { baseMetalByTier, baseCrystalByTier, qualityMultiplier } = GAME_BALANCE.itemSell;
+  // Set values from the equipment balance in godmaster (2026-10-19).
+  const { sets, qualitySellMultiplier } = equipmentRuntime();
+  const set = sets[tier.toLowerCase() as keyof typeof sets];
   // Recycling research raises what selling returns (owner decision, 2026-10-14).
-  const multiplier = qualityMultiplier[quality] * researchMultiplier;
+  const multiplier = qualitySellMultiplier[quality] * researchMultiplier;
   return {
-    metal: Math.round(baseMetalByTier[tier] * multiplier),
-    crystal: Math.round(baseCrystalByTier[tier] * multiplier),
+    metal: Math.round(set.sellMetal * multiplier),
+    crystal: Math.round(set.sellCrystal * multiplier),
   };
 }
 
@@ -397,7 +400,7 @@ function computeRecycleValue(tier: ItemTier, ownedFragmentsByTier: Partial<Recor
   return {
     fragmentItemDefinitionKey: FRAGMENT_KEYS_BY_TIER[tier],
     ownedFragments: ownedFragmentsByTier[tier] ?? 0,
-    fragmentsPerStone: GAME_BALANCE.itemRecycle.fragmentsPerStone,
+    fragmentsPerStone: equipmentRuntime().upgrade.fragmentsPerStone,
     fragments: GAME_BALANCE.itemRecycle.fragmentsPerItem + extraFragments,
   };
 }

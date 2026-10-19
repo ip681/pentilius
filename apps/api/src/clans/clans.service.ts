@@ -12,7 +12,8 @@ import {
 import { Clan, ClanBuilding, ClanBuildingLevelCost, ClanBuildingType, ClanMembership, ClanMessage, Player, Prisma } from '@prisma/client';
 import { GAME_BALANCE } from '../config/game-config';
 import { getBlockedIds } from '../moderation/moderation.service';
-import { chargeTavernActivation, findTavern, isTavernActive, TAVERN_ACTIVATION_MS, tavernActivationCost } from './clan-tavern';
+import { chargeTavernActivation, findTavern, isTavernActive, tavernActivationCost, tavernActivationMs } from './clan-tavern';
+import { clanRuntime } from '../config/clan-balance';
 import { EconomyService } from '../player/economy.service';
 import { ContentFilterService } from '../moderation/content-filter.service';
 import { AchievementsService } from '../achievements/achievements.service';
@@ -502,7 +503,7 @@ export class ClansService {
       // activation finds it already active and charges nothing.
       const claimed = await tx.clanBuilding.updateMany({
         where: { id: tavern.id, OR: [{ activeUntil: null }, { activeUntil: { lte: new Date() } }] },
-        data: { activeUntil: new Date(Date.now() + TAVERN_ACTIVATION_MS) },
+        data: { activeUntil: new Date(Date.now() + tavernActivationMs()) },
       });
       if (claimed.count === 0) {
         throw new BadRequestException('ALREADY_ACTIVE');
@@ -655,13 +656,13 @@ function toBuildingStateDto(building: BuildingWithType): ClanBuildingStateDto {
       building.clanBuildingType.bonusType === 'BOSS_CORE_DAMAGE'
         ? {
             activeUntil: isTavernActive(building) ? building.activeUntil!.toISOString() : null,
-            durationHours: GAME_BALANCE.clanTavern.activationHours,
+            durationHours: clanRuntime().tavern.activationHours,
             cost: tavernActivationCost(Math.max(1, building.level)),
           }
         : null,
     specialLevels:
       building.clanBuildingType.bonusType === 'ENERGY_REGEN'
-        ? GAME_BALANCE.clanGenerator.maxEnergyLevels.map((level) => ({ level, reached: building.level >= level, kind: 'MAX_ENERGY' as const, nameKey: null }))
+        ? clanRuntime().generatorMaxEnergyLevels.map((level) => ({ level, reached: building.level >= level, kind: 'MAX_ENERGY' as const, nameKey: null }))
         : [],
   };
 }

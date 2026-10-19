@@ -14,7 +14,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
 
-const STEALABLE_RESOURCES: Extract<ResourceType, 'METAL' | 'CRYSTAL' | 'CREDITS'>[] = ['METAL', 'CRYSTAL', 'CREDITS'];
+// Credits are never stolen (owner decision, 2026-10-19 — they can be bought for real money).
+const STEALABLE_RESOURCES: Extract<ResourceType, 'METAL' | 'CRYSTAL' | 'CREDITS'>[] = ['METAL', 'CRYSTAL'];
 const RESOURCE_FIELD: Record<'METAL' | 'CRYSTAL' | 'CREDITS', 'metal' | 'crystal' | 'credits'> = {
   METAL: 'metal',
   CRYSTAL: 'crystal',

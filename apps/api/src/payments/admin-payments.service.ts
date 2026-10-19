@@ -27,36 +27,72 @@ export class AdminPaymentsService {
     return products.map((p) => toAdminProductDto(p, p._count.purchases));
   }
 
-  /** Creates a product or updates one (by key). The kind can't change once created. */
+  /**
+   * Creates a product or updates one (by key) and keeps Stripe in step (owner
+   * decision, 2026-10-18): a new product creates its Stripe product + price; a
+   * new price makes a new Stripe price and archives the old one; the name and
+   * on/off state follow. An existing Stripe price can still be linked by its
+   * ID instead. The kind can't change once created.
+   */
   async saveProduct(dto: SavePaymentProductDto, admin: AdminJwtPayload): Promise<AdminPaymentProductDto> {
     assertAdmin(admin);
     if (dto.kind === 'CREDITS' && !(dto.credits && dto.credits > 0)) throw new BadRequestException('CREDITS_REQUIRED');
     if (dto.kind === 'VIP' && !(dto.vipDays && dto.vipDays > 0)) throw new BadRequestException('VIP_DAYS_REQUIRED');
-
-    // The price shown in the game always comes from Stripe, never typed by hand.
-    let price: { priceCents: number; currency: string } | null = null;
-    const priceId = dto.stripePriceId?.trim() || null;
-    if (priceId) {
-      const stripePrice = await this.stripe.retrievePrice(priceId);
-      if (!stripePrice) throw new BadRequestException('STRIPE_PRICE_NOT_FOUND');
-      if (!stripePrice.oneTime) throw new BadRequestException('STRIPE_PRICE_NOT_ONE_TIME');
-      if (!stripePrice.active) throw new BadRequestException('STRIPE_PRICE_INACTIVE');
-      price = { priceCents: stripePrice.amountCents, currency: stripePrice.currency };
-    }
+    if (!this.stripe.enabled) throw new BadRequestException('PAYMENTS_DISABLED');
 
     const existing = await this.prisma.paymentProduct.findUnique({ where: { key: dto.key } });
     if (existing && existing.kind !== dto.kind) throw new BadRequestException('KIND_CANNOT_CHANGE');
+    const credits = dto.kind === 'CREDITS' ? dto.credits! : null;
+    const vipDays = dto.kind === 'VIP' ? dto.vipDays! : null;
+    const nameBg = dto.nameBg?.trim() || null;
+    const nameEn = dto.nameEn?.trim() || null;
+    const active = dto.active ?? existing?.active ?? true;
+    // Stripe shows this name on its payment page.
+    const stripeName = 'Pentilius – ' + (nameEn ?? templateNameEn(dto.kind, credits, vipDays));
+
+    let stripeProductId = existing?.stripeProductId ?? null;
+    let stripePriceId = existing?.stripePriceId ?? null;
+    let priceCents = existing?.priceCents ?? 0;
+    let currency = existing?.currency ?? 'eur';
+    // Products linked by hand before 2026-10-18 only know their price — find their Stripe product once.
+    if (!stripeProductId && stripePriceId) stripeProductId = (await this.stripe.retrievePrice(stripePriceId))?.productId ?? null;
+
+    const manualPriceId = dto.stripePriceId?.trim() || null;
+    if (manualPriceId && manualPriceId !== stripePriceId) {
+      // Linking an existing Stripe price: the amount is read from Stripe, never typed.
+      const stripePrice = await this.stripe.retrievePrice(manualPriceId);
+      if (!stripePrice) throw new BadRequestException('STRIPE_PRICE_NOT_FOUND');
+      if (!stripePrice.oneTime) throw new BadRequestException('STRIPE_PRICE_NOT_ONE_TIME');
+      if (!stripePrice.active) throw new BadRequestException('STRIPE_PRICE_INACTIVE');
+      stripePriceId = manualPriceId;
+      stripeProductId = stripePrice.productId;
+      priceCents = stripePrice.amountCents;
+      currency = stripePrice.currency;
+    } else if (dto.priceCents && (dto.priceCents !== priceCents || !stripePriceId)) {
+      if (stripeProductId) {
+        stripePriceId = await this.stripe.replacePrice(stripeProductId, stripePriceId, dto.priceCents, 'eur');
+      } else {
+        const created = await this.stripe.createProduct(stripeName, dto.priceCents, 'eur');
+        stripeProductId = created.productId;
+        stripePriceId = created.priceId;
+      }
+      priceCents = dto.priceCents;
+      currency = 'eur';
+    }
+    if (stripeProductId) await this.stripe.updateProduct(stripeProductId, { name: stripeName, active });
+
     const data = {
-      nameBg: dto.nameBg.trim(),
-      nameEn: dto.nameEn.trim(),
+      nameBg,
+      nameEn,
       kind: dto.kind,
-      credits: dto.kind === 'CREDITS' ? dto.credits! : null,
-      vipDays: dto.kind === 'VIP' ? dto.vipDays! : null,
-      stripePriceId: priceId,
-      priceCents: price?.priceCents ?? existing?.priceCents ?? 0,
-      currency: price?.currency ?? existing?.currency ?? 'eur',
+      credits,
+      vipDays,
+      stripeProductId,
+      stripePriceId,
+      priceCents,
+      currency,
       sortOrder: dto.sortOrder ?? existing?.sortOrder ?? 0,
-      active: dto.active ?? existing?.active ?? true,
+      active,
     };
     try {
       const saved = await this.prisma.$transaction(async (tx) => {
@@ -93,6 +129,7 @@ export class AdminPaymentsService {
         id: p.id,
         username: p.player.username,
         productNameBg: p.product.nameBg,
+        kind: p.product.kind,
         status: p.status,
         amountCents: p.amountCents,
         currency: p.currency,
@@ -195,4 +232,9 @@ function toAdminProductDto(product: PaymentProduct, purchaseCount: number): Admi
     active: product.active,
     purchaseCount,
   };
+}
+
+/** The English template name, used for the Stripe product (the game itself translates the templates). */
+function templateNameEn(kind: 'CREDITS' | 'VIP', credits: number | null, vipDays: number | null): string {
+  return kind === 'VIP' ? 'VIP for ' + vipDays + ' days' : credits + ' Credits';
 }

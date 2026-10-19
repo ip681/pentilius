@@ -24,6 +24,7 @@ import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
 import { EnergyRefill } from '@/components/EnergyRefill';
+import { formatNumber } from '@/lib/format-number';
 
 interface LogLine {
   text: React.ReactNode;
@@ -245,11 +246,11 @@ export default function ClanWarPage() {
             </div>
             <div className="flex items-center justify-between text-[10px] text-textFaint">
               <span>
-                {war.myPoolRemaining.toLocaleString()} / {war.myPoolMax.toLocaleString()}
+                {formatNumber(war.myPoolRemaining)} / {formatNumber(war.myPoolMax)}
               </span>
               <span className="tabular-nums">{t('clans.war.timeLeft')}: {formatDuration(secondsLeft)}</span>
               <span>
-                {war.enemyPoolRemaining.toLocaleString()} / {war.enemyPoolMax.toLocaleString()}
+                {formatNumber(war.enemyPoolRemaining)} / {formatNumber(war.enemyPoolMax)}
               </span>
             </div>
           </section>
@@ -364,19 +365,19 @@ function LastWarResultCard({ entry }: { entry: ClanWarHistoryEntryDto }) {
           {entry.treasuryMetalChange !== 0 && (
             <span className={entry.treasuryMetalChange > 0 ? 'text-positive' : 'text-danger'}>
               {entry.treasuryMetalChange > 0 ? '+' : ''}
-              {entry.treasuryMetalChange.toLocaleString()} <ResourceIcon type="METAL" className="inline h-3 w-3" />
+              {formatNumber(entry.treasuryMetalChange)} <ResourceIcon type="METAL" className="inline h-3 w-3" />
             </span>
           )}
           {entry.treasuryCrystalChange !== 0 && (
             <span className={entry.treasuryCrystalChange > 0 ? 'text-positive' : 'text-danger'}>
               {entry.treasuryCrystalChange > 0 ? '+' : ''}
-              {entry.treasuryCrystalChange.toLocaleString()} <ResourceIcon type="CRYSTAL" className="inline h-3 w-3" />
+              {formatNumber(entry.treasuryCrystalChange)} <ResourceIcon type="CRYSTAL" className="inline h-3 w-3" />
             </span>
           )}
           {entry.treasuryCreditsChange !== 0 && (
             <span className={entry.treasuryCreditsChange > 0 ? 'text-positive' : 'text-danger'}>
               {entry.treasuryCreditsChange > 0 ? '+' : ''}
-              {entry.treasuryCreditsChange.toLocaleString()} <ResourceIcon type="CREDITS" className="inline h-3 w-3" />
+              {formatNumber(entry.treasuryCreditsChange)} <ResourceIcon type="CREDITS" className="inline h-3 w-3" />
             </span>
           )}
         </div>
@@ -400,7 +401,7 @@ function ContributionList({ title, entries, accent }: { title: string; entries: 
                 <span className="text-textFaint">#{index + 1}</span> {displayPlayerName(t, entry.username)}
               </span>
               <span className="shrink-0 text-textFaint">
-                {entry.totalDamageDealt.toLocaleString()} · {entry.attackCount} {t('clans.war.hits')}
+                {formatNumber(entry.totalDamageDealt)} · {entry.attackCount} {t('clans.war.hits')}
               </span>
             </div>
           ))}

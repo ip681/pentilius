@@ -1,7 +1,30 @@
 'use client';
 
 import type {
+  AdminBuildingBalanceDto,
+  AdminClanBalanceDto,
+  AdminBossBalanceDto,
+  AdminEquipmentBalanceDto,
+  AdminExpeditionBalanceDto,
+  AdminOtherBalanceDto,
+  AdminPlayerLoginsDto,
+  AdminRewardBalanceDto,
   AdminPaymentProductDto,
+  AdminPentiliBalanceDto,
+  AdminXpBalanceDto,
+  AdminXpLevelDto,
+  BalanceCurveDto,
+  BossBalanceConfigDto,
+  BuildingBalanceConfigDto,
+  ClanBalanceConfigDto,
+  EquipmentBalanceConfigDto,
+  EquipmentSlotStatsDto,
+  EquipmentSplitDto,
+  ExpeditionBalanceConfigDto,
+  RewardBalanceConfigDto,
+  PentiliBalanceConfigDto,
+  PentiliZoneBalanceDto,
+  XpBalanceConfigDto,
   AdminPaymentsSettingsDto,
   AdminPurchasesResponseDto,
   AdminSupportTicketDetailDto,
@@ -59,6 +82,13 @@ const TOKEN_REFRESH_INTERVAL_MS = 6 * 3600_000;
 function assetUrl(iconAssetId: string): string {
   const [namespace, key] = iconAssetId.split('.');
   return `/assets/${namespace}/${key}.png`;
+}
+
+// Same number format as the game (lib/format-number.ts), kept as godmaster's own copy:
+// a space between thousands from 4 digits up ("8 230").
+const GM_NUMBER = new Intl.NumberFormat('bg-BG', { useGrouping: 'always' as unknown as boolean, maximumFractionDigits: 2 });
+function gmNumber(value: number): string {
+  return GM_NUMBER.format(value);
 }
 
 function resolveMessageKey(key: string): string {
@@ -154,7 +184,7 @@ export default function GodmasterPage() {
   if (!ready) return null;
 
   return (
-    <main className="mx-auto min-h-screen max-w-4xl px-4 py-10">
+    <main className="mx-auto min-h-screen max-w-4xl overflow-x-hidden px-3 py-6 sm:px-4 sm:py-10">
       <h1 className="mb-6 text-xl font-semibold">godmaster</h1>
       {!token && sessionExpired && <p className="mb-4 text-xs text-danger">Сесията изтече или акаунтът е променен — влез отново.</p>}
       {token ? (
@@ -219,6 +249,7 @@ const TABS = [
   { key: 'admins', label: 'Админи' },
   { key: 'settings', label: 'Настройки' },
   { key: 'payments', label: 'Плащания' },
+  { key: 'balance', label: 'Баланс' },
 ] as const;
 type AdminTab = (typeof TABS)[number]['key'];
 
@@ -259,7 +290,7 @@ function AdminPanel({
 
   // Every tab is visible to both roles (the Admins tab shows a MODERATOR only
   // their own account) — except Payments, which is ADMIN only (the API re-checks).
-  const visibleTabs = TABS.filter((t) => t.key !== 'payments' || role === 'ADMIN');
+  const visibleTabs = TABS.filter((t) => (t.key !== 'payments' && t.key !== 'balance') || role === 'ADMIN');
 
   // Conversations waiting for staff — the badge on the "Обратна връзка" tab.
   const [supportOpen, setSupportOpen] = useState(0);
@@ -275,8 +306,21 @@ function AdminPanel({
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between gap-2">
+        {/* Phones: one dropdown instead of a row of buttons that widens the page (owner, 2026-10-19). */}
+        <select
+          value={tab}
+          onChange={(e) => setTab(e.target.value as AdminTab)}
+          className="min-w-0 flex-1 rounded-md border border-accent bg-accentBg px-3 py-2 text-sm md:hidden"
+        >
+          {visibleTabs.map((t) => (
+            <option key={t.key} value={t.key}>
+              {t.label}
+              {t.key === 'support' && supportOpen > 0 ? ` (${supportOpen})` : ''}
+            </option>
+          ))}
+        </select>
+        <div className="hidden flex-wrap gap-2 md:flex">
           {visibleTabs.map((t) => (
             <button
               key={t.key}
@@ -289,7 +333,7 @@ function AdminPanel({
             </button>
           ))}
         </div>
-        <button type="button" onClick={onLogout} className="w-fit rounded-md border border-panelBorder bg-panel px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover">
+        <button type="button" onClick={onLogout} className="w-fit shrink-0 rounded-md border border-panelBorder bg-panel px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover">
           Изход
         </button>
       </div>
@@ -323,10 +367,13 @@ function AdminPanel({
 
       {tab === 'payments' && role === 'ADMIN' && <PaymentsPanel />}
 
+      {tab === 'balance' && role === 'ADMIN' && <BalancePanel />}
+
       {tab === 'settings' && (
         <>
           <SeasonSettingsPanel canEdit={role === 'ADMIN'} />
           <GameSettingsPanel canEdit={role === 'ADMIN'} />
+          {role === 'ADMIN' && <TechnicalSettingsPanel />}
         </>
       )}
 
@@ -426,6 +473,8 @@ function PlayerDetailView({ detail, onReload }: { detail: PlayerDetail; onReload
 
       <PasswordControls username={profile.username} onReload={onReload} />
 
+      <PlayerLoginsControls key={profile.id} playerId={profile.id} onOpenPlayer={onReload} />
+
       <div>
         <p className="mb-1 text-[11px] font-medium text-textFaint">Екипировка ({equipped.length}/7)</p>
         <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
@@ -444,46 +493,50 @@ function PlayerDetailView({ detail, onReload }: { detail: PlayerDetail; onReload
       <div>
         <p className="mb-1 text-[11px] font-medium text-textFaint">Инвентар ({inventory.length})</p>
         <div className="max-h-48 overflow-y-auto rounded-md border border-wellBorder">
-          <table className="w-full text-[11px]">
-            <tbody>
-              {inventory.map((item) => (
-                <tr key={item.id} className="border-b border-wellBorder last:border-0">
-                  <td className="px-2 py-1">{resolveMessageKey(item.nameKey)}</td>
-                  <td className="px-2 py-1 text-textFaint">{item.tier ?? '—'}</td>
-                  <td className="px-2 py-1 text-textFaint">{item.quality}</td>
-                  <td className="px-2 py-1 text-textFaint">x{item.quantity}</td>
-                </tr>
-              ))}
-              {inventory.length === 0 && (
-                <tr>
-                  <td className="px-2 py-2 text-textFaint">Празен инвентар</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <div className="max-w-full overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <tbody>
+                {inventory.map((item) => (
+                  <tr key={item.id} className="border-b border-wellBorder last:border-0">
+                    <td className="px-2 py-1">{resolveMessageKey(item.nameKey)}</td>
+                    <td className="px-2 py-1 text-textFaint">{item.tier ?? '—'}</td>
+                    <td className="px-2 py-1 text-textFaint">{item.quality}</td>
+                    <td className="px-2 py-1 text-textFaint">x{item.quantity}</td>
+                  </tr>
+                ))}
+                {inventory.length === 0 && (
+                  <tr>
+                    <td className="px-2 py-2 text-textFaint">Празен инвентар</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
       <div>
         <p className="mb-1 text-[11px] font-medium text-textFaint">История на промените (AdminActionLog)</p>
         <div className="max-h-48 overflow-y-auto rounded-md border border-wellBorder">
-          <table className="w-full text-[11px]">
-            <tbody>
-              {actionLog.map((entry) => (
-                <tr key={entry.id} className="border-b border-wellBorder last:border-0">
-                  <td className="px-2 py-1 text-textFaint">{new Date(entry.createdAt).toLocaleString('bg-BG')}</td>
-                  <td className="px-2 py-1">{ACTION_TYPE_LABEL[entry.actionType] ?? entry.actionType}</td>
-                  <td className="px-2 py-1 text-textFaint">от {entry.adminUsername}</td>
-                  <td className="px-2 py-1 text-textFaint">{JSON.stringify(entry.details)}</td>
-                </tr>
-              ))}
-              {actionLog.length === 0 && (
-                <tr>
-                  <td className="px-2 py-2 text-textFaint">Няма записани действия</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <div className="max-w-full overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <tbody>
+                {actionLog.map((entry) => (
+                  <tr key={entry.id} className="border-b border-wellBorder last:border-0">
+                    <td className="px-2 py-1 text-textFaint">{new Date(entry.createdAt).toLocaleString('bg-BG')}</td>
+                    <td className="px-2 py-1">{ACTION_TYPE_LABEL[entry.actionType] ?? entry.actionType}</td>
+                    <td className="px-2 py-1 text-textFaint">от {entry.adminUsername}</td>
+                    <td className="px-2 py-1 text-textFaint">{JSON.stringify(entry.details)}</td>
+                  </tr>
+                ))}
+                {actionLog.length === 0 && (
+                  <tr>
+                    <td className="px-2 py-2 text-textFaint">Няма записани действия</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1098,7 +1151,7 @@ function ItemAutocomplete({ value, onChange, onSelect }: { value: string; onChan
         );
       })()}
       {open && matches.length > 0 && (
-        <ul className="absolute z-10 mt-1 w-80 max-h-64 overflow-y-auto rounded-md border border-panelBorder bg-panel text-sm shadow-lg">
+        <ul className="absolute z-10 mt-1 w-80 max-w-full max-h-64 overflow-y-auto rounded-md border border-panelBorder bg-panel text-sm shadow-lg">
           {matches.map((item) => (
             <li key={item.key}>
               <button
@@ -1365,19 +1418,21 @@ function RecentActivityPanel() {
         <p className="text-xs text-textFaint">Няма записани действия</p>
       ) : (
         <div className="max-h-64 overflow-y-auto rounded-md border border-wellBorder">
-          <table className="w-full text-[11px]">
-            <tbody>
-              {actions.map((action) => (
-                <tr key={action.id} className="border-b border-wellBorder last:border-0">
-                  <td className="px-2 py-1 text-textFaint">{new Date(action.createdAt).toLocaleString('bg-BG')}</td>
-                  <td className="px-2 py-1">{ACTION_TYPE_LABEL[action.actionType] ?? action.actionType}</td>
-                  <td className="px-2 py-1 text-textFaint">от {action.adminUsername}</td>
-                  <td className="px-2 py-1 text-textFaint">{action.targetUsername ?? '—'}</td>
-                  <td className="px-2 py-1 text-textFaint">{JSON.stringify(action.details)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="max-w-full overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <tbody>
+                {actions.map((action) => (
+                  <tr key={action.id} className="border-b border-wellBorder last:border-0">
+                    <td className="px-2 py-1 text-textFaint">{new Date(action.createdAt).toLocaleString('bg-BG')}</td>
+                    <td className="px-2 py-1">{ACTION_TYPE_LABEL[action.actionType] ?? action.actionType}</td>
+                    <td className="px-2 py-1 text-textFaint">от {action.adminUsername}</td>
+                    <td className="px-2 py-1 text-textFaint">{action.targetUsername ?? '—'}</td>
+                    <td className="px-2 py-1 text-textFaint">{JSON.stringify(action.details)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </section>
@@ -1450,48 +1505,50 @@ function AdminAccountsPanel({ myId, isAdmin, onTokenChange }: { myId: string | n
 
       {admins && (
         <div className="mb-4 overflow-x-auto rounded-md border border-wellBorder">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-wellBorder bg-well text-[10px] uppercase text-textFaint">
-                <th className="px-3 py-2">Потребител</th>
-                <th className="px-3 py-2">Роля</th>
-                <th className="px-3 py-2">Статус</th>
-                <th className="px-3 py-2">Последен вход</th>
-              </tr>
-            </thead>
-            <tbody>
-              {admins.map((admin) => {
-                const isMe = admin.id === myId;
-                const canOpen = isMe || isAdmin;
-                const open = editingId === admin.id;
-                return (
-                  <Fragment key={admin.id}>
-                    <tr
-                      onClick={() => canOpen && setEditingId(open ? null : admin.id)}
-                      className={`border-b border-wellBorder last:border-b-0 ${canOpen ? 'cursor-pointer hover:bg-accentBgHover' : ''} ${open ? 'bg-accentBg' : ''}`}
-                    >
-                      <td className="px-3 py-2">
-                        {admin.username}
-                        {isMe && <span className="ml-1 text-textFaint">(ти)</span>}
-                      </td>
-                      <td className="px-3 py-2 text-textMuted">{admin.role}</td>
-                      <td className={`px-3 py-2 ${admin.isActive ? 'text-positive' : 'text-danger'}`}>{admin.isActive ? 'активен' : 'деактивиран'}</td>
-                      <td className="px-3 py-2 text-textFaint">
-                        {admin.lastLoginAt ? new Date(admin.lastLoginAt).toLocaleString('bg-BG') : 'никога не е влизал'}
-                      </td>
-                    </tr>
-                    {open && (
-                      <tr className="border-b border-wellBorder last:border-b-0 bg-panel">
-                        <td colSpan={4}>
-                          {isMe ? <OwnPasswordPanel onTokenChange={onTokenChange} /> : <AdminAccountEditor account={admin} onChanged={loadAdmins} />}
+          <div className="max-w-full overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-wellBorder bg-well text-[10px] uppercase text-textFaint">
+                  <th className="px-3 py-2">Потребител</th>
+                  <th className="px-3 py-2">Роля</th>
+                  <th className="px-3 py-2">Статус</th>
+                  <th className="px-3 py-2">Последен вход</th>
+                </tr>
+              </thead>
+              <tbody>
+                {admins.map((admin) => {
+                  const isMe = admin.id === myId;
+                  const canOpen = isMe || isAdmin;
+                  const open = editingId === admin.id;
+                  return (
+                    <Fragment key={admin.id}>
+                      <tr
+                        onClick={() => canOpen && setEditingId(open ? null : admin.id)}
+                        className={`border-b border-wellBorder last:border-b-0 ${canOpen ? 'cursor-pointer hover:bg-accentBgHover' : ''} ${open ? 'bg-accentBg' : ''}`}
+                      >
+                        <td className="px-3 py-2">
+                          {admin.username}
+                          {isMe && <span className="ml-1 text-textFaint">(ти)</span>}
+                        </td>
+                        <td className="px-3 py-2 text-textMuted">{admin.role}</td>
+                        <td className={`px-3 py-2 ${admin.isActive ? 'text-positive' : 'text-danger'}`}>{admin.isActive ? 'активен' : 'деактивиран'}</td>
+                        <td className="px-3 py-2 text-textFaint">
+                          {admin.lastLoginAt ? new Date(admin.lastLoginAt).toLocaleString('bg-BG') : 'никога не е влизал'}
                         </td>
                       </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+                      {open && (
+                        <tr className="border-b border-wellBorder last:border-b-0 bg-panel">
+                          <td colSpan={4}>
+                            {isMe ? <OwnPasswordPanel onTokenChange={onTokenChange} /> : <AdminAccountEditor account={admin} onChanged={loadAdmins} />}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -2492,43 +2549,45 @@ function ContentFilterPanel() {
 
         {visible && (
           <div className="overflow-x-auto rounded-md border border-wellBorder">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-wellBorder bg-well text-[10px] uppercase text-textFaint">
-                  <th className="px-3 py-2">Дума</th>
-                  <th className="px-3 py-2">Хваща се</th>
-                  <th className="px-3 py-2">Добавена от</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((w) => (
-                  <tr key={w.id} className="border-b border-wellBorder last:border-b-0">
-                    <td className="px-3 py-1.5">
-                      {w.word} <span className="text-textFaint">({w.normalized})</span>
-                    </td>
-                    <td className="px-3 py-1.5 text-textMuted">{MATCH_LABEL[w.match]}</td>
-                    <td className="px-3 py-1.5 text-textFaint">{w.createdBy === 'seed' ? 'начален списък' : (w.createdBy ?? '—')}</td>
-                    <td className="px-3 py-1.5 text-right">
-                      {confirmRemove === w.id ? (
-                        <>
-                          <button type="button" onClick={() => handleRemove(w.id)} className="mr-2 text-danger underline">
-                            Потвърди
-                          </button>
-                          <button type="button" onClick={() => setConfirmRemove(null)} className="text-textFaint underline">
-                            Отказ
-                          </button>
-                        </>
-                      ) : (
-                        <button type="button" onClick={() => setConfirmRemove(w.id)} className="text-textFaint underline hover:text-danger">
-                          Премахни
-                        </button>
-                      )}
-                    </td>
+            <div className="max-w-full overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-wellBorder bg-well text-[10px] uppercase text-textFaint">
+                    <th className="px-3 py-2">Дума</th>
+                    <th className="px-3 py-2">Хваща се</th>
+                    <th className="px-3 py-2">Добавена от</th>
+                    <th className="px-3 py-2" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {visible.map((w) => (
+                    <tr key={w.id} className="border-b border-wellBorder last:border-b-0">
+                      <td className="px-3 py-1.5">
+                        {w.word} <span className="text-textFaint">({w.normalized})</span>
+                      </td>
+                      <td className="px-3 py-1.5 text-textMuted">{MATCH_LABEL[w.match]}</td>
+                      <td className="px-3 py-1.5 text-textFaint">{w.createdBy === 'seed' ? 'начален списък' : (w.createdBy ?? '—')}</td>
+                      <td className="px-3 py-1.5 text-right">
+                        {confirmRemove === w.id ? (
+                          <>
+                            <button type="button" onClick={() => handleRemove(w.id)} className="mr-2 text-danger underline">
+                              Потвърди
+                            </button>
+                            <button type="button" onClick={() => setConfirmRemove(null)} className="text-textFaint underline">
+                              Отказ
+                            </button>
+                          </>
+                        ) : (
+                          <button type="button" onClick={() => setConfirmRemove(w.id)} className="text-textFaint underline hover:text-danger">
+                            Премахни
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
         {error && <p className="mt-2 text-xs text-danger">{error}</p>}
@@ -2618,14 +2677,25 @@ function ResetSeasonNow({ currentSeasonId, onDone }: { currentSeasonId: number; 
 // The price is never typed here — it's read from Stripe when the price ID is
 // saved, so the game can't show a different price than Stripe charges.
 
+/** Product name for godmaster: the custom Bulgarian name, else the Bulgarian template. */
+function adminProductName(p: { kind: string; nameBg: string | null; credits: number | null; vipDays: number | null }): string {
+  if (p.nameBg) return p.nameBg;
+  const names = (bgMessages as unknown as { payments: { productNames: Record<string, string> } }).payments.productNames;
+  return p.kind === 'VIP' ? names.VIP.replace('{days}', String(p.vipDays ?? 0)) : names.CREDITS.replace('{count}', String(p.credits ?? 0));
+}
+
 function euro(cents: number, currency = 'eur'): string {
   return new Intl.NumberFormat('bg-BG', { style: 'currency', currency: currency.toUpperCase() }).format(cents / 100);
 }
 
-const EMPTY_PRODUCT: AdminPaymentProductDto = {
+type ProductForm = AdminPaymentProductDto & { priceEuro: string; showLink: boolean };
+
+const EMPTY_PRODUCT: ProductForm = {
   key: '',
   nameBg: '',
   nameEn: '',
+  priceEuro: '',
+  showLink: false,
   kind: 'CREDITS',
   credits: 500,
   vipDays: null,
@@ -2710,7 +2780,7 @@ function PaymentSettingsPanel() {
 
 function PaymentProductsPanel() {
   const [products, setProducts] = useState<AdminPaymentProductDto[] | null>(null);
-  const [editing, setEditing] = useState<AdminPaymentProductDto | null>(null);
+  const [editing, setEditing] = useState<ProductForm | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2725,6 +2795,12 @@ function PaymentProductsPanel() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!editing) return;
+    // "4,99" or "4.99" -> 499 cents.
+    const priceCents = editing.priceEuro.trim() ? Math.round(Number(editing.priceEuro.replace(',', '.')) * 100) : undefined;
+    if (priceCents !== undefined && !(priceCents >= 50)) {
+      setError('Цената трябва да е поне 0,50 €.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -2732,8 +2808,9 @@ function PaymentProductsPanel() {
         method: 'POST',
         body: {
           key: editing.key.trim(),
-          nameBg: editing.nameBg,
-          nameEn: editing.nameEn,
+          nameBg: editing.nameBg ?? '',
+          nameEn: editing.nameEn ?? '',
+          priceCents,
           kind: editing.kind,
           credits: editing.kind === 'CREDITS' ? Number(editing.credits) : undefined,
           vipDays: editing.kind === 'VIP' ? Number(editing.vipDays) : undefined,
@@ -2753,6 +2830,7 @@ function PaymentProductsPanel() {
         STRIPE_PRICE_ALREADY_USED: 'Тази цена вече е свързана с друг продукт.',
         KIND_CANNOT_CHANGE: 'Видът на продукт не може да се сменя.',
         CREDITS_REQUIRED: 'Въведи колко кредита дава.',
+        PAYMENTS_DISABLED: 'Stripe не е свързан на този сървър.',
         VIP_DAYS_REQUIRED: 'Въведи колко дни VIP дава.',
       };
       setError(messages[code] ?? code ?? 'Грешка');
@@ -2780,51 +2858,53 @@ function PaymentProductsPanel() {
 
       {products && products.length === 0 && <p className="text-xs text-textFaint">Няма продукти.</p>}
       {products && products.length > 0 && (
-        <table className="w-full text-left text-xs">
-          <thead className="text-[10px] uppercase text-textFaint">
-            <tr>
-              <th className="py-1">Име</th>
-              <th>Дава</th>
-              <th>Цена (Stripe)</th>
-              <th>Състояние</th>
-              <th>Покупки</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.key} className="border-t border-wellBorder">
-                <td className="py-1.5">
-                  {p.nameBg} <span className="text-textFaint">({p.key})</span>
-                </td>
-                <td>{p.kind === 'CREDITS' ? `${p.credits} кредита` : `VIP ${p.vipDays} дни`}</td>
-                <td>{p.stripePriceId ? euro(p.priceCents, p.currency) : <span className="text-textFaint">няма цена</span>}</td>
-                <td>
-                  {!p.active ? (
-                    <span className="text-textFaint">скрит</span>
-                  ) : p.stripePriceId ? (
-                    <span className="text-positive">предлага се</span>
-                  ) : (
-                    <span className="text-textFaint">чака цена</span>
-                  )}
-                </td>
-                <td>{p.purchaseCount}</td>
-                <td className="text-right">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditing({ ...p, stripePriceId: p.stripePriceId ?? '' });
-                      setIsNew(false);
-                    }}
-                    className="rounded-md border border-panelBorder px-2 py-1 text-[11px] hover:bg-accentBgHover"
-                  >
-                    Редактирай
-                  </button>
-                </td>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>Име</th>
+                <th>Дава</th>
+                <th>Цена (Stripe)</th>
+                <th>Състояние</th>
+                <th>Покупки</th>
+                <th />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {products.map((p) => (
+                <tr key={p.key} className="border-t border-wellBorder">
+                  <td>
+                    {adminProductName(p)} <span className="text-textFaint">({p.key})</span>
+                  </td>
+                  <td>{p.kind === 'CREDITS' ? `${p.credits} кредита` : `VIP ${p.vipDays} дни`}</td>
+                  <td>{p.stripePriceId ? euro(p.priceCents, p.currency) : <span className="text-textFaint">няма цена</span>}</td>
+                  <td>
+                    {!p.active ? (
+                      <span className="text-textFaint">скрит</span>
+                    ) : p.stripePriceId ? (
+                      <span className="text-positive">предлага се</span>
+                    ) : (
+                      <span className="text-textFaint">чака цена</span>
+                    )}
+                  </td>
+                  <td>{p.purchaseCount}</td>
+                  <td className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing({ ...p, nameBg: p.nameBg ?? '', nameEn: p.nameEn ?? '', stripePriceId: '', priceEuro: p.stripePriceId ? String(p.priceCents / 100) : '', showLink: false });
+                        setIsNew(false);
+                      }}
+                      className="rounded-md border border-panelBorder px-2 py-1 text-[11px] hover:bg-accentBgHover"
+                    >
+                      Редактирай
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {editing && (
@@ -2837,14 +2917,6 @@ function PaymentProductsPanel() {
                 <input value={editing.key} onChange={(e) => setEditing({ ...editing, key: e.target.value })} className={input} />
               </label>
             )}
-            <label className="flex flex-col gap-1 text-[10px] text-textFaint">
-              име (български)
-              <input value={editing.nameBg} onChange={(e) => setEditing({ ...editing, nameBg: e.target.value })} className={input} />
-            </label>
-            <label className="flex flex-col gap-1 text-[10px] text-textFaint">
-              име (английски)
-              <input value={editing.nameEn} onChange={(e) => setEditing({ ...editing, nameEn: e.target.value })} className={input} />
-            </label>
             <label className="flex flex-col gap-1 text-[10px] text-textFaint">
               вид
               <select
@@ -2874,8 +2946,8 @@ function PaymentProductsPanel() {
           </div>
           <div className="flex flex-wrap gap-2">
             <label className="flex flex-col gap-1 text-[10px] text-textFaint">
-              номер на цената в Stripe (price_…); празно = не се предлага
-              <input value={editing.stripePriceId ?? ''} onChange={(e) => setEditing({ ...editing, stripePriceId: e.target.value })} className={`${input} w-80 font-mono`} />
+              цена в евро (напр. 4,99)
+              <input value={editing.priceEuro} onChange={(e) => setEditing({ ...editing, priceEuro: e.target.value })} className={`${input} w-28`} />
             </label>
             <label className="flex flex-col gap-1 text-[10px] text-textFaint">
               подредба
@@ -2886,7 +2958,28 @@ function PaymentProductsPanel() {
               активен
             </label>
           </div>
-          <p className="text-[10px] text-textFaint">Цената не се въвежда тук — прочита се от Stripe при запис. Продукт с покупки не се изтрива, само се скрива.</p>
+          <p className="text-[10px] text-textFaint">
+            Име: <strong className="text-text">{adminProductName({ kind: editing.kind, nameBg: editing.nameBg || null, credits: editing.credits, vipDays: editing.vipDays })}</strong>{' '}
+            (сглобява се само от вида и количеството, на всички езици). При запис продуктът и цената се създават или обновяват в Stripe;
+            нова цена = нова цена в Stripe, старата се архивира. Продукт с покупки не се изтрива, само се скрива.
+          </p>
+          <details className="text-[10px] text-textFaint">
+            <summary className="cursor-pointer">Още (по желание): собствено име, свързване на съществуваща цена от Stripe</summary>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <label className="flex flex-col gap-1">
+                собствено име (български) — само за специални оферти
+                <input value={editing.nameBg ?? ''} onChange={(e) => setEditing({ ...editing, nameBg: e.target.value })} className={input} />
+              </label>
+              <label className="flex flex-col gap-1">
+                собствено име (английски)
+                <input value={editing.nameEn ?? ''} onChange={(e) => setEditing({ ...editing, nameEn: e.target.value })} className={input} />
+              </label>
+              <label className="flex flex-col gap-1">
+                свържи съществуваща цена (price_…)
+                <input value={editing.stripePriceId ?? ''} onChange={(e) => setEditing({ ...editing, stripePriceId: e.target.value })} className={`${input} w-full font-mono sm:w-80`} />
+              </label>
+            </div>
+          </details>
           <div className="flex gap-2">
             <button type="submit" disabled={saving} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
               {saving ? 'Записване…' : 'Запази'}
@@ -2975,51 +3068,2655 @@ function PurchasesPanel() {
 
       {data && data.purchases.length === 0 && <p className="text-xs text-textFaint">Няма покупки.</p>}
       {data && data.purchases.length > 0 && (
-        <table className="w-full text-left text-xs">
-          <thead className="text-[10px] uppercase text-textFaint">
-            <tr>
-              <th className="py-1">Дата</th>
-              <th>Играч</th>
-              <th>Продукт</th>
-              <th>Сума</th>
-              <th>Състояние</th>
-              <th>IP / карта</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {data.purchases.map((p) => (
-              <tr key={p.id} className={`border-t border-wellBorder ${p.flagged ? 'bg-danger/10' : ''}`}>
-                <td className="py-1.5">{new Date(p.createdAt).toLocaleString('bg-BG')}</td>
-                <td>{p.username}</td>
-                <td>
-                  {p.productNameBg}
-                  <span className="text-textFaint"> ({p.credits ? `${p.credits} кр.` : `VIP ${p.vipDays} дни`})</span>
-                </td>
-                <td>{euro(p.amountCents, p.currency)}</td>
-                <td>{PURCHASE_STATUS_LABEL[p.status] ?? p.status}</td>
-                <td>
-                  {p.ipCountry ?? '—'} / {p.cardCountry ?? '—'}
-                  {p.flagged && <span className="ml-1 text-danger">⚠</span>}
-                </td>
-                <td className="text-right">
-                  {p.status === 'COMPLETED' && (
-                    <button
-                      type="button"
-                      disabled={busyId === p.id}
-                      onClick={() => handleRefund(p.id, `${p.username} — ${euro(p.amountCents, p.currency)}`)}
-                      className="rounded-md border border-panelBorderDanger px-2 py-1 text-[11px] text-danger hover:bg-accentBgHover disabled:opacity-50"
-                    >
-                      Върни парите
-                    </button>
-                  )}
-                </td>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>Дата</th>
+                <th>Играч</th>
+                <th>Продукт</th>
+                <th>Сума</th>
+                <th>Състояние</th>
+                <th>IP / карта</th>
+                <th />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.purchases.map((p) => (
+                <tr key={p.id} className={`border-t border-wellBorder ${p.flagged ? 'bg-danger/10' : ''}`}>
+                  <td>{new Date(p.createdAt).toLocaleString('bg-BG')}</td>
+                  <td>{p.username}</td>
+                  <td>
+                    {adminProductName({ kind: p.kind, nameBg: p.productNameBg, credits: p.credits, vipDays: p.vipDays })}
+                    <span className="text-textFaint"> ({p.credits ? `${p.credits} кр.` : `VIP ${p.vipDays} дни`})</span>
+                  </td>
+                  <td>{euro(p.amountCents, p.currency)}</td>
+                  <td>{PURCHASE_STATUS_LABEL[p.status] ?? p.status}</td>
+                  <td>
+                    {p.ipCountry ?? '—'} / {p.cardCountry ?? '—'}
+                    {p.flagged && <span className="ml-1 text-danger">⚠</span>}
+                  </td>
+                  <td className="text-right">
+                    {p.status === 'COMPLETED' && (
+                      <button
+                        type="button"
+                        disabled={busyId === p.id}
+                        onClick={() => handleRefund(p.id, `${p.username} — ${euro(p.amountCents, p.currency)}`)}
+                        className="rounded-md border border-panelBorderDanger px-2 py-1 text-[11px] text-danger hover:bg-accentBgHover disabled:opacity-50"
+                      >
+                        Върни парите
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Balance → Pentili (owner decision, 2026-10-18): curves for strength and
+// rewards (value = base × level^growth), per-zone start/step/strength/drops,
+// and a few per-Pentili settings. "Preview" computes without saving; "Save"
+// regenerates every Pentili's stats and loot. ADMIN only (the API re-checks).
+
+type PentiliOverride = { key: string; levelOverride: number | null; strength: number; specialItemKey: string | null; specialItemChance: number | null };
+
+const STAT_LABELS: [keyof PentiliBalanceConfigDto['stats'], string][] = [
+  ['hp', 'Здраве'],
+  ['attack', 'Атака'],
+  ['defense', 'Защита'],
+  ['xp', 'Опит'],
+];
+const REWARD_LABELS: ['metal' | 'crystal', string][] = [
+  ['metal', 'Метал'],
+  ['crystal', 'Кристал'],
+];
+
+// Lines between the columns, so each heading clearly sits over its column (owner, 2026-10-19).
+const GRID_TABLE =
+  'w-full border-collapse text-left text-xs [&_td]:border [&_td]:border-wellBorder [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-wellBorder [&_th]:px-2 [&_th]:py-1 [&_th]:align-bottom';
+
+function curveAt(c: BalanceCurveDto, level: number): number {
+  return Math.max(1, Math.round(c.base * Math.pow(level, c.growth)));
+}
+
+function BalancePanel() {
+  const [area, setArea] = useState<'pentili' | 'xp' | 'buildings' | 'research' | 'clan' | 'equipment' | 'expeditions' | 'bosses' | 'rewards' | 'other'>('pentili');
+  return (
+    <>
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ['pentili', 'Пентили'],
+            ['xp', 'Опит за ниво'],
+            ['buildings', 'Сгради'],
+            ['research', 'Проучвания'],
+            ['clan', 'Кланови сгради'],
+            ['equipment', 'Сетове'],
+            ['expeditions', 'Експедиции'],
+            ['bosses', 'Босове'],
+            ['rewards', 'Награди'],
+            ['other', 'Други стойности'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setArea(key)}
+            className={`rounded-md border px-3 py-1.5 text-xs ${area === key ? 'border-accent bg-accentBg' : 'border-panelBorder bg-panel text-textMuted hover:bg-accentBgHover'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {area === 'pentili' && <PentiliBalancePanel />}
+      {area === 'xp' && <XpBalancePanel />}
+      {/* One panel instance for both, so unsaved changes survive switching between them. */}
+      {(area === 'buildings' || area === 'research') && <BuildingBalancePanel view={area} />}
+      {area === 'clan' && <ClanBalancePanel />}
+      {area === 'equipment' && <EquipmentBalancePanel />}
+      {area === 'expeditions' && <ExpeditionBalancePanel />}
+      {area === 'bosses' && <BossBalancePanel />}
+      {area === 'rewards' && <RewardBalancePanel />}
+      {area === 'other' && <OtherBalancePanel />}
+    </>
+  );
+}
+
+function PentiliBalancePanel() {
+  const [data, setData] = useState<AdminPentiliBalanceDto | null>(null);
+  const [config, setConfig] = useState<PentiliBalanceConfigDto | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, PentiliOverride>>({});
+  const [zoneFilter, setZoneFilter] = useState<string>('');
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function adopt(res: AdminPentiliBalanceDto, resetDraft: boolean) {
+    setData(res);
+    if (resetDraft) {
+      setConfig(res.config);
+      setOverrides(
+        Object.fromEntries(
+          res.pentili.map((p) => [p.key, { key: p.key, levelOverride: p.levelOverride, strength: p.strength, specialItemKey: p.specialItemKey, specialItemChance: p.specialItemChance }]),
+        ),
+      );
+      setZoneFilter((z) => z || res.zones[0]?.key || '');
+      setDirty(false);
+    }
+  }
+
+  function load() {
+    setError(null);
+    adminFetch<AdminPentiliBalanceDto>('/admin/balance/pentili')
+      .then((res) => adopt(res, true))
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  const body = () => ({ config, pentili: Object.values(overrides) });
+
+  async function preview() {
+    if (!config) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      adopt(await adminFetch<AdminPentiliBalanceDto>('/admin/balance/pentili/preview', { method: 'POST', body: body() }), false);
+      setMessage('Прегледът е обновен — нищо не е записано.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function save() {
+    if (!config || !window.confirm('Да запиша ли баланса и да обновя силата и наградите на всички Пентили?')) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      adopt(await adminFetch<AdminPentiliBalanceDto>('/admin/balance/pentili', { method: 'PUT', body: body() }), true);
+      setMessage('Записано и приложено.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!data || !config) {
+    return (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="text-sm font-semibold">Баланс на Пентилите</h2>
+        {error ? <p className="mt-2 text-xs text-danger">{error}</p> : <p className="mt-2 text-xs text-textFaint">Зареждане…</p>}
+      </section>
+    );
+  }
+
+  const num = 'w-20 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent';
+  const change = (fn: (c: PentiliBalanceConfigDto) => PentiliBalanceConfigDto) => {
+    setConfig(fn(structuredClone(config)));
+    setDirty(true);
+  };
+  const setOverride = (key: string, patch: Partial<PentiliOverride>) => {
+    setOverrides((o) => ({ ...o, [key]: { ...o[key], ...patch } }));
+    setDirty(true);
+  };
+  const pct = (x: number) => Math.round(x * 1000) / 10;
+  const rows = data.pentili.filter((p) => !zoneFilter || p.zoneKey === zoneFilter);
+
+  return (
+    <>
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Баланс на Пентилите</h2>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={preview} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Преглед
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={save} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Запази и приложи
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+              Отказ
+            </button>
+          </div>
+        </div>
+        <p className="mb-3 text-[11px] text-textFaint">
+          Стойност = база × ниво<sup>растеж</sup> × сила на зоната × сила на Пентила. „Преглед“ показва новите стойности в таблицата долу, без да записва.
+          Наградите растат със същата сила.
+        </p>
+        {dirty && <p className="mb-2 text-[11px] text-vipGold">Има незаписани промени.</p>}
+        {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+        {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <h3 className="mb-1 text-xs font-semibold">Сила</h3>
+            <div className="max-w-full overflow-x-auto">
+              <table className={GRID_TABLE}>
+                <thead className="text-[10px] uppercase text-textFaint">
+                  <tr>
+                    <th />
+                    <th>база</th>
+                    <th>растеж</th>
+                    <th>ниво 1 / 20 / 50 / 100</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {STAT_LABELS.map(([key, label]) => (
+                    <tr key={key} className="border-t border-wellBorder">
+                      <td>{label}</td>
+                      <td>
+                        <input type="number" step="any" value={config.stats[key].base} onChange={(e) => change((c) => ({ ...c, stats: { ...c.stats, [key]: { ...c.stats[key], base: Number(e.target.value) } } }))} className={num} />
+                      </td>
+                      <td>
+                        <input type="number" step="any" value={config.stats[key].growth} onChange={(e) => change((c) => ({ ...c, stats: { ...c.stats, [key]: { ...c.stats[key], growth: Number(e.target.value) } } }))} className={num} />
+                      </td>
+                      <td className="tabular-nums text-textMuted">{[1, 20, 50, 100].map((l) => gmNumber(curveAt(config.stats[key], l))).join(' / ')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-1 text-xs font-semibold">Награди</h3>
+            <div className="max-w-full overflow-x-auto">
+              <table className={GRID_TABLE}>
+                <thead className="text-[10px] uppercase text-textFaint">
+                  <tr>
+                    <th />
+                    <th>база</th>
+                    <th>растеж</th>
+                    <th>ниво 1 / 20 / 50 / 100</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {REWARD_LABELS.map(([key, label]) => (
+                    <tr key={key} className="border-t border-wellBorder">
+                      <td>{label}</td>
+                      <td>
+                        <input type="number" step="any" value={config.rewards[key].base} onChange={(e) => change((c) => ({ ...c, rewards: { ...c.rewards, [key]: { ...c.rewards[key], base: Number(e.target.value) } } }))} className={num} />
+                      </td>
+                      <td>
+                        <input type="number" step="any" value={config.rewards[key].growth} onChange={(e) => change((c) => ({ ...c, rewards: { ...c.rewards, [key]: { ...c.rewards[key], growth: Number(e.target.value) } } }))} className={num} />
+                      </td>
+                      <td className="tabular-nums text-textMuted">{[1, 20, 50, 100].map((l) => gmNumber(curveAt(config.rewards[key], l))).join(' / ')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-textFaint">
+              <label className="flex items-center gap-1">
+                колебание на наградата ± %
+                <input type="number" step="any" value={pct(config.rewards.spread)} onChange={(e) => change((c) => ({ ...c, rewards: { ...c.rewards, spread: Number(e.target.value) / 100 } }))} className={num} />
+              </label>
+            </div>
+            <p className="mt-1 text-[11px] text-textFaint">
+              Всяка награда е случайна около стойността от кривата: при 25% тя е между 75% и 125% от нея (напр. 20 метала → 15–25).
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Зони</h3>
+        <p className="mb-2 text-[11px] text-textFaint">
+          Стъпка — през колко нива е следващият Пентил в зоната. Сила × — множител за цялата зона: 1 = по кривата, 1,2 = с 20% по-силни и с 20%
+          повече награди. Шансовете са за битка; „част“ е на всеки от 7-те слота.
+        </p>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>Зона</th>
+                <th>начало</th>
+                <th>стъпка</th>
+                <th>сила ×</th>
+                <th>сет</th>
+                <th>част %</th>
+                <th>фрагмент %</th>
+                <th>камък %</th>
+                <th>енергия %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.zones.map((zone) => {
+                const z = config.zones[zone.key];
+                if (!z) return null;
+                const setZone = (patch: Partial<PentiliZoneBalanceDto>) => change((c) => ({ ...c, zones: { ...c.zones, [zone.key]: { ...c.zones[zone.key], ...patch } } }));
+                return (
+                  <tr key={zone.key} className="border-t border-wellBorder">
+                    <td>{resolveMessageKey(zone.nameKey)} <span className="text-textFaint">(от ниво {zone.unlockLevel})</span></td>
+                    <td><input type="number" value={z.startLevel} onChange={(e) => setZone({ startLevel: Number(e.target.value) })} className={num} /></td>
+                    <td><input type="number" value={z.step} onChange={(e) => setZone({ step: Number(e.target.value) })} className={num} /></td>
+                    <td><input type="number" step="any" value={z.strength} onChange={(e) => setZone({ strength: Number(e.target.value) })} className={num} /></td>
+                    <td>
+                      <select value={z.itemTier} onChange={(e) => setZone({ itemTier: e.target.value as PentiliZoneBalanceDto['itemTier'] })} className={num}>
+                        <option value="pioneer">Pioneer</option>
+                        <option value="ascendant">Ascendant</option>
+                        <option value="coreforged">Coreforged</option>
+                      </select>
+                    </td>
+                    <td><input type="number" step="any" value={pct(z.itemChance)} onChange={(e) => setZone({ itemChance: Number(e.target.value) / 100 })} className={num} /></td>
+                    <td><input type="number" step="any" value={pct(z.fragmentChance)} onChange={(e) => setZone({ fragmentChance: Number(e.target.value) / 100 })} className={num} /></td>
+                    <td><input type="number" step="any" value={pct(z.upgradeStoneChance)} onChange={(e) => setZone({ upgradeStoneChance: Number(e.target.value) / 100 })} className={num} /></td>
+                    <td><input type="number" step="any" value={pct(z.energyPackChance)} onChange={(e) => setZone({ energyPackChance: Number(e.target.value) / 100 })} className={num} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <h3 className="text-xs font-semibold">Пентили</h3>
+          {data.zones.map((zone) => (
+            <button
+              key={zone.key}
+              type="button"
+              onClick={() => setZoneFilter(zone.key)}
+              className={`rounded-md border px-2 py-1 text-[11px] ${zoneFilter === zone.key ? 'border-accent bg-accentBg' : 'border-panelBorder text-textMuted hover:bg-accentBgHover'}`}
+            >
+              {resolveMessageKey(zone.nameKey)}
+            </button>
+          ))}
+        </div>
+        <p className="mb-2 text-[11px] text-textFaint">
+          Ниво — празно = по стъпката на зоната (сивото число), или впиши фиксирано. Сила × — само за този Пентил, умножава се със силата на зоната;
+          наградите го следват. В цвят са стойностите, които „Преглед“ променя, със сегашните в скоби.
+        </p>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>Пентил</th>
+                <th>ниво</th>
+                <th>сила ×</th>
+                <th>здраве</th>
+                <th>атака</th>
+                <th>защита</th>
+                <th>опит</th>
+                <th>метал</th>
+                <th>кристал</th>
+                <th>специална плячка</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((p) => {
+                const o = overrides[p.key];
+                const cell = (next: number, current: number) => (
+                  <span className={next !== current ? 'text-vipGold' : ''}>
+                    {gmNumber(next)}
+                    {next !== current && <span className="text-textFaint"> ({gmNumber(current)})</span>}
+                  </span>
+                );
+                return (
+                  <tr key={p.key} className="border-t border-wellBorder">
+                    <td>{resolveMessageKey(p.nameKey)} <span className="text-textFaint">#{p.orderInZone + 1}</span></td>
+                    <td>
+                      <input
+                        type="number"
+                        placeholder={String(p.next.level)}
+                        value={o?.levelOverride ?? ''}
+                        onChange={(e) => setOverride(p.key, { levelOverride: e.target.value ? Number(e.target.value) : null })}
+                        className={num}
+                      />
+                      {p.next.level !== p.current.level && <span className="ml-1 text-vipGold">→ {p.next.level}</span>}
+                    </td>
+                    <td><input type="number" step="any" value={o?.strength ?? 1} onChange={(e) => setOverride(p.key, { strength: Number(e.target.value) })} className={num} /></td>
+                    <td className="tabular-nums">{cell(p.next.maxHp, p.current.maxHp)}</td>
+                    <td className="tabular-nums">{cell(p.next.attack, p.current.attack)}</td>
+                    <td className="tabular-nums">{cell(p.next.defense, p.current.defense)}</td>
+                    <td className="tabular-nums">{cell(p.next.xpReward, p.current.xpReward)}</td>
+                    <td className="tabular-nums text-textMuted">{p.next.metal[0]}–{p.next.metal[1]}</td>
+                    <td className="tabular-nums text-textMuted">{p.next.crystal[0]}–{p.next.crystal[1]}</td>
+                    <td>
+                      <select value={o?.specialItemKey ?? ''} onChange={(e) => setOverride(p.key, { specialItemKey: e.target.value || null })} className="w-40 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs">
+                        <option value="">—</option>
+                        {data.items.map((item) => (
+                          <option key={item.key} value={item.key}>
+                            {resolveMessageKey(item.nameKey)}
+                          </option>
+                        ))}
+                      </select>
+                      {o?.specialItemKey && (
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="%"
+                          value={o.specialItemChance !== null && o.specialItemChance !== undefined ? pct(o.specialItemChance) : ''}
+                          onChange={(e) => setOverride(p.key, { specialItemChance: e.target.value ? Number(e.target.value) / 100 : null })}
+                          className={`${num} ml-1 w-14`}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
+
+// Balance → XP (owner decision, 2026-10-19): XP to the next level = base ×
+// level^growth, unless a level has its own fixed value. The table shows how
+// many Pentili fights each level takes against the best-paying Pentili a
+// player of that level can fight, and the energy time for them.
+function XpBalancePanel() {
+  const [data, setData] = useState<AdminXpBalanceDto | null>(null);
+  const [config, setConfig] = useState<XpBalanceConfigDto | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setError(null);
+    adminFetch<AdminXpBalanceDto>('/admin/balance/xp')
+      .then((res) => {
+        setData(res);
+        setConfig(res.config);
+        setDirty(false);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  async function send(method: 'POST' | 'PUT') {
+    if (!config) return;
+    if (method === 'PUT' && !window.confirm('Да запиша ли кривата на опита за всички нива?')) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await adminFetch<AdminXpBalanceDto>(method === 'PUT' ? '/admin/balance/xp' : '/admin/balance/xp/preview', { method, body: { config } });
+      setData(res);
+      if (method === 'PUT') {
+        setConfig(res.config);
+        setDirty(false);
+        setMessage('Записано и приложено.');
+      } else {
+        setMessage('Прегледът е обновен — нищо не е записано.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!data || !config) {
+    return (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="text-sm font-semibold">Опит за ниво</h2>
+        {error ? <p className="mt-2 text-xs text-danger">{error}</p> : <p className="mt-2 text-xs text-textFaint">Зареждане…</p>}
+      </section>
+    );
+  }
+
+  const num = 'w-24 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent';
+  const milestones = [5, 10, 20, 30, 40, 60, 80, 99].map((l) => data.levels.find((r) => r.level === l)).filter(Boolean) as AdminXpLevelDto[];
+  const fmt = (n: number | null) => (n === null ? '—' : gmNumber(n));
+
+  return (
+    <>
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Опит за ниво</h2>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={() => send('POST')} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Преглед
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={() => send('PUT')} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Запази и приложи
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+              Отказ
+            </button>
+          </div>
+        </div>
+        <p className="mb-3 text-[11px] text-textFaint">
+          Опит до следващото ниво = база × ниво<sup>растеж</sup> — една крива за всички нива; таблицата долу е само за преглед. „Битки“ са срещу най-доходния
+          Пентил, достъпен на това ниво; енергията за тях се зарежда {data.energyMinutes} мин. на точка. Дневните мисии, експедициите и босовете дават опит
+          отгоре — затова реалното темпо е по-бързо.
+        </p>
+        {dirty && <p className="mb-2 text-[11px] text-vipGold">Има незаписани промени.</p>}
+        {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+        {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+
+        <div className="mb-4 flex flex-wrap items-end gap-3 text-[11px] text-textFaint">
+          <label className="flex flex-col gap-1">
+            база
+            <input type="number" step="any" value={config.base} onChange={(e) => (setConfig({ ...config, base: Number(e.target.value) }), setDirty(true))} className={num} />
+          </label>
+          <label className="flex flex-col gap-1">
+            растеж
+            <input type="number" step="any" value={config.growth} onChange={(e) => (setConfig({ ...config, growth: Number(e.target.value) }), setDirty(true))} className={num} />
+          </label>
+        </div>
+
+        <h3 className="mb-1 text-xs font-semibold">Темпо накратко</h3>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>до ниво</th>
+                {milestones.map((m) => (
+                  <th key={m.level}>{m.level + 1}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>битки общо</td>
+                {milestones.map((m) => (
+                  <td key={m.level} className="tabular-nums">
+                    {fmt(m.totalBattles)}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td>енергия общо (дни)</td>
+                {milestones.map((m) => (
+                  <td key={m.level} className="tabular-nums">
+                    {Math.round(((m.totalBattles * data.energyMinutes) / 60 / 24) * 10) / 10}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Всички нива</h3>
+        <p className="mb-2 text-[11px] text-textFaint">В цвят са промените, които „Преглед“ показва, със сегашните в скоби.</p>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>ниво</th>
+                <th>опит до следващото</th>
+                <th>битки</th>
+                <th>битки общо</th>
+                <th>енергия (ч)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.levels.map((r) => (
+                <tr key={r.level}>
+                  <td>{r.level}</td>
+                  <td className="tabular-nums">
+                    <span className={r.current !== null && r.next !== r.current ? 'text-vipGold' : ''}>{fmt(r.next)}</span>
+                    {r.current !== null && r.next !== r.current && <span className="text-textFaint"> ({fmt(r.current)})</span>}
+                  </td>
+                  <td className="tabular-nums">{fmt(r.battles)}</td>
+                  <td className="tabular-nums">{fmt(r.totalBattles)}</td>
+                  <td className="tabular-nums">{r.energyHours ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
+
+// Balance → Buildings & research (owner decision, 2026-10-19): the general
+// parameters, a factor row per building/research, and a level table for the
+// selected one. Cost = value(L) × factor, value(L) = metal production(L) × L ×
+// "hours of production"; time = base × L^growth × the time factor.
+
+// Effects shown as percentages are stored as fractions.
+const EFFECT_LABELS: Record<string, { label: string; percent?: boolean }> = {
+  capacityBonusPerLevel: { label: 'места на ниво' },
+  marketSlotBonusPerLevel: { label: 'обяви на ниво' },
+  defenseBonusPerLevel: { label: '% защита на ниво', percent: true },
+  pvpProtectionMinutesPerLevel: { label: 'мин. защита на ниво' },
+  protectedMetalPerLevel: { label: 'пази метал (база)' },
+  protectedCrystalPerLevel: { label: 'пази кристал (база)' },
+  researchCapPerLevel: { label: 'нива проучване на ниво' },
+  exchangeLimitPerLevel: { label: 'лимит на Борсата (база)' },
+  energyRegenBonusPerLevel: { label: '% по-бързо зареждане на ниво', percent: true },
+  maxEnergyBonusEvery: { label: '+1 макс. енергия на всеки N нива' },
+};
+
+function formatSeconds(total: number): string {
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (d > 0) return `${d}д ${h}ч`;
+  if (h > 0) return `${h}ч ${m}м`;
+  if (m > 0) return `${m}м${s ? ` ${s}с` : ''}`;
+  return `${s}с`;
+}
+
+function BuildingBalancePanel({ view }: { view: 'buildings' | 'research' }) {
+  const [data, setData] = useState<AdminBuildingBalanceDto | null>(null);
+  const [config, setConfig] = useState<BuildingBalanceConfigDto | null>(null);
+  const [selected, setSelected] = useState<{ kind: 'building' | 'research'; key: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setError(null);
+    adminFetch<AdminBuildingBalanceDto>('/admin/balance/buildings')
+      .then((res) => {
+        setData(res);
+        setConfig(res.config);
+        setDirty(false);
+        setSelected((s) => s ?? (res.buildings[0] ? { kind: 'building', key: res.buildings[0].key } : null));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  async function send(method: 'POST' | 'PUT') {
+    if (!config) return;
+    if (method === 'PUT' && !window.confirm('Да запиша ли баланса на сградите и проучванията за всички нива?')) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await adminFetch<AdminBuildingBalanceDto>(method === 'PUT' ? '/admin/balance/buildings' : '/admin/balance/buildings/preview', { method, body: { config } });
+      setData(res);
+      if (method === 'PUT') {
+        setConfig(res.config);
+        setDirty(false);
+        setMessage('Записано и приложено.');
+      } else {
+        setMessage('Прегледът е обновен — нищо не е записано.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!data || !config) {
+    return (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="text-sm font-semibold">Сгради и проучвания</h2>
+        {error ? <p className="mt-2 text-xs text-danger">{error}</p> : <p className="mt-2 text-xs text-textFaint">Зареждане…</p>}
+      </section>
+    );
+  }
+
+  const num = 'w-20 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent';
+  const update = (fn: (c: BuildingBalanceConfigDto) => void) => {
+    const next = structuredClone(config);
+    fn(next);
+    setConfig(next);
+    setDirty(true);
+  };
+  const field = (label: string, value: number, onChange: (v: number) => void) => (
+    <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+      {label}
+      <input type="number" step="any" value={value} onChange={(e) => onChange(Number(e.target.value))} className={num} />
+    </label>
+  );
+  const changed = (next: number | null, current: number | null | undefined, format: (n: number) => string = (n) => gmNumber(n)) =>
+    next === null ? (
+      '—'
+    ) : (
+      <span className={current !== undefined && current !== null && current !== next ? 'text-vipGold' : ''}>
+        {format(next)}
+        {current !== undefined && current !== null && current !== next && <span className="text-textFaint"> ({format(current)})</span>}
+      </span>
+    );
+  const selButton = (kind: 'building' | 'research', key: string) => (
+    <button
+      type="button"
+      onClick={() => setSelected({ kind, key })}
+      className={`rounded-md border px-2 py-0.5 text-[11px] ${selected?.kind === kind && selected.key === key ? 'border-accent bg-accentBg' : 'border-panelBorder hover:bg-accentBgHover'}`}
+    >
+      нива
+    </button>
+  );
+  // The level table follows the view: the chosen one, or the first of the list.
+  const selectedBuilding =
+    view === 'buildings' ? (data.buildings.find((b) => selected?.kind === 'building' && b.key === selected.key) ?? data.buildings[0] ?? null) : null;
+  const selectedResearch =
+    view === 'research' ? (data.research.find((r) => selected?.kind === 'research' && r.key === selected.key) ?? data.research[0] ?? null) : null;
+
+  return (
+    <>
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">{view === 'buildings' ? 'Сгради' : 'Проучвания'}</h2>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={() => send('POST')} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Преглед
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={() => send('PUT')} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Запази и приложи
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+              Отказ
+            </button>
+          </div>
+        </div>
+        {view === 'buildings' ? (
+          <p className="mb-3 text-[11px] text-textFaint">
+            Производство на мина = на час × ниво × растеж<sup>ниво−1</sup>. Цена на ниво = производството на метал на това ниво × ниво × „часове производство“,
+            умножено по множителя на сградата. Време = база × ниво<sup>растеж</sup> × множителя за време. „Скривалище“, „Борса“ и активирането на „Кръчмата“
+            следват растежа на производството.
+          </p>
+        ) : (
+          <p className="mb-3 text-[11px] text-textFaint">
+            Цена на ниво = „стойността“ на нивото × множителите долу; стойността идва от производството на мината и „часовете производство“, които се
+            настройват в „Сгради“ — промяна там променя и цените на проучванията. Време = база × ниво<sup>растеж</sup>.
+          </p>
+        )}
+        {dirty && <p className="mb-2 text-[11px] text-vipGold">Има незаписани промени — „Запази“ записва и сградите, и проучванията.</p>}
+        {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+        {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+
+        {view === 'buildings' ? (
+          <div className="flex flex-wrap gap-3">
+            {field('метал на час (ниво 1)', config.production.metalPerHour, (v) => update((c) => (c.production.metalPerHour = v)))}
+            {field('кристал на час (ниво 1)', config.production.crystalPerHour, (v) => update((c) => (c.production.crystalPerHour = v)))}
+            {field('растеж на производството', config.production.growth, (v) => update((c) => (c.production.growth = v)))}
+            {field('часове производство (цена)', config.costHours, (v) => update((c) => (c.costHours = v)))}
+            {field('време: база (сек)', config.buildTime.base, (v) => update((c) => (c.buildTime.base = v)))}
+            {field('време: растеж', config.buildTime.growth, (v) => update((c) => (c.buildTime.growth = v)))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-3">
+            {field('метал ×', config.research.metal, (v) => update((c) => (c.research.metal = v)))}
+            {field('кристал ×', config.research.crystal, (v) => update((c) => (c.research.crystal = v)))}
+            {field('кредити ×', config.research.credits, (v) => update((c) => (c.research.credits = v)))}
+            {field('време: база (сек)', config.research.time.base, (v) => update((c) => (c.research.time.base = v)))}
+            {field('време: растеж', config.research.time.growth, (v) => update((c) => (c.research.time.growth = v)))}
+          </div>
+        )}
+      </section>
+
+      {view === 'buildings' && (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Сгради</h3>
+        <p className="mb-2 text-[11px] text-textFaint">Метал ×, кристал × и време × умножават общата цена и време. Ефектите са на ниво.</p>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>сграда</th>
+                <th>метал ×</th>
+                <th>кристал ×</th>
+                <th>време ×</th>
+                <th>макс. ниво</th>
+                <th>ефекти</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {data.buildings.map((b) => {
+                const bc = config.buildings[b.key];
+                return (
+                  <tr key={b.key}>
+                    <td>{resolveMessageKey(b.nameKey)}</td>
+                    <td><input type="number" step="any" value={bc.metal} onChange={(e) => update((c) => (c.buildings[b.key].metal = Number(e.target.value)))} className={num} /></td>
+                    <td><input type="number" step="any" value={bc.crystal} onChange={(e) => update((c) => (c.buildings[b.key].crystal = Number(e.target.value)))} className={num} /></td>
+                    <td><input type="number" step="any" value={bc.time} onChange={(e) => update((c) => (c.buildings[b.key].time = Number(e.target.value)))} className={num} /></td>
+                    <td><input type="number" value={bc.maxLevel} onChange={(e) => update((c) => (c.buildings[b.key].maxLevel = Number(e.target.value)))} className={num} /></td>
+                    <td>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(bc.effects).map(([fieldKey, value]) => {
+                          const meta = EFFECT_LABELS[fieldKey] ?? { label: fieldKey };
+                          return (
+                            <label key={fieldKey} className="flex items-center gap-1 text-[11px] text-textFaint">
+                              {meta.label}
+                              <input
+                                type="number"
+                                step="any"
+                                value={meta.percent ? Math.round(value * 10000) / 100 : value}
+                                onChange={(e) => update((c) => (c.buildings[b.key].effects[fieldKey] = meta.percent ? Number(e.target.value) / 100 : Number(e.target.value)))}
+                                className={num}
+                              />
+                            </label>
+                          );
+                        })}
+                        {Object.keys(bc.effects).length === 0 && <span className="text-[11px] text-textFaint">производство (горе)</span>}
+                      </div>
+                    </td>
+                    <td>{selButton('building', b.key)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      )}
+
+      {view === 'research' && (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Проучвания</h3>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>проучване</th>
+                <th>бонус на ниво %</th>
+                <th>макс. ниво</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {data.research.map((r) => {
+                const rc = config.research.items[r.key];
+                return (
+                  <tr key={r.key}>
+                    <td>{resolveMessageKey(r.nameKey)}</td>
+                    <td>
+                      <input
+                        type="number"
+                        step="any"
+                        value={Math.round(rc.bonusPerLevel * 10000) / 100}
+                        onChange={(e) => update((c) => (c.research.items[r.key].bonusPerLevel = Number(e.target.value) / 100))}
+                        className={num}
+                      />
+                    </td>
+                    <td><input type="number" value={rc.maxLevel} onChange={(e) => update((c) => (c.research.items[r.key].maxLevel = Number(e.target.value)))} className={num} /></td>
+                    <td>{selButton('research', r.key)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      )}
+
+      {(selectedBuilding || selectedResearch) && (
+        <section className="rounded-lg border border-panelBorder bg-panel p-4">
+          <h3 className="mb-1 text-xs font-semibold">
+            Нива: {resolveMessageKey((selectedBuilding ?? selectedResearch)!.nameKey)}
+          </h3>
+          <p className="mb-2 text-[11px] text-textFaint">В цвят са промените, които „Преглед“ показва, със сегашните в скоби.</p>
+          <div className="max-w-full overflow-x-auto">
+            <table className={GRID_TABLE}>
+              <thead className="text-[10px] uppercase text-textFaint">
+                <tr>
+                  <th>ниво</th>
+                  <th>метал</th>
+                  <th>кристал</th>
+                  {selectedResearch && <th>кредити</th>}
+                  <th>време</th>
+                  {selectedBuilding?.levels.some((l) => l.producesPerHour !== null) && <th>на час</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {selectedBuilding?.levels.map((l) => (
+                  <tr key={l.level}>
+                    <td>{l.level}</td>
+                    <td className="tabular-nums">{changed(l.metalCost, l.current?.metalCost)}</td>
+                    <td className="tabular-nums">{changed(l.crystalCost, l.current?.crystalCost)}</td>
+                    <td className="tabular-nums">{changed(l.constructionSeconds, l.current?.constructionSeconds, formatSeconds)}</td>
+                    {l.producesPerHour !== null && <td className="tabular-nums">{changed(l.producesPerHour, l.current?.producesPerHour)}</td>}
+                  </tr>
+                ))}
+                {selectedResearch?.levels.map((l) => (
+                  <tr key={l.level}>
+                    <td>{l.level}</td>
+                    <td className="tabular-nums">{changed(l.metalCost, l.current?.metalCost)}</td>
+                    <td className="tabular-nums">{changed(l.crystalCost, l.current?.crystalCost)}</td>
+                    <td className="tabular-nums">{changed(l.creditsCost, l.current?.creditsCost)}</td>
+                    <td className="tabular-nums">{changed(l.researchSeconds, l.current?.researchSeconds, formatSeconds)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+// Bonus per level by clan building kind: the Member Hall's is places, the rest are percent.
+const CLAN_BONUS_LABELS: Record<string, { label: string; percent: boolean }> = {
+  MEMBER_CAPACITY: { label: 'места на ниво', percent: false },
+  COMBAT_BONUS: { label: 'сила на ниво %', percent: true },
+  PRODUCTION_BONUS: { label: 'производство на ниво %', percent: true },
+  ENERGY_REGEN: { label: 'възстановяване на енергия на ниво %', percent: true },
+  BOSS_CORE_DAMAGE: { label: 'щета срещу босове и Ядрото на ниво %', percent: true },
+};
+
+type ClanBuildingRowConfig = ClanBalanceConfigDto['buildings'][string];
+
+function ClanBalancePanel() {
+  const [data, setData] = useState<AdminClanBalanceDto | null>(null);
+  const [config, setConfig] = useState<ClanBalanceConfigDto | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setError(null);
+    adminFetch<AdminClanBalanceDto>('/admin/balance/clan')
+      .then((res) => {
+        setData(res);
+        setConfig(res.config);
+        setDirty(false);
+        setSelected((s) => s ?? res.buildings[0]?.key ?? null);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  async function send(method: 'POST' | 'PUT') {
+    if (!config) return;
+    if (method === 'PUT' && !window.confirm('Да запиша ли баланса на клановите сгради за всички кланове?')) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await adminFetch<AdminClanBalanceDto>(method === 'PUT' ? '/admin/balance/clan' : '/admin/balance/clan/preview', { method, body: { config } });
+      setData(res);
+      if (method === 'PUT') {
+        setConfig(res.config);
+        setDirty(false);
+        setMessage('Записано и приложено.');
+      } else {
+        setMessage('Прегледът е обновен — нищо не е записано.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!data || !config) {
+    return (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="text-sm font-semibold">Кланови сгради</h2>
+        {error ? <p className="mt-2 text-xs text-danger">{error}</p> : <p className="mt-2 text-xs text-textFaint">Зареждане…</p>}
+      </section>
+    );
+  }
+
+  const num = 'w-20 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent';
+  const update = (fn: (c: ClanBalanceConfigDto) => void) => {
+    const next = structuredClone(config);
+    fn(next);
+    setConfig(next);
+    setDirty(true);
+  };
+  const field = (label: string, value: number, onChange: (v: number) => void) => (
+    <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+      {label}
+      <input type="number" step="any" value={value} onChange={(e) => onChange(Number(e.target.value))} className={num} />
+    </label>
+  );
+  const changed = (next: number, current: number | undefined, format: (n: number) => string = (n) => gmNumber(n)) => (
+    <span className={current !== undefined && current !== next ? 'text-vipGold' : ''}>
+      {format(next)}
+      {current !== undefined && current !== next && <span className="text-textFaint"> ({format(current)})</span>}
+    </span>
+  );
+  const pct = (v: number) => Math.round(v * 10000) / 100;
+  const t = config.tavern;
+  const selectedBuilding = data.buildings.find((b) => b.key === selected) ?? data.buildings[0] ?? null;
+
+  return (
+    <>
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Кланови сгради</h2>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={() => send('POST')} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Преглед
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={() => send('PUT')} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Запази и приложи
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+              Отказ
+            </button>
+          </div>
+        </div>
+        <p className="mb-3 text-[11px] text-textFaint">
+          Цена на ниво = „стойността“ на нивото от „Сгради“ (производство на мината × ниво × часове производство) × кланов множител, защото плаща целият
+          клан. „Стъпка“: всяко ниво струва колкото толкова нива на модела (Залата на членовете има 10 нива, затова 3). Време = база × (ниво × стъпка)
+          <sup>растеж</sup>. „Цена ×“ прави една сграда по-скъпа или по-евтина от другите (Кръчмата е 0,8, защото е активна само част от времето). Промяна на производството в „Сгради“ променя и тези цени. Бонусите важат веднага за всички кланове.
+        </p>
+        {dirty && <p className="mb-2 text-[11px] text-vipGold">Има незаписани промени.</p>}
+        {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+        {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+        <div className="flex flex-wrap gap-3">
+          {field('кланов множител (метал)', config.costFactor, (v) => update((c) => (c.costFactor = v)))}
+          {field('кристал ×', config.crystal, (v) => update((c) => (c.crystal = v)))}
+          {field('кредити ×', config.credits, (v) => update((c) => (c.credits = v)))}
+          {field('време: база (сек)', config.buildTime.base, (v) => update((c) => (c.buildTime.base = v)))}
+          {field('време: растеж', config.buildTime.growth, (v) => update((c) => (c.buildTime.growth = v)))}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-2 text-xs font-semibold">Сгради</h3>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>сграда</th>
+                <th>бонус на ниво</th>
+                <th>макс. ниво</th>
+                <th>стъпка</th>
+                <th>цена ×</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {data.buildings.map((b) => {
+                const bc = config.buildings[b.key];
+                const meta = CLAN_BONUS_LABELS[b.bonusType] ?? { label: b.bonusType, percent: false };
+                const set = (fn: (x: ClanBuildingRowConfig) => void) => update((c) => fn(c.buildings[b.key]));
+                return (
+                  <tr key={b.key}>
+                    <td>{resolveMessageKey(b.nameKey)}</td>
+                    <td>
+                      <label className="flex items-center gap-1 text-[11px] text-textFaint">
+                        <input
+                          type="number"
+                          step="any"
+                          value={meta.percent ? pct(bc.bonusPerLevel) : bc.bonusPerLevel}
+                          onChange={(e) => set((x) => (x.bonusPerLevel = meta.percent ? Number(e.target.value) / 100 : Number(e.target.value)))}
+                          className={num}
+                        />
+                        {meta.label}
+                      </label>
+                    </td>
+                    <td>
+                      <input type="number" value={bc.maxLevel} onChange={(e) => set((x) => (x.maxLevel = Number(e.target.value)))} className={num} />
+                    </td>
+                    <td>
+                      <input type="number" step="any" value={bc.levelStep} onChange={(e) => set((x) => (x.levelStep = Number(e.target.value)))} className={num} />
+                    </td>
+                    <td>
+                      <input type="number" step="any" value={bc.cost} onChange={(e) => set((x) => (x.cost = Number(e.target.value)))} className={num} />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => setSelected(b.key)}
+                        className={`rounded-md border px-2 py-0.5 text-[11px] ${selectedBuilding?.key === b.key ? 'border-accent bg-accentBg' : 'border-panelBorder hover:bg-accentBgHover'}`}
+                      >
+                        нива
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Кръчма — активиране</h3>
+        <p className="mb-2 text-[11px] text-textFaint">Бонусът важи само докато е активна. Цената е за ниво 1 и расте с производството.</p>
+        <div className="flex flex-wrap gap-3">
+          {field('часове', t.activationHours, (v) => update((c) => (c.tavern.activationHours = v)))}
+          {field('метал', t.activationMetal, (v) => update((c) => (c.tavern.activationMetal = v)))}
+          {field('кристал', t.activationCrystal, (v) => update((c) => (c.tavern.activationCrystal = v)))}
+          {field('кредити', t.activationCredits, (v) => update((c) => (c.tavern.activationCredits = v)))}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Генератор — енергия</h3>
+        <p className="mb-2 text-[11px] text-textFaint">+1 макс. енергия за всеки член на всяко от тези нива (през запетая).</p>
+        <input
+          type="text"
+          key={config.generatorMaxEnergyLevels.join(',')}
+          defaultValue={config.generatorMaxEnergyLevels.join(', ')}
+          onBlur={(e) =>
+            update(
+              (c) =>
+                (c.generatorMaxEnergyLevels = e.target.value
+                  .split(/[,\s]+/)
+                  .filter(Boolean)
+                  .map(Number)),
+            )
+          }
+          className="w-32 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent"
+        />
+      </section>
+
+      {selectedBuilding && (
+        <section className="rounded-lg border border-panelBorder bg-panel p-4">
+          <h3 className="mb-1 text-xs font-semibold">Нива: {resolveMessageKey(selectedBuilding.nameKey)}</h3>
+          <p className="mb-2 text-[11px] text-textFaint">В цвят са промените, които „Преглед“ показва, със сегашните в скоби.</p>
+          <div className="max-w-full overflow-x-auto">
+            <table className={GRID_TABLE}>
+              <thead className="text-[10px] uppercase text-textFaint">
+                <tr>
+                  <th>ниво</th>
+                  <th>метал</th>
+                  <th>кристал</th>
+                  <th>кредити</th>
+                  <th>време</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedBuilding.levels.map((l) => (
+                  <tr key={l.level}>
+                    <td>{l.level}</td>
+                    <td className="tabular-nums">{changed(l.metalCost, l.current?.metalCost)}</td>
+                    <td className="tabular-nums">{changed(l.crystalCost, l.current?.crystalCost)}</td>
+                    <td className="tabular-nums">{changed(l.creditsCost, l.current?.creditsCost)}</td>
+                    <td className="tabular-nums">{changed(l.constructionSeconds, l.current?.constructionSeconds, formatSeconds)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+const SET_LABELS: [string, string][] = [
+  ['pioneer', 'Pioneer'],
+  ['ascendant', 'Ascendant'],
+  ['coreforged', 'Coreforged'],
+];
+const SLOT_LABELS: [string, string][] = [
+  ['HEAD', 'Глава'],
+  ['LEFT_ARM', 'Лява ръка'],
+  ['RIGHT_ARM', 'Дясна ръка'],
+  ['ARMOR', 'Броня'],
+  ['CORE', 'Ядро'],
+  ['LEFT_LEG', 'Ляв крак'],
+  ['RIGHT_LEG', 'Десен крак'],
+];
+const SET_STAT_LABELS: [keyof EquipmentSlotStatsDto, string][] = [
+  ['attack', 'А'],
+  ['defense', 'З'],
+  ['hp', 'HP'],
+];
+const ROBOT_LABELS: Record<string, string> = { none: 'без екипировка', base: 'сет +0', max: 'сет макс.' };
+
+function EquipmentBalancePanel() {
+  const [data, setData] = useState<AdminEquipmentBalanceDto | null>(null);
+  const [config, setConfig] = useState<EquipmentBalanceConfigDto | null>(null);
+  const [split, setSplit] = useState<EquipmentSplitDto>({ damage: 1, defense: 1, hp: 1, researchAttack: 0, researchHp: 0, forge: 0 });
+  const [scale, setScale] = useState<Record<string, number>>({});
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setError(null);
+    adminFetch<AdminEquipmentBalanceDto>('/admin/balance/equipment')
+      .then((res) => {
+        setData(res);
+        setConfig(res.config);
+        setSplit(res.split);
+        setDirty(false);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  async function send(method: 'POST' | 'PUT') {
+    if (!config) return;
+    if (method === 'PUT' && !window.confirm('Да запиша ли баланса на сетовете? Важи веднага за всички предмети у играчите, включително екипираните.')) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await adminFetch<AdminEquipmentBalanceDto>(method === 'PUT' ? '/admin/balance/equipment' : '/admin/balance/equipment/preview', {
+        method,
+        body: { config, split },
+      });
+      setData(res);
+      if (method === 'PUT') {
+        setConfig(res.config);
+        setDirty(false);
+        setMessage('Записано и приложено.');
+      } else {
+        setMessage('Прегледът е обновен — нищо не е записано.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!data || !config) {
+    return (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="text-sm font-semibold">Сетове</h2>
+        {error ? <p className="mt-2 text-xs text-danger">{error}</p> : <p className="mt-2 text-xs text-textFaint">Зареждане…</p>}
+      </section>
+    );
+  }
+
+  const num = 'w-20 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent';
+  const small = 'w-14 rounded-md border border-wellBorder bg-well px-1 py-1 text-xs outline-none focus:border-accent';
+  const update = (fn: (c: EquipmentBalanceConfigDto) => void) => {
+    const next = structuredClone(config);
+    fn(next);
+    setConfig(next);
+    setDirty(true);
+  };
+  const field = (label: string, value: number, onChange: (v: number) => void) => (
+    <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+      {label}
+      <input type="number" step="any" value={value} onChange={(e) => onChange(Number(e.target.value))} className={num} />
+    </label>
+  );
+  // A helper, not a formula: multiplies the set's numbers once (whole numbers), then they're plain values again.
+  const scaleSet = (tier: string) => {
+    const factor = scale[tier];
+    if (!factor || factor <= 0) return;
+    update((c) => {
+      for (const [slot] of SLOT_LABELS) {
+        const s = c.sets[tier].slots[slot];
+        s.attack = Math.round(s.attack * factor);
+        s.defense = Math.round(s.defense * factor);
+        s.hp = Math.round(s.hp * factor);
+      }
+    });
+  };
+  const setTotal = (tier: string, stat: keyof EquipmentSlotStatsDto) => SLOT_LABELS.reduce((sum, [slot]) => sum + config.sets[tier].slots[slot][stat], 0);
+  const currentZone = (key: string) => data.currentZones?.find((z) => z.zoneKey === key) ?? null;
+  const winCell = (rate: number, current: number | undefined) => (
+    <span className={rate >= 90 ? 'text-positive' : rate <= 10 ? 'text-danger' : 'text-vipGold'}>
+      {gmNumber(rate)}%
+      {current !== undefined && current !== rate && <span className="text-textFaint"> ({gmNumber(current)}%)</span>}
+    </span>
+  );
+
+  return (
+    <>
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Сетове</h2>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={() => send('POST')} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Преглед
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={() => send('PUT')} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Запази и приложи
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+              Отказ
+            </button>
+          </div>
+        </div>
+        <p className="mb-3 text-[11px] text-textFaint">
+          Какво дава всеки слот на всеки сет (А = атака, З = защита). Предметите у играчите четат тези стойности, така че промяната важи веднага за всички
+          притежавани предмети, включително екипираните и тези на Пазара. Ако се свали максималното подобрение, вече подобрените предмети си остават, но
+          не могат да се качват повече.
+        </p>
+        {dirty && <p className="mb-2 text-[11px] text-vipGold">Има незаписани промени.</p>}
+        {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+        {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th rowSpan={2}>слот</th>
+                {SET_LABELS.map(([tier, label]) => (
+                  <th key={tier} colSpan={3} className="text-center">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+              <tr>
+                {SET_LABELS.flatMap(([tier]) => SET_STAT_LABELS.map(([stat, label]) => <th key={`${tier}-${stat}`}>{label}</th>))}
+              </tr>
+            </thead>
+            <tbody>
+              {SLOT_LABELS.map(([slot, slotLabel]) => (
+                <tr key={slot}>
+                  <td>{slotLabel}</td>
+                  {SET_LABELS.flatMap(([tier]) =>
+                    SET_STAT_LABELS.map(([stat]) => (
+                      <td key={`${tier}-${stat}`}>
+                        <input
+                          type="number"
+                          value={config.sets[tier].slots[slot][stat]}
+                          onChange={(e) => update((c) => (c.sets[tier].slots[slot][stat] = Number(e.target.value)))}
+                          className={small}
+                        />
+                      </td>
+                    )),
+                  )}
+                </tr>
+              ))}
+              <tr className="font-semibold">
+                <td>общо (+0)</td>
+                {SET_LABELS.flatMap(([tier]) => SET_STAT_LABELS.map(([stat]) => <td key={`${tier}-${stat}`} className="tabular-nums">{gmNumber(setTotal(tier, stat))}</td>))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {SET_LABELS.map(([tier, label]) => (
+            <div key={tier} className="rounded-md border border-wellBorder p-2">
+              <p className="mb-2 text-xs font-semibold">{label}</p>
+              <div className="flex flex-wrap gap-3">
+                {field('макс. подобрение', config.sets[tier].maxUpgradeLevel, (v) => update((c) => (c.sets[tier].maxUpgradeLevel = v)))}
+                {field('продажба: метал', config.sets[tier].sellMetal, (v) => update((c) => (c.sets[tier].sellMetal = v)))}
+                {field('продажба: кристал', config.sets[tier].sellCrystal, (v) => update((c) => (c.sets[tier].sellCrystal = v)))}
+              </div>
+              <div className="mt-2 flex items-end gap-2">
+                <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+                  умножи статовете по
+                  <input type="number" step="any" value={scale[tier] ?? ''} onChange={(e) => setScale((s) => ({ ...s, [tier]: Number(e.target.value) }))} className={num} />
+                </label>
+                <button type="button" onClick={() => scaleSet(tier)} className="rounded-md border border-panelBorder px-2 py-1 text-[11px] hover:bg-accentBgHover">
+                  приложи
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Подобряване и продажба</h3>
+        <p className="mb-2 text-[11px] text-textFaint">
+          Всяко ниво подобрение добавя „бонус“ от базовите статове. Ниво N струва „камъни на ниво“ × N камъка от сета. Рециклиран предмет дава фрагмент,
+          а толкова фрагмента правят камък. Продажбата се умножава по качеството.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {field('бонус на ниво %', Math.round(config.upgrade.bonusPerLevel * 10000) / 100, (v) => update((c) => (c.upgrade.bonusPerLevel = v / 100)))}
+          {field('камъни на ниво', config.upgrade.materialsPerLevel, (v) => update((c) => (c.upgrade.materialsPerLevel = v)))}
+          {field('фрагменти за камък', config.upgrade.fragmentsPerStone, (v) => update((c) => (c.upgrade.fragmentsPerStone = v)))}
+          {field('продажба: Нормален ×', config.qualitySellMultiplier.NORMAL, (v) => update((c) => (c.qualitySellMultiplier.NORMAL = v)))}
+          {field('продажба: Рядък ×', config.qualitySellMultiplier.RARE, (v) => update((c) => (c.qualitySellMultiplier.RARE = v)))}
+          {field('продажба: Епичен ×', config.qualitySellMultiplier.EPIC, (v) => update((c) => (c.qualitySellMultiplier.EPIC = v)))}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Преглед: еталонен робот срещу Пентилите</h3>
+        <p className="mb-2 text-[11px] text-textFaint">
+          За първия и последния Пентил на всяка зона: робот на неговото ниво с базовия минимум, точките за атрибути (разпределени като долу) и сета, който
+          пада в зоната, плюс бонусите от проучвания и Ковачница, зададени долу (без опции на предметите). Шансът за победа е от {data.simulationRuns} истински симулации
+          на боя. Камъните са само от Пентилите на зоната (камъни, фрагменти и рециклиране на паднали предмети); босовете и магазинът дават още.
+          Разпределението и бонусите се ползват само за прегледа и не се записват.
+        </p>
+        <div className="mb-3 flex flex-wrap items-end gap-3">
+          {field('точки: атака (дял)', split.damage, (v) => setSplit((s) => ({ ...s, damage: v })))}
+          {field('точки: защита (дял)', split.defense, (v) => setSplit((s) => ({ ...s, defense: v })))}
+          {field('точки: HP (дял)', split.hp, (v) => setSplit((s) => ({ ...s, hp: v })))}
+          {field('проучване атака %', Math.round(split.researchAttack * 10000) / 100, (v) => setSplit((s) => ({ ...s, researchAttack: v / 100 })))}
+          {field('проучване HP %', Math.round(split.researchHp * 10000) / 100, (v) => setSplit((s) => ({ ...s, researchHp: v / 100 })))}
+          {field('Ковачница %', Math.round(split.forge * 10000) / 100, (v) => setSplit((s) => ({ ...s, forge: v / 100 })))}
+          <button
+            type="button"
+            onClick={() => setSplit((s) => ({ ...s, ...data.maxBonuses }))}
+            className="rounded-md border border-panelBorder px-2 py-1.5 text-[11px] hover:bg-accentBgHover"
+          >
+            максимални ({gmNumber(data.maxBonuses.researchAttack * 100)}% / {gmNumber(data.maxBonuses.researchHp * 100)}% / {gmNumber(data.maxBonuses.forge * 100)}%)
+          </button>
+          <button
+            type="button"
+            onClick={() => setSplit((s) => ({ ...s, researchAttack: 0, researchHp: 0, forge: 0 }))}
+            className="rounded-md border border-panelBorder px-2 py-1.5 text-[11px] hover:bg-accentBgHover"
+          >
+            без бонуси
+          </button>
+          <button type="button" disabled={busy} onClick={() => send('POST')} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+            Пресметни
+          </button>
+        </div>
+        <div className="flex flex-col gap-4">
+          {data.zones.map((z) => {
+            const cz = currentZone(z.zoneKey);
+            return (
+              <div key={z.zoneKey}>
+                <p className="mb-1 text-xs font-semibold">
+                  {resolveMessageKey(z.zoneNameKey)} — {SET_LABELS.find(([t]) => t === z.tier)?.[1] ?? z.tier} до +{z.maxUpgradeLevel}
+                </p>
+                <p className="mb-1 text-[11px] text-textFaint">
+                  До +{z.maxUpgradeLevel}: {gmNumber(z.stonesToMax)} камъка · {gmNumber(z.stonesPerBattle)} камъка на битка ·{' '}
+                  {z.battlesToMax !== null ? `около ${gmNumber(z.battlesToMax)} битки` : 'не падат камъни'}
+                  {cz && cz.battlesToMax !== z.battlesToMax && cz.battlesToMax !== null && <span> (сега {gmNumber(cz.battlesToMax)})</span>}
+                </p>
+                <div className="max-w-full overflow-x-auto">
+                  <table className={GRID_TABLE}>
+                    <thead className="text-[10px] uppercase text-textFaint">
+                      <tr>
+                        <th>Пентил</th>
+                        <th>точки</th>
+                        {['none', 'base', 'max'].map((k) => (
+                          <th key={k}>{ROBOT_LABELS[k]}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {z.fights.map((f) => {
+                        const cf = cz?.fights.find((x) => x.pentiliKey === f.pentiliKey);
+                        return (
+                          <tr key={f.pentiliKey}>
+                            <td>
+                              {resolveMessageKey(f.nameKey)} (ниво {f.level})
+                              <div className="text-[10px] text-textFaint">
+                                А {gmNumber(f.pentili.attack)} · З {gmNumber(f.pentili.defense)} · HP {gmNumber(f.pentili.maxHp)}
+                              </div>
+                            </td>
+                            <td className="tabular-nums">{gmNumber(f.attributePoints)}</td>
+                            {f.robots.map((r) => (
+                              <td key={r.kind} className="tabular-nums">
+                                {winCell(r.winRate, cf?.robots.find((x) => x.kind === r.kind)?.winRate)}
+                                <div className="text-[10px] text-textFaint">
+                                  А {gmNumber(r.stats.attack)} · З {gmNumber(r.stats.defense)} · HP {gmNumber(r.stats.hp)}
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function ExpeditionBalancePanel() {
+  const [data, setData] = useState<AdminExpeditionBalanceDto | null>(null);
+  const [config, setConfig] = useState<ExpeditionBalanceConfigDto | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setError(null);
+    adminFetch<AdminExpeditionBalanceDto>('/admin/balance/expeditions')
+      .then((res) => {
+        setData(res);
+        setConfig(res.config);
+        setDirty(false);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  async function send(method: 'POST' | 'PUT') {
+    if (!config) return;
+    if (method === 'PUT' && !window.confirm('Да запиша ли баланса на експедициите?')) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await adminFetch<AdminExpeditionBalanceDto>(method === 'PUT' ? '/admin/balance/expeditions' : '/admin/balance/expeditions/preview', {
+        method,
+        body: { config },
+      });
+      setData(res);
+      if (method === 'PUT') {
+        setConfig(res.config);
+        setDirty(false);
+        setMessage('Записано и приложено.');
+      } else {
+        setMessage('Прегледът е обновен — нищо не е записано.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!data || !config) {
+    return (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="text-sm font-semibold">Експедиции</h2>
+        {error ? <p className="mt-2 text-xs text-danger">{error}</p> : <p className="mt-2 text-xs text-textFaint">Зареждане…</p>}
+      </section>
+    );
+  }
+
+  const num = 'w-20 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent';
+  const update = (fn: (c: ExpeditionBalanceConfigDto) => void) => {
+    const next = structuredClone(config);
+    fn(next);
+    setConfig(next);
+    setDirty(true);
+  };
+  const cell = (next: number, current: number | undefined) => (
+    <span className={current !== undefined && current !== next ? 'text-vipGold' : ''}>
+      {gmNumber(next)}
+      {current !== undefined && current !== next && <span className="text-textFaint"> ({gmNumber(current)})</span>}
+    </span>
+  );
+
+  return (
+    <>
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Експедиции</h2>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={() => send('POST')} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Преглед
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={() => send('PUT')} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Запази и приложи
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+              Отказ
+            </button>
+          </div>
+        </div>
+        <p className="mb-3 text-[11px] text-textFaint">
+          Експедицията дава колкото „битки“ с Пентил на нивото на играча: метал, кристал и опит по кривите от „Пентили“ (без колебанието), плюс
+          проучването „Навигация“ за ресурсите. Без кредити. Бонус предметът е случаен предмет от сета на най-високата отключена зона на играча. Енергията
+          дава {gmNumber(data.fightsPerHourFromEnergy)} битки на час — за сравнение.
+        </p>
+        {dirty && <p className="mb-2 text-[11px] text-vipGold">Има незаписани промени.</p>}
+        {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+        {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>експедиция</th>
+                <th>минути</th>
+                <th>битки</th>
+                <th>битки на час</th>
+                <th>бонус предмет %</th>
+                <th>ниво Навигация</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.expeditions.map((e) => {
+                const ec = config.expeditions[e.key];
+                return (
+                  <tr key={e.key}>
+                    <td>{resolveMessageKey(e.nameKey)}</td>
+                    <td><input type="number" value={ec.durationMinutes} onChange={(ev) => update((c) => (c.expeditions[e.key].durationMinutes = Number(ev.target.value)))} className={num} /></td>
+                    <td><input type="number" step="any" value={ec.fights} onChange={(ev) => update((c) => (c.expeditions[e.key].fights = Number(ev.target.value)))} className={num} /></td>
+                    <td className="tabular-nums">{ec.durationMinutes > 0 ? gmNumber(Math.round((ec.fights / (ec.durationMinutes / 60)) * 100) / 100) : '—'}</td>
+                    <td>
+                      <input
+                        type="number"
+                        step="any"
+                        value={Math.round(ec.bonusItemChance * 10000) / 100}
+                        onChange={(ev) => update((c) => (c.expeditions[e.key].bonusItemChance = Number(ev.target.value) / 100))}
+                        className={num}
+                      />
+                    </td>
+                    <td><input type="number" value={ec.requiredNavigationLevel} onChange={(ev) => update((c) => (c.expeditions[e.key].requiredNavigationLevel = Number(ev.target.value)))} className={num} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <label className="mt-3 flex w-fit flex-col gap-1 text-[11px] text-textFaint">
+          ранно прекратяване: изплаща % от събраното
+          <input
+            type="number"
+            step="any"
+            value={Math.round(config.earlyCancelPercentage * 10000) / 100}
+            onChange={(ev) => update((c) => (c.earlyCancelPercentage = Number(ev.target.value) / 100))}
+            className={num}
+          />
+        </label>
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Награди по ниво на играча</h3>
+        <p className="mb-2 text-[11px] text-textFaint">Без „Навигация“. В цвят са промените, които „Преглед“ показва, със сегашните в скоби.</p>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th rowSpan={2}>ниво</th>
+                {data.expeditions.map((e) => (
+                  <th key={e.key} colSpan={3} className="text-center">
+                    {resolveMessageKey(e.nameKey)}
+                  </th>
+                ))}
+              </tr>
+              <tr>
+                {data.expeditions.flatMap((e) => [
+                  <th key={`${e.key}-m`}>метал</th>,
+                  <th key={`${e.key}-c`}>кристал</th>,
+                  <th key={`${e.key}-x`}>опит</th>,
+                ])}
+              </tr>
+            </thead>
+            <tbody>
+              {data.levels.map((row) => {
+                const current = data.currentLevels?.find((r) => r.level === row.level);
+                return (
+                  <tr key={row.level}>
+                    <td>{row.level}</td>
+                    {data.expeditions.flatMap((e) => {
+                      const r = row.rewards[e.key];
+                      const c = current?.rewards[e.key];
+                      return [
+                        <td key={`${e.key}-m`} className="tabular-nums">{cell(r.metal, c?.metal)}</td>,
+                        <td key={`${e.key}-c`} className="tabular-nums">{cell(r.crystal, c?.crystal)}</td>,
+                        <td key={`${e.key}-x`} className="tabular-nums">{cell(r.xp, c?.xp)}</td>,
+                      ];
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function BossBalancePanel() {
+  const [data, setData] = useState<AdminBossBalanceDto | null>(null);
+  const [config, setConfig] = useState<BossBalanceConfigDto | null>(null);
+  const [split, setSplit] = useState<EquipmentSplitDto>({ damage: 1, defense: 1, hp: 1, researchAttack: 0, researchHp: 0, forge: 0 });
+  const [tavern, setTavern] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setError(null);
+    adminFetch<AdminBossBalanceDto>('/admin/balance/bosses')
+      .then((res) => {
+        setData(res);
+        setConfig(res.config);
+        setDirty(false);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  async function send(method: 'POST' | 'PUT') {
+    if (!config) return;
+    if (method === 'PUT' && !window.confirm('Да запиша ли баланса на босовете?')) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await adminFetch<AdminBossBalanceDto>(method === 'PUT' ? '/admin/balance/bosses' : '/admin/balance/bosses/preview', {
+        method,
+        body: { config, split, tavern },
+      });
+      setData(res);
+      if (method === 'PUT') {
+        setConfig(res.config);
+        setDirty(false);
+        setMessage('Записано и приложено.');
+      } else {
+        setMessage('Прегледът е обновен — нищо не е записано.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!data || !config) {
+    return (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="text-sm font-semibold">Босове</h2>
+        {error ? <p className="mt-2 text-xs text-danger">{error}</p> : <p className="mt-2 text-xs text-textFaint">Зареждане…</p>}
+      </section>
+    );
+  }
+
+  const num = 'w-20 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent';
+  const select = 'max-w-[14rem] rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent';
+  const update = (fn: (c: BossBalanceConfigDto) => void) => {
+    const next = structuredClone(config);
+    fn(next);
+    setConfig(next);
+    setDirty(true);
+  };
+  const field = (label: string, value: number, onChange: (v: number) => void) => (
+    <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+      {label}
+      <input type="number" step="any" value={value} onChange={(e) => onChange(Number(e.target.value))} className={num} />
+    </label>
+  );
+  const pct = (v: number) => Math.round(v * 10000) / 100;
+  const boxes = data.items.filter((i) => i.key.endsWith('_box'));
+  const winCell = (rate: number, current: number | undefined) => (
+    <span className={rate >= 90 ? 'text-positive' : rate <= 10 ? 'text-danger' : 'text-vipGold'}>
+      {gmNumber(rate)}%
+      {current !== undefined && current !== rate && <span className="text-textFaint"> ({gmNumber(current)}%)</span>}
+    </span>
+  );
+
+  return (
+    <>
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Босове</h2>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={() => send('POST')} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Преглед
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={() => send('PUT')} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Запази и приложи
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+              Отказ
+            </button>
+          </div>
+        </div>
+        <p className="mb-3 text-[11px] text-textFaint">
+          Всеки участник в спечелена формация получава гарантираната кутия, своя дял от опита (опитът се дели на заетите места) и тегли плячката
+          отделно. Метал и кристал: колкото „битки“ с Пентил на мин. ниво на боса, по кривите от „Пентили“ с колебанието им. Кредитите са по подразбиране
+          0 (босовете не дават кредити).
+        </p>
+        {dirty && <p className="mb-2 text-[11px] text-vipGold">Има незаписани промени.</p>}
+        {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+        {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+        <div className="flex flex-col gap-4">
+          {data.bosses.map((row) => {
+            const b = config.bosses[row.key];
+            if (!b) return null;
+            const set = (fn: (x: BossBalanceConfigDto['bosses'][string]) => void) => update((c) => fn(c.bosses[row.key]));
+            return (
+              <div key={row.key} className="rounded-md border border-wellBorder p-3">
+                <p className="mb-2 text-xs font-semibold">
+                  {resolveMessageKey(row.nameKey)} <span className="font-normal text-textFaint">— {resolveMessageKey(row.zoneNameKey)}</span>
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {field('мин. ниво', b.minLevel, (v) => set((x) => (x.minLevel = v)))}
+                  {field('HP', b.maxHp, (v) => set((x) => (x.maxHp = v)))}
+                  {field('атака', b.attack, (v) => set((x) => (x.attack = v)))}
+                  {field('защита', b.defense, (v) => set((x) => (x.defense = v)))}
+                  {field('опит (общо)', b.xpReward, (v) => set((x) => (x.xpReward = v)))}
+                  <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+                    гарантирана кутия
+                    <select value={b.boxKey} onChange={(e) => set((x) => (x.boxKey = e.target.value))} className={select}>
+                      {boxes.map((i) => (
+                        <option key={i.key} value={i.key}>
+                          {resolveMessageKey(i.nameKey)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {field('ресурси: битки', b.resourceFights, (v) => set((x) => (x.resourceFights = v)))}
+                </div>
+                <p className="mt-2 text-[11px] text-textFaint">
+                  На участник: метал {gmNumber(row.metal[0])}–{gmNumber(row.metal[1])}, кристал {gmNumber(row.crystal[0])}–{gmNumber(row.crystal[1])}
+                  {data.currentBosses && ' (след „Преглед“)'}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-3">
+                  {field('кредити: шанс %', pct(b.credits.chance), (v) => set((x) => (x.credits.chance = v / 100)))}
+                  {field('кредити: от', b.credits.min, (v) => set((x) => (x.credits.min = v)))}
+                  {field('кредити: до', b.credits.max, (v) => set((x) => (x.credits.max = v)))}
+                </div>
+                <p className="mb-1 mt-3 text-[11px] font-semibold text-textMuted">Предмети</p>
+                <div className="flex flex-col gap-2">
+                  {b.items.map((drop, index) => (
+                    <div key={index} className="flex flex-wrap items-end gap-2">
+                      <select value={drop.itemKey} onChange={(e) => set((x) => (x.items[index].itemKey = e.target.value))} className={select}>
+                        {data.items.map((i) => (
+                          <option key={i.key} value={i.key}>
+                            {resolveMessageKey(i.nameKey)}
+                          </option>
+                        ))}
+                      </select>
+                      {field('шанс %', pct(drop.chance), (v) => set((x) => (x.items[index].chance = v / 100)))}
+                      {field('от', drop.min, (v) => set((x) => (x.items[index].min = v)))}
+                      {field('до', drop.max, (v) => set((x) => (x.items[index].max = v)))}
+                      <button type="button" onClick={() => set((x) => x.items.splice(index, 1))} className="rounded-md border border-panelBorder px-2 py-1 text-[11px] text-danger hover:bg-accentBgHover">
+                        махни
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => set((x) => x.items.push({ itemKey: data.items[0]?.key ?? '', chance: 0.1, min: 1, max: 1 }))}
+                    className="w-fit rounded-md border border-panelBorder px-2 py-1 text-[11px] hover:bg-accentBgHover"
+                  >
+                    + предмет
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Преглед: формации от еталонни роботи</h3>
+        <p className="mb-2 text-[11px] text-textFaint">
+          1 до 5 еднакви робота на мин. ниво на боса, със сета на зоната му (+0 и макс.), точки и бонуси както долу (същите като в „Сетове“, плюс
+          Кръчмата, която важи само срещу босове и Ядрото). Шансът е от {data.simulationRuns} истински симулации на боя. Не се записва.
+        </p>
+        <div className="mb-3 flex flex-wrap items-end gap-3">
+          {field('точки: атака (дял)', split.damage, (v) => setSplit((s) => ({ ...s, damage: v })))}
+          {field('точки: защита (дял)', split.defense, (v) => setSplit((s) => ({ ...s, defense: v })))}
+          {field('точки: HP (дял)', split.hp, (v) => setSplit((s) => ({ ...s, hp: v })))}
+          {field('проучване атака %', pct(split.researchAttack), (v) => setSplit((s) => ({ ...s, researchAttack: v / 100 })))}
+          {field('проучване HP %', pct(split.researchHp), (v) => setSplit((s) => ({ ...s, researchHp: v / 100 })))}
+          {field('Ковачница %', pct(split.forge), (v) => setSplit((s) => ({ ...s, forge: v / 100 })))}
+          {field('Кръчма %', pct(tavern), (v) => setTavern(v / 100))}
+          <button
+            type="button"
+            onClick={() => {
+              const { tavern: maxTavern, ...rest } = data.maxBonuses;
+              setSplit((s) => ({ ...s, ...rest }));
+              setTavern(maxTavern);
+            }}
+            className="rounded-md border border-panelBorder px-2 py-1.5 text-[11px] hover:bg-accentBgHover"
+          >
+            максимални
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSplit((s) => ({ ...s, researchAttack: 0, researchHp: 0, forge: 0 }));
+              setTavern(0);
+            }}
+            className="rounded-md border border-panelBorder px-2 py-1.5 text-[11px] hover:bg-accentBgHover"
+          >
+            без бонуси
+          </button>
+          <button type="button" disabled={busy} onClick={() => send('POST')} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+            Пресметни
+          </button>
+        </div>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>бос</th>
+                {[1, 2, 3, 4, 5].map((k) => (
+                  <th key={k}>{k} играч{k === 1 ? '' : 'а'}: +0 / макс.</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.bosses.map((row) => {
+                const current = data.currentBosses?.find((r) => r.key === row.key);
+                return (
+                  <tr key={row.key}>
+                    <td>
+                      {resolveMessageKey(row.nameKey)}
+                      <div className="text-[10px] text-textFaint">ниво {config.bosses[row.key]?.minLevel}, {SET_LABELS.find(([t]) => t === row.tier)?.[1] ?? row.tier}</div>
+                    </td>
+                    {row.formations.map((f) => {
+                      const cf = current?.formations.find((x) => x.players === f.players);
+                      return (
+                        <td key={f.players} className="tabular-nums">
+                          {winCell(f.base, cf?.base)} / {winCell(f.max, cf?.max)}
+                          <div className="text-[10px] text-textFaint">опит {gmNumber(f.xpEach)} на играч</div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
+
+// Labels for godmaster → Balance → Other values (the API only knows the paths).
+const OTHER_GROUPS: { title: string; items: [string, string, string?][] }[] = [
+  {
+    title: 'Енергия и инвентар',
+    items: [
+      ['newPlayer.actionEnergy', 'базова макс. енергия', 'преди Реактора, Генератора и VIP; важи при следващото действие на играча'],
+      ['actionEnergy.regenIntervalMinutes', 'минути за 1 енергия'],
+      ['inventory.baseCapacity', 'места в инвентара', 'преди Склада'],
+    ],
+  },
+  {
+    title: 'Бой',
+    items: [
+      ['combat.basePlayerHp', 'базово HP на робота', 'и без екипировка'],
+      ['combat.baseAttack', 'базова атака на робота'],
+      ['combat.baseDefense', 'базова защита на робота'],
+      ['combat.damageVariance', 'колебание на щетата %', '± от удара'],
+      ['combat.maxRounds', 'макс. рундове в битка с Пентил'],
+      ['combat.criticalChance', 'шанс за критичен удар %'],
+      ['combat.criticalMultiplier', 'критичен удар ×'],
+    ],
+  },
+  {
+    title: 'Качество и раса на предметите',
+    items: [
+      ['rarity.rareChance', 'шанс за Рядък %', 'при всеки паднал или купен предмет'],
+      ['boxOpen.epicChance', 'кутия: шанс за Епичен %', 'останалото е Рядък'],
+      ['raceLock.ascendantUniversalChance', 'Ascendant: шанс да е универсален %', 'останалото се дели поравно между 5-те раси'],
+    ],
+  },
+  {
+    title: 'Точки за атрибути',
+    items: [
+      ['robotAttributes.basePointsPerLevel', 'точки на ниво'],
+      ['robotAttributes.pointsGrowthRate', 'растеж на точките на ниво', '0 = еднакво на всяко ниво'],
+      ['robotAttributes.baseAttributeCost', 'цена на точка'],
+      ['robotAttributes.attributeCostGrowthRate', 'растеж на цената', '0 = всяка точка струва еднакво'],
+      ['robotAttributes.damagePointValue', 'атака за 1 точка'],
+      ['robotAttributes.defensePointValue', 'защита за 1 точка'],
+      ['robotAttributes.hpPointValue', 'HP за 1 точка'],
+      ['robotAttributes.evasionPointValue', 'избягване за 1 точка (%)'],
+      ['robotAttributes.maxEvasionPercent', 'макс. избягване (%)'],
+    ],
+  },
+  {
+    title: 'Рециклиране',
+    items: [
+      ['itemRecycle.fragmentsPerItem', 'фрагменти от 1 предмет'],
+      ['recyclingExtraFragmentEvery', 'проучване „Рециклиране“: +1 фрагмент на всеки … нива'],
+    ],
+  },
+  {
+    title: 'Формации срещу босове',
+    items: [
+      ['bossFormations.enrollmentWindowHours', 'часове за записване'],
+      ['bossFormations.visibilityEditWindowHours', 'часове, в които създателят може да сменя видимостта'],
+      ['bossFormations.actionCooldownHours', 'часове между две формации на играч'],
+      ['bossFormations.maxDamageDecrease', 'таван на „намаление на щетата“ във формация %'],
+    ],
+  },
+  {
+    title: 'PvP',
+    items: [
+      ['pvp.minLevel', 'от ниво', 'и не може да бъде нападан под него'],
+      ['pvp.attackCostEnergy', 'енергия за нападение'],
+      ['pvp.resourceStealPercentage', 'взема % от метала и кристала', 'над защитеното в Скривалището'],
+      ['pvp.attackCooldownMinutes', 'минути между две нападения на същия играч'],
+      ['pvp.revengeProtectionMinutes', 'минути защита след загубена защита', 'преди Стената'],
+      ['pvp.levelDifferenceAdjustment', '% промяна на плячката за всяко ниво разлика'],
+      ['pvp.minStealMultiplier', 'плячка: най-малко ×'],
+      ['pvp.maxStealMultiplier', 'плячка: най-много ×'],
+    ],
+  },
+  {
+    title: 'Кланови войни',
+    items: [
+      ['clanWar.minMembersToParticipate', 'мин. членове на клан'],
+      ['clanWar.maxDurationHours', 'макс. продължителност (часове)'],
+      ['clanWar.rematchCooldownDays', 'дни до нова война със същия клан'],
+      ['clanWar.poolMultiplier', 'размер на пула ×', 'HP на членовете без екипировка × това'],
+      ['clanWar.targetProtectionMinutes', 'минути защита на нападнатия'],
+      ['clanWar.attackCooldownMinutes', 'минути между две нападения на същия играч'],
+      ['clanWar.conquestTreasuryStealPercentage', 'победа с разбиване: % от хазната на загубилия'],
+      ['clanWar.decisionTreasuryStealPercentage', 'победа по точки: % от хазната на загубилия'],
+    ],
+  },
+  {
+    title: 'Ядрото',
+    items: [
+      ['core.attackCostEnergy', 'енергия за нападение'],
+      ['core.attackCooldownSeconds', 'секунди между две нападения'],
+      ['core.attack', 'атака на Ядрото'],
+      ['core.defense', 'защита на Ядрото'],
+      ['core.maxRounds', 'макс. рундове'],
+    ],
+  },
+  {
+    title: 'Борса',
+    items: [
+      ['exchange.metalPerCrystal', 'метал за 1 кристал (при равен курс)'],
+      ['exchange.baseRateFactor', 'курс на ниво 0 %', 'от равния курс'],
+      ['exchange.rateFactorPerLevel', 'подобрение на курса на ниво %'],
+      ['exchange.creditsPer100', 'такса: кредити на 100 ресурса'],
+    ],
+  },
+  {
+    title: 'VIP',
+    items: [
+      ['vip.multiAttackCount', '„Атака ×N“: N'],
+      ['vip.maxEnergyBonus', '+ макс. енергия'],
+    ],
+  },
+];
+
+const TECHNICAL_GROUPS: { title: string; items: [string, string, string?][] }[] = [
+  {
+    title: 'Вход',
+    items: [
+      ['loginLimits.maxFailures', 'грешни опити до блокиране', 'за акаунт или за адрес'],
+      ['loginLimits.windowMinutes', 'минути блокиране'],
+      ['loginLimits.adminMaxFailures', 'godmaster: грешни опити до блокиране'],
+    ],
+  },
+  {
+    title: 'Имейли',
+    items: [
+      ['email.verifyTokenHours', 'часове валидност на линка за потвърждение'],
+      ['email.resetTokenMinutes', 'минути валидност на линка за нова парола'],
+      ['email.maxPerHour', 'имейли от един вид на играч на час'],
+    ],
+  },
+  {
+    title: '„Пиши на екипа“',
+    items: [
+      ['support.maxNewPerDay', 'нови разговори на ден'],
+      ['support.maxOpen', 'отворени разговори наведнъж'],
+      ['support.maxUnansweredMessages', 'съобщения подред без отговор'],
+    ],
+  },
+  {
+    title: 'Сигнали за нарушения',
+    items: [
+      ['moderation.reportsPerDay', 'сигнала на ден'],
+      ['moderation.secondsBetweenReports', 'секунди между два сигнала'],
+      ['moderation.minAccountAgeDays', 'може да сигнализира след … дни', 'или от ниво долу'],
+      ['moderation.minLevel', 'или от ниво'],
+      ['moderation.reputationWindow', 'репутация: последните … решени сигнала'],
+      ['moderation.maxDismissedInWindow', 'репутация: отхвърлени, след които се спира'],
+      ['moderation.suspensionDays', 'дни спиране на сигналите'],
+    ],
+  },
+  {
+    title: 'Чат и онлайн',
+    items: [
+      ['presence.onlineThresholdMinutes', '„онлайн“ до … минути след последното действие'],
+      ['presence.activityUpdateThrottleSeconds', 'секунди между два записа на активност'],
+      ['clanChat.minSecondsBetweenMessages', 'кланов чат: секунди между съобщения'],
+      ['clanChat.historyLimit', 'кланов чат: показани съобщения'],
+      ['directMessages.minSecondsBetweenMessages', 'лични съобщения: секунди между съобщения'],
+      ['directMessages.historyLimit', 'лични съобщения: показани съобщения'],
+    ],
+  },
+  {
+    title: 'Класиране на Ядрото',
+    items: [
+      ['core.standingsTopN', 'кланове в класирането'],
+      ['core.playerRankingPageSize', 'играчи на страница'],
+    ],
+  },
+];
+
+function OtherBalancePanel() {
+  return (
+    <OverridesPanel
+      endpoint="/admin/balance/other"
+      title="Други стойности"
+      groups={OTHER_GROUPS}
+      intro="Единичните числа на играта, които не са в другите страници. Стойностите на опциите на предметите (+2% щета и т.н.) ще дойдат тук, когато текстовете им започнат да показват числото от сървъра."
+    />
+  );
+}
+
+function TechnicalSettingsPanel() {
+  return (
+    <OverridesPanel
+      endpoint="/admin/balance/technical"
+      title="Технически настройки"
+      groups={TECHNICAL_GROUPS}
+      intro="Лимити срещу злоупотреби и технически числа — не са баланс. Дължините на съобщенията не са тук: те са зададени и в полетата на играта. Промяната на лимита за вход не изчиства вече броените опити."
+    />
+  );
+}
+
+function OverridesPanel({
+  endpoint,
+  title,
+  intro,
+  groups,
+}: {
+  endpoint: string;
+  title: string;
+  intro: string;
+  groups: { title: string; items: [string, string, string?][] }[];
+}) {
+  const [data, setData] = useState<AdminOtherBalanceDto | null>(null);
+  const [values, setValues] = useState<Record<string, number>>({});
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setError(null);
+    adminFetch<AdminOtherBalanceDto>(endpoint)
+      .then((res) => {
+        setData(res);
+        setValues(Object.fromEntries(res.values.map((v) => [v.path, v.value])));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [endpoint]);
+
+  if (!data) {
+    return (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {error ? <p className="mt-2 text-xs text-danger">{error}</p> : <p className="mt-2 text-xs text-textFaint">Зареждане…</p>}
+      </section>
+    );
+  }
+
+  const byPath = new Map(data.values.map((v) => [v.path, v]));
+  const dirty = data.values.some((v) => values[v.path] !== v.value);
+  // Percent values are fractions in the API, shown as %.
+  const shown = (path: string, v: number) => (byPath.get(path)?.kind === 'percent' ? Math.round(v * 1_000_000) / 10_000 : v);
+  const stored = (path: string, v: number) => (byPath.get(path)?.kind === 'percent' ? v / 100 : v);
+
+  async function save() {
+    if (!window.confirm('Да запиша ли промените? Важат веднага за всички играчи.')) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await adminFetch<AdminOtherBalanceDto>(endpoint, { method: 'PUT', body: { values } });
+      setData(res);
+      setValues(Object.fromEntries(res.values.map((v) => [v.path, v.value])));
+      setMessage('Записано и приложено.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        <div className="flex gap-2">
+          <button type="button" disabled={busy || !dirty} onClick={save} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+            Запази и приложи
+          </button>
+          <button type="button" disabled={busy || !dirty} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+            Отказ
+          </button>
+        </div>
+      </div>
+      <p className="mb-3 text-[11px] text-textFaint">
+        {intro} Промяната важи веднага, без рестарт. В злато са стойностите, различни от тези по подразбиране; „↺“ връща стойността по подразбиране.
+      </p>
+      {dirty && <p className="mb-2 text-[11px] text-vipGold">Има незаписани промени.</p>}
+      {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+      {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+      <div className="grid gap-4 md:grid-cols-2">
+        {groups.map((group) => (
+          <div key={group.title} className="rounded-md border border-wellBorder p-3">
+            <p className="mb-2 text-xs font-semibold">{group.title}</p>
+            <div className="flex flex-col gap-2">
+              {group.items
+                .filter(([path]) => byPath.has(path))
+                .map(([path, label, hint]) => {
+                  const def = byPath.get(path)!;
+                  const value = values[path];
+                  const changed = value !== def.default;
+                  return (
+                    <div key={path} className="flex items-center justify-between gap-2">
+                      <div className="text-[11px]">
+                        <span className={changed ? 'text-vipGold' : ''}>{label}</span>
+                        {hint && <div className="text-[10px] text-textFaint">{hint}</div>}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <input
+                          type="number"
+                          step="any"
+                          value={shown(path, value)}
+                          onChange={(e) => setValues((v) => ({ ...v, [path]: stored(path, Number(e.target.value)) }))}
+                          className="w-24 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent"
+                        />
+                        <button
+                          type="button"
+                          title={`по подразбиране: ${gmNumber(shown(path, def.default))}`}
+                          disabled={!changed}
+                          onClick={() => setValues((v) => ({ ...v, [path]: def.default }))}
+                          className="rounded-md border border-panelBorder px-1.5 py-1 text-[11px] hover:bg-accentBgHover disabled:opacity-30"
+                        >
+                          ↺
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** A godmaster label from the game's texts, with {count}/{set} filled in. */
+function fillMessage(key: string, vars: Record<string, string | number>): string {
+  return Object.entries(vars).reduce((text, [name, value]) => text.replace(`{${name}}`, String(value)), resolveMessageKey(key));
+}
+
+function RewardBalancePanel() {
+  const [data, setData] = useState<AdminRewardBalanceDto | null>(null);
+  const [config, setConfig] = useState<RewardBalanceConfigDto | null>(null);
+  const [view, setView] = useState<'daily' | 'achievements' | 'levels'>('daily');
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setError(null);
+    adminFetch<AdminRewardBalanceDto>('/admin/balance/rewards')
+      .then((res) => {
+        setData(res);
+        setConfig(res.config);
+        setDirty(false);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  async function send(method: 'POST' | 'PUT') {
+    if (!config) return;
+    if (method === 'PUT' && !window.confirm('Да запиша ли наградите? Важат веднага за всички играчи.')) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await adminFetch<AdminRewardBalanceDto>(method === 'PUT' ? '/admin/balance/rewards' : '/admin/balance/rewards/preview', { method, body: { config } });
+      setData(res);
+      if (method === 'PUT') {
+        setConfig(res.config);
+        setDirty(false);
+        setMessage('Записано и приложено.');
+      } else {
+        setMessage('Прегледът е обновен — нищо не е записано.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!data || !config) {
+    return (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="text-sm font-semibold">Награди</h2>
+        {error ? <p className="mt-2 text-xs text-danger">{error}</p> : <p className="mt-2 text-xs text-textFaint">Зареждане…</p>}
+      </section>
+    );
+  }
+
+  const num = 'w-20 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent';
+  const select = 'max-w-[13rem] rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent';
+  const update = (fn: (c: RewardBalanceConfigDto) => void) => {
+    const next = structuredClone(config);
+    fn(next);
+    setConfig(next);
+    setDirty(true);
+  };
+  const input = (value: number, onChange: (v: number) => void) => (
+    <input type="number" step="any" value={value} onChange={(e) => onChange(Number(e.target.value))} className={num} />
+  );
+  const itemSelect = (value: string | null, onChange: (v: string | null) => void, allowNone: boolean) => (
+    <select value={value ?? ''} onChange={(e) => onChange(e.target.value || null)} className={select}>
+      {allowNone && <option value="">— без предмет —</option>}
+      {data.items.map((i) => (
+        <option key={i.key} value={i.key}>
+          {resolveMessageKey(i.nameKey)}
+        </option>
+      ))}
+    </select>
+  );
+  const cell = (next: number, current: number | undefined) => (
+    <span className={current !== undefined && current !== next ? 'text-vipGold' : ''}>
+      {gmNumber(next)}
+      {current !== undefined && current !== next && <span className="text-textFaint"> ({gmNumber(current)})</span>}
+    </span>
+  );
+
+  return (
+    <>
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Награди</h2>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={() => send('POST')} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Преглед
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={() => send('PUT')} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+              Запази и приложи
+            </button>
+            <button type="button" disabled={busy || !dirty} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+              Отказ
+            </button>
+          </div>
+        </div>
+        <p className="mb-3 text-[11px] text-textFaint">
+          Само числата и предметите на съществуващите мисии, постижения и награди за ниво; добавяне и махане засега се прави в кода. Промяната важи
+          веднага. „Запази“ записва и трите страници.
+        </p>
+        {dirty && <p className="mb-2 text-[11px] text-vipGold">Има незаписани промени.</p>}
+        {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+        {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ['daily', 'Дневни мисии'],
+              ['achievements', 'Постижения'],
+              ['levels', 'Награди за ниво'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              className={`rounded-md border px-3 py-1 text-[11px] ${view === key ? 'border-accent bg-accentBg' : 'border-panelBorder text-textMuted hover:bg-accentBgHover'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {view === 'daily' && (
+        <section className="rounded-lg border border-panelBorder bg-panel p-4">
+          <h3 className="mb-1 text-xs font-semibold">Дневни мисии</h3>
+          <p className="mb-2 text-[11px] text-textFaint">Наградата е „на ниво“ — умножава се по нивото на играча. Енергията е фиксирана.</p>
+          <div className="max-w-full overflow-x-auto">
+            <table className={GRID_TABLE}>
+              <thead className="text-[10px] uppercase text-textFaint">
+                <tr>
+                  <th>мисия</th>
+                  <th>цел</th>
+                  <th>метал / ниво</th>
+                  <th>кристал / ниво</th>
+                  <th>опит / ниво</th>
+                  <th>енергия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(config.dailyTasks.tasks).map(([key, task]) => {
+                  const info = data.taskInfo[key];
+                  const set = (fn: (t: RewardBalanceConfigDto['dailyTasks']['tasks'][string]) => void) => update((c) => fn(c.dailyTasks.tasks[key]));
+                  return (
+                    <tr key={key}>
+                      <td>
+                        {info ? fillMessage(`dailyTasks.types.${info.type}`, { count: task.target }) : key}
+                        {info?.chain && <div className="text-[10px] text-textFaint">верига „{info.chain}“ — показват се една след друга</div>}
+                      </td>
+                      <td>{input(task.target, (v) => set((t) => (t.target = v)))}</td>
+                      <td>{input(task.reward.metalPerLevel, (v) => set((t) => (t.reward.metalPerLevel = v)))}</td>
+                      <td>{input(task.reward.crystalPerLevel, (v) => set((t) => (t.reward.crystalPerLevel = v)))}</td>
+                      <td>{input(task.reward.xpPerLevel, (v) => set((t) => (t.reward.xpPerLevel = v)))}</td>
+                      <td>{input(task.reward.energy, (v) => set((t) => (t.reward.energy = v)))}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+              бонус за всичко изпълнено
+              {itemSelect(config.dailyTasks.allDoneBonusItemKey, (v) => update((c) => (c.dailyTasks.allDoneBonusItemKey = v ?? c.dailyTasks.allDoneBonusItemKey)), false)}
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+              серия: дни
+              {input(config.dailyTasks.streak.days, (v) => update((c) => (c.dailyTasks.streak.days = v)))}
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+              серия: позволени пропуски
+              {input(config.dailyTasks.streak.allowedMisses, (v) => update((c) => (c.dailyTasks.streak.allowedMisses = v)))}
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+              серия: награда
+              {itemSelect(config.dailyTasks.streak.rewardItemKey, (v) => update((c) => (c.dailyTasks.streak.rewardItemKey = v ?? c.dailyTasks.streak.rewardItemKey)), false)}
+            </label>
+          </div>
+        </section>
+      )}
+
+      {view === 'achievements' && (
+        <section className="rounded-lg border border-panelBorder bg-panel p-4">
+          <h3 className="mb-1 text-xs font-semibold">Постижения</h3>
+          <p className="mb-2 text-[11px] text-textFaint">Всяко постижение е верига от нива; наградите са фиксирани (не растат с нивото на играча).</p>
+          <div className="flex flex-col gap-3">
+            {Object.entries(config.achievements).map(([key, tiers]) => {
+              const fullSet = data.achievementMetrics[key] === 'FULL_SET';
+              return (
+                <div key={key} className="rounded-md border border-wellBorder p-2">
+                  <p className="mb-1 text-[11px] font-semibold">{fillMessage(`achievements.items.${key}`, { count: 'N', set: '…' })}</p>
+                  <div className="max-w-full overflow-x-auto">
+                    <table className={GRID_TABLE}>
+                      <thead className="text-[10px] uppercase text-textFaint">
+                        <tr>
+                          <th>ниво</th>
+                          <th>цел (N)</th>
+                          <th>метал</th>
+                          <th>кристал</th>
+                          <th>предмет</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tiers.map((tier, index) => {
+                          const set = (fn: (t: RewardBalanceConfigDto['achievements'][string][number]) => void) => update((c) => fn(c.achievements[key][index]));
+                          return (
+                            <tr key={index}>
+                              <td>{index + 1}</td>
+                              <td>{fullSet ? <span className="text-textFaint">7 слота</span> : input(tier.target, (v) => set((t) => (t.target = v)))}</td>
+                              <td>{input(tier.reward.metal, (v) => set((t) => (t.reward.metal = v)))}</td>
+                              <td>{input(tier.reward.crystal, (v) => set((t) => (t.reward.crystal = v)))}</td>
+                              <td>{itemSelect(tier.reward.itemKey, (v) => set((t) => (t.reward.itemKey = v)), true)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {view === 'levels' && (
+        <section className="rounded-lg border border-panelBorder bg-panel p-4">
+          <h3 className="mb-1 text-xs font-semibold">Награди за ниво</h3>
+          <p className="mb-2 text-[11px] text-textFaint">
+            При достигане на ниво L: метал и кристал × L. На всеки N нива и кутия — от реда, в чийто обхват е нивото.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+              метал × ниво
+              {input(config.levelRewards.metalPerLevel, (v) => update((c) => (c.levelRewards.metalPerLevel = v)))}
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+              кристал × ниво
+              {input(config.levelRewards.crystalPerLevel, (v) => update((c) => (c.levelRewards.crystalPerLevel = v)))}
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+              кутия на всеки … нива
+              {input(config.levelRewards.boxEveryLevels, (v) => update((c) => (c.levelRewards.boxEveryLevels = v)))}
+            </label>
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            {config.levelRewards.boxes.map((box, index) => (
+              <div key={index} className="flex flex-wrap items-end gap-2 text-[11px] text-textFaint">
+                <label className="flex flex-col gap-1">
+                  до ниво
+                  {input(box.upToLevel, (v) => update((c) => (c.levelRewards.boxes[index].upToLevel = v)))}
+                </label>
+                {itemSelect(box.itemKey, (v) => update((c) => (c.levelRewards.boxes[index].itemKey = v ?? c.levelRewards.boxes[index].itemKey)), false)}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h3 className="mb-1 text-xs font-semibold">Колко струват наградите</h3>
+        <p className="mb-2 text-[11px] text-textFaint">
+          Всички дневни мисии за един ден и една награда за ниво, на няколко нива на играча — и колко битки с Пентил на това ниво дават същото (метал и
+          опит по кривите от „Пентили“). В цвят са промените, които „Преглед“ показва, със сегашните в скоби.
+        </p>
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>ниво</th>
+                <th>мисии: метал</th>
+                <th>= битки</th>
+                <th>мисии: опит</th>
+                <th>= битки</th>
+                <th>за ниво: метал</th>
+                <th>= битки</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.levels.map((row) => {
+                const c = data.currentLevels?.find((r) => r.level === row.level);
+                return (
+                  <tr key={row.level}>
+                    <td>{row.level}</td>
+                    <td className="tabular-nums">{cell(row.dailyMetal, c?.dailyMetal)}</td>
+                    <td className="tabular-nums">{cell(row.dailyMetalFights, c?.dailyMetalFights)}</td>
+                    <td className="tabular-nums">{cell(row.dailyXp, c?.dailyXp)}</td>
+                    <td className="tabular-nums">{cell(row.dailyXpFights, c?.dailyXpFights)}</td>
+                    <td className="tabular-nums">{cell(row.levelMetal, c?.levelMetal)}</td>
+                    <td className="tabular-nums">{cell(row.levelMetalFights, c?.levelMetalFights)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
+
+const LOGIN_KINDS: Record<string, string> = { LOGIN: 'вход', REGISTER: 'регистрация', REFRESH: 'продължена сесия' };
+const DEVICE_LABELS: Record<string, string> = { DESKTOP: 'компютър', MOBILE: 'телефон', TABLET: 'таблет' };
+
+/** Login records, loaded only on request — each look is written to the action log. */
+function PlayerLoginsControls({ playerId, onOpenPlayer }: { playerId: string; onOpenPlayer: (username: string) => void }) {
+  const [data, setData] = useState<AdminPlayerLoginsDto | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setBusy(true);
+    setError(null);
+    try {
+      setData(await adminFetch<AdminPlayerLoginsDto>(`/admin/players/${playerId}/logins`));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!data) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={busy} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+          Покажи входовете
+        </button>
+        <span className="text-[11px] text-textFaint">Записва се в дневника на действията.</span>
+        {error && <span className="text-[11px] text-danger">{error}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-wellBorder p-3">
+      <p className="mb-1 text-xs font-semibold">Входове (пазят се {data.retentionDays} дни)</p>
+      <p className="mb-2 text-[11px] text-textFaint">
+        Общ IP адрес е само подсказка: домакинства, офиси и мобилни оператори често споделят един адрес. Не е доказателство за мулти-акаунт.
+      </p>
+      {data.sharedAccounts.length > 0 ? (
+        <div className="mb-3">
+          <p className="mb-1 text-[11px] font-medium text-vipGold">Други акаунти от същите адреси ({data.sharedAccounts.length})</p>
+          <div className="flex flex-col gap-1">
+            {data.sharedAccounts.map((a) => (
+              <div key={a.playerId} className="flex flex-wrap items-center gap-2 text-[11px]">
+                <button type="button" onClick={() => onOpenPlayer(a.username)} className="text-accent underline">
+                  {a.username}
+                </button>
+                {a.banned && <span className="text-danger">наказан</span>}
+                <span className="text-textFaint">
+                  {a.sharedIps.length} общ{a.sharedIps.length === 1 ? '' : 'и'} адрес{a.sharedIps.length === 1 ? '' : 'а'}: {a.sharedIps.join(', ')}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="mb-3 text-[11px] text-textFaint">Няма други акаунти от същите адреси.</p>
+      )}
+      {data.events.length === 0 ? (
+        <p className="text-[11px] text-textFaint">Няма записани входове.</p>
+      ) : (
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>кога</th>
+                <th>какво</th>
+                <th>IP</th>
+                <th>държава</th>
+                <th>устройство</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.events.map((e, i) => (
+                <tr key={i}>
+                  <td className="whitespace-nowrap">{new Date(e.createdAt).toLocaleString('bg-BG')}</td>
+                  <td>{LOGIN_KINDS[e.kind] ?? e.kind}</td>
+                  <td className="tabular-nums">{e.ip}</td>
+                  <td>{e.country ?? '—'}</td>
+                  <td>
+                    {e.device ? (DEVICE_LABELS[e.device] ?? e.device) : '—'}
+                    {e.browser ? `, ${e.browser}` : ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

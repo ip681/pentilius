@@ -12,6 +12,7 @@ import { CheckoutResult, ShopOffers } from '@/components/ShopOffers';
 import { ApiError, buyItem, getPaymentsCatalog, getProfile, getShop } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { formatNumber } from '@/lib/format-number';
 
 const SLOTS: EquipmentSlot[] = ['HEAD', 'LEFT_ARM', 'RIGHT_ARM', 'ARMOR', 'CORE', 'LEFT_LEG', 'RIGHT_LEG'];
 const TIERS: ItemTier[] = ['PIONEER', 'ASCENDANT', 'COREFORGED'];
@@ -287,7 +288,7 @@ function ShopItemRow({
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
           {priceParts(item).map((part) => (
             <span key={part.type} className="flex items-center gap-1">
-              {part.amount.toLocaleString()} <ResourceIcon type={part.type} className="h-3.5 w-3.5" />
+              {formatNumber(part.amount)} <ResourceIcon type={part.type} className="h-3.5 w-3.5" />
             </span>
           ))}
         </div>

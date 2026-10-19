@@ -8,6 +8,7 @@ import { LootEntry } from '@/components/LootEntry';
 import { PlayerLink } from '@/components/PlayerLink';
 import { getCombatReports } from '@/lib/api-client';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { formatNumber } from '@/lib/format-number';
 
 export default function ReportsPage() {
   useRequireAuth();

@@ -1,13 +1,13 @@
 import { ClanBuilding, Prisma } from '@prisma/client';
 import { productionScaled } from '../base/building-effects';
-import { GAME_BALANCE } from '../config/game-config';
+import { clanRuntime } from '../config/clan-balance';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Tx = PrismaService | Prisma.TransactionClient;
 
 /**
  * Tavern activation (owner decision, 2026-10-12). One activation lasts
- * GAME_BALANCE.clanTavern.activationHours and is NOT renewed automatically —
+ * the clan balance's tavern.activationHours (godmaster) and is NOT renewed automatically —
  * once activeUntil passes the Tavern is simply inactive until a leader/officer
  * activates it again by hand. Plain functions rather than
  * a service so both ClansService and PlayerModule's ClanBonusService can use
@@ -21,16 +21,19 @@ export interface TavernActivationCost {
   credits: number;
 }
 
+// Activation cost and length come from the clan balance in godmaster (2026-10-19).
 export function tavernActivationCost(level: number): TavernActivationCost {
-  const t = GAME_BALANCE.clanTavern;
+  const t = clanRuntime().tavern;
   return {
-    metal: productionScaled(level, t.activationMetalPerLevel),
-    crystal: productionScaled(level, t.activationCrystalPerLevel),
-    credits: productionScaled(level, t.activationCreditsPerLevel),
+    metal: productionScaled(level, t.activationMetal),
+    crystal: productionScaled(level, t.activationCrystal),
+    credits: productionScaled(level, t.activationCredits),
   };
 }
 
-const ACTIVATION_MS = GAME_BALANCE.clanTavern.activationHours * 3600_000;
+export function tavernActivationMs(): number {
+  return clanRuntime().tavern.activationHours * 3600_000;
+}
 
 export function findTavern(clanId: string, tx: Tx): Promise<ClanBuilding | null> {
   return tx.clanBuilding.findFirst({ where: { clanId, clanBuildingType: { bonusType: 'BOSS_CORE_DAMAGE' } } });
@@ -62,4 +65,3 @@ export function isTavernActive(tavern: Pick<ClanBuilding, 'level' | 'activeUntil
   return !!tavern && tavern.level > 0 && !!tavern.activeUntil && tavern.activeUntil.getTime() > Date.now();
 }
 
-export { ACTIVATION_MS as TAVERN_ACTIVATION_MS };

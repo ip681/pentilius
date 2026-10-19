@@ -30,6 +30,7 @@ import {
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { RACE_BG_CLASS } from '@/lib/race-colors';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { formatNumber } from '@/lib/format-number';
 
 const SLOTS: EquipmentSlot[] = ['HEAD', 'LEFT_ARM', 'RIGHT_ARM', 'ARMOR', 'CORE', 'LEFT_LEG', 'RIGHT_LEG'];
 
@@ -608,10 +609,10 @@ export default function RobotPage() {
                     <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
                       <span>{t('robot.sellValue')}:</span>
                       <span className="flex items-center gap-1">
-                        {selected.sellValue.metal} <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
+                        {formatNumber(selected.sellValue.metal)} <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
                       </span>
                       <span className="flex items-center gap-1">
-                        {selected.sellValue.crystal} <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
+                        {formatNumber(selected.sellValue.crystal)} <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
                       </span>
                     </p>
                   )}

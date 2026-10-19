@@ -16,6 +16,7 @@ import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
 import { EnergyRefill } from '@/components/EnergyRefill';
+import { formatNumber } from '@/lib/format-number';
 
 interface LogLine {
   text: React.ReactNode;

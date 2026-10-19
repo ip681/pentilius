@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CombatRoundDto, CombatStatsDto } from '@pentilius/shared';
 import { ItemOption, Prisma, ResearchBonusType } from '@prisma/client';
+import { equipmentRuntime } from '../config/equipment-balance';
 import { GAME_BALANCE } from '../config/game-config';
 import { ClanBonusService } from '../player/clan-bonus.service';
 import { EconomyService } from '../player/economy.service';
@@ -142,7 +143,7 @@ export class CombatService {
     const equippedStats = equipped.reduce<EquippedAccumulator>(
       (stats, item) => {
         const baseStats = item.itemDefinition.baseStats as Partial<{ attack: number; defense: number; hp: number }>;
-        const multiplier = 1 + item.upgradeLevel * GAME_BALANCE.combat.bonusPerUpgradeLevel;
+        const multiplier = 1 + item.upgradeLevel * equipmentRuntime().upgrade.bonusPerLevel;
         const next: EquippedAccumulator = {
           ...stats,
           attack: stats.attack + (baseStats.attack ?? 0) * multiplier,
@@ -203,60 +204,68 @@ export class CombatService {
   }
 
   simulate(player: CombatStats, pentili: CombatOpponent, maxRounds: number = GAME_BALANCE.combat.maxRounds): CombatResult {
-    const playerMaxHp = Math.round(player.hp);
-    const pentiliMaxHp = pentili.maxHp;
+    return simulateCombat(player, pentili, maxRounds);
+  }
+}
 
-    let playerHp = playerMaxHp;
-    let pentiliHp = pentiliMaxHp;
-    let totalDamageDealt = 0;
-    let totalDamageTaken = 0;
-    const rounds: CombatRoundDto[] = [];
+/**
+ * The fight itself, round by round — a plain function so godmaster's balance
+ * preview (balance/admin-balance.service.ts) can run it without the service.
+ */
+export function simulateCombat(player: CombatStats, pentili: CombatOpponent, maxRounds: number = GAME_BALANCE.combat.maxRounds): CombatResult {
+  const playerMaxHp = Math.round(player.hp);
+  const pentiliMaxHp = pentili.maxHp;
 
-    for (let round = 1; round <= maxRounds; round += 1) {
-      const pentiliDodged = Math.random() < (pentili.evasion ?? 0);
-      const playerHit = pentiliDodged ? NO_HIT : resolveHit(player, pentili);
-      pentiliHp = Math.max(0, pentiliHp - playerHit.damage);
-      playerHp = Math.max(0, playerHp - playerHit.reflected);
-      totalDamageDealt += playerHit.damage;
+  let playerHp = playerMaxHp;
+  let pentiliHp = pentiliMaxHp;
+  let totalDamageDealt = 0;
+  let totalDamageTaken = 0;
+  const rounds: CombatRoundDto[] = [];
 
-      let pentiliHit = NO_HIT;
-      let playerDodged = false;
-      if (pentiliHp > 0 && playerHp > 0) {
-        playerDodged = Math.random() < (player.evasion ?? 0);
-        pentiliHit = playerDodged ? NO_HIT : resolveHit(pentili, player);
-        playerHp = Math.max(0, playerHp - pentiliHit.damage);
-        pentiliHp = Math.max(0, pentiliHp - pentiliHit.reflected);
-        totalDamageTaken += pentiliHit.damage;
-      }
+  for (let round = 1; round <= maxRounds; round += 1) {
+    const pentiliDodged = Math.random() < (pentili.evasion ?? 0);
+    const playerHit = pentiliDodged ? NO_HIT : resolveHit(player, pentili);
+    pentiliHp = Math.max(0, pentiliHp - playerHit.damage);
+    playerHp = Math.max(0, playerHp - playerHit.reflected);
+    totalDamageDealt += playerHit.damage;
 
-      rounds.push({
-        round,
-        playerDamage: playerHit.damage,
-        pentiliDamage: pentiliHit.damage,
-        playerHpAfter: playerHp,
-        pentiliHpAfter: pentiliHp,
-        playerDodged,
-        pentiliDodged,
-        playerCritical: playerHit.critical,
-        pentiliCritical: pentiliHit.critical,
-        playerReflectedDamage: playerHit.reflected,
-        pentiliReflectedDamage: pentiliHit.reflected,
-      });
-
-      if (pentiliHp <= 0 || playerHp <= 0) {
-        break;
-      }
+    let pentiliHit = NO_HIT;
+    let playerDodged = false;
+    if (pentiliHp > 0 && playerHp > 0) {
+      playerDodged = Math.random() < (player.evasion ?? 0);
+      pentiliHit = playerDodged ? NO_HIT : resolveHit(pentili, player);
+      playerHp = Math.max(0, playerHp - pentiliHit.damage);
+      pentiliHp = Math.max(0, pentiliHp - pentiliHit.reflected);
+      totalDamageTaken += pentiliHit.damage;
     }
 
-    return {
-      won: pentiliHp <= 0,
-      damageDealt: totalDamageDealt,
-      damageTaken: totalDamageTaken,
-      rounds,
-      playerMaxHp,
-      pentiliMaxHp,
-    };
+    rounds.push({
+      round,
+      playerDamage: playerHit.damage,
+      pentiliDamage: pentiliHit.damage,
+      playerHpAfter: playerHp,
+      pentiliHpAfter: pentiliHp,
+      playerDodged,
+      pentiliDodged,
+      playerCritical: playerHit.critical,
+      pentiliCritical: pentiliHit.critical,
+      playerReflectedDamage: playerHit.reflected,
+      pentiliReflectedDamage: pentiliHit.reflected,
+    });
+
+    if (pentiliHp <= 0 || playerHp <= 0) {
+      break;
+    }
   }
+
+  return {
+    won: pentiliHp <= 0,
+    damageDealt: totalDamageDealt,
+    damageTaken: totalDamageTaken,
+    rounds,
+    playerMaxHp,
+    pentiliMaxHp,
+  };
 }
 
 /** Defense System (base building) bonus fraction for a defending player, or 0 if unbuilt. */

@@ -16,6 +16,7 @@ import { usePlayerEnergy } from '@/lib/use-player-energy';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { EnergyRefill } from '@/components/EnergyRefill';
+import { formatNumber } from '@/lib/format-number';
 
 // Sliders refresh on their own so other clans' attacks show up without a
 // reload (owner decision) — paused while the tab is hidden.
@@ -149,7 +150,7 @@ export default function CorePage() {
                 <>
                   <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
                     <span className="text-textMuted">
-                      {t('core.myDamage')}: <span className="font-semibold tabular-nums text-text">{state.myDamage.toLocaleString()}</span>
+                      {t('core.myDamage')}: <span className="font-semibold tabular-nums text-text">{formatNumber(state.myDamage)}</span>
                     </span>
                     {state.tavern && state.tavern.level > 0 && (
                       <span className={state.tavern.active ? 'text-positive' : 'text-textFaint'}>
@@ -178,10 +179,10 @@ export default function CorePage() {
                       <p className="mb-1 font-semibold">{t('core.lastAttack')}</p>
                       <p className="text-textMuted">
                         {t('core.lastAttackSummary', {
-                          damage: lastAttack.damageDealt.toLocaleString(),
+                          damage: formatNumber(lastAttack.damageDealt),
                           rounds: lastAttack.roundsSurvived,
                           maxRounds: lastAttack.maxRounds,
-                          taken: lastAttack.damageTaken.toLocaleString(),
+                          taken: formatNumber(lastAttack.damageTaken),
                         })}
                       </p>
                     </div>
@@ -273,7 +274,7 @@ function StandingRow({ standing }: { standing: CoreStandingDto }) {
             )}
           </span>
         </span>
-        <span className="shrink-0 tabular-nums text-textMuted">{standing.damage.toLocaleString()}</span>
+        <span className="shrink-0 tabular-nums text-textMuted">{formatNumber(standing.damage)}</span>
       </div>
       <div className="h-[8px] overflow-hidden rounded-full bg-wellBorder">
         <div
@@ -345,7 +346,7 @@ function PlayerRankingRow({ row, showClanTag }: { row: CorePlayerStandingDto; sh
           {showClanTag && row.clanTag && <span className="ml-1 text-textFaint">[{row.clanTag}]</span>}
         </span>
       </span>
-      <span className="shrink-0 tabular-nums text-textMuted">{row.damage.toLocaleString()}</span>
+      <span className="shrink-0 tabular-nums text-textMuted">{formatNumber(row.damage)}</span>
     </div>
   );
 }

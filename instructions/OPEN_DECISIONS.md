@@ -11,16 +11,19 @@ Still-isolated, data-driven stand-in values — not final balance, but the
 system around each one is built end-to-end and can be retuned without
 touching application code. Full rationale: `instructions/DECISIONS_LOG.md`.
 
-- **XP curve (levels 15-99)** → `apps/api/prisma/seed.ts`'s `levelThresholds`, a provisional power-law curve. Not yet balanced against real Pentili/boss XP income.
-- **Pentili stats across the expanded roster** → `seed.ts`'s `pentiliData` (`maxHp`/`attack`/`defense`/`xpReward` power-law formulas). First pass, not final balance.
+- **XP curve** → edited in godmaster → Balance → XP since 2026-10-19 (`src/config/xp-balance.ts` holds the default curve 15 × L^2.28). Still a first pass, not balanced against real XP income.
+- **Pentili stats and rewards** → edited in godmaster → Balance since 2026-10-18 (curves, zones, per-Pentili strength; `src/config/pentili-balance.ts` holds the defaults). The numbers are still a first pass, not final balance.
 - **Action Energy regeneration rate** → `game-config.ts` (`actionEnergy.regenIntervalMinutes`).
-- **Item upgrade cost/success rules** → `game-config.ts` (`itemUpgrade.stonesPerLevel`); no failure chance or protection stones yet.
+- **Item upgrade cost/success rules** → edited in godmaster → Balance → Sets since 2026-10-19 (bonus per level, stones per level, fragments per stone; `src/config/equipment-balance.ts` holds the defaults); no failure chance or protection stones yet.
+- **Expeditions** → edited in godmaster → Balance → Expeditions since 2026-10-19 (fights per expedition 3 / 12 / 22, duration, bonus chance, Navigation level, early-cancel share; `src/config/expedition-balance.ts` holds the defaults). Placeholder numbers.
+- **Equipment set stats, max upgrades, sell values** → edited in godmaster → Balance → Sets since 2026-10-19. Its preview showed (2026-10-19) that without research and Forge a robot can't beat the last Pentil of any zone even with its set maxed; with everything at +30% it mostly can — the Pentili fit an end-game robot better than a mid-season one. To look at in the balancing pass.
 - **Final damage formula** → `apps/api/src/pve/combat.service.ts` (a simple power-ratio win-probability model), isolated so it can be replaced without touching callers.
 - **Core Attributes point-buy curves** → flat, not compounding (`game-config.ts`'s `robotAttributes`). Defense Success Rate and a "Combat Power" summary score remain undecided (see Combat below).
-- **Construction costs/times, building production rates** → one production-tied model in `seed.ts` (base balance, 2026-10-14; see `instructions/DECISIONS_LOG.md`). Not yet checked against real player income.
-- **Research tree size/rate** → 9 technologies, cap level 30, production +2%/level, combat +1%/level (base balance, 2026-10-14) — placeholder numbers, not a final tree.
+- **Construction costs/times, building production rates and effects** → edited in godmaster → Balance → Buildings & research since 2026-10-19 (`src/config/building-balance.ts` holds the defaults of the 2026-10-14 base balance). Not yet checked against real player income.
+- **Research tree size/rate** → 9 technologies, cap level 30, production +2%/level, combat +1%/level — bonuses, max levels and costs edited in godmaster since 2026-10-19; placeholder numbers, not a final tree.
 - **PvP placeholders** → targeting pool (random among level-5+ players), attack cooldown minutes, revenge-protection window minutes — see `game-config.ts`'s `pvp` block.
-- **Clan placeholders** → exact role set beyond LEADER/OFFICER/MEMBER, flat base member cap (10), Member Hall/Forge/Depot bonus rates — see `game-config.ts`.
+- **Clan placeholders** → exact role set beyond LEADER/OFFICER/MEMBER, flat base member cap (10). Clan building bonuses, max levels, costs, the Cantina's activation and the Generator's energy levels are edited in godmaster → Balance → Clan buildings since 2026-10-19 (`src/config/clan-balance.ts` holds the defaults); still placeholder numbers.
+- **Boss stats and loot** → edited in godmaster → Balance → Bosses since 2026-10-19 (`src/config/boss-balance.ts` holds the defaults: the stats of 2026-10-11, 12 fights' worth of Metal/Crystal, 50% for 1–2 stones of the zone's set, no Credits). Placeholder loot.
 - **Boss Formations** → the 4 bosses' names/art are still placeholder-named (`boss_verdant_warden` etc. — combat stats themselves are now calibrated, see the log); no ranking/reward-tier UI for `BossFormationDailyPoints` yet.
 
 ## Races
@@ -42,7 +45,7 @@ touching application code. Full rationale: `instructions/DECISIONS_LOG.md`.
 - Defense Success Rate and a "Combat Power" summary score
 
 ## PvP
-- defender losses beyond the flat 10% resource steal
+- defender losses beyond the flat 10% steal of Metal and Crystal (Credits are never stolen since 2026-10-19)
 - protected resources
 - matchmaking range
 - PvP ranking
@@ -78,7 +81,8 @@ touching application code. Full rationale: `instructions/DECISIONS_LOG.md`.
 
 ## Clans
 - final role set, contribution rules, clan-war rules (see Milestone 1 placeholders above)
-- clan building numbers and the Cantina's activation cost (base balance 2026-10-14, still placeholders)
+- clan building numbers and the Cantina's activation cost (base balance 2026-10-14, still placeholders; edited in godmaster since 2026-10-19)
+- whether Credits in the clan **treasury** stay protected when a clan war ends (the winner takes a share of the loser's treasury) — asked 2026-10-19, not decided
 - discussed and parked (2026-10-14): a clan doctrine (economy vs war focus), Barracks, splitting the Refinery per resource
 
 ## Notifications
@@ -109,7 +113,7 @@ Still open:
 The attacked-Core model was decided on 2026-10-12 (see `instructions/GAME_SYSTEMS.md`'s Core / Endgame section). Still open:
 - the Core's lore now that it isn't human-built
 - Core combat stats and round cap (placeholders: `game-config.ts`'s `core` block)
-- Tavern level-cost curve and activation cost (placeholders: `seed.ts`'s Tavern block, `game-config.ts`'s `clanTavern` block)
+- Tavern level-cost curve and activation cost (placeholders, edited in godmaster → Balance → Clan buildings since 2026-10-19)
 - the season reset is built (2026-10-13, see `instructions/DECISIONS_LOG.md`). Still open: the Core's lore
 - **Energy-pack hoarding vs the Core (raised 2026-10-14, to discuss further
   before building).** Packs can be stockpiled all season and dumped while the
@@ -270,6 +274,44 @@ so one Stripe account can do both:
   the supply to Stripe under MoR and Art. 97a, and what proof of the
   customer's country is needed.
 
+Built 2026-10-18 (see `instructions/DECISIONS_LOG.md`): creating products in
+Stripe from godmaster and names from templates. Still open from this list:
+the product icons (owner may prepare art).
+
+Planned next (owner, 2026-10-18):
+- **Create in Stripe from godmaster:** fill in kind, amount and price, and
+  godmaster creates the Stripe product + price and links it. Stripe prices
+  can't be edited, so "change price" = create a new price, archive the old
+  one, link the new one (past purchases keep what they paid).
+- **Product names from templates, not typed:** "VIP for {days} days" /
+  "{count} Credits", translated once per language, so a new product has a
+  name in every language with nothing to type in godmaster. An optional icon
+  per product (VIP badge, coin piles growing with the pack — the owner may
+  prepare the art; no text baked into images). An optional custom name only
+  for special offers ("Starter pack"): English required, other languages
+  optional, falling back to English.
+
+Mobile stores (later — **Android first, Apple last**; keep the project
+compatible with this now):
+- **Per-platform mapping:** one product of ours with its own ID on each
+  platform (Stripe price, Google Play product, App Store product). Today only
+  `stripePriceId` exists — generalize to a per-provider mapping when the
+  first store is added.
+- **Prices in the apps come from the store** (local currency and price
+  steps), never from our database.
+- **Google Play:** individual products are believed **not** to need separate
+  review (created/activated in Play Console or via its API) — **verify in the
+  Play Console help when we get there**, then godmaster can create and link
+  them like Stripe. New developer accounts must run a **closed test with at
+  least 12 testers for 14 days in a row** before publishing (third-party
+  source — plan the testers early). From **31 Aug 2026** new apps/updates
+  must use **Play Billing Library 8+** (Google docs).
+- **Apple (last):** in-app purchases go through **review**, sometimes with an
+  app version, and use fixed price tiers — create them in App Store Connect
+  and only link the IDs in godmaster.
+- Store rules on other payment methods inside the apps change (US/EU); Stripe
+  stays web-only unless the rules and a lawyer say otherwise.
+
 Still open:
 - how "only Bulgaria" is decided (proposed: country from the IP at checkout,
   plus Stripe's card/billing country as a second check);
@@ -301,6 +343,8 @@ Still open:
   was a content filter; see `instructions/DECISIONS_LOG.md`. Still open:
   - growing the Bulgarian banned-word list (owner);
   - a legal review of the Rules and Privacy texts;
+  - the Privacy text must mention the login records (IP, country, device; kept
+    90 days, for security only), built 2026-10-19;
   - checking the current Apple/Google terms before submission;
   - filling in the store age-rating and data-safety forms;
   - a real support@pentilius.com mailbox (until then the public pages show

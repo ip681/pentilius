@@ -18,6 +18,7 @@ import { useRequireAuth } from '@/lib/use-require-auth';
 import { ExchangePanel } from '@/components/ExchangePanel';
 import { Link } from '@/i18n/navigation';
 import { SpecialLevels } from '@/components/SpecialLevels';
+import { formatNumber } from '@/lib/format-number';
 
 const RESEARCH_CENTER_KEY = 'research_center';
 
@@ -242,7 +243,7 @@ export default function BasePage() {
                   {/* Production as an overlay in the top-left corner, so it doesn't make the tile taller. */}
                   {building.currentProduction && (
                     <span className="absolute left-0 top-0 z-10 flex items-center gap-0.5 rounded bg-black/35 px-1 py-0.5 text-[9px] tabular-nums text-positive sm:gap-1 sm:px-1.5 sm:text-[10px]">
-                      <ResourceIcon type={building.currentProduction.resourceType} className="h-3 w-3" />+{building.currentProduction.perHour}/
+                      <ResourceIcon type={building.currentProduction.resourceType} className="h-3 w-3" />+{formatNumber(building.currentProduction.perHour)}/
                       {t('base.perHour')}
                     </span>
                   )}
@@ -431,11 +432,11 @@ function BuildingDetails({
             <div className="mb-1 text-[8px] uppercase text-textFaint">{t('base.nextLevelCost')}</div>
             <div className="flex items-center gap-1.5 text-sm">
               <ResourceIcon type="METAL" className="h-4 w-4" />
-              {building.nextLevelCost.metalCost}
+              {formatNumber(building.nextLevelCost.metalCost)}
             </div>
             <div className="flex items-center gap-1.5 text-sm">
               <ResourceIcon type="CRYSTAL" className="h-4 w-4" />
-              {building.nextLevelCost.crystalCost}
+              {formatNumber(building.nextLevelCost.crystalCost)}
             </div>
           </div>
           <div className="rounded border border-wellBorder bg-well p-2.5">
@@ -464,11 +465,11 @@ function BuildingDetails({
               <span className="text-[10px] uppercase text-textFaint">{t('base.queueLevelCost', { level: queueLevel })}</span>
               <span className="flex items-center gap-1">
                 <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
-                {queueCost.metalCost}
+                {formatNumber(queueCost.metalCost)}
               </span>
               <span className="flex items-center gap-1">
                 <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
-                {queueCost.crystalCost}
+                {formatNumber(queueCost.crystalCost)}
               </span>
               <span className="tabular-nums text-textMuted">{formatDuration(queueCost.constructionSeconds)}</span>
             </div>
@@ -509,15 +510,15 @@ function describeEffect(building: BuildingStateDto, side: EffectSide, t: ReturnT
   const maxEnergy = side === 'current' ? building.currentMaxEnergyBonus : building.nextMaxEnergyBonus;
   const exchangeLimit = side === 'current' ? building.currentExchangeLimit : building.nextExchangeLimit;
 
-  if (production) return `+${production.perHour} ${t(`resource.${production.resourceType}`)}/${t('base.perHour')}`;
+  if (production) return `+${formatNumber(production.perHour)} ${t(`resource.${production.resourceType}`)}/${t('base.perHour')}`;
   if (capacity !== null) return `+${capacity} ${t('base.inventorySlots')}`;
   if (marketSlots !== null) return `+${marketSlots} ${t('base.marketSlots')}`;
   if (defense !== null) return t('base.defenseBonus', { percent: defense });
   if (protection !== null) return t('base.pvpProtectionBonus', { minutes: protection });
-  if (hidden) return t('base.protectedResources', { metal: hidden.metal, crystal: hidden.crystal, credits: hidden.credits });
+  if (hidden) return t('base.protectedResources', { metal: hidden.metal, crystal: hidden.crystal });
   if (researchCap !== null) return t('base.researchCap', { level: researchCap });
   if (regen !== null) return maxEnergy ? `${t('base.energyRegen', { percent: regen })}, ${t('base.maxEnergyBonus', { amount: maxEnergy })}` : t('base.energyRegen', { percent: regen });
-  if (exchangeLimit !== null) return t('base.exchangeLimit', { amount: exchangeLimit.toLocaleString() });
+  if (exchangeLimit !== null) return t('base.exchangeLimit', { amount: formatNumber(exchangeLimit) });
   return null;
 }
 

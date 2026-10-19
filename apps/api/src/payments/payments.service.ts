@@ -247,6 +247,8 @@ function toPurchaseDto(purchase: Purchase & { product: PaymentProduct }): Purcha
     productKey: purchase.product.key,
     nameBg: purchase.product.nameBg,
     nameEn: purchase.product.nameEn,
+    credits: purchase.credits,
+    vipDays: purchase.vipDays,
     kind: purchase.product.kind,
     status: purchase.status,
     amountCents: purchase.amountCents,

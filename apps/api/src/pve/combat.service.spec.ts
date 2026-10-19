@@ -25,6 +25,11 @@ function makePentili(overrides: Partial<Pentili> = {}): Pentili {
     defense: 1,
     xpReward: 10,
     iconAssetId: 'pentili.test.icon',
+    orderInZone: 1,
+    levelOverride: null,
+    strength: 1,
+    specialItemKey: null,
+    specialItemChance: null,
     ...overrides,
   };
 }

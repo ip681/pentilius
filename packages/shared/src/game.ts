@@ -580,9 +580,10 @@ export interface ExpeditionTypeDto {
   key: string;
   nameKey: string;
   durationMinutes: number;
+  // At the player's level, before the Navigation research (owner decision, 2026-10-19).
   rewards: ExpeditionRewardsDto;
-  bonusItemNameKey: string | null;
-  bonusItemIconAssetId: string | null;
+  // The bonus item is a random item of this set (the player's highest unlocked zone).
+  bonusItemTier: 'PIONEER' | 'ASCENDANT' | 'COREFORGED' | null;
   bonusItemChance: number | null;
   // Research Center level needed (owner decision, 2026-10-14).
   // Navigation research level needed (owner decision, 2026-10-14).
@@ -601,6 +602,8 @@ export interface ActiveExpeditionDto {
 export interface ExpeditionsResponseDto {
   types: ExpeditionTypeDto[];
   active: ActiveExpeditionDto | null;
+  // Cancelling early pays this share of what was earned so far (0.7 = 70%).
+  earlyCancelPercentage: number;
 }
 
 export interface ExpeditionClaimResultDto {
@@ -1425,9 +1428,10 @@ export type PurchaseStatus = 'PENDING' | 'COMPLETED' | 'CANCELED' | 'REFUNDED';
 
 export interface PaymentProductDto {
   key: string;
-  // Names come from godmaster, in both languages.
-  nameBg: string;
-  nameEn: string;
+  // Custom names from godmaster; null = the translated template
+  // ("VIP for {days} days", "{count} Credits").
+  nameBg: string | null;
+  nameEn: string | null;
   kind: PaymentProductKind;
   credits: number | null;
   vipDays: number | null;
@@ -1445,8 +1449,11 @@ export interface PaymentsCatalogDto {
 export interface PurchaseDto {
   id: string;
   productKey: string;
-  nameBg: string;
-  nameEn: string;
+  nameBg: string | null;
+  nameEn: string | null;
+  // What this purchase granted (for the template name).
+  credits: number | null;
+  vipDays: number | null;
   kind: PaymentProductKind;
   status: PurchaseStatus;
   amountCents: number;
@@ -1458,8 +1465,8 @@ export interface PurchaseDto {
 // godmaster's Payments tab (owner decision, 2026-10-17).
 export interface AdminPaymentProductDto {
   key: string;
-  nameBg: string;
-  nameEn: string;
+  nameBg: string | null;
+  nameEn: string | null;
   kind: PaymentProductKind;
   credits: number | null;
   vipDays: number | null;
@@ -1475,7 +1482,8 @@ export interface AdminPaymentProductDto {
 export interface AdminPurchaseDto {
   id: string;
   username: string;
-  productNameBg: string;
+  productNameBg: string | null;
+  kind: PaymentProductKind;
   status: PurchaseStatus;
   amountCents: number;
   currency: string;
@@ -1500,4 +1508,328 @@ export interface AdminPaymentsSettingsDto {
   allowedCountries: string[];
   // A Stripe key is set on this server.
   paymentsEnabled: boolean;
+}
+
+// godmaster → Balance → Pentili (owner decision, 2026-10-18). Mirrors
+// apps/api/src/config/pentili-balance.ts.
+export interface BalanceCurveDto {
+  base: number;
+  growth: number;
+}
+
+export interface PentiliZoneBalanceDto {
+  startLevel: number;
+  step: number;
+  strength: number;
+  itemTier: 'pioneer' | 'ascendant' | 'coreforged';
+  itemChance: number;
+  fragmentChance: number;
+  upgradeStoneChance: number;
+  energyPackChance: number;
+}
+
+export interface PentiliBalanceConfigDto {
+  stats: { hp: BalanceCurveDto; attack: BalanceCurveDto; defense: BalanceCurveDto; xp: BalanceCurveDto };
+  rewards: { metal: BalanceCurveDto; crystal: BalanceCurveDto; spread: number };
+  zones: Record<string, PentiliZoneBalanceDto>;
+}
+
+export interface AdminPentiliRowDto {
+  key: string;
+  nameKey: string;
+  zoneKey: string;
+  orderInZone: number;
+  levelOverride: number | null;
+  strength: number;
+  specialItemKey: string | null;
+  specialItemChance: number | null;
+  current: { level: number; maxHp: number; attack: number; defense: number; xpReward: number };
+  next: {
+    level: number;
+    maxHp: number;
+    attack: number;
+    defense: number;
+    xpReward: number;
+    metal: [number, number];
+    crystal: [number, number];
+  };
+}
+
+export interface AdminPentiliBalanceDto {
+  config: PentiliBalanceConfigDto;
+  zones: { key: string; nameKey: string; order: number; unlockLevel: number }[];
+  pentili: AdminPentiliRowDto[];
+  items: { key: string; nameKey: string }[];
+}
+
+// godmaster → Balance → XP (owner decision, 2026-10-19).
+export interface XpBalanceConfigDto {
+  base: number;
+  growth: number;
+}
+
+export interface AdminXpLevelDto {
+  level: number;
+  // XP to reach the next level now, and under the config.
+  current: number | null;
+  next: number;
+  // Fights against the best-paying Pentili available at this level (null if none).
+  battles: number | null;
+  totalBattles: number;
+  energyHours: number | null;
+}
+
+export interface AdminXpBalanceDto {
+  config: XpBalanceConfigDto;
+  levels: AdminXpLevelDto[];
+  energyMinutes: number;
+}
+
+// godmaster → Balance → Buildings & research (owner decision, 2026-10-19).
+// Mirrors apps/api/src/config/building-balance.ts.
+export interface BuildingBalanceConfigDto {
+  production: { metalPerHour: number; crystalPerHour: number; growth: number };
+  costHours: number;
+  buildTime: BalanceCurveDto;
+  buildings: Record<string, { metal: number; crystal: number; time: number; maxLevel: number; effects: Record<string, number> }>;
+  research: {
+    metal: number;
+    crystal: number;
+    credits: number;
+    time: BalanceCurveDto;
+    items: Record<string, { bonusPerLevel: number; maxLevel: number }>;
+  };
+}
+
+export interface AdminBuildingBalanceDto {
+  config: BuildingBalanceConfigDto;
+  buildings: {
+    key: string;
+    nameKey: string;
+    levels: {
+      level: number;
+      metalCost: number;
+      crystalCost: number;
+      constructionSeconds: number;
+      producesPerHour: number | null;
+      current: { metalCost: number; crystalCost: number; constructionSeconds: number; producesPerHour: number | null } | null;
+    }[];
+  }[];
+  research: {
+    key: string;
+    nameKey: string;
+    bonusType: string;
+    levels: {
+      level: number;
+      metalCost: number;
+      crystalCost: number;
+      creditsCost: number;
+      researchSeconds: number;
+      current: { metalCost: number; crystalCost: number; creditsCost: number; researchSeconds: number } | null;
+    }[];
+  }[];
+}
+
+// godmaster → Balance → Clan buildings (owner decision, 2026-10-19).
+// Mirrors apps/api/src/config/clan-balance.ts.
+export interface ClanBalanceConfigDto {
+  costFactor: number;
+  crystal: number;
+  credits: number;
+  buildTime: BalanceCurveDto;
+  buildings: Record<string, { bonusPerLevel: number; maxLevel: number; levelStep: number; cost: number }>;
+  // The Cantina's activation; its levels are in `buildings` like the rest.
+  tavern: {
+    activationHours: number;
+    activationMetal: number;
+    activationCrystal: number;
+    activationCredits: number;
+  };
+  generatorMaxEnergyLevels: number[];
+}
+
+export interface AdminClanBalanceDto {
+  config: ClanBalanceConfigDto;
+  buildings: {
+    key: string;
+    nameKey: string;
+    bonusType: string;
+    levels: {
+      level: number;
+      metalCost: number;
+      crystalCost: number;
+      creditsCost: number;
+      constructionSeconds: number;
+      current: { metalCost: number; crystalCost: number; creditsCost: number; constructionSeconds: number } | null;
+    }[];
+  }[];
+}
+
+// godmaster → Balance → Sets (owner decision, 2026-10-19).
+// Mirrors apps/api/src/config/equipment-balance.ts.
+export interface EquipmentSlotStatsDto {
+  attack: number;
+  defense: number;
+  hp: number;
+}
+
+export interface EquipmentBalanceConfigDto {
+  // pioneer / ascendant / coreforged
+  sets: Record<string, { maxUpgradeLevel: number; sellMetal: number; sellCrystal: number; slots: Record<string, EquipmentSlotStatsDto> }>;
+  upgrade: { bonusPerLevel: number; materialsPerLevel: number; fragmentsPerStone: number };
+  qualitySellMultiplier: { NORMAL: number; RARE: number; EPIC: number };
+}
+
+// The preview's reference robot: how it spends its attribute points
+// (shares), and the bonuses it has (fractions, 0.3 = +30%).
+export interface EquipmentSplitDto {
+  damage: number;
+  defense: number;
+  hp: number;
+  researchAttack: number;
+  researchHp: number;
+  forge: number;
+}
+
+export interface AdminEquipmentZoneDto {
+  zoneKey: string;
+  zoneNameKey: string;
+  tier: string;
+  maxUpgradeLevel: number;
+  stonesToMax: number;
+  stonesPerBattle: number;
+  battlesToMax: number | null;
+  fights: {
+    pentiliKey: string;
+    nameKey: string;
+    level: number;
+    pentili: { attack: number; defense: number; maxHp: number };
+    attributePoints: number;
+    // none = no gear, base = the zone's full set at +0, max = at max upgrade.
+    robots: { kind: 'none' | 'base' | 'max'; stats: EquipmentSlotStatsDto; winRate: number }[];
+  }[];
+}
+
+export interface AdminEquipmentBalanceDto {
+  config: EquipmentBalanceConfigDto;
+  split: EquipmentSplitDto;
+  zones: AdminEquipmentZoneDto[];
+  // Preview only: the same simulation with the saved values, to compare.
+  currentZones: AdminEquipmentZoneDto[] | null;
+  simulationRuns: number;
+  // The most the researches and the Forge give today (for a "max" button).
+  maxBonuses: { researchAttack: number; researchHp: number; forge: number };
+}
+
+// godmaster → Balance → Expeditions (owner decision, 2026-10-19).
+// Mirrors apps/api/src/config/expedition-balance.ts.
+export interface ExpeditionBalanceConfigDto {
+  expeditions: Record<string, { durationMinutes: number; fights: number; bonusItemChance: number; requiredNavigationLevel: number }>;
+  earlyCancelPercentage: number;
+}
+
+export interface AdminExpeditionLevelRowDto {
+  level: number;
+  // By expedition key, before the Navigation research.
+  rewards: Record<string, { metal: number; crystal: number; xp: number }>;
+}
+
+export interface AdminExpeditionBalanceDto {
+  config: ExpeditionBalanceConfigDto;
+  expeditions: { key: string; nameKey: string }[];
+  // How many Pentili fights an hour of Action Energy buys, to compare with.
+  fightsPerHourFromEnergy: number;
+  levels: AdminExpeditionLevelRowDto[];
+  // Preview only: the same table with the saved values.
+  currentLevels: AdminExpeditionLevelRowDto[] | null;
+}
+
+// godmaster → Balance → Bosses (owner decision, 2026-10-19).
+// Mirrors apps/api/src/config/boss-balance.ts.
+export interface BossBalanceConfigDto {
+  bosses: Record<
+    string,
+    {
+      minLevel: number;
+      maxHp: number;
+      attack: number;
+      defense: number;
+      xpReward: number;
+      boxKey: string;
+      resourceFights: number;
+      credits: { chance: number; min: number; max: number };
+      items: { itemKey: string; chance: number; min: number; max: number }[];
+    }
+  >;
+}
+
+export interface AdminBossRowDto {
+  key: string;
+  nameKey: string;
+  zoneNameKey: string;
+  tier: string;
+  // What each rewarded participant gets.
+  metal: [number, number];
+  crystal: [number, number];
+  // 1 to 5 reference robots: XP each, and % of fights won with the set at +0 / max.
+  formations: { players: number; xpEach: number; base: number; max: number }[];
+}
+
+export interface AdminBossBalanceDto {
+  config: BossBalanceConfigDto;
+  bosses: AdminBossRowDto[];
+  // Preview only: the same with the saved values.
+  currentBosses: AdminBossRowDto[] | null;
+  // Every item, for the box and drop pickers.
+  items: { key: string; nameKey: string; category: string }[];
+  split: EquipmentSplitDto;
+  tavern: number;
+  maxBonuses: { researchAttack: number; researchHp: number; forge: number; tavern: number };
+  simulationRuns: number;
+}
+
+// godmaster → Balance → Other values (owner decision, 2026-10-19).
+// Mirrors apps/api/src/config/other-balance.ts; percent values are fractions.
+export interface AdminOtherBalanceDto {
+  values: { path: string; kind: 'int' | 'number' | 'percent'; min: number; max: number; value: number; default: number }[];
+}
+
+// godmaster → Balance → Rewards (owner decision, 2026-10-19).
+// Mirrors apps/api/src/config/reward-balance.ts.
+export interface RewardBalanceConfigDto {
+  levelRewards: { metalPerLevel: number; crystalPerLevel: number; boxEveryLevels: number; boxes: { upToLevel: number; itemKey: string }[] };
+  dailyTasks: {
+    tasks: Record<string, { target: number; reward: { metalPerLevel: number; crystalPerLevel: number; xpPerLevel: number; energy: number } }>;
+    allDoneBonusItemKey: string;
+    streak: { days: number; allowedMisses: number; rewardItemKey: string };
+  };
+  achievements: Record<string, { target: number; reward: { metal: number; crystal: number; itemKey: string | null } }[]>;
+}
+
+export interface AdminRewardLevelRowDto {
+  level: number;
+  dailyMetal: number;
+  dailyXp: number;
+  // The same in Pentili fights at that level.
+  dailyMetalFights: number;
+  dailyXpFights: number;
+  levelMetal: number;
+  levelMetalFights: number;
+}
+
+export interface AdminRewardBalanceDto {
+  config: RewardBalanceConfigDto;
+  levels: AdminRewardLevelRowDto[];
+  currentLevels: AdminRewardLevelRowDto[] | null;
+  taskInfo: Record<string, { type: string; chain: string | null }>;
+  achievementMetrics: Record<string, string>;
+  items: { key: string; nameKey: string }[];
+}
+
+// godmaster → player → login records (owner decision, 2026-10-19).
+export interface AdminPlayerLoginsDto {
+  retentionDays: number;
+  events: { createdAt: string; kind: string; ip: string; country: string | null; device: string | null; browser: string | null }[];
+  // Other accounts seen from any of this player's addresses.
+  sharedAccounts: { playerId: string; username: string; banned: boolean; sharedIps: string[] }[];
 }

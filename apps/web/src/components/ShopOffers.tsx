@@ -7,10 +7,24 @@ import { ResourceIcon } from '@/components/ResourceIcon';
 import { getCheckoutStatus, startCheckout } from '@/lib/api-client';
 import { formatPrice } from '@/lib/format-price';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { formatNumber } from '@/lib/format-number';
 
-/** A product's name in the player's language (names are set in godmaster). */
-export function productName(product: { nameBg: string; nameEn: string }, locale: string): string {
-  return locale === 'en' ? product.nameEn || product.nameBg : product.nameBg || product.nameEn;
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+/**
+ * A product's name in the player's language (owner decision, 2026-10-18): a
+ * custom name from godmaster if set (English is the fallback), otherwise the
+ * translated template — "VIP for {days} days" / "{count} Credits" — so new
+ * products need no typing in any language.
+ */
+export function productName(
+  product: { kind: 'CREDITS' | 'VIP'; nameBg: string | null; nameEn: string | null; credits: number | null; vipDays: number | null },
+  locale: string,
+  t: Translate,
+): string {
+  const custom = locale === 'bg' ? product.nameBg || product.nameEn : product.nameEn;
+  if (custom) return custom;
+  return product.kind === 'VIP' ? t('payments.productNames.VIP', { days: product.vipDays ?? 0 }) : t('payments.productNames.CREDITS', { count: product.credits ?? 0 });
 }
 
 /**
@@ -123,7 +137,7 @@ export function ShopOffers({ catalog, profile }: { catalog: PaymentsCatalogDto; 
                     <span className="absolute right-1 top-1 rounded bg-accent px-1 text-[9px] font-semibold text-ink">{t('payments.bonus', { percent: bonus })}</span>
                   )}
                   <ResourceIcon type="CREDITS" className="h-7 w-7" />
-                  <span className="text-base font-semibold tabular-nums">{product.credits?.toLocaleString(locale === 'en' ? 'en-GB' : 'bg-BG')}</span>
+                  <span className="text-base font-semibold tabular-nums">{(product.credits != null ? formatNumber(product.credits) : undefined)}</span>
                   <span className="mt-1 w-full rounded border border-accent px-1 py-1 text-center text-[11px] uppercase">
                     {busyKey === product.key ? t('payments.redirecting') : price(product)}
                   </span>
@@ -185,7 +199,7 @@ export function CheckoutResult({ checkout, onDone }: { checkout: string; onDone:
     text = t('payments.canceled');
     tone = 'border-wellBorder bg-well text-textMuted';
   } else if (purchase?.status === 'COMPLETED') {
-    text = t('payments.completed', { name: productName(purchase, locale) });
+    text = t('payments.completed', { name: productName(purchase, locale, t) });
   } else if (purchase?.status === 'CANCELED') {
     text = t('payments.failed');
     tone = 'border-wellBorder bg-well text-textMuted';

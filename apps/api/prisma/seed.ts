@@ -1,5 +1,11 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import { GAME_BALANCE } from '../src/config/game-config';
+import { applyPentiliBalance, DEFAULT_PENTILI_BALANCE, loadPentiliBalance, PENTILI_BALANCE_KEY } from '../src/config/pentili-balance';
+import { applyBuildingBalance, BUILDING_BALANCE_KEY, DEFAULT_BUILDING_BALANCE, loadBuildingBalance, niceRound } from '../src/config/building-balance';
+import { applyClanBalance, CLAN_BALANCE_KEY, DEFAULT_CLAN_BALANCE, loadClanBalance } from '../src/config/clan-balance';
+import { applyEquipmentBalance, DEFAULT_EQUIPMENT_BALANCE, EQUIPMENT_BALANCE_KEY, loadEquipmentBalance } from '../src/config/equipment-balance';
+import { applyExpeditionBalance, DEFAULT_EXPEDITION_BALANCE, EXPEDITION_BALANCE_KEY, loadExpeditionBalance } from '../src/config/expedition-balance';
+import { applyBossBalance, BOSS_BALANCE_KEY, DEFAULT_BOSS_BALANCE, loadBossBalance } from '../src/config/boss-balance';
+import { applyXpBalance, DEFAULT_XP_BALANCE, loadXpBalance, XP_BALANCE_KEY } from '../src/config/xp-balance';
 
 const prisma = new PrismaClient();
 
@@ -112,16 +118,20 @@ async function main() {
     { key: 'pentili_voidling_z4b', nameKey: 'pentili.voidling.name', zoneId: zoneFrostbound.id, level: 92, maxHp: 2525, attack: 252, defense: 284, xpReward: 2858, iconAssetId: 'pentili.voidling.icon' },
     { key: 'pentili_stormcaller_z4b', nameKey: 'pentili.stormcaller.name', zoneId: zoneFrostbound.id, level: 96, maxHp: 2643, attack: 262, defense: 299, xpReward: 3020, iconAssetId: 'pentili.stormcaller.icon' },
   ];
-  const pentiliByKey: Record<string, Awaited<ReturnType<typeof prisma.pentili.upsert>>> = {};
+  // Since 2026-10-18 the stats, XP and loot come from the Pentili balance
+  // edited in godmaster (src/config/pentili-balance.ts): the seed only
+  // creates missing Pentili with their place in the zone and keeps names,
+  // zones and icons in step — it never overwrites the balance.
+  const orderInZone = new Map<string, number>();
   for (const data of pentiliData) {
-    // update: data (not {}) — these 8 original keys already exist in every
-    // seeded database, so an empty update would silently freeze their old
-    // level 1-14 stats forever instead of applying the new 1-100 values.
-    pentiliByKey[data.key] = await prisma.pentili.upsert({ where: { key: data.key }, update: data, create: data });
+    const order = orderInZone.get(data.zoneId) ?? 0;
+    orderInZone.set(data.zoneId, order + 1);
+    await prisma.pentili.upsert({
+      where: { key: data.key },
+      update: { nameKey: data.nameKey, zoneId: data.zoneId, iconAssetId: data.iconAssetId },
+      create: { ...data, orderInZone: order },
+    });
   }
-  const { pentili_skitterling: skitterling, pentili_mossback: mossback, pentili_ridgefang: ridgefang,
-    pentili_cinderclaw: cinderclaw, pentili_duskfang: duskfang, pentili_voidling: voidling,
-    pentili_glacialwraith: glacialwraith, pentili_stormcaller: stormcaller } = pentiliByKey;
 
   const buildingTypes = await Promise.all(
     [
@@ -153,8 +163,8 @@ async function main() {
       // Hideout (owner decision, 2026-10-12): this much of each resource can't
       // be stolen when losing a defense (PvP and clan-war duels). Metal and
       // Crystal grow like mine production (building-effects.ts), so the
-      // Hideout always shields ~3 hours of that level's income; Credits stay
-      // linear (base balance, 2026-10-14).
+      // Hideout always shields ~3 hours of that level's income (base balance,
+      // 2026-10-14). Credits are never stolen (2026-10-19), so none here.
       {
         key: 'hideout',
         nameKey: 'buildings.hideout.name',
@@ -162,7 +172,6 @@ async function main() {
         iconAssetId: 'buildings.hideout.icon',
         protectedMetalPerLevel: 300,
         protectedCrystalPerLevel: 180,
-        protectedCreditsPerLevel: 100,
       },
       // New buildings (owner decision, 2026-10-14) — placeholder numbers.
       // Research Center: researches up to its level; low levels unlock the longer expeditions.
@@ -175,58 +184,13 @@ async function main() {
       // update: data (not {}) — capacityBonusPerLevel/marketSlotBonusPerLevel
       // must follow this list when it changes, not freeze at whatever an
       // existing row already has.
-    ].map((data) => prisma.buildingType.upsert({ where: { key: data.key }, update: data, create: data })),
+    // Since 2026-10-19 max level and effects are balanced in godmaster
+    // (src/config/building-balance.ts): existing rows only get their name/icon here.
+    ].map((data) => prisma.buildingType.upsert({ where: { key: data.key }, update: { nameKey: data.nameKey, iconAssetId: data.iconAssetId }, create: data })),
   );
-  const [metalMine, crystalExtractor, warehouse, tradingPost, defenseSystem, defensiveWall, hideout, researchCenter, exchange, reactor] = buildingTypes;
 
-  // Base balance (2026-10-14), aiming at level 30 as a late-season goal in a
-  // ~6-month season. Everything follows mine production:
-  //   production(L) = perHour * L * growth^(L-1)        (growth: GAME_BALANCE.buildingEffects)
-  //   cost(L)       = value(L) * the building's factor  (value = L/2 hours of a level-L metal mine)
-  //   time(L)       = 60 s * L^2.2 * the building's factor (~2.5 h at level 10, ~30 h at 30)
-  // so each level costs ~x1.2 more than the last while production grows
-  // only ~x1.12 — late levels take more than a day of income. Placeholder,
-  // not final balance (instructions/OPEN_DECISIONS.md).
-  const buildingCurves: Array<{
-    type: { id: string };
-    metal: number;
-    crystal: number;
-    time: number;
-    produces?: { resource: 'METAL' | 'CRYSTAL'; perHour: number };
-  }> = [
-    { type: metalMine, metal: 0, crystal: 1, time: 1, produces: { resource: 'METAL', perHour: 100 } },
-    { type: crystalExtractor, metal: 1.6, crystal: 0, time: 1, produces: { resource: 'CRYSTAL', perHour: 60 } },
-    { type: warehouse, metal: 0.6, crystal: 0.25, time: 0.8 },
-    { type: tradingPost, metal: 0.6, crystal: 0.25, time: 0.8 },
-    { type: defenseSystem, metal: 0.8, crystal: 0.35, time: 1 },
-    { type: defensiveWall, metal: 0.8, crystal: 0.35, time: 1 },
-    { type: hideout, metal: 0.8, crystal: 0.35, time: 1 },
-    { type: researchCenter, metal: 1, crystal: 0.5, time: 1.2 },
-    { type: exchange, metal: 0.8, crystal: 0.35, time: 1 },
-    { type: reactor, metal: 1.2, crystal: 0.6, time: 1.2 },
-  ];
-  const levelCosts = buildingCurves.flatMap((curve) =>
-    Array.from({ length: 30 }, (_, i) => {
-      const level = i + 1;
-      return {
-        buildingTypeId: curve.type.id,
-        level,
-        metalCost: niceRound(balanceValue(level) * curve.metal),
-        crystalCost: niceRound(balanceValue(level) * curve.crystal),
-        constructionSeconds: Math.round(60 * Math.pow(level, 2.2) * curve.time),
-        producesResourceType: curve.produces?.resource ?? null,
-        producesPerHour: curve.produces ? Math.round(curve.produces.perHour * level * Math.pow(GAME_BALANCE.buildingEffects.amountGrowth, level - 1)) : null,
-      };
-    }),
-  );
-  // update: cost (not {}) so a rebalance reaches existing rows.
-  for (const cost of levelCosts) {
-    await prisma.buildingLevelCost.upsert({
-      where: { buildingTypeId_level: { buildingTypeId: cost.buildingTypeId, level: cost.level } },
-      update: cost,
-      create: cost,
-    });
-  }
+  // Building costs, times, production and effects are generated after the
+  // research types below (src/config/building-balance.ts — godmaster → Balance).
 
   // The old starter/advanced/elite catalog is fully superseded by the 3 named
   // sets below — clear out its ItemInstance rows (any equipped/inventory copy
@@ -283,6 +247,7 @@ async function main() {
     iconAssetId: `items.${item.key}.icon`,
   }));
 
+  const equipmentKeys = new Set(equipmentData.map((item) => item.key));
   const itemData = [
     ...equipmentData,
     // Consumables (general inventory, owner decision) — no slot, stack in one
@@ -431,146 +396,54 @@ async function main() {
     // update: data (not {}) — category/slot/baseStats must follow this list
     // when it changes, not freeze at whatever an existing row already has.
     const priced = { ...data, ...SHOP_PRICE_COMBOS[index % SHOP_PRICE_COMBOS.length] };
-    itemsByKey[data.key] = await prisma.itemDefinition.upsert({ where: { key: data.key }, update: priced, create: priced });
+    // Set items' stats and max upgrade come from the equipment balance in
+    // godmaster since 2026-10-19 — not overwritten here (the list's values
+    // only matter for a new database, and equal the defaults).
+    const { baseStats, maxUpgradeLevel, ...rest } = priced;
+    const update = equipmentKeys.has(data.key) ? rest : { ...rest, baseStats, maxUpgradeLevel };
+    itemsByKey[data.key] = await prisma.itemDefinition.upsert({ where: { key: data.key }, update, create: priced });
   }
 
-  const allPentiliIds = Object.values(pentiliByKey).map((p) => p.id);
-  await prisma.lootDrop.deleteMany({ where: { pentiliId: { in: allPentiliIds } } });
-
-  // Loot for the 32 "borrowed" Pentili entries added above (reused creature
-  // types appearing in a zone they don't canonically belong to) — owner
-  // decision (2026-10-11): generated from one rule instead of ~350
-  // hand-written rows. No Credits (doesn't fit a monster drop thematically —
-  // that stays Metal/Crystal/the Shop/bosses). Metal AND Crystal always
-  // drop (100% each, quantity banded by the zone's loot tier). One random
-  // item from that zone's 7-slot equipment set, each slot at its own ~2%
-  // chance (~14% combined chance of getting some item). Plus two separate,
-  // smaller chances: 5% for an upgrade fragment, 1% for a ready-made
-  // upgrade stone. The original 8 keys keep their own hand-authored tables
-  // above, untouched.
-  const SLOT_SUFFIXES = ['head_scanner', 'left_arm_blaster', 'right_arm_guard', 'armor_plating', 'core_battery', 'left_leg_actuator', 'right_leg_actuator'];
-  const BORROWED_PENTILI_LOOT_TIERS: { itemPrefix: 'pioneer' | 'ascendant' | 'coreforged'; metalRange: [number, number]; crystalRange: [number, number]; keys: string[] }[] = [
-    {
-      itemPrefix: 'pioneer',
-      metalRange: [5, 15],
-      crystalRange: [3, 8],
-      keys: ['pentili_ridgefang_z1', 'pentili_cinderclaw_z1', 'pentili_duskfang_z1', 'pentili_voidling_z1', 'pentili_glacialwraith_z1', 'pentili_stormcaller_z1', 'pentili_voidling_z1b', 'pentili_stormcaller_z1b'],
-    },
-    {
-      itemPrefix: 'ascendant',
-      metalRange: [15, 30],
-      crystalRange: [10, 20],
-      keys: ['pentili_skitterling_z2', 'pentili_mossback_z2', 'pentili_duskfang_z2', 'pentili_voidling_z2', 'pentili_glacialwraith_z2', 'pentili_stormcaller_z2', 'pentili_voidling_z2b', 'pentili_stormcaller_z2b'],
-    },
-    {
-      itemPrefix: 'coreforged',
-      metalRange: [30, 60],
-      crystalRange: [20, 40],
-      keys: ['pentili_skitterling_z3', 'pentili_mossback_z3', 'pentili_ridgefang_z3', 'pentili_cinderclaw_z3', 'pentili_glacialwraith_z3', 'pentili_stormcaller_z3', 'pentili_voidling_z3b', 'pentili_stormcaller_z3b'],
-    },
-    {
-      itemPrefix: 'coreforged',
-      metalRange: [50, 90],
-      crystalRange: [35, 60],
-      keys: ['pentili_skitterling_z4', 'pentili_mossback_z4', 'pentili_ridgefang_z4', 'pentili_cinderclaw_z4', 'pentili_duskfang_z4', 'pentili_voidling_z4', 'pentili_voidling_z4b', 'pentili_stormcaller_z4b'],
-    },
-  ];
-  const newPentiliLootDrops: Prisma.LootDropCreateManyInput[] = [];
-  for (const tier of BORROWED_PENTILI_LOOT_TIERS) {
-    for (const key of tier.keys) {
-      const pentiliId = pentiliByKey[key].id;
-      newPentiliLootDrops.push(
-        { pentiliId, resourceType: 'METAL', dropChance: 1, minQuantity: tier.metalRange[0], maxQuantity: tier.metalRange[1] },
-        { pentiliId, resourceType: 'CRYSTAL', dropChance: 1, minQuantity: tier.crystalRange[0], maxQuantity: tier.crystalRange[1] },
-        ...SLOT_SUFFIXES.map(
-          (suffix): Prisma.LootDropCreateManyInput => ({
-            pentiliId,
-            itemDefinitionId: itemsByKey[`${tier.itemPrefix}_${suffix}`].id,
-            dropChance: 0.02,
-            minQuantity: 1,
-            maxQuantity: 1,
-          }),
-        ),
-        { pentiliId, itemDefinitionId: itemsByKey[`${tier.itemPrefix}_fragment`].id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
-        { pentiliId, itemDefinitionId: itemsByKey[`${tier.itemPrefix}_upgrade`].id, dropChance: 0.01, minQuantity: 1, maxQuantity: 1 },
-      );
-    }
-  }
-
-  await prisma.lootDrop.createMany({
-    data: [
-      // Zone 1 (Verdant Flats) — Pioneer tier only, per owner decision.
-      { pentiliId: skitterling.id, resourceType: 'METAL', dropChance: 0.8, minQuantity: 5, maxQuantity: 15 },
-      { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.pioneer_upgrade.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.energy_pack_small.id, dropChance: 0.12, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.pioneer_head_scanner.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.pioneer_left_arm_blaster.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: skitterling.id, itemDefinitionId: itemsByKey.pioneer_left_leg_actuator.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
-
-      { pentiliId: mossback.id, resourceType: 'CRYSTAL', dropChance: 0.5, minQuantity: 3, maxQuantity: 8 },
-      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.construction_speedup_small.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.pioneer_right_arm_guard.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.pioneer_armor_plating.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.pioneer_core_battery.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: mossback.id, itemDefinitionId: itemsByKey.pioneer_right_leg_actuator.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
-
-      // Zone 2 (Ashen Ridge) — Ascendant tier introduced.
-      { pentiliId: ridgefang.id, resourceType: 'CREDITS', dropChance: 0.6, minQuantity: 10, maxQuantity: 20 },
-      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.ascendant_upgrade.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.ascendant_head_scanner.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.ascendant_left_arm_blaster.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: ridgefang.id, itemDefinitionId: itemsByKey.ascendant_left_leg_actuator.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
-
-      { pentiliId: cinderclaw.id, resourceType: 'METAL', dropChance: 0.6, minQuantity: 15, maxQuantity: 30 },
-      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.ascendant_upgrade.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.ascendant_right_arm_guard.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.ascendant_armor_plating.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.ascendant_core_battery.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: cinderclaw.id, itemDefinitionId: itemsByKey.ascendant_right_leg_actuator.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
-
-      // Zone 3 (Crimson Wastes) — Coreforged tier introduced (race-locked per drop, low chance).
-      { pentiliId: duskfang.id, resourceType: 'CRYSTAL', dropChance: 0.55, minQuantity: 15, maxQuantity: 30 },
-      { pentiliId: duskfang.id, resourceType: 'CREDITS', dropChance: 0.4, minQuantity: 20, maxQuantity: 40 },
-      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.energy_pack_large.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.coreforged_head_scanner.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.coreforged_left_arm_blaster.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: duskfang.id, itemDefinitionId: itemsByKey.coreforged_left_leg_actuator.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
-
-      { pentiliId: voidling.id, resourceType: 'CREDITS', dropChance: 0.5, minQuantity: 30, maxQuantity: 60 },
-      { pentiliId: voidling.id, itemDefinitionId: itemsByKey.coreforged_upgrade.id, dropChance: 0.03, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: voidling.id, itemDefinitionId: itemsByKey.coreforged_right_arm_guard.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: voidling.id, itemDefinitionId: itemsByKey.coreforged_armor_plating.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
-
-      // Zone 4 (Frostbound Reach) — Coreforged tier continues.
-      { pentiliId: glacialwraith.id, resourceType: 'METAL', dropChance: 0.6, minQuantity: 40, maxQuantity: 70 },
-      { pentiliId: glacialwraith.id, resourceType: 'CRYSTAL', dropChance: 0.5, minQuantity: 30, maxQuantity: 50 },
-      { pentiliId: glacialwraith.id, itemDefinitionId: itemsByKey.construction_speedup_large.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: glacialwraith.id, itemDefinitionId: itemsByKey.coreforged_core_battery.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: glacialwraith.id, itemDefinitionId: itemsByKey.coreforged_right_leg_actuator.id, dropChance: 0.05, minQuantity: 1, maxQuantity: 1 },
-
-      { pentiliId: stormcaller.id, resourceType: 'CREDITS', dropChance: 0.5, minQuantity: 50, maxQuantity: 90 },
-      { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.coreforged_upgrade.id, dropChance: 0.04, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.coreforged_head_scanner.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
-      { pentiliId: stormcaller.id, itemDefinitionId: itemsByKey.coreforged_armor_plating.id, dropChance: 0.06, minQuantity: 1, maxQuantity: 1 },
-
-      ...newPentiliLootDrops,
-    ],
+  // Equipment sets from the balance (owner decision, 2026-10-19): save the
+  // defaults once if nothing is saved yet, then apply.
+  await prisma.balanceConfig.upsert({
+    where: { key: EQUIPMENT_BALANCE_KEY },
+    update: {},
+    create: { key: EQUIPMENT_BALANCE_KEY, data: DEFAULT_EQUIPMENT_BALANCE as unknown as Prisma.InputJsonValue },
   });
+  await applyEquipmentBalance(prisma, await loadEquipmentBalance(prisma));
 
-  // Durations (1h/5h/10h) are GAME_SYSTEMS.md's own example; rewards taper
-  // per-hour as duration grows (short = efficient, long = bigger total,
-  // better for offline play) — see instructions/OPEN_DECISIONS.md.
-  const expeditionTypes = [
-    // requiredNavigationLevel (owner decision, 2026-10-14): longer ones unlock at the Navigation research's first levels.
-    { key: 'expedition_short', requiredNavigationLevel: 0, nameKey: 'expeditions.short.name', durationMinutes: 60, metalReward: 60, crystalReward: 20, creditsReward: 10, xpReward: 15, bonusItemDefinitionId: itemsByKey.ascendant_left_leg_actuator.id, bonusItemChance: 0.03 },
-    { key: 'expedition_medium', requiredNavigationLevel: 1, nameKey: 'expeditions.medium.name', durationMinutes: 300, metalReward: 250, crystalReward: 90, creditsReward: 50, xpReward: 70, bonusItemDefinitionId: itemsByKey.ascendant_right_arm_guard.id, bonusItemChance: 0.06 },
-    { key: 'expedition_long', requiredNavigationLevel: 2, nameKey: 'expeditions.long.name', durationMinutes: 600, metalReward: 450, crystalReward: 160, creditsReward: 100, xpReward: 130, bonusItemDefinitionId: itemsByKey.ascendant_core_battery.id, bonusItemChance: 0.1 },
-  ];
-  for (const data of expeditionTypes) {
-    // update: data (not {}) — bonusItemDefinitionId must follow the item catalog
-    // when it changes, not freeze at whatever it pointed to on first seed.
-    await prisma.expeditionType.upsert({ where: { key: data.key }, update: data, create: data });
+  // Pentili stats, XP and loot from the balance (owner decision, 2026-10-18):
+  // save the defaults once if nothing is saved yet, then generate. The seed
+  // never overwrites a balance saved in godmaster.
+  await prisma.balanceConfig.upsert({
+    where: { key: PENTILI_BALANCE_KEY },
+    update: {},
+    create: { key: PENTILI_BALANCE_KEY, data: DEFAULT_PENTILI_BALANCE as unknown as Prisma.InputJsonValue },
+  });
+  await applyPentiliBalance(prisma, await loadPentiliBalance(prisma));
+
+  // Expeditions (owner decision, 2026-10-19): durations, rewards (by player
+  // level), unlocks and the bonus chance come from the expeditions balance in
+  // godmaster. The rows here only carry the name; the numbers are placeholders
+  // that applyExpeditionBalance overwrites right away.
+  for (const [key, nameKey] of [
+    ['expedition_short', 'expeditions.short.name'],
+    ['expedition_medium', 'expeditions.medium.name'],
+    ['expedition_long', 'expeditions.long.name'],
+  ]) {
+    await prisma.expeditionType.upsert({
+      where: { key },
+      update: { nameKey },
+      create: { key, nameKey, durationMinutes: 60, metalReward: 0, crystalReward: 0, creditsReward: 0, xpReward: 0 },
+    });
   }
+  await prisma.balanceConfig.upsert({
+    where: { key: EXPEDITION_BALANCE_KEY },
+    update: {},
+    create: { key: EXPEDITION_BALANCE_KEY, data: DEFAULT_EXPEDITION_BALANCE as unknown as Prisma.InputJsonValue },
+  });
+  await applyExpeditionBalance(prisma, await loadExpeditionBalance(prisma), await loadPentiliBalance(prisma));
 
   // Owner decision (2026-10-11): player level cap raised to 100 (from a
   // curve that previously only went to 14) — there's no separate "max level"
@@ -588,110 +461,16 @@ async function main() {
   // True pacing against a real season length still depends on Pentili/boss
   // XP rewards (not tuned yet) — this is a first pass, same as every other
   // placeholder value in instructions/OPEN_DECISIONS.md.
-  const levelThresholds = [
-    { level: 1, xpRequired: 30 },
-    { level: 2, xpRequired: 60 },
-    { level: 3, xpRequired: 120 },
-    { level: 4, xpRequired: 220 },
-    { level: 5, xpRequired: 400 },
-    { level: 6, xpRequired: 650 },
-    { level: 7, xpRequired: 1000 },
-    { level: 8, xpRequired: 1500 },
-    { level: 9, xpRequired: 2200 },
-    { level: 10, xpRequired: 3000 },
-    { level: 11, xpRequired: 4000 },
-    { level: 12, xpRequired: 5200 },
-    { level: 13, xpRequired: 6600 },
-    { level: 14, xpRequired: 8200 },
-    { level: 15, xpRequired: 9495 },
-    { level: 16, xpRequired: 10892 },
-    { level: 17, xpRequired: 12390 },
-    { level: 18, xpRequired: 13991 },
-    { level: 19, xpRequired: 15696 },
-    { level: 20, xpRequired: 17504 },
-    { level: 21, xpRequired: 19417 },
-    { level: 22, xpRequired: 21436 },
-    { level: 23, xpRequired: 23560 },
-    { level: 24, xpRequired: 25791 },
-    { level: 25, xpRequired: 28130 },
-    { level: 26, xpRequired: 30576 },
-    { level: 27, xpRequired: 33130 },
-    { level: 28, xpRequired: 35793 },
-    { level: 29, xpRequired: 38566 },
-    { level: 30, xpRequired: 41448 },
-    { level: 31, xpRequired: 44441 },
-    { level: 32, xpRequired: 47544 },
-    { level: 33, xpRequired: 50758 },
-    { level: 34, xpRequired: 54084 },
-    { level: 35, xpRequired: 57522 },
-    { level: 36, xpRequired: 61072 },
-    { level: 37, xpRequired: 64736 },
-    { level: 38, xpRequired: 68512 },
-    { level: 39, xpRequired: 72402 },
-    { level: 40, xpRequired: 76406 },
-    { level: 41, xpRequired: 80524 },
-    { level: 42, xpRequired: 84757 },
-    { level: 43, xpRequired: 89104 },
-    { level: 44, xpRequired: 93568 },
-    { level: 45, xpRequired: 98147 },
-    { level: 46, xpRequired: 102842 },
-    { level: 47, xpRequired: 107653 },
-    { level: 48, xpRequired: 112581 },
-    { level: 49, xpRequired: 117626 },
-    { level: 50, xpRequired: 122788 },
-    { level: 51, xpRequired: 128068 },
-    { level: 52, xpRequired: 133465 },
-    { level: 53, xpRequired: 138981 },
-    { level: 54, xpRequired: 144615 },
-    { level: 55, xpRequired: 150368 },
-    { level: 56, xpRequired: 156240 },
-    { level: 57, xpRequired: 162232 },
-    { level: 58, xpRequired: 168342 },
-    { level: 59, xpRequired: 174573 },
-    { level: 60, xpRequired: 180924 },
-    { level: 61, xpRequired: 187395 },
-    { level: 62, xpRequired: 193986 },
-    { level: 63, xpRequired: 200698 },
-    { level: 64, xpRequired: 207532 },
-    { level: 65, xpRequired: 214486 },
-    { level: 66, xpRequired: 221562 },
-    { level: 67, xpRequired: 228760 },
-    { level: 68, xpRequired: 236080 },
-    { level: 69, xpRequired: 243522 },
-    { level: 70, xpRequired: 251087 },
-    { level: 71, xpRequired: 258774 },
-    { level: 72, xpRequired: 266584 },
-    { level: 73, xpRequired: 274518 },
-    { level: 74, xpRequired: 282574 },
-    { level: 75, xpRequired: 290754 },
-    { level: 76, xpRequired: 299058 },
-    { level: 77, xpRequired: 307486 },
-    { level: 78, xpRequired: 316038 },
-    { level: 79, xpRequired: 324714 },
-    { level: 80, xpRequired: 333515 },
-    { level: 81, xpRequired: 342440 },
-    { level: 82, xpRequired: 351491 },
-    { level: 83, xpRequired: 360666 },
-    { level: 84, xpRequired: 369967 },
-    { level: 85, xpRequired: 379394 },
-    { level: 86, xpRequired: 388946 },
-    { level: 87, xpRequired: 398624 },
-    { level: 88, xpRequired: 408428 },
-    { level: 89, xpRequired: 418359 },
-    { level: 90, xpRequired: 428416 },
-    { level: 91, xpRequired: 438599 },
-    { level: 92, xpRequired: 448909 },
-    { level: 93, xpRequired: 459346 },
-    { level: 94, xpRequired: 469911 },
-    { level: 95, xpRequired: 480603 },
-    { level: 96, xpRequired: 491422 },
-    { level: 97, xpRequired: 502368 },
-    { level: 98, xpRequired: 513443 },
-    { level: 99, xpRequired: 524646 },
-  ];
-  for (const threshold of levelThresholds) {
-    await prisma.levelThreshold.upsert({ where: { level: threshold.level }, update: {}, create: threshold });
-  }
+  // Since 2026-10-19 the curve is edited in godmaster → Balance → XP
+  // (src/config/xp-balance.ts holds the defaults). Save the defaults once if
+  // nothing is saved yet, then write the thresholds — never overwriting what
+  // godmaster saved.
+  await prisma.balanceConfig.upsert({
+    where: { key: XP_BALANCE_KEY },
+    update: {},
+    create: { key: XP_BALANCE_KEY, data: DEFAULT_XP_BALANCE as unknown as Prisma.InputJsonValue },
+  });
+  await applyXpBalance(prisma, await loadXpBalance(prisma));
 
   // Branches, technology list, costs and effects are UNDEFINED
   // (instructions/OPEN_DECISIONS.md: "Research"). Base balance (2026-10-14):
@@ -712,33 +491,25 @@ async function main() {
       // Every research goes up to level 30 (owner decision, 2026-10-14); update
       // existing rows too, so the cap follows this list.
       .map((data) => ({ ...data, maxLevel: 30 }))
-      .map((data) => prisma.researchType.upsert({ where: { key: data.key }, update: data, create: data })),
+      // Bonus and max level are balanced in godmaster since 2026-10-19 — existing rows only get their texts/icon here.
+      .map((data) =>
+        prisma.researchType.upsert({
+          where: { key: data.key },
+          update: { nameKey: data.nameKey, descriptionKey: data.descriptionKey, bonusType: data.bonusType, iconAssetId: data.iconAssetId },
+          create: data,
+        }),
+      ),
   );
 
-  // Same production-tied value as the buildings (base balance, 2026-10-14):
-  // ~x1.2 cost per level, time 2 min * L^2.1 (~4 h at level 10, ~42 h at 30). The
-  // Research Center's level caps how far any research can go.
-  const researchLevelCosts = researchTypes.flatMap((researchType) =>
-    Array.from({ length: 30 }, (_, i) => {
-      const level = i + 1;
-      return {
-        researchTypeId: researchType.id,
-        level,
-        metalCost: niceRound(balanceValue(level) * 1.5),
-        crystalCost: niceRound(balanceValue(level) * 0.6),
-        creditsCost: niceRound(balanceValue(level) * 0.03),
-        researchSeconds: Math.round(120 * Math.pow(level, 2.1)),
-      };
-    }),
-  );
-  // update: cost (not {}) so a rebalance reaches existing rows.
-  for (const cost of researchLevelCosts) {
-    await prisma.researchLevelCost.upsert({
-      where: { researchTypeId_level: { researchTypeId: cost.researchTypeId, level: cost.level } },
-      update: cost,
-      create: cost,
-    });
-  }
+  // Buildings and research balance (owner decision, 2026-10-19): save the
+  // defaults once if nothing is saved yet, then generate the level rows and
+  // effects — never overwriting what godmaster saved.
+  await prisma.balanceConfig.upsert({
+    where: { key: BUILDING_BALANCE_KEY },
+    update: {},
+    create: { key: BUILDING_BALANCE_KEY, data: DEFAULT_BUILDING_BALANCE as unknown as Prisma.InputJsonValue },
+  });
+  await applyBuildingBalance(prisma, await loadBuildingBalance(prisma));
 
   // Boss Formations (owner decision, 2026-09-11 — fully replaces the old
   // open-lobby Boss Hunts model). One boss per Territory/zone, scaled by zone
@@ -786,30 +557,22 @@ async function main() {
   ];
   const bossesByKey: Record<string, Awaited<ReturnType<typeof prisma.boss.upsert>>> = {};
   for (const data of bossData) {
-    bossesByKey[data.key] = await prisma.boss.upsert({ where: { key: data.key }, update: data, create: data });
+    // Stats, XP, minimum level and box come from the bosses balance in
+    // godmaster since 2026-10-19 — existing rows only get their texts here.
+    bossesByKey[data.key] = await prisma.boss.upsert({
+      where: { key: data.key },
+      update: { nameKey: data.nameKey, zoneId: data.zoneId, level: data.level, iconAssetId: data.iconAssetId },
+      create: data,
+    });
   }
-  const { boss_verdant_warden: verdantWarden, boss_ridgeback_alpha: ridgebackAlpha, boss_crimson_harbinger: crimsonHarbinger, boss_frost_sovereign: frostSovereign } = bossesByKey;
-
-  const allBossIds = Object.values(bossesByKey).map((b) => b.id);
-  await prisma.bossLootDrop.deleteMany({ where: { bossId: { in: allBossIds } } });
-  await prisma.bossLootDrop.createMany({
-    data: [
-      { bossId: verdantWarden.id, resourceType: 'METAL', dropChance: 0.9, minQuantity: 20, maxQuantity: 40 },
-      { bossId: verdantWarden.id, resourceType: 'CRYSTAL', dropChance: 0.6, minQuantity: 8, maxQuantity: 16 },
-
-      { bossId: ridgebackAlpha.id, resourceType: 'METAL', dropChance: 0.9, minQuantity: 50, maxQuantity: 100 },
-      { bossId: ridgebackAlpha.id, resourceType: 'CRYSTAL', dropChance: 0.7, minQuantity: 20, maxQuantity: 40 },
-      { bossId: ridgebackAlpha.id, itemDefinitionId: itemsByKey.coreforged_left_arm_blaster.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
-
-      { bossId: crimsonHarbinger.id, resourceType: 'CRYSTAL', dropChance: 0.8, minQuantity: 40, maxQuantity: 80 },
-      { bossId: crimsonHarbinger.id, resourceType: 'CREDITS', dropChance: 0.7, minQuantity: 60, maxQuantity: 120 },
-
-      { bossId: frostSovereign.id, resourceType: 'CREDITS', dropChance: 0.9, minQuantity: 100, maxQuantity: 200 },
-      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.coreforged_upgrade.id, dropChance: 0.08, minQuantity: 1, maxQuantity: 2 },
-      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.coreforged_core_battery.id, dropChance: 0.12, minQuantity: 1, maxQuantity: 1 },
-      { bossId: frostSovereign.id, itemDefinitionId: itemsByKey.coreforged_armor_plating.id, dropChance: 0.1, minQuantity: 1, maxQuantity: 1 },
-    ],
+  // Boss loot from the balance (owner decision, 2026-10-19 — the old rows were
+  // examples): save the defaults once if nothing is saved yet, then apply.
+  await prisma.balanceConfig.upsert({
+    where: { key: BOSS_BALANCE_KEY },
+    update: {},
+    create: { key: BOSS_BALANCE_KEY, data: DEFAULT_BOSS_BALANCE as unknown as Prisma.InputJsonValue },
   });
+  await applyBossBalance(prisma, await loadBossBalance(prisma), await loadPentiliBalance(prisma));
 
   // Clan buildings (instructions/GAME_SYSTEMS.md, LOCKED: "Clans are
   // central"): "clan building list" is UNDEFINED — 3 buildings as a working
@@ -817,7 +580,7 @@ async function main() {
   // bonusPerLevel is a flat extra-slot count, not a percentage. Owner-specified:
   // all 3 buildings develop up to level 10; Member Hall grants +2 slots/level
   // (was +5/level up to level 5).
-  const clanBuildingTypes = await Promise.all(
+  await Promise.all(
     [
       { key: 'member_hall', nameKey: 'clanBuildings.member_hall.name', descriptionKey: 'clanBuildings.member_hall.description', bonusType: 'MEMBER_CAPACITY' as const, bonusPerLevel: 2, maxLevel: 10, iconAssetId: 'clanBuildings.member_hall.icon' },
       // Forge and Refinery (shown as "Refinery", key kept as clan_depot): +1%/level
@@ -827,75 +590,44 @@ async function main() {
       { key: 'clan_depot', nameKey: 'clanBuildings.clan_depot.name', descriptionKey: 'clanBuildings.clan_depot.description', bonusType: 'PRODUCTION_BONUS' as const, bonusPerLevel: 0.01, maxLevel: 30, iconAssetId: 'clanBuildings.clan_depot.icon' },
       // Generator (owner decision, 2026-10-14): half the personal Reactor.
       { key: 'clan_generator', nameKey: 'clanBuildings.clan_generator.name', descriptionKey: 'clanBuildings.clan_generator.description', bonusType: 'ENERGY_REGEN' as const, bonusPerLevel: 0.005, maxLevel: 30, iconAssetId: 'clanBuildings.clan_generator.icon' },
-      // update: data (not {}) — bonusType/bonusPerLevel/maxLevel must follow
-      // this list when it changes, not freeze at whatever an existing row has.
-    ].map((data) => prisma.clanBuildingType.upsert({ where: { key: data.key }, update: data, create: data })),
+    // Bonus and max level are balanced in godmaster since 2026-10-19 — existing
+    // rows only get their texts/icon here (the values above are for a new database).
+    ].map((data) =>
+      prisma.clanBuildingType.upsert({
+        where: { key: data.key },
+        update: { nameKey: data.nameKey, descriptionKey: data.descriptionKey, bonusType: data.bonusType, iconAssetId: data.iconAssetId },
+        create: data,
+      }),
+    ),
   );
-
-  // Base balance (2026-10-14): the personal model (balanceValue) x 10, since
-  // the whole clan pays from the treasury. The Member Hall has 10 levels, so
-  // each of its levels costs like 3 levels of the others. Placeholder.
-  const clanBuildingLevelCosts = clanBuildingTypes.flatMap((buildingType) =>
-    Array.from({ length: buildingType.maxLevel }, (_, i) => {
-      const level = i + 1;
-      const step = buildingType.maxLevel === 10 ? level * 3 : level;
-      return {
-        clanBuildingTypeId: buildingType.id,
-        level,
-        metalCost: niceRound(balanceValue(step) * CLAN_COST_FACTOR),
-        crystalCost: niceRound(balanceValue(step) * CLAN_COST_FACTOR * 0.4),
-        creditsCost: niceRound(balanceValue(step) * CLAN_COST_FACTOR * 0.03),
-        constructionSeconds: Math.round(90 * Math.pow(step, 2.2)),
-      };
-    }),
-  );
-  for (const cost of clanBuildingLevelCosts) {
-    await prisma.clanBuildingLevelCost.upsert({
-      where: { clanBuildingTypeId_level: { clanBuildingTypeId: cost.clanBuildingTypeId, level: cost.level } },
-      update: cost,
-      create: cost,
-    });
-  }
 
   // Tavern (owner decision, 2026-10-12): +1% damage per level vs bosses and
-  // the Core, only while activated (activation rules: game-config.ts's
-  // clanTavern block). No designed level cap — costs grow geometrically and
-  // rows are generated until the next level's cost would overflow a 32-bit
-  // Int, which becomes maxLevel; in practice the cost stops clans far earlier.
-  // Placeholder curve, not tuned against real clan income yet.
-  // Base balance (2026-10-14): the same model as the other clan buildings
-  // (x0.8, since it's only active part of the time), time capped at 7 days.
-  const intLimit = 2_000_000_000;
-  const tavernLevelCosts: { level: number; metalCost: number; crystalCost: number; creditsCost: number; constructionSeconds: number }[] = [];
-  for (let level = 1; ; level += 1) {
-    const value = balanceValue(level) * CLAN_COST_FACTOR * 0.8;
-    if (value > intLimit) break;
-    tavernLevelCosts.push({
-      level,
-      metalCost: niceRound(value),
-      crystalCost: niceRound(value * 0.4),
-      creditsCost: niceRound(value * 0.03),
-      constructionSeconds: Math.min(7 * 24 * 3600, Math.round(90 * Math.pow(level, 2.2))),
-    });
-  }
+  // the Core, only while activated. Capped at level 30 since 2026-10-19; its
+  // levels, costs and activation come from the clan balance below.
   const tavernData = {
     key: 'clan_tavern',
     nameKey: 'clanBuildings.clan_tavern.name',
     descriptionKey: 'clanBuildings.clan_tavern.description',
     bonusType: 'BOSS_CORE_DAMAGE' as const,
     bonusPerLevel: 0.01,
-    maxLevel: tavernLevelCosts.length,
+    maxLevel: 1,
     iconAssetId: 'clanBuildings.clan_tavern.icon',
   };
-  const tavernType = await prisma.clanBuildingType.upsert({ where: { key: tavernData.key }, update: tavernData, create: tavernData });
-  for (const cost of tavernLevelCosts) {
-    const row = { clanBuildingTypeId: tavernType.id, ...cost };
-    await prisma.clanBuildingLevelCost.upsert({
-      where: { clanBuildingTypeId_level: { clanBuildingTypeId: tavernType.id, level: cost.level } },
-      update: row,
-      create: row,
-    });
-  }
+  await prisma.clanBuildingType.upsert({
+    where: { key: tavernData.key },
+    update: { nameKey: tavernData.nameKey, descriptionKey: tavernData.descriptionKey, iconAssetId: tavernData.iconAssetId },
+    create: tavernData,
+  });
+
+  // Clan building costs, bonuses and the Cantina's rows come from the clan
+  // balance in godmaster (src/config/clan-balance.ts, 2026-10-19): save the
+  // defaults once if nothing is saved yet, then generate.
+  await prisma.balanceConfig.upsert({
+    where: { key: CLAN_BALANCE_KEY },
+    update: {},
+    create: { key: CLAN_BALANCE_KEY, data: DEFAULT_CLAN_BALANCE as unknown as Prisma.InputJsonValue },
+  });
+  await applyClanBalance(prisma, await loadClanBalance(prisma));
 
   // Content filter starter list (owner decision, 2026-10-12). Only words
   // not listed yet are added — never removes or overrides what moderators
@@ -1004,8 +736,8 @@ async function main() {
   // overwrites them (update: {}). A product is offered once godmaster gives it
   // a Stripe price.
   const paymentProducts = [
-    { key: 'credits_500', nameBg: '500 кредита', nameEn: '500 Credits', kind: 'CREDITS' as const, credits: 500, vipDays: null, priceCents: 500, sortOrder: 1 },
-    { key: 'vip_month', nameBg: 'VIP за 30 дни', nameEn: 'VIP for 30 days', kind: 'VIP' as const, credits: null, vipDays: 30, priceCents: 499, sortOrder: 10 },
+    { key: 'credits_500', kind: 'CREDITS' as const, credits: 500, vipDays: null, priceCents: 500, sortOrder: 1 },
+    { key: 'vip_month', kind: 'VIP' as const, credits: null, vipDays: 30, priceCents: 499, sortOrder: 10 },
   ];
   for (const data of paymentProducts) {
     await prisma.paymentProduct.upsert({ where: { key: data.key }, update: {}, create: data });
@@ -1022,24 +754,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-/**
- * Placeholder level curve (owner decision, 2026-10-14: levels up to 30, real
- * balancing later): continues from the last given level with x1.25 cost,
- * x1.12 time and x1.12 production per level.
- */
-/** Clan buildings cost this many times a personal building (the whole clan pays). */
-const CLAN_COST_FACTOR = 10;
-
-/** Metal-equivalent value of a level: L/2 hours of a level-L metal mine (base balance, 2026-10-14). */
-function balanceValue(level: number): number {
-  return 100 * level * Math.pow(GAME_BALANCE.buildingEffects.amountGrowth, level - 1) * (level / 2);
-}
-
-/** Rounds a cost to a tidy number (whole units below 100, tens above, hundreds above 10 000). */
-function niceRound(value: number): number {
-  if (value < 100) return Math.round(value);
-  if (value < 10000) return Math.round(value / 10) * 10;
-  return Math.round(value / 100) * 100;
-}
-

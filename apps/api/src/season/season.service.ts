@@ -12,6 +12,7 @@ import {
 } from '@pentilius/shared';
 import { Prisma, Season } from '@prisma/client';
 import { findTavern, isTavernActive } from '../clans/clan-tavern';
+import { clanRuntime } from '../config/clan-balance';
 import { GAME_BALANCE } from '../config/game-config';
 import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { EconomyService } from '../player/economy.service';
@@ -322,7 +323,7 @@ export class SeasonService {
       bonusPercent: Math.round(tavern.level * type.bonusPerLevel * 1000) / 10,
       active,
       activeUntil: active ? tavern.activeUntil!.toISOString() : null,
-      activeSince: active ? new Date(tavern.activeUntil!.getTime() - GAME_BALANCE.clanTavern.activationHours * 3_600_000).toISOString() : null,
+      activeSince: active ? new Date(tavern.activeUntil!.getTime() - clanRuntime().tavern.activationHours * 3_600_000).toISOString() : null,
     };
   }
 

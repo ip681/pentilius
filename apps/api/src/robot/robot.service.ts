@@ -16,7 +16,10 @@ const ATTRIBUTE_FIELD = {
 type AttributeStat = keyof typeof ATTRIBUTE_FIELD;
 
 // Rank at which baseEvasion * evasionPointValue reaches maxEvasionPercent (currently 40).
-const EVASION_MAX_RANK = GAME_BALANCE.robotAttributes.maxEvasionPercent / GAME_BALANCE.robotAttributes.evasionPointValue;
+// A function, not a constant: both values can change in godmaster (2026-10-19).
+function evasionMaxRank(): number {
+  return GAME_BALANCE.robotAttributes.maxEvasionPercent / GAME_BALANCE.robotAttributes.evasionPointValue;
+}
 
 @Injectable()
 export class RobotService {
@@ -117,7 +120,7 @@ export class RobotService {
       const player = await tx.player.findUniqueOrThrow({ where: { id: playerId } });
       const field = ATTRIBUTE_FIELD[stat];
       const currentRank = player[field];
-      if (stat === 'evasion' && currentRank >= EVASION_MAX_RANK) {
+      if (stat === 'evasion' && currentRank >= evasionMaxRank()) {
         throw new BadRequestException('ATTRIBUTE_AT_CAP');
       }
       const cost = attributeCostForRank(currentRank);
@@ -158,7 +161,7 @@ export class RobotService {
         hp: attributeCostForRank(player.baseHp),
         evasion: attributeCostForRank(player.baseEvasion),
       },
-      evasionAtCap: player.baseEvasion >= EVASION_MAX_RANK,
+      evasionAtCap: player.baseEvasion >= evasionMaxRank(),
     };
   }
 }

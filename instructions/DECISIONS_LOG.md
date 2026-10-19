@@ -1325,3 +1325,370 @@ Owner decisions:
   refund takes back exactly that even if the product changes later.
 - Tested locally against Stripe test mode: checkout, grant, repeated notice,
   refund from godmaster.
+
+## Payment products created from godmaster, names from templates (2026-10-18)
+
+Owner decisions, built the same day:
+- **godmaster creates and updates the Stripe side:** "New product" with kind,
+  amount and price in euro creates the Stripe product + price and links them.
+  A new price creates a new Stripe price, makes it the default and archives
+  the old one (Stripe prices can't be edited; past purchases keep what they
+  paid; a checkout already open finishes at the old price). The Stripe
+  product's name and on/off state follow godmaster (hidden = archived in
+  Stripe). Linking an existing Stripe price by its ID is still possible under
+  "More". New column `PaymentProduct.stripeProductId`; products linked by
+  hand before this find their Stripe product on the next save.
+- **Names from templates:** a product's name is built from its kind and
+  amount — "VIP за {days} дни" / "{count} кредита" (`payments.productNames`
+  in the message files, translated once per language). `nameBg`/`nameEn` are
+  now optional custom names for special offers (English is the fallback).
+  The Stripe product is named "Pentilius – <English name>", shown on Stripe's
+  payment page.
+- Tested in Stripe test mode: price change and back (old price archived),
+  creating a product, hiding it (archived in Stripe). A hidden test product
+  `credits_test_godmaster` stays in the local database and archived in the
+  Stripe sandbox.
+
+## Balance from godmaster: Pentili first (2026-10-18)
+
+The owner reversed the old rule that balance lives only in code ("a bad
+decision"). Balance is now edited in godmaster → Balance, starting with the
+Pentili; building/research curves and single `GAME_BALANCE` values may follow.
+- **Curves, not hand-typed tables:** stats (HP, attack, defense, XP) and
+  rewards (Metal, Crystal, Credits) all follow value = base × level^growth ×
+  zone strength × Pentili strength. Each curve shows its values at levels
+  1/20/50/100 while editing.
+- **Per zone:** start level and level step (the 10 Pentili sit at start +
+  place × step), strength, which equipment set drops, and the chances for an
+  equipment part (per slot), a fragment, an upgrade stone, an energy pack.
+- **Per Pentili, only:** an optional fixed level, a strength multiplier
+  (rewards follow it — a stronger Pentili gives more), and an optional special
+  drop. The first 8 Pentili lost their hand-written loot tables — every
+  Pentili follows the same rules now (owner's call).
+- **Rewards now grow with the Pentili's level.** They used to be tiny fixed
+  ranges per zone (5–90 Metal), far below the new economy. Defaults (first
+  pass): Metal 20 × L^1.3, Crystal 12 × L^1.3 (both ±25%). No Credits from
+  Pentili (owner decision, 2026-10-19 — removed from the curves). Zone 1 drops equipment parts at 5% per slot (others 2%) so a
+  new player gears up. The stat defaults reproduce the previous stats exactly.
+- **Preview / save:** "Preview" recomputes the table without saving; "Save and
+  apply" stores the config (`BalanceConfig` "pentili") and regenerates every
+  Pentili's level, stats, XP and loot (rows updated in place, battle reports
+  unaffected). Ranges are checked (no zero HP, chances 0–100%). ADMIN only;
+  each save is logged with before/after.
+- **Seed:** creates missing Pentili and the default config only if none is
+  saved, then generates — it never overwrites what godmaster saved. The
+  generator lives in `src/config/pentili-balance.ts` because the production
+  image ships that folder for the seed.
+- **godmaster tables (2026-10-19):** the Balance and Payments tables have lines
+  between the columns and short headings; the explanations moved into a note
+  above each table. "Strength ×" on a zone multiplies every Pentili in it
+  (stats and rewards); on a Pentili it multiplies with the zone's.
+
+## Balance from godmaster: XP per level (2026-10-19)
+
+Owner decision, next to the Pentili because together they set the levelling
+pace.
+- **Curve:** XP to the next level = base × level^growth, with optional fixed
+  values per level. Defaults reproduce the old thresholds exactly (levels
+  1–14 fixed as they were, 30.0017 × L^2.126 from 15); the first save changed
+  0 of 99 levels.
+- **Pace preview:** for every level, the number of Pentili fights against the
+  best-paying Pentili available at that level, the running total, and the
+  energy time for them (15 min per point); plus a short summary for levels
+  5…100. Only Pentili are counted — daily missions, expeditions and bosses
+  come on top. With today's numbers, level 100 takes ~9 300 Pentili fights
+  (~97 days of energy alone).
+- **Save:** stores `BalanceConfig` "xp" and rewrites `LevelThreshold`.
+  Players keep their level and XP; a lower threshold just levels them up on
+  their next XP gain. Ranges checked; ADMIN only; logged with before/after
+  (`UPDATE_XP_BALANCE`). The seed never overwrites a saved curve.
+- **One curve, no per-level values (same day, owner):** the per-level "fixed"
+  fields were removed — like the Pentili, you set the curve and read the
+  table. The new default is 15 × L^2.28, keeping the start light (level 5:
+  588 XP, level 10: 2 858, level 14: 6 155) with about the same top (level 99:
+  532 279). It replaces the old hand-picked levels 1–14 + 30.0017 × L^2.126;
+  players keep their level and XP. If a faster start is ever wanted, add one
+  "first N levels × factor" setting instead of per-level values. On
+  production the seed applies this default on the next deploy (no saved
+  curve there yet).
+
+## Balance from godmaster: buildings and research (2026-10-19)
+
+Owner decision, after the Pentili and the XP curve. godmaster → Balance →
+Buildings & research edits the model of the 2026-10-14 base balance instead
+of the seed:
+- **General:** mine production per hour at level 1 (Metal 100, Crystal 60) and
+  its growth per level (1.08); "hours of production" a level costs (0.5 × L);
+  build time base and growth (60 s × L^2.2).
+- **Per building:** Metal/Crystal/time factors, max level, and its effects per
+  level (Warehouse slots, Trading Post listings, Defense System %, Wall
+  minutes, Hideout amounts, Research Center cap, Exchange limit, Reactor
+  regen % and "+1 max energy every N levels"). The mines show production.
+- **Research:** Metal/Crystal/Credits factors, time base and growth; per
+  research its bonus per level and max level.
+- **Preview** of every level of the selected building or research, current
+  values in brackets. "Save and apply" rewrites the building/research types
+  and their level rows. Rows above a lowered max level are kept (players may
+  be there) but can't be built.
+- **Production growth at runtime:** the Hideout's amounts, the Exchange's
+  daily limit and the Cantina's activation cost follow the mines' growth; the
+  API now loads it from the saved balance at start and on every save
+  (`setProductionGrowth` in `base/building-effects.ts`).
+- Defaults reproduce the previous values exactly (0 differences across 300
+  building rows, 270 research rows and all effects). ADMIN only, logged
+  (`UPDATE_BUILDING_BALANCE`); the seed never overwrites a saved balance.
+  Clan building costs still come from the seed's own copy of the model — a
+  later step.
+
+## Credits can't be stolen; Buildings and Research split in godmaster (2026-10-19)
+
+- **Credits are never stolen** (owner decision): PvP and clan-war duels now
+  take only Metal and Crystal. Credits can be bought for real money, so losing
+  them to another player would be unfair (and a likely complaint). The
+  Hideout's "protected Credits" part was removed — it had nothing left to
+  guard; the Base shows only Metal and Crystal as safe. Not changed yet: when
+  a clan war ends, the winner still takes a share of the loser's **treasury**
+  (including Credits) — to be decided separately.
+- **godmaster → Balance:** "Buildings" and "Research" are separate buttons
+  (owner). They share one saved balance, so switching keeps unsaved edits and
+  "Save" stores both; the Research page notes that its costs follow the mine
+  production set under Buildings.
+
+## One rounding rule and one number format (2026-10-19)
+
+Owner decision — no mixed mechanics:
+- **Costs round to 3 significant digits** at every size (75, 8 230, 11 200,
+  419 000, 4 190 000) for buildings, research and clan buildings. It replaces
+  "tens below 10 000, hundreds above", which looked inconsistent. Round prices
+  are easier for players to read and compare. Values under 100 000 barely
+  change; larger ones get rounder (e.g. Metal Mine level 30: 419 300 →
+  419 000). `niceRound` in `src/config/building-balance.ts` (the seed uses the
+  same one).
+- **Numbers are formatted the same everywhere:** a space between thousands
+  from 4 digits up ("8 230"), in every language (`lib/format-number.ts`;
+  godmaster keeps its own copy). The default Bulgarian format grouped only
+  from 5 digits. Costs, rewards, production, Pentili/boss stats and
+  treasuries that had no formatting at all now use it too.
+
+## Balance from godmaster: clan buildings; the Cantina capped at 30 (2026-10-19)
+
+- **godmaster → Balance → Clan buildings** (owner decision), the same way as
+  the personal buildings: Preview (nothing saved) and Save and apply, ADMIN
+  only, logged with before/after. Editable:
+  - the clan cost factor against the personal model (×10, since the whole
+    clan pays), Crystal ×, Credits ×, build time base and growth;
+  - all 5 buildings in one table, the same columns for each: bonus per level,
+    max level, the "step" (the Member Hall's 10 levels each cost like 3
+    levels of the others) and "cost ×" against the others (1; the Cantina 0.8,
+    since it's only active part of the time);
+  - separate cards for what only one building has: the Cantina's activation
+    (hours and cost at level 1, growing with production) and the Generator's
+    "+1 max energy" levels (15, 30).
+
+  Defaults in `src/config/clan-balance.ts` reproduce the existing values
+  exactly (checked: 0 differences in all 130 rows). Costs follow the mine
+  production set under "Buildings", so saving that also recalculates the clan
+  costs. The running game reads the activation and the Generator levels from
+  the saved balance, so a change applies at once.
+- **The Cantina is capped at level 30** like the other buildings (owner
+  decision). It had no cap ("rising cost is the natural ceiling"); in practice
+  rows stopped at level 85, where costs no longer fit the database. An
+  endless boss/Core bonus favoured the richest clan in the race for the Core.
+  The most a clan gets against the Core is now Forge +30% and Cantina +30%.
+  Rows above a max level stay in the database but can't be built.
+
+## Balance from godmaster: equipment sets (2026-10-19)
+
+- **godmaster → Balance → Sets** (owner decision), Preview / Save and apply,
+  ADMIN only, logged with before/after:
+  - a table slots × sets with attack / defense / HP for all 21 items, with a
+    total per set; a "multiply the set by…" helper fills the fields once (it's
+    not a formula — the sets don't follow one ratio, 1 → 4 → 8 on the head,
+    5 → 12 → 24 on the left arm);
+  - per set: max upgrade (5 / 8 / 10) and the sell value (Metal, Crystal);
+  - upgrades: bonus per level (+10%), stones per level (1 × N), fragments per
+    stone (10); the sell multiplier for Normal / Rare / Epic (1 / 1.5 / 2).
+
+  Defaults in `src/config/equipment-balance.ts` reproduce the existing items
+  exactly (checked: 0 differences in all 34 item definitions). Items in
+  players' hands read their definition, so a change applies at once to every
+  owned item, equipped or listed; a lowered max upgrade leaves items above it
+  as they are but stops further upgrades.
+- **The preview** fights a reference robot against the first and last Pentil
+  of each zone, 400 times with the real combat code: the robot at that
+  Pentil's level, with the innate floor, the attribute points (split as chosen
+  in the preview, equal by default, never saved) and the zone's set — without
+  gear, at +0 and at max upgrade. Research (attack, HP) and Forge bonuses can
+  be set in the preview too, with a "max" button (today 30% / 30% / 30%);
+  Excellent options are left out. It also shows the stones to max and about how many
+  fights that takes from that zone's Pentili (dropped stones, fragments, and
+  recycling the dropped set items); bosses and the Shop give more.
+- **First reading (to discuss, not changed):**
+  - Without research and Forge, the robot beats the first Pentil of a zone
+    only with the set maxed, and never the last one, whatever the split.
+  - With all three at max (+30% each) and points mostly in attack, the set
+    at +0 wins most fights; the set maxed wins nearly all, except the very
+    last Pentil (level 96).
+  - An equal split loses far more often than an attack-heavy one.
+
+  So today's Pentili fit an end-game robot (full research and Forge) better
+  than one in the middle of the season — for the balancing pass.
+
+## Expeditions: rewards by level, no Credits, bonus from your zone's set (2026-10-19)
+
+Owner decisions:
+- **Rewards grow with the player's level.** They used to be fixed (the short
+  one: 60 Metal, 20 Crystal, 10 Credits, 15 XP at any level), which was
+  worthless after the first days. Now an expedition pays as much as N fights
+  against a Pentil of the player's level: Metal, Crystal and XP from the
+  Pentili curves (without the ± spread), plus the Navigation research for the
+  resources.
+  - Defaults: 3 / 12 / 22 fights for 1 h / 5 h / 10 h.
+  - So the short one pays most per hour (3 against 4 fights an hour from
+    energy) and the long one most in total (GAME_SYSTEMS.md).
+  - Level 1 is close to the old amounts: the short one pays 60 Metal,
+    36 Crystal and 24 XP.
+  - The level when collecting counts, so the shown amounts are never more
+    than what's received.
+- **No Credits from expeditions** (they're the paid currency).
+- **The bonus item** is a random item of the set of the player's highest
+  unlocked zone (Pioneer early, Ascendant from zone 2, and so on). It used to
+  be one fixed Ascendant item, even for a level-3 player. A full inventory
+  still means no item, as before.
+- **godmaster → Balance → Expeditions:** per expedition the duration, the
+  fights, the bonus chance and the Navigation level needed, plus the
+  early-cancel share (70%; the game's texts now show the real value). The
+  preview shows the rewards at levels 1 to 100, and the fights per hour
+  against energy.
+- The reward columns on `ExpeditionType` now only keep the level-1 values
+  for reference; `bonusItemDefinitionId` is no longer used.
+
+## Balance from godmaster: bosses (2026-10-19)
+
+- **godmaster → Balance → Bosses** (owner decision), Preview / Save and
+  apply, ADMIN only, logged. Per boss:
+  - minimum level, HP, attack, defense, XP (split between the filled slots);
+  - the guaranteed box;
+  - Metal and Crystal as "N fights against a Pentil of the boss's minimum
+    level" — the Pentili reward curves with their ± spread;
+  - Credits (chance, from–to);
+  - any number of item rows (item, chance, from–to).
+
+  Every rewarded participant rolls the loot separately, as before. Saving
+  the Pentili balance also recalculates the bosses' Metal/Crystal.
+- **Credits:** bosses give none (owner decision); the setting stays, with a
+  default of 0.
+- **The old loot rows were examples** (owner) and were replaced:
+  - 12 fights' worth of Metal/Crystal (e.g. the first boss: 6 100–10 100
+    Metal instead of 20–40);
+  - 50% for 1–2 upgrade stones of the boss's zone set;
+  - no Credits, no off-set items.
+
+  Placeholder values; the stats and boxes are unchanged.
+- **The preview** fights formations of 1 to 5 identical reference robots
+  (the same robot as under Sets, at the boss's minimum level with its zone's
+  set at +0 and max; points split, research, Forge and Cantina bonuses as
+  chosen, never saved) — 400 real fights each.
+  - First reading: without bonuses 5 robots always win, 4 only with the set
+    maxed, 3 or fewer never — matching the intended "5 win, 4 close, 3
+    lose".
+  - With all bonuses at max, 3 robots always win.
+
+## Balance from godmaster: other values (2026-10-19)
+
+- **godmaster → Balance → Other values** (owner decision): the single
+  balance numbers of `GAME_BALANCE`, in groups with Bulgarian labels and
+  hints: energy and inventory, combat, item quality and race lock,
+  attribute points, recycling, boss formations, PvP, clan wars, the Core,
+  the Exchange, VIP. 55 values in all.
+  - ADMIN only, logged with before/after.
+  - Out-of-range values are refused, and whole numbers are required where
+    needed.
+  - Gold marks a value that differs from the default; "↺" brings the default
+    back.
+- **How it works:** a saved value overrides the one in `game-config.ts` in
+  place, at start-up and on save, so the game uses it at once without a
+  restart. Only values that differ from the code are saved, so a later
+  change of a default in the code still applies to the others. The list is
+  `src/config/other-balance.ts`; only values read at the moment they're used
+  are in it. `robot.service.ts`'s evasion cap was a start-up constant and is
+  now a function.
+- **Not on this page:**
+  - the technical limits (logins, e-mail, chat, presence, support, reports) —
+    they go to godmaster's Settings next (owner decision);
+  - the lists (daily tasks, achievements, level rewards) — they go to their
+    own "Rewards" page under Balance (owner decision);
+  - the Excellent option percentages (+2% damage…) — their texts have the
+    number written in, so they come once the texts take it from the server;
+  - the starting resources of a new account — they're database defaults, not
+    read from the config.
+
+## godmaster Settings: technical limits (2026-10-19)
+
+- **godmaster → Settings → Technical** (owner decision), ADMIN only,
+  logged: 24 values in groups — login limits, e-mail links, "Contact the
+  team", reports, chat and online, the Core standings sizes. Works like
+  Balance → Other values (same mechanism, saved under its own key).
+- **Not included:** message lengths. The request checks and the game's input
+  fields have them too, so changing them in one place would make the two
+  disagree.
+- Changing the login limit doesn't clear the attempts already counted; the
+  counters live in memory until the window ends.
+
+## Balance from godmaster: rewards (2026-10-19)
+
+- **godmaster → Balance → Rewards** (owner decision), with three views:
+  - **Daily tasks:** target and reward per level (Metal, Crystal, XP) and
+    the energy of each task; the all-done bonus item; the streak (days,
+    allowed misses, reward item).
+  - **Achievements:** each tier's target, Metal, Crystal and item. The
+    "full set" targets stay 7 slots.
+  - **Level rewards:** Metal and Crystal × level, a box every N levels, and
+    which box up to which level.
+
+  Preview / Save and apply, ADMIN only, logged. "Save" stores all three.
+- **Only changing what exists** (owner: "at this stage only change, we may
+  think about more later, but let's not overdo it"). Adding or removing a
+  task or achievement, or a tier, stays in code: their kinds are tied to the
+  code, and removing one mid-day or after players claimed it would confuse
+  their progress.
+- **How it works:** the saved values replace the ones in `game-config.ts` in
+  place (`src/config/reward-balance.ts`), at start-up and on save; the game
+  sees them at once.
+- **The preview** shows all daily tasks of a day and one level reward at
+  levels 1/10/30/60/100, and how many Pentili fights of that level give the
+  same Metal or XP. First reading at level 10: a full day of tasks is worth
+  about 14.5 fights of Metal and 4.6 of XP, a level reward about 2.5 fights
+  of Metal.
+
+## Login records for security (2026-10-19)
+
+Owner decision: record logins so staff can spot multi-accounts and ban
+evasion. Until now the IP was only held in memory for minutes (the failed-
+login limit).
+- **What is kept:**
+  - when, the IP, the country (from the IP), the device type and the
+    browser;
+  - on login, registration and session refresh. A refresh is recorded only
+    from a new address or after 12 hours, so staying logged in doesn't fill
+    the table.
+  - Table `login_events`, `auth/login-events.service.ts`.
+- **Kept 90 days**, then deleted automatically, every 6 hours. Both numbers
+  are in godmaster → Settings → Technical.
+- **godmaster → player → "Show logins":**
+  - the last 50 records;
+  - the other accounts seen from any of the same addresses, with which ones,
+    a link to each, and whether one is banned.
+
+  Staff only, loaded on request, and every look is written to the action log
+  (`VIEW_PLAYER_LOGINS`).
+- **A shared address is a hint, not a verdict:** homes, offices and mobile
+  networks share them. No IP bans, nothing automatic.
+- **Legal basis:** security (legitimate interest), no consent; the Privacy
+  text must mention it and the 90 days. That's for the lawyer, see
+  `OPEN_DECISIONS.md`.
+- **Mobile app:** recorded on the server at login, so it works the same
+  there.
+- Separate from the planned acquisition analytics, which keep only the
+  country.
+

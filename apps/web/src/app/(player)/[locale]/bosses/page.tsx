@@ -18,6 +18,7 @@ import { formatDuration } from '@/lib/format-duration';
 import { getCachedProfile } from '@/lib/profile-cache';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { formatNumber } from '@/lib/format-number';
 
 export default function BossesPage() {
   useRequireAuth();
@@ -139,7 +140,7 @@ export default function BossesPage() {
                     and non-interactive rather than hidden, same treatment as a locked zone wedge. */}
                 <div className={boss.unlocked ? undefined : 'pointer-events-none opacity-40 grayscale'}>
                   <p className="mb-4 text-xs text-textMuted">
-                    HP {boss.maxHp} · {t('bosses.attack')} {boss.attack} · {t('bosses.defense')} {boss.defense} · {t('bosses.xpReward')} {boss.xpReward}
+                    HP {formatNumber(boss.maxHp)} · {t('bosses.attack')} {formatNumber(boss.attack)} · {t('bosses.defense')} {formatNumber(boss.defense)} · {t('bosses.xpReward')} {formatNumber(boss.xpReward)}
                   </p>
 
                   <div className="mb-5 rounded border border-wellBorder bg-well p-3">

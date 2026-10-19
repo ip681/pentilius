@@ -9,6 +9,7 @@ import { ResourceIcon } from '@/components/ResourceIcon';
 import { claimDailyTask, getDailyTasks } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { notifyProfileChanged } from '@/lib/profile-events';
+import { formatNumber } from '@/lib/format-number';
 
 /**
  * Daily tasks (owner decision, 2026-10-13), shown in a popup from the Command
@@ -101,16 +102,16 @@ function TaskRow({ task, busy, onClaim }: { task: DailyTaskDto; busy: boolean; o
           {task.reward.metal > 0 && (
             <span className="flex items-center gap-0.5">
               <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
-              {task.reward.metal.toLocaleString()}
+              {formatNumber(task.reward.metal)}
             </span>
           )}
           {task.reward.crystal > 0 && (
             <span className="flex items-center gap-0.5">
               <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
-              {task.reward.crystal.toLocaleString()}
+              {formatNumber(task.reward.crystal)}
             </span>
           )}
-          {task.reward.xp > 0 && <span>+{task.reward.xp.toLocaleString()} XP</span>}
+          {task.reward.xp > 0 && <span>+{formatNumber(task.reward.xp)} XP</span>}
           {task.reward.energy > 0 && <span>+{task.reward.energy} ⚡</span>}
         </span>
       </div>

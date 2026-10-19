@@ -26,6 +26,7 @@ import {
 } from '@/lib/api-client';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
+import { formatNumber } from '@/lib/format-number';
 
 export default function PlayerProfilePage() {
   useRequireAuth();
@@ -300,7 +301,7 @@ export default function PlayerProfilePage() {
                     {t('profile.seasonLevel', { level: entry.level })}
                     {' · '}
                     {entry.coreDamageRank
-                      ? t('profile.seasonCoreRank', { damage: entry.coreDamage.toLocaleString(), rank: entry.coreDamageRank })
+                      ? t('profile.seasonCoreRank', { damage: formatNumber(entry.coreDamage), rank: entry.coreDamageRank })
                       : t('profile.seasonCoreNone')}
                   </p>
                 ))}
