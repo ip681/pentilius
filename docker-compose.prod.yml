@@ -67,6 +67,8 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       # "We're updating" page shown while api/web restart (deploy/Caddyfile).
       - ./deploy/maintenance:/srv/maintenance:ro
+      # The Android app download (deploy/Caddyfile → /download/*), kept on the host.
+      - /opt/pentilius-downloads:/srv/download:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
