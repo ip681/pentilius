@@ -2,7 +2,7 @@
   "expo": {
     "name": "Pentilius",
     "slug": "pentilius",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -29,7 +29,24 @@
       "expo-secure-store",
       "expo-image",
       "expo-localization",
-      "./plugins/with-release-signing.js"
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false,
+          "style": "dark"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#080c11"
+        }
+      ],
+      "./plugins/with-release-signing.js",
+      "expo-font"
     ],
     "scheme": "pentilius",
     "backgroundColor": "#080c11",

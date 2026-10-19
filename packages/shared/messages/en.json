@@ -503,6 +503,14 @@
     "visibilityFriendsOnly": "Friends only",
     "visibilityClanAndFriends": "Clan & friends"
   },
+  "mobile": {
+    "more": "More",
+    "comingTitle": "Coming to the app",
+    "comingBody": "This part isn't in the app yet. Until then, use it on the website — same account, shared progress.",
+    "openWebsite": "Open the website",
+    "loadError": "Couldn't load. Pull down to try again.",
+    "version": "Version {version}"
+  },
   "settings": {
     "app": {
       "title": "Phone app",

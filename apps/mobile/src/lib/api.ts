@@ -1,4 +1,12 @@
-import type { AuthResponse, AuthTokens, LoginRequest, PlayerProfileDto } from '@pentilius/shared';
+import type {
+  AuthResponse,
+  AuthTokens,
+  BaseResponseDto,
+  BuildingStateDto,
+  InventoryResponseDto,
+  LoginRequest,
+  PlayerProfileDto,
+} from '@pentilius/shared';
 import { clearTokens, getAccessToken, getRefreshToken, storeTokens } from './auth-storage';
 import { API_BASE_URL } from './config';
 
@@ -85,4 +93,34 @@ export async function login(payload: LoginRequest): Promise<AuthResponse> {
 
 export function getProfile(): Promise<PlayerProfileDto> {
   return request<PlayerProfileDto>('/player/me', { auth: true });
+}
+
+// Base
+export function getBase(): Promise<BaseResponseDto> {
+  return request<BaseResponseDto>('/base', { auth: true });
+}
+
+export function upgradeBuilding(key: string): Promise<BuildingStateDto> {
+  return request<BuildingStateDto>(`/base/buildings/${key}/upgrade`, { method: 'POST', auth: true });
+}
+
+export function queueBuilding(key: string): Promise<BaseResponseDto> {
+  return request<BaseResponseDto>(`/base/buildings/${key}/queue`, { method: 'POST', auth: true });
+}
+
+export function cancelBuildQueue(): Promise<BaseResponseDto> {
+  return request<BaseResponseDto>('/base/queue', { method: 'DELETE', auth: true });
+}
+
+export function exchangeResources(from: 'METAL' | 'CRYSTAL', amount: number): Promise<BaseResponseDto> {
+  return request<BaseResponseDto>('/base/exchange', { method: 'POST', auth: true, body: { from, amount } });
+}
+
+// Inventory
+export function getInventory(): Promise<InventoryResponseDto> {
+  return request<InventoryResponseDto>('/inventory', { auth: true });
+}
+
+export function consumeItem(itemInstanceId: string, buildingKey?: string): Promise<InventoryResponseDto> {
+  return request<InventoryResponseDto>(`/inventory/items/${itemInstanceId}/use`, { method: 'POST', auth: true, body: { buildingKey } });
 }

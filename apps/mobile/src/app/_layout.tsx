@@ -6,7 +6,7 @@ import { colors } from '@/theme';
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={{ backgroundColor: colors.ink }}>
       <SessionProvider>
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }} />
