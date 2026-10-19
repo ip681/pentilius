@@ -34,7 +34,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 // Plain JSON import — godmaster deliberately has no next-intl setup (see the
 // (admin) layout comment), so item display names are resolved by hand from
 // the same message file the player app uses, not a duplicated translation system.
-import bgMessages from '../../../../messages/bg.json';
+import bgMessages from '@pentilius/shared/messages/bg.json';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api/v1';
 const TOKEN_KEY = 'godmaster.accessToken';

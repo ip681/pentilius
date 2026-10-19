@@ -1692,3 +1692,11 @@ login limit).
 - Separate from the planned acquisition analytics, which keep only the
   country.
 
+## Clan treasury Credits are never taken in a clan war (2026-10-19)
+
+Owner decision: when a clan war ends with a winner, the winner still takes a
+share of the losing clan's treasury Metal and Crystal (15% by conquest, 5% by
+decision), but never its Credits — the same rule as for players' own Credits,
+since Credits can be bought for real money. The war history simply shows no
+Credits line for new wars.
+

@@ -366,7 +366,9 @@ export class ClanWarsService {
       const loser = await tx.clan.findUniqueOrThrow({ where: { id: loserClanId } });
       treasuryMetalTransferred = Math.floor(loser.treasuryMetal * percentage);
       treasuryCrystalTransferred = Math.floor(loser.treasuryCrystal * percentage);
-      treasuryCreditsTransferred = Math.floor(loser.treasuryCredits * percentage);
+      // Credits in the treasury are never taken (owner decision, 2026-10-19 —
+      // like players' own Credits, since they can be bought for real money).
+      treasuryCreditsTransferred = 0;
 
       await tx.clan.update({
         where: { id: loserClanId },

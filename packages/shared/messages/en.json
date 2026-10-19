@@ -504,6 +504,19 @@
     "visibilityClanAndFriends": "Clan & friends"
   },
   "settings": {
+    "app": {
+      "title": "Phone app",
+      "card": "Play from the Android app",
+      "android": "Download the Pentilius app for Android and play with one tap from your home screen. You sign in with the same account.",
+      "desktop": "The app is for Android phones. Open this page on your phone, or send the link below to your phone.",
+      "ios": "The iPhone app will come to the App Store later. Until then, play in the browser — everything works there too.",
+      "download": "Download for Android",
+      "howTitle": "How to install it",
+      "step1": "Tap \"Download for Android\" and wait for the file to download.",
+      "step2": "Open the downloaded file. The first time, your phone will ask to let the browser install apps — allow it.",
+      "step3": "Tap \"Install\". Pentilius will appear among your apps.",
+      "note": "The app isn't in Google Play yet, so your phone may warn that it's from an unknown source. New versions install the same way, over the old one — your progress is kept on the server."
+    },
     "vip": {
       "title": "VIP",
       "activeFor": "Active · {time} left",

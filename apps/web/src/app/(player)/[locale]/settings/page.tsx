@@ -194,6 +194,9 @@ export default function SettingsPage() {
             t('settings.vip.inactive')
           )}
         </SettingsCard>
+        <SettingsCard title={t('settings.app.title')} onClick={() => setOpen('app')}>
+          {t('settings.app.card')}
+        </SettingsCard>
         {vip?.canBuy && (
           <SettingsCard title={t('payments.history.title')} onClick={() => setOpen('purchases')}>
             {purchases && purchases.length > 0 ? t('payments.history.count', { count: purchases.length }) : t('payments.history.empty')}
@@ -256,6 +259,7 @@ export default function SettingsPage() {
             )}
           </section>
         )}
+        {open === 'app' && <AppDownloadSection />}
         {open === 'purchases' && (
           <section>
             <h2 className="mb-3 text-sm font-semibold">{t('payments.history.title')}</h2>
@@ -411,7 +415,51 @@ export default function SettingsPage() {
   );
 }
 
-type SettingsCardKey = 'vip' | 'purchases' | 'cosmetics' | 'language' | 'password' | 'notifications' | 'support' | 'blocked' | 'delete';
+type SettingsCardKey = 'vip' | 'app' | 'purchases' | 'cosmetics' | 'language' | 'password' | 'notifications' | 'support' | 'blocked' | 'delete';
+
+// The Android app (owner decision, 2026-10-19): served from the game's own
+// server while it isn't in Google Play yet. iPhone only through the App Store, later.
+const ANDROID_APK_URL = '/download/pentilius.apk';
+
+/** Download of the phone app — what's shown depends on the device. */
+function AppDownloadSection() {
+  const t = useTranslations();
+  const [device, setDevice] = useState<'android' | 'ios' | 'other' | null>(null);
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    setDevice(/Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/i.test(ua) ? 'ios' : 'other');
+  }, []);
+
+  return (
+    <section>
+      <h2 className="mb-3 text-sm font-semibold">{t('settings.app.title')}</h2>
+      {device === 'ios' ? (
+        <p className="text-xs text-textMuted">{t('settings.app.ios')}</p>
+      ) : (
+        <>
+          <p className="mb-3 text-xs text-textMuted">{device === 'android' ? t('settings.app.android') : t('settings.app.desktop')}</p>
+          <a
+            href={ANDROID_APK_URL}
+            download
+            className="block rounded-md border border-accent bg-accentBg py-2 text-center text-xs uppercase hover:bg-accentBgHover"
+          >
+            {t('settings.app.download')}
+          </a>
+          {device === 'other' && (
+            <p className="mt-2 break-all text-center text-[11px] text-textFaint">{typeof window !== 'undefined' ? window.location.origin + ANDROID_APK_URL : ANDROID_APK_URL}</p>
+          )}
+          <h3 className="mb-2 mt-4 text-[11px] uppercase tracking-wide text-textFaint">{t('settings.app.howTitle')}</h3>
+          <ol className="flex flex-col gap-1.5 text-xs text-text">
+            <li>1. {t('settings.app.step1')}</li>
+            <li>2. {t('settings.app.step2')}</li>
+            <li>3. {t('settings.app.step3')}</li>
+          </ol>
+          <p className="mt-3 text-[11px] text-textFaint">{t('settings.app.note')}</p>
+        </>
+      )}
+    </section>
+  );
+}
 
 /** One settings card: a title and a status line; a click opens its popup. */
 function SettingsCard({

@@ -8,3 +8,5 @@ node_modules
 **/.env
 **/.env.local
 *.log
+# The phone app has its own packages and never goes into the server images.
+apps/mobile
