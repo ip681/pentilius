@@ -16,6 +16,23 @@ export const NAV_ITEMS: { route: string; labelKey: string; iconKey: string }[] =
 ];
 
 /** The website page for a tab not yet in the app. */
+// Screens without a button of their own. They must be listed in the tabs too:
+// expo-router only knows the screens a layout lists, and sends anything else
+// to the first tab (the Command Center). Add every new screen under (tabs) here.
+export const HIDDEN_ROUTES = [
+  'research',
+  'settings',
+  'info',
+  'page/[key]',
+  'bosses',
+  'core',
+  'clan-war',
+  'zone/[zoneId]',
+  'clan/[id]',
+  'friend/[id]',
+  'player/[id]',
+] as const;
+
 export const WEB_PATHS: Record<string, string> = {
   clans: '/clans',
   friends: '/friends',

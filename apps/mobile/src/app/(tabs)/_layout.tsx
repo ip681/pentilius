@@ -1,7 +1,7 @@
 import { Redirect, Tabs } from 'expo-router';
 import { GameHeader } from '@/components/GameHeader';
 import { GameTabBar } from '@/components/GameTabBar';
-import { NAV_ITEMS } from '@/lib/nav';
+import { HIDDEN_ROUTES, NAV_ITEMS } from '@/lib/nav';
 import { useSession } from '@/lib/session';
 import { colors } from '@/theme';
 
@@ -21,6 +21,9 @@ export default function TabsLayout() {
     >
       {NAV_ITEMS.map((item) => (
         <Tabs.Screen key={item.route} name={item.route} />
+      ))}
+      {HIDDEN_ROUTES.map((route) => (
+        <Tabs.Screen key={route} name={route} />
       ))}
     </Tabs>
   );

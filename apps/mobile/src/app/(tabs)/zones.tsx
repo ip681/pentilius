@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { ComponentRef, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
@@ -14,6 +14,7 @@ import { formatDuration } from '@/lib/duration';
 import { formatNumber } from '@/lib/format';
 import { t } from '@/lib/i18n';
 import { setPendingBattle } from '@/lib/pending-battle';
+import { planetHit } from '@/lib/planet-hit';
 import { recall, remember } from '@/lib/remember';
 import { useSession } from '@/lib/session';
 import { isVipActive, multiAttackCount } from '@/lib/vip';
@@ -64,6 +65,7 @@ export default function ZonesScreen() {
   const [attackError, setAttackError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const multiCount = multiAttackCount(profile);
+  const planetRef = useRef<ComponentRef<typeof View>>(null);
 
   async function load() {
     await Promise.all([
@@ -161,6 +163,28 @@ export default function ZonesScreen() {
 
       {zones && (
         <View style={{ alignItems: 'center', gap: 24 }}>
+          {/* The whole planet is one touch area; planetHit works out which land was tapped. */}
+          <Pressable
+            ref={planetRef}
+            onPress={(event) => {
+              // The tap's place on the screen minus the planet's, so it doesn't matter which inner drawing part got the touch.
+              const { pageX, pageY } = event.nativeEvent;
+              planetRef.current?.measure((_x, _y, _w, _h, left, top) => {
+                const hit = planetHit(pageX - left, pageY - top, {
+                  drawingSize: SIZE,
+                  viewSize: planetSize,
+                  innerRadius: INNER_R,
+                  outerHitRadius: LABEL_R + 14,
+                  landCount: zones.length,
+                });
+                if (hit?.kind === 'core') setSelectedId(CORE_ID);
+                else if (hit?.kind === 'land') {
+                  const zone = zones.find((z) => z.order === hit.order);
+                  if (zone) setSelectedId(zone.id);
+                }
+              });
+            }}
+          >
           <Svg width={planetSize} height={planetSize} viewBox={`0 0 ${SIZE} ${SIZE}`}>
             <Defs>
               {zones.map((zone) => (
@@ -179,7 +203,7 @@ export default function ZonesScreen() {
               const label = polarToXY(LABEL_R, (startDeg + endDeg) / 2);
               const words = t(zone.nameKey).split(' ');
               return (
-                <G key={zone.id} onPress={() => setSelectedId(zone.id)}>
+                <G key={zone.id}>
                   <SvgImage
                     href={{ uri: assetUrl(zone.iconAssetId) }}
                     x={CENTER - OUTER_R}
@@ -201,7 +225,7 @@ export default function ZonesScreen() {
               );
             })}
 
-            <G onPress={() => setSelectedId(CORE_ID)}>
+            <G>
               <SvgImage
                 href={{ uri: assetUrl('zones.core') }}
                 x={CENTER - INNER_R}
@@ -255,6 +279,7 @@ export default function ZonesScreen() {
             )}
             {selectedId === CORE_ID && <Circle cx={CENTER} cy={CENTER} r={INNER_R} fill="none" stroke={colors.gold} strokeWidth={3} />}
           </Svg>
+          </Pressable>
 
           {selected && (
             <View style={{ width: '100%', borderRadius: 8, borderWidth: 1, borderColor: colors.panelBorder, overflow: 'hidden' }}>
