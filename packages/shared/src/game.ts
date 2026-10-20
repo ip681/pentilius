@@ -343,6 +343,8 @@ export interface RobotAttributesDto {
   nextCost: CoreAttributeValues;
   // Only Evasion can ever be capped — Damage/Defense/HP grow indefinitely by design.
   evasionAtCap: boolean;
+  // Free resets left: each gives every spent point back (owner decision, 2026-10-20).
+  respecsAvailable: number;
 }
 
 export interface ItemStatsDto {
@@ -455,8 +457,12 @@ export interface InventoryItemDto {
 export interface InventoryResponseDto {
   items: InventoryItemDto[];
   capacity: number;
-  // Count of unequipped items only — equipped gear doesn't count against capacity.
+  // Every owned item, equipped ones included.
   used: number;
+  // Free slots at or below which the client warns that the inventory is nearly full.
+  nearlyFullSlots: number;
+  // Most set items one bulk sell/recycle can take (GAME_BALANCE.itemBulk.maxItems).
+  bulkMaxItems: number;
 }
 
 export interface ZonePentiliPreviewDto {
@@ -531,6 +537,9 @@ export interface CombatReportDto {
   opponentUsername: string | null; // PvP only — a literal player-chosen name, never a translation key
   xpGained: number;
   lootSummary: LootResultEntryDto[];
+  // Items won but not given because the inventory was full (owner decision, 2026-10-20) —
+  // a separate list, so a client that doesn't know it never shows them as received.
+  lostLoot: LootResultEntryDto[];
 }
 
 export interface CombatRoundDto {
@@ -559,6 +568,9 @@ export interface BattleReportDto {
   outcome: BattleOutcome;
   xpGained: number;
   lootSummary: LootResultEntryDto[];
+  // Items won but not given because the inventory was full (owner decision, 2026-10-20) —
+  // a separate list, so a client that doesn't know it never shows them as received.
+  lostLoot: LootResultEntryDto[];
   damageDealt: number;
   damageTaken: number;
   rounds: CombatRoundDto[];
@@ -609,6 +621,8 @@ export interface ExpeditionsResponseDto {
 export interface ExpeditionClaimResultDto {
   rewards: ExpeditionRewardsDto;
   bonusItem: { itemDefinitionKey: string; itemNameKey: string; itemIconAssetId: string } | null;
+  // The bonus item that was found but didn't fit (full inventory) — bonusItem stays null then.
+  bonusItemLost: { itemDefinitionKey: string; itemNameKey: string; itemIconAssetId: string } | null;
   leveledUp: boolean;
   playerLevel: number;
 }
@@ -672,6 +686,9 @@ export interface BossFormationSlotDto {
   // Only set once the formation is RESOLVED and this slot was filled.
   xpGained: number | null;
   lootSummary: LootResultEntryDto[] | null;
+  // Items won but not given because the inventory was full (owner decision, 2026-10-20) —
+  // a separate list, so a client that doesn't know it never shows them as received.
+  lostLoot: LootResultEntryDto[];
 }
 
 export interface BossFormationResultDto {
@@ -1577,6 +1594,35 @@ export interface AdminXpLevelDto {
   battles: number | null;
   totalBattles: number;
   energyHours: number | null;
+}
+
+// godmaster → Balance → Shop (owner decision, 2026-10-20): what the Shop sells and for how much.
+export interface AdminShopItemDto {
+  key: string;
+  nameKey: string;
+  iconAssetId: string;
+  category: string;
+  tier: string | null;
+  slot: string | null;
+  inShop: boolean;
+  priceMetal: number;
+  priceCrystal: number;
+  priceCredits: number;
+  // Equipment only: what selling returns — a normal item without research, and the most it can
+  // ever return (epic, Recycling research maxed), so a buy price below it can be flagged.
+  sell: { metal: number; crystal: number; maxMetal: number; maxCrystal: number } | null;
+}
+
+export interface AdminShopDto {
+  items: AdminShopItemDto[];
+}
+
+export interface SaveShopItemDto {
+  key: string;
+  inShop: boolean;
+  priceMetal: number;
+  priceCrystal: number;
+  priceCredits: number;
 }
 
 export interface AdminXpBalanceDto {

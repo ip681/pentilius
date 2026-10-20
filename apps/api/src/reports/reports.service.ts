@@ -43,6 +43,7 @@ export class ReportsService {
       opponentUsername: null,
       xpGained: report.xpGained,
       lootSummary: report.lootSummary as unknown as LootResultEntryDto[],
+      lostLoot: (report.lostLoot as unknown as LootResultEntryDto[] | null) ?? [],
     }));
   }
 
@@ -71,6 +72,7 @@ export class ReportsService {
         opponentUsername: opponent.username,
         xpGained: 0, // PvP has no XP concept
         lootSummary: report.lootSummary as unknown as LootResultEntryDto[],
+        lostLoot: [], // PvP gives no items
       };
     });
   }
@@ -98,6 +100,7 @@ export class ReportsService {
       opponentUsername: null,
       xpGained: slot.xpGained ?? 0,
       lootSummary: (slot.lootSummary as unknown as LootResultEntryDto[]) ?? [],
+      lostLoot: (slot.lostLoot as unknown as LootResultEntryDto[] | null) ?? [],
     }));
   }
 }

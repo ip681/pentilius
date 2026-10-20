@@ -292,19 +292,18 @@ export class BossFormationsService {
         await this.achievements.record(playerId, 'BOSS_WIN', 1, tx);
 
         const lootSummary: LootResultEntryDto[] = [];
+        const lostLoot: LootResultEntryDto[] = [];
 
         const boxDefinition = await tx.itemDefinition.findUnique({ where: { id: boss.guaranteedBoxItemDefinitionId } });
         if (boxDefinition) {
           const granted = await grantItem(playerId, boxDefinition.id, tx);
-          if (granted) {
-            lootSummary.push({
-              type: 'item',
-              itemDefinitionKey: boxDefinition.key,
-              itemNameKey: boxDefinition.nameKey,
-              itemIconAssetId: boxDefinition.iconAssetId,
-              quantity: 1,
-            });
-          }
+          (granted ? lootSummary : lostLoot).push({
+            type: 'item',
+            itemDefinitionKey: boxDefinition.key,
+            itemNameKey: boxDefinition.nameKey,
+            itemIconAssetId: boxDefinition.iconAssetId,
+            quantity: 1,
+          });
         }
 
         for (const drop of boss.lootDrops) {
@@ -325,6 +324,15 @@ export class BossFormationsService {
                 granted += 1;
               }
             }
+            if (granted < quantity) {
+              lostLoot.push({
+                type: 'item',
+                itemDefinitionKey: itemDefinition.key,
+                itemNameKey: itemDefinition.nameKey,
+                itemIconAssetId: itemDefinition.iconAssetId,
+                quantity: quantity - granted,
+              });
+            }
             if (granted > 0) {
               lootSummary.push({
                 type: 'item',
@@ -339,7 +347,11 @@ export class BossFormationsService {
 
         await tx.bossFormationSlot.update({
           where: { id: slot.id },
-          data: { xpGained: xpPerSlot, lootSummary: lootSummary as unknown as Prisma.InputJsonValue },
+          data: {
+            xpGained: xpPerSlot,
+            lootSummary: lootSummary as unknown as Prisma.InputJsonValue,
+            lostLoot: lostLoot as unknown as Prisma.InputJsonValue,
+          },
         });
 
         await tx.bossFormationDailyPoints.upsert({
@@ -467,6 +479,7 @@ function toFormationDto(formation: FormationWithRelations, viewerId: string): Bo
     isCurrentPlayer: slot.playerId === viewerId,
     xpGained: slot.xpGained,
     lootSummary: (slot.lootSummary as unknown as LootResultEntryDto[] | null) ?? null,
+    lostLoot: (slot.lostLoot as unknown as LootResultEntryDto[] | null) ?? [],
   }));
 
   const result: BossFormationResultDto | null =

@@ -309,6 +309,7 @@ export default function MarketPage() {
         PRICE_REQUIRED: t('market.errorPriceRequired'),
         CANNOT_BUY_OWN_LISTING: t('market.errorCannotBuyOwn'),
         NOT_ENOUGH_RESOURCES: t('market.errorNotEnoughResources'),
+        INVENTORY_FULL: t('market.errorInventoryFull'),
         NOT_IN_CLAN: t('market.errorNotInClan'),
       };
       if (err.code && map[err.code]) return map[err.code];

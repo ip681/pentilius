@@ -241,6 +241,10 @@ model Player {
   // Tracked and spendable now; has no effect on combat until evasion is
   // wired into the formula in a later phase.
   baseEvasion              Int @default(0)
+  // Free resets of the points above: every spent point comes back to spend
+  // again (owner decision, 2026-10-20 — one for everyone when the combat
+  // formula changes, so points spent under the old rules can be moved).
+  attributeRespecs         Int @default(0)
 
   // Cosmetic profile picture — shown above everything on the Robot page and
   // on the public profile. Loose key references (not a relation) — validated
@@ -541,10 +545,11 @@ model ItemDefinition {
   tier            ItemTier?
 
   // System Shop (owner decision, not in GAME_SYSTEMS.md's Trading/auction, which
-  // stays the separate future player-to-player mechanic). 0 means "not required for
-  // this item" — mirrors ExpeditionType's metalReward/crystalReward/creditsReward
-  // non-null-with-zero-meaning-none pattern. Real per-item prices are UNDEFINED;
-  // see instructions/OPEN_DECISIONS.md.
+  // stays the separate future player-to-player mechanic). Only items with
+  // inShop are sold (owner decision, 2026-10-20: the Pioneer set at first;
+  // the owner picks the rest). A price of 0 means "not required for this item".
+  // The seed never overwrites inShop or the prices of an existing item.
+  inShop           Boolean @default(false)
   shopPriceMetal   Int @default(0)
   shopPriceCrystal Int @default(0)
   shopPriceCredits Int @default(0)
@@ -664,6 +669,9 @@ model BattleReport {
   outcome      BattleOutcome
   xpGained     Int
   lootSummary  Json
+  // Items won but not given because the inventory was full (owner decision, 2026-10-20) —
+  // kept apart from lootSummary so older clients never show them as received.
+  lostLoot     Json?
   damageDealt  Int
   damageTaken  Int
   rounds       Json
@@ -892,6 +900,9 @@ model BossFormationSlot {
   joinedAt    DateTime?
   xpGained    Int?
   lootSummary Json?
+  // Items won but not given because the inventory was full (owner decision, 2026-10-20) —
+  // kept apart from lootSummary so older clients never show them as received.
+  lostLoot    Json?
 
   formation BossFormation @relation(fields: [formationId], references: [id])
   player    Player?       @relation(fields: [playerId], references: [id])
@@ -1299,6 +1310,7 @@ enum AdminActionType {
   VIEW_PLAYER_LOGINS
   REFUND_PURCHASE
   UPDATE_PAYMENT_SETTINGS
+  UPDATE_SHOP
 }
 
 // Audit trail for every godmaster mutation (owner decision, 2026-09-12) —

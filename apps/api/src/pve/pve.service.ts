@@ -79,6 +79,7 @@ export class PveService {
       let xpGained = 0;
       let leveledUp = false;
       const lootSummary: LootResultEntryDto[] = [];
+      const lostLoot: LootResultEntryDto[] = [];
 
       if (result.won) {
         xpGained = pentili.xpReward;
@@ -104,15 +105,9 @@ export class PveService {
                 granted += 1;
               }
             }
-            if (granted > 0) {
-              lootSummary.push({
-                type: 'item',
-                itemDefinitionKey: itemDefinition.key,
-                itemNameKey: itemDefinition.nameKey,
-                itemIconAssetId: itemDefinition.iconAssetId,
-                quantity: granted,
-              });
-            }
+            const entry = { type: 'item' as const, itemDefinitionKey: itemDefinition.key, itemNameKey: itemDefinition.nameKey, itemIconAssetId: itemDefinition.iconAssetId };
+            if (granted > 0) lootSummary.push({ ...entry, quantity: granted });
+            if (granted < quantity) lostLoot.push({ ...entry, quantity: quantity - granted });
           }
         }
       }
@@ -125,6 +120,7 @@ export class PveService {
           outcome: result.won ? 'WIN' : 'LOSS',
           xpGained,
           lootSummary: lootSummary as unknown as Prisma.InputJsonValue,
+          lostLoot: lostLoot as unknown as Prisma.InputJsonValue,
           damageDealt: result.damageDealt,
           damageTaken: result.damageTaken,
           rounds: result.rounds as unknown as Prisma.InputJsonValue,
@@ -135,7 +131,7 @@ export class PveService {
 
       await this.dailyTasks.record(playerId, 'PVE_BATTLE', 1, tx);
       if (result.won) await this.achievements.record(playerId, 'PVE_WIN', 1, tx);
-      return toBattleReportDto(report, pentili, pentili.zone, player.level, leveledUp, lootSummary, result.rounds);
+      return toBattleReportDto(report, pentili, pentili.zone, player.level, leveledUp, lootSummary, lostLoot, result.rounds);
     });
   }
 
@@ -155,6 +151,7 @@ export class PveService {
         0,
         false,
         report.lootSummary as unknown as LootResultEntryDto[],
+        (report.lostLoot as unknown as LootResultEntryDto[] | null) ?? [],
         report.rounds as unknown as CombatRoundDto[],
       ),
     );
@@ -181,6 +178,7 @@ function toBattleReportDto(
   playerLevel: number,
   leveledUp: boolean,
   lootSummary: LootResultEntryDto[],
+  lostLoot: LootResultEntryDto[],
   rounds: CombatRoundDto[],
 ): BattleReportDto {
   return {
@@ -191,6 +189,7 @@ function toBattleReportDto(
     outcome: report.outcome as 'WIN' | 'LOSS',
     xpGained: report.xpGained,
     lootSummary,
+    lostLoot,
     damageDealt: report.damageDealt,
     damageTaken: report.damageTaken,
     rounds,

@@ -136,11 +136,16 @@ export function BossFormationCard({
               <p className="mt-1 text-textFaint">
                 +{mine.xpGained} {t('pve.xpGained')}
               </p>
-              {mine.lootSummary && mine.lootSummary.length > 0 && (
+              {((mine.lootSummary?.length ?? 0) > 0 || mine.lostLoot.length > 0) && (
                 <ul className="mt-1 flex flex-col gap-0.5">
-                  {mine.lootSummary.map((loot, index) => (
+                  {mine.lootSummary?.map((loot, index) => (
                     <li key={index}>
                       <LootEntry loot={loot} />
+                    </li>
+                  ))}
+                  {mine.lostLoot.map((loot, index) => (
+                    <li key={`lost-${index}`}>
+                      <LootEntry loot={loot} lost />
                     </li>
                   ))}
                 </ul>

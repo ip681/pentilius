@@ -11,6 +11,7 @@ import { SaveExpeditionBalanceDto } from './dto/save-expedition-balance.dto';
 import { SaveBossBalanceDto } from './dto/save-boss-balance.dto';
 import { SaveOtherBalanceDto } from './dto/save-other-balance.dto';
 import { SaveRewardBalanceDto } from './dto/save-reward-balance.dto';
+import { SaveShopDto } from './dto/save-shop.dto';
 import { SaveXpBalanceDto } from './dto/save-xp-balance.dto';
 
 /** godmaster's Balance tab (owner decision, 2026-10-18). ADMIN only — checked in the service. */
@@ -142,6 +143,16 @@ export class AdminBalanceController {
   @Put('clan')
   saveClan(@Body() dto: SaveClanBalanceDto, @CurrentAdmin() admin: AdminJwtPayload) {
     return this.balance.saveClan(dto, admin);
+  }
+
+  @Get('shop')
+  getShop(@CurrentAdmin() admin: AdminJwtPayload) {
+    return this.balance.getShop(admin);
+  }
+
+  @Put('shop')
+  saveShop(@Body() dto: SaveShopDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.balance.saveShop(dto, admin);
   }
 
   @Get('xp')

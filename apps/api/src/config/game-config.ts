@@ -12,6 +12,8 @@ import { EquipmentSlot, ItemOption, ItemQuality, ItemTier } from '@prisma/client
 // Balance → Other values overrides them in place at start-up and on save
 // (src/config/other-balance.ts lists which). Read them when needed — never
 // copy one into a module-level constant, or a change won't reach it.
+export type DamageFormula = 'subtract' | 'ratio';
+
 export const GAME_BALANCE = {
   // What a player starts with — on registration (Player's schema defaults,
   // keep both in sync) and again after every season reset.
@@ -20,6 +22,27 @@ export const GAME_BALANCE = {
     crystal: 100,
     credits: 50,
     actionEnergy: 10,
+  },
+  // Selling/recycling several set items at once (owner decision, 2026-10-20).
+  itemBulk: {
+    maxItems: 50,
+  },
+  // The Shop of a NEW database (owner decision, 2026-10-20). Afterwards the
+  // owner picks what is sold and the prices — the seed never changes an
+  // existing item's place in the Shop or its price.
+  shopDefaults: {
+    itemKeys: [
+      'pioneer_head_scanner',
+      'pioneer_left_arm_blaster',
+      'pioneer_right_arm_guard',
+      'pioneer_armor_plating',
+      'pioneer_core_battery',
+      'pioneer_left_leg_actuator',
+      'pioneer_right_leg_actuator',
+    ],
+    priceMetal: 300,
+    priceCrystal: 100,
+    priceCredits: 0,
   },
   actionEnergy: {
     // Regeneration rate is UNDEFINED in GAME_SYSTEMS.md — owner-specified at
@@ -38,8 +61,11 @@ export const GAME_BALANCE = {
     materialsPerLevel: 1,
   },
   inventory: {
-    // Owner-specified: 30 unequipped-item slots, before any Warehouse bonus
-    // (BuildingType.capacityBonusPerLevel). Equipped items don't count.
+    // Owner-specified: 30 slots, before any Warehouse bonus
+    // (BuildingType.capacityBonusPerLevel). Equipped items count too (owner decision,
+    // changed from the first design where they didn't).
+    // Within this many free slots the inventory counter turns gold as a warning.
+    nearlyFullSlots: 3,
     baseCapacity: 30,
   },
   itemSell: {
@@ -91,6 +117,19 @@ export const GAME_BALANCE = {
     // never to the chance itself.
     criticalChance: 0.1,
     criticalMultiplier: 1.5,
+    // The first step of every hit (PvE, PvP, clan war, bosses, the Core) —
+    // owner decision, 2026-10-20: 'ratio', together with the Pentili/boss
+    // retune and new attribute point values:
+    // - 'subtract': attack − defenseFactor × defense, the original model. A
+    //   defense point barely matters until defense nears twice the enemy's
+    //   attack, then makes you near-untouchable — so points went only into
+    //   damage and HP.
+    // - 'ratio': attack × attack / (attack + defense). Equal attack and
+    //   defense halve the hit as before; more defense always helps, a little
+    //   less each time, and never makes anyone untouchable.
+    damageFormula: 'ratio' as DamageFormula,
+    // Only used by 'subtract'.
+    defenseFactor: 0.5,
   },
   // Fixed magnitudes for rolled "Excellent options" (owner-specified, not
   // ranges) — see ItemOption. Applied in pve/combat.service.ts's
@@ -152,17 +191,19 @@ export const GAME_BALANCE = {
     // growth silently), see instructions/OPEN_DECISIONS.md.
     baseAttributeCost: 1,
     attributeCostGrowthRate: 0,
-    // How much each spent point contributes to the real combat stat.
+    // How much each spent point contributes to the real combat stat. With the
+    // 'ratio' hit formula (owner decision, 2026-10-20) these make every stat
+    // worth taking — the best builds mix all four. Was 2 / 1 / 5 under 'subtract'.
     damagePointValue: 2,
-    defensePointValue: 1,
-    hpPointValue: 5,
+    defensePointValue: 4,
+    hpPointValue: 7,
     // Evasion: personal chance to fully dodge an incoming attack (0 damage
     // that round) — self-contained, not compared against any opponent stat.
-    // Owner-specified: 0.5% per point, hard-capped at 20% (rank 40) — this
-    // hard cap is unaffected by the cost-growth removal above, still the
-    // only ceiling on evasion now that cost no longer soft-caps it.
-    evasionPointValue: 0.5,
-    maxEvasionPercent: 20,
+    // 1.5% per point, hard-capped at 30% (rank 20) — owner decision,
+    // 2026-10-20 with the 'ratio' formula; was 0.5% capped at 20%. The cap is
+    // still the only ceiling on evasion now that cost no longer soft-caps it.
+    evasionPointValue: 1.5,
+    maxEvasionPercent: 30,
   },
   expeditions: {
     // Only the default since 2026-10-19: edited in godmaster → Balance →

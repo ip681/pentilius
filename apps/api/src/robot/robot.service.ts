@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CombatStatsDto, EquipmentSlot, RobotAttributesDto, RobotSlotDto } from '@pentilius/shared';
 import { attributeCostForRank, GAME_BALANCE } from '../config/game-config';
 import { CombatService, toStatsDto } from '../pve/combat.service';
@@ -140,12 +140,55 @@ export class RobotService {
     });
   }
 
+  /**
+   * A free reset: every spent point comes back to spend again (owner decision,
+   * 2026-10-20). The update only goes through if nothing changed since the
+   * read, so a double tap or a parallel allocation can't refund twice.
+   */
+  async respecAttributes(playerId: string): Promise<RobotAttributesDto> {
+    return this.prisma.$transaction(async (tx) => {
+      const player = await tx.player.findUniqueOrThrow({ where: { id: playerId } });
+      if (player.attributeRespecs < 1) {
+        throw new BadRequestException('NO_RESPEC_AVAILABLE');
+      }
+      const spent = (rank: number) => {
+        let total = 0;
+        for (let r = 0; r < rank; r++) total += attributeCostForRank(r);
+        return total;
+      };
+      const refund = spent(player.baseDamage) + spent(player.baseDefense) + spent(player.baseHp) + spent(player.baseEvasion);
+      const result = await tx.player.updateMany({
+        where: {
+          id: playerId,
+          attributeRespecs: player.attributeRespecs,
+          baseDamage: player.baseDamage,
+          baseDefense: player.baseDefense,
+          baseHp: player.baseHp,
+          baseEvasion: player.baseEvasion,
+        },
+        data: {
+          attributePointsAvailable: { increment: refund },
+          baseDamage: 0,
+          baseDefense: 0,
+          baseHp: 0,
+          baseEvasion: 0,
+          attributeRespecs: { decrement: 1 },
+        },
+      });
+      if (result.count !== 1) {
+        throw new ConflictException('TRY_AGAIN');
+      }
+      return this.toAttributesDto(await tx.player.findUniqueOrThrow({ where: { id: playerId } }));
+    });
+  }
+
   private toAttributesDto(player: {
     attributePointsAvailable: number;
     baseDamage: number;
     baseDefense: number;
     baseHp: number;
     baseEvasion: number;
+    attributeRespecs: number;
   }): RobotAttributesDto {
     return {
       available: player.attributePointsAvailable,
@@ -162,6 +205,7 @@ export class RobotService {
         evasion: attributeCostForRank(player.baseEvasion),
       },
       evasionAtCap: player.baseEvasion >= evasionMaxRank(),
+      respecsAvailable: player.attributeRespecs,
     };
   }
 }

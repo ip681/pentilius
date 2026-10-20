@@ -74,6 +74,11 @@ export default function ReportsPage() {
                           <LootEntry loot={loot} />
                         </li>
                       ))}
+                      {report.lostLoot.map((loot, index) => (
+                        <li key={`lost-${index}`}>
+                          <LootEntry loot={loot} lost />
+                        </li>
+                      ))}
                     </ul>
                   ) : (
                     <span className="text-textFaint">—</span>

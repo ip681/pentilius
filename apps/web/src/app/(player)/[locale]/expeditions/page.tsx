@@ -117,6 +117,21 @@ export default function ExpeditionsPage() {
               {t(result.bonusItem.itemNameKey)}
             </p>
           )}
+          {result.bonusItemLost && (
+            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-textMuted">{t('expeditions.bonusItemFound')}:</span>
+              <span className="inline-flex items-center gap-1 line-through opacity-40">
+                <AssetIcon
+                  assetId={result.bonusItemLost.itemIconAssetId}
+                  alt={t(result.bonusItemLost.itemNameKey)}
+                  className="h-4 w-4 object-contain"
+                  fallback={<span className="text-[9px] font-semibold">{t(result.bonusItemLost.itemNameKey).charAt(0)}</span>}
+                />
+                {t(result.bonusItemLost.itemNameKey)}
+              </span>
+              <span className="text-danger">{t('pve.lootNotGranted')}</span>
+            </p>
+          )}
           {result.leveledUp && <p className="mt-1 text-xs font-medium">{t('pve.leveledUp', { level: result.playerLevel })}</p>}
         </div>
       )}

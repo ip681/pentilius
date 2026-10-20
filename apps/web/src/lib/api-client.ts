@@ -484,6 +484,10 @@ export function getRobotAttributes(): Promise<RobotAttributesDto> {
   return request<RobotAttributesDto>('/robot/attributes', { auth: true });
 }
 
+export function respecAttributes(): Promise<RobotAttributesDto> {
+  return request<RobotAttributesDto>('/robot/attributes/respec', { method: 'POST', auth: true });
+}
+
 export function allocateAttribute(stat: string): Promise<RobotAttributesDto> {
   return request<RobotAttributesDto>('/robot/attributes/allocate', { method: 'POST', auth: true, body: { stat } });
 }
@@ -511,6 +515,15 @@ export function sellItem(itemInstanceId: string): Promise<InventoryResponseDto> 
 
 export function recycleItem(itemInstanceId: string): Promise<InventoryResponseDto> {
   return request<InventoryResponseDto>(`/inventory/items/${itemInstanceId}/recycle`, { method: 'POST', auth: true });
+}
+
+// Several set items at once (owner decision, 2026-10-20) — all or none.
+export function sellItems(itemInstanceIds: string[]): Promise<InventoryResponseDto> {
+  return request<InventoryResponseDto>('/inventory/items/sell-many', { method: 'POST', auth: true, body: { itemInstanceIds } });
+}
+
+export function recycleItems(itemInstanceIds: string[]): Promise<InventoryResponseDto> {
+  return request<InventoryResponseDto>('/inventory/items/recycle-many', { method: 'POST', auth: true, body: { itemInstanceIds } });
 }
 
 export function openBox(itemInstanceId: string): Promise<BoxOpenResultDto> {

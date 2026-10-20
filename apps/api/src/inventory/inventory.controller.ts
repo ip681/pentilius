@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { CurrentPlayer } from '../auth/decorators/current-player.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/jwt-payload.interface';
+import { ItemIdsDto } from './dto/item-ids.dto';
 import { UseItemDto } from './dto/use-item.dto';
 import { InventoryService } from './inventory.service';
 
@@ -23,6 +24,16 @@ export class InventoryController {
   @Post('items/:id/use')
   useItem(@CurrentPlayer() currentPlayer: JwtPayload, @Param('id') id: string, @Body() body: UseItemDto) {
     return this.inventoryService.useConsumable(currentPlayer.sub, id, body.buildingKey);
+  }
+
+  @Post('items/sell-many')
+  sellItems(@CurrentPlayer() currentPlayer: JwtPayload, @Body() body: ItemIdsDto) {
+    return this.inventoryService.sellItems(currentPlayer.sub, body.itemInstanceIds);
+  }
+
+  @Post('items/recycle-many')
+  recycleItems(@CurrentPlayer() currentPlayer: JwtPayload, @Body() body: ItemIdsDto) {
+    return this.inventoryService.recycleItems(currentPlayer.sub, body.itemInstanceIds);
   }
 
   @Post('items/:id/sell')

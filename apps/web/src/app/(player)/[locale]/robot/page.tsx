@@ -2,7 +2,7 @@
 
 import type { BoxOpenResultDto, CombatStatsDto, EquipmentSlot, EquippedItemDto, InventoryItemDto, PlayerProfileDto, Race, RobotAttributesDto, RobotSlotDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { CombatStatsCard } from '@/components/CombatStatsCard';
@@ -13,6 +13,7 @@ import { NextLevelValue } from '@/components/NextLevelValue';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import {
   allocateAttribute,
+  respecAttributes,
   ApiError,
   consumeItem,
   equipItem,
@@ -23,7 +24,9 @@ import {
   getRobotCombatStats,
   openBox,
   recycleItem,
+  recycleItems,
   sellItem,
+  sellItems,
   unequipSlot,
   upgradeItem,
 } from '@/lib/api-client';
@@ -142,6 +145,18 @@ function isUpgradeMaterial(item: InventoryItemDto): boolean {
   return item.itemDefinitionKey.endsWith('_fragment') || item.itemDefinitionKey.endsWith('_upgrade');
 }
 
+// What the bulk sell/recycle (owner decision, 2026-10-20) can take: free set items only.
+function isBulkEligible(item: InventoryItemDto): boolean {
+  return item.category === 'EQUIPMENT' && !item.equipped && !item.listedForSale;
+}
+
+// Worth a second look before it goes: a bonus option or upgrades spent on it.
+function isValuable(item: InventoryItemDto): boolean {
+  return item.quality !== 'NORMAL' || item.upgradeLevel > 0;
+}
+
+const LONG_PRESS_MS = 500;
+
 export default function RobotPage() {
   useRequireAuth();
   const t = useTranslations();
@@ -157,6 +172,13 @@ export default function RobotPage() {
   const [hoveredItem, setHoveredItem] = useState<{ item: InventoryItemDto; rect: DOMRect } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [boxResult, setBoxResult] = useState<BoxOpenResultDto | null>(null);
+  // Bulk sell/recycle (owner decision, 2026-10-20): checkboxes only while this mode is on.
+  const [selectMode, setSelectMode] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<string[]>([]);
+  const [bulkMax, setBulkMax] = useState(50);
+  const [nearlyFullSlots, setNearlyFullSlots] = useState(0);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const longPress = useRef<{ timer: ReturnType<typeof setTimeout> | null; fired: boolean }>({ timer: null, fired: false });
 
   // Dismiss the inventory grid's hover tooltip on the next scroll or
   // tap-elsewhere — see ItemHoverTooltip.tsx's useItemHoverTooltip for why.
@@ -183,6 +205,8 @@ export default function RobotPage() {
       setItems(inventory.items);
       setCapacity(inventory.capacity);
       setUsed(inventory.used);
+      setBulkMax(inventory.bulkMaxItems);
+      setNearlyFullSlots(inventory.nearlyFullSlots);
       setSlots(robot);
       setAttributes(attrs);
       setCombatStats(stats);
@@ -215,6 +239,92 @@ export default function RobotPage() {
     if (filter === 'CONSUMABLE') return items.filter((item) => item.category === 'CONSUMABLE');
     return items.filter((item) => item.slot === filter);
   }, [items, filter]);
+
+  const checkedItems = useMemo(() => (items ?? []).filter((item) => checkedIds.includes(item.id)), [items, checkedIds]);
+  const bulkSell = checkedItems.reduce(
+    (sum, item) => ({ metal: sum.metal + (item.sellValue?.metal ?? 0), crystal: sum.crystal + (item.sellValue?.crystal ?? 0) }),
+    { metal: 0, crystal: 0 },
+  );
+  // Per set: the fragments gained and the stones they turn into (fragments convert automatically).
+  const bulkRecycle = useMemo(() => {
+    const bySet = new Map<string, { fragments: number; owned: number; perStone: number }>();
+    for (const item of checkedItems) {
+      if (!item.recycleValue) continue;
+      const key = item.recycleValue.fragmentItemDefinitionKey;
+      const entry = bySet.get(key) ?? { fragments: 0, owned: item.recycleValue.ownedFragments, perStone: item.recycleValue.fragmentsPerStone };
+      entry.fragments += item.recycleValue.fragments;
+      bySet.set(key, entry);
+    }
+    return [...bySet].map(([fragmentKey, e]) => ({
+      fragmentKey,
+      stoneKey: fragmentKey.replace(/_fragment$/, '_upgrade'),
+      fragments: e.fragments,
+      stones: Math.floor((e.owned + e.fragments) / e.perStone) - Math.floor(e.owned / e.perStone),
+    }));
+  }, [checkedItems]);
+  const valuableCount = checkedItems.filter(isValuable).length;
+  // Full: new loot can't get in. Nearly full: an early warning (owner decision, 2026-10-20).
+  const inventoryFull = capacity > 0 && used >= capacity;
+  const inventoryNearlyFull = !inventoryFull && capacity > 0 && capacity - used <= nearlyFullSlots;
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setCheckedIds([]);
+  }
+
+  function toggleChecked(item: InventoryItemDto) {
+    if (!isBulkEligible(item)) return;
+    setCheckedIds((ids) => (ids.includes(item.id) ? ids.filter((id) => id !== item.id) : ids.length >= bulkMax ? ids : [...ids, item.id]));
+  }
+
+  // Quick select: every plain (normal, not upgraded) free set item in the current filter, up to the limit.
+  function checkAllNormal() {
+    const plain = visibleItems.filter((item) => isBulkEligible(item) && !isValuable(item)).map((item) => item.id);
+    setCheckedIds((ids) => [...new Set([...ids, ...plain])].slice(0, bulkMax));
+  }
+
+  // Touch shortcut: holding an item turns selection mode on with that item checked.
+  function startLongPress(item: InventoryItemDto) {
+    longPress.current.fired = false;
+    if (selectMode || !isBulkEligible(item)) return;
+    longPress.current.timer = setTimeout(() => {
+      longPress.current.fired = true;
+      setHoveredItem(null);
+      setSelectMode(true);
+      setCheckedIds([item.id]);
+    }, LONG_PRESS_MS);
+  }
+
+  function cancelLongPress() {
+    if (longPress.current.timer) clearTimeout(longPress.current.timer);
+    longPress.current.timer = null;
+  }
+
+  function handleItemClick(item: InventoryItemDto) {
+    if (longPress.current.fired) {
+      longPress.current.fired = false;
+      return;
+    }
+    if (selectMode) toggleChecked(item);
+    else setSelectedId(item.id);
+  }
+
+  async function handleBulk(action: 'sell' | 'recycle') {
+    if (checkedIds.length === 0) return;
+    setError(null);
+    setBulkBusy(true);
+    try {
+      await (action === 'sell' ? sellItems(checkedIds) : recycleItems(checkedIds));
+      notifyProfileChanged();
+      exitSelectMode();
+      await load();
+    } catch {
+      setError(t('robot.actionError'));
+      await load();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   async function handleEquip() {
     if (!selected) return;
@@ -296,6 +406,16 @@ export default function RobotPage() {
     }
   }
 
+  async function handleRespec() {
+    try {
+      setAttributes(await respecAttributes());
+      notifyProfileChanged();
+      await load();
+    } catch {
+      setError(t('robot.respecError'));
+    }
+  }
+
   async function handleAllocate(stat: AttributeStat) {
     try {
       await allocateAttribute(stat);
@@ -354,11 +474,21 @@ export default function RobotPage() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr]">
         {/* INVENTORY */}
         <section className="overflow-hidden rounded-lg border border-panelBorder bg-panel lg:flex lg:flex-col">
-          <div className="flex items-center justify-between border-b border-panelBorder bg-panelHeader px-4 py-3">
-            <strong className="text-xs">{t('robot.inventory')}</strong>
-            <span className="text-[9px] uppercase text-textFaint tabular-nums">
-              {used}/{capacity}
-            </span>
+          <div
+            className={`flex items-center justify-between border-b px-4 py-3 ${
+              inventoryFull ? 'border-panelBorderDanger bg-[#3a1d1f]' : 'border-panelBorder bg-panelHeader'
+            }`}
+          >
+            <strong className={`text-xs tabular-nums ${inventoryFull ? 'text-danger' : inventoryNearlyFull ? 'text-gold' : ''}`}>
+              {t(inventoryFull ? 'robot.inventoryFullTitle' : 'robot.inventoryCount', { used, capacity })}
+            </strong>
+            <button
+              type="button"
+              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+              className={`rounded border px-2.5 py-1.5 text-[9px] uppercase ${selectMode ? 'border-textFaint bg-accentBgHover' : 'border-accent bg-accentBg hover:bg-accentBgHover'}`}
+            >
+              {selectMode ? t('robot.selectDone') : t('robot.selectMany')}
+            </button>
           </div>
 
           <div className="p-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
@@ -394,11 +524,20 @@ export default function RobotPage() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setSelectedId(item.id)}
+                  onClick={() => handleItemClick(item)}
+                  onPointerDown={(e) => e.pointerType !== 'mouse' && startLongPress(item)}
+                  onPointerUp={cancelLongPress}
+                  onPointerLeave={cancelLongPress}
+                  onPointerCancel={cancelLongPress}
+                  onContextMenu={(e) => e.preventDefault()}
                   onMouseEnter={(e) => setHoveredItem({ item, rect: e.currentTarget.getBoundingClientRect() })}
                   onMouseLeave={() => setHoveredItem(null)}
-                  className={`relative flex aspect-square items-center justify-center rounded-md border ${
-                    selectedId === item.id
+                  className={`relative flex aspect-square select-none items-center justify-center rounded-md border [-webkit-touch-callout:none] ${
+                    selectMode && !isBulkEligible(item) ? 'opacity-30' : ''
+                  } ${
+                    selectMode && checkedIds.includes(item.id)
+                      ? 'border-2 border-accent'
+                      : selectedId === item.id
                       ? 'border-textFaint'
                       : item.quality === 'EPIC'
                         ? 'border-epic'
@@ -413,6 +552,16 @@ export default function RobotPage() {
                     className="h-full w-full object-contain p-1"
                     fallback={<span className="text-sm font-semibold text-textMuted">{t(item.nameKey).charAt(0)}</span>}
                   />
+                  {selectMode && isBulkEligible(item) && (
+                    <span
+                      aria-hidden="true"
+                      className={`absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-sm border text-[10px] font-bold leading-none ${
+                        checkedIds.includes(item.id) ? 'border-accent bg-accent text-text' : 'border-textFaint bg-ink/70'
+                      }`}
+                    >
+                      {checkedIds.includes(item.id) ? '✓' : ''}
+                    </span>
+                  )}
                   {item.quality === 'EPIC' && <span className="absolute left-0.5 top-0.5 text-[7px] font-semibold uppercase text-epic">{t('itemQuality.EPIC')}</span>}
                   {item.quality === 'RARE' && <span className="absolute left-0.5 top-0.5 text-[7px] font-semibold uppercase text-positive">{t('itemQuality.RARE')}</span>}
                   {item.equipped && (
@@ -520,11 +669,131 @@ export default function RobotPage() {
                 })}
               </div>
               <p className="mt-2 text-[9px] text-textFaint">{t('robot.attributeNote')}</p>
+              {/* A free reset (owner decision, 2026-10-20) — only shown while one is left. */}
+              {attributes.respecsAvailable > 0 && (
+                <div className="mt-3">
+                  <ConfirmButton
+                    label={t('robot.respec')}
+                    confirmLabel={t('common.confirm')}
+                    cancelLabel={t('common.cancel')}
+                    message={t('robot.respecConfirm', { count: attributes.respecsAvailable })}
+                    onConfirm={handleRespec}
+                    className="w-full rounded-md border border-accent bg-accentBg py-2 text-[10px] uppercase hover:bg-accentBgHover"
+                    confirmClassName="flex-1 rounded-md border border-accent bg-accentBg py-2 text-[10px] uppercase hover:bg-accentBgHover"
+                    cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+                  />
+                </div>
+              )}
             </>
           )}
         </section>
         </div>
       </div>
+
+      {/* Bulk sell/recycle bar (owner decision, 2026-10-20): above the phone's bottom menu, a floating panel on wide screens. */}
+      {selectMode && (
+        <>
+          <div className="h-44 md:h-36" aria-hidden="true" />
+          <div className="fixed inset-x-0 bottom-16 z-40 border-t border-panelBorder bg-inkRaised p-3 shadow-lg md:inset-x-auto md:bottom-4 md:right-6 md:w-[520px] md:rounded-lg md:border">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] tabular-nums">{t('robot.selectedCount', { count: checkedIds.length, max: bulkMax })}</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={checkAllNormal}
+                  className="rounded border border-accent bg-accentBg px-2.5 py-2 text-[9px] uppercase hover:bg-accentBgHover"
+                >
+                  {t('robot.selectAllNormal')}
+                </button>
+                <button
+                  type="button"
+                  disabled={checkedIds.length === 0}
+                  onClick={() => setCheckedIds([])}
+                  className="rounded border border-panelBorder px-2.5 py-2 text-[9px] uppercase text-textMuted hover:bg-accentBgHover disabled:opacity-30"
+                >
+                  {t('robot.clearSelection')}
+                </button>
+                <button type="button" onClick={exitSelectMode} aria-label={t('common.close')} className="px-2 py-1 text-textFaint hover:text-text">
+                  ✕
+                </button>
+              </div>
+            </div>
+            {checkedIds.length === 0 ? (
+              <p className="py-2 text-[10px] text-textFaint">{t('robot.selectHint')}</p>
+            ) : (
+              <>
+                {valuableCount > 0 && <p className="mb-2 text-[10px] text-danger">{t('robot.bulkValuableWarning', { count: valuableCount })}</p>}
+                <div className="flex gap-2">
+                  <ConfirmButton
+                    key={`bulk-sell-${checkedIds.length}`}
+                    label={
+                      <span className="flex flex-wrap items-center justify-center gap-x-2">
+                        <span>{t('robot.sellSelected', { count: checkedIds.length })}</span>
+                        <span className="flex items-center gap-1 normal-case">
+                          {formatNumber(bulkSell.metal)} <ResourceIcon type="METAL" className="h-3.5 w-3.5" />
+                          {formatNumber(bulkSell.crystal)} <ResourceIcon type="CRYSTAL" className="h-3.5 w-3.5" />
+                        </span>
+                      </span>
+                    }
+                    confirmLabel={t('common.confirm')}
+                    cancelLabel={t('common.cancel')}
+                    message={t('robot.sellManyConfirm', { count: checkedIds.length, metal: formatNumber(bulkSell.metal), crystal: formatNumber(bulkSell.crystal) })}
+                    onConfirm={() => handleBulk('sell')}
+                    disabled={bulkBusy}
+                    className="min-h-11 flex-1 rounded-md border border-panelBorderDanger bg-well px-2 py-2 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                    confirmClassName="min-h-11 flex-1 rounded-md border border-panelBorderDanger bg-well py-2 text-[10px] uppercase text-danger hover:bg-accentBgHover"
+                    cancelClassName="min-h-11 flex-1 rounded-md border border-panelBorder bg-panel py-2 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+                    wrapperClassName="flex-1"
+                  />
+                  <ConfirmButton
+                    key={`bulk-recycle-${checkedIds.length}`}
+                    label={
+                      <span className="flex flex-wrap items-center justify-center gap-x-2">
+                        <span>{t('robot.recycleSelected', { count: checkedIds.length })}</span>
+                        {bulkRecycle.map((r) => (
+                          <span key={r.fragmentKey} className="flex items-center gap-1 normal-case">
+                            {r.fragments}
+                            <AssetIcon assetId={`items.${r.fragmentKey}.icon`} alt={t(`items.${r.fragmentKey}.name`)} className="h-4 w-4 object-contain" fallback={null} />
+                            {r.stones > 0 && (
+                              <>
+                                → {r.stones}
+                                <AssetIcon assetId={`items.${r.stoneKey}.icon`} alt={t(`items.${r.stoneKey}.name`)} className="h-4 w-4 object-contain" fallback={null} />
+                              </>
+                            )}
+                          </span>
+                        ))}
+                      </span>
+                    }
+                    confirmLabel={t('common.confirm')}
+                    cancelLabel={t('common.cancel')}
+                    message={t('robot.recycleManyConfirm', {
+                      count: checkedIds.length,
+                      result: bulkRecycle
+                        .map((r) =>
+                          r.stones > 0
+                            ? t('robot.recycleManyPart', {
+                                fragments: r.fragments,
+                                fragmentName: t(`items.${r.fragmentKey}.name`),
+                                stones: r.stones,
+                                stoneName: t(`items.${r.stoneKey}.name`),
+                              })
+                            : t('robot.recycleManyPartFragments', { fragments: r.fragments, fragmentName: t(`items.${r.fragmentKey}.name`) }),
+                        )
+                        .join('; '),
+                    })}
+                    onConfirm={() => handleBulk('recycle')}
+                    disabled={bulkBusy}
+                    className="min-h-11 flex-1 rounded-md border border-panelBorderDanger bg-well px-2 py-2 text-[10px] uppercase text-danger hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
+                    confirmClassName="min-h-11 flex-1 rounded-md border border-panelBorderDanger bg-well py-2 text-[10px] uppercase text-danger hover:bg-accentBgHover"
+                    cancelClassName="min-h-11 flex-1 rounded-md border border-panelBorder bg-panel py-2 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+                    wrapperClassName="flex-1"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       <BottomSheet open={!!selected} onClose={() => setSelectedId(null)}>
         {selected && (

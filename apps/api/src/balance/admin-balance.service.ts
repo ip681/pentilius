@@ -9,6 +9,7 @@ import {
   AdminExpeditionBalanceDto,
   AdminOtherBalanceDto,
   AdminRewardBalanceDto,
+  AdminShopDto,
   AdminPentiliBalanceDto,
   AdminPentiliRowDto,
   AdminXpBalanceDto,
@@ -68,6 +69,7 @@ import { SaveExpeditionBalanceDto } from './dto/save-expedition-balance.dto';
 import { SaveBossBalanceDto } from './dto/save-boss-balance.dto';
 import { SaveOtherBalanceDto } from './dto/save-other-balance.dto';
 import { SaveRewardBalanceDto } from './dto/save-reward-balance.dto';
+import { SaveShopDto } from './dto/save-shop.dto';
 import { SaveXpBalanceDto } from './dto/save-xp-balance.dto';
 
 /**
@@ -739,6 +741,79 @@ export class AdminBalanceService implements OnModuleInit {
       { timeout: 60_000 },
     );
     return this.getPentili(admin);
+  }
+
+  // ---- The Shop (owner decision, 2026-10-20) ----
+
+  /** Every item, whether the Shop sells it and its price, plus what selling it returns. */
+  async getShop(admin: AdminJwtPayload): Promise<AdminShopDto> {
+    assertAdmin(admin);
+    const [items, equipment, recycling] = await Promise.all([
+      this.prisma.itemDefinition.findMany({ orderBy: [{ category: 'asc' }, { tier: 'asc' }, { key: 'asc' }] }),
+      loadEquipmentBalance(this.prisma),
+      this.prisma.researchType.findFirst({ where: { bonusType: 'RECYCLING' } }),
+    ]);
+    const maxResearch = 1 + (recycling ? recycling.bonusPerLevel * recycling.maxLevel : 0);
+    const best = Math.max(...Object.values(equipment.qualitySellMultiplier));
+    return {
+      items: items.map((item) => {
+        const set = item.category === 'EQUIPMENT' && item.tier ? equipment.sets[item.tier.toLowerCase() as SetTier] : null;
+        return {
+          key: item.key,
+          nameKey: item.nameKey,
+          iconAssetId: item.iconAssetId,
+          category: item.category,
+          tier: item.tier,
+          slot: item.slot,
+          inShop: item.inShop,
+          priceMetal: item.shopPriceMetal,
+          priceCrystal: item.shopPriceCrystal,
+          priceCredits: item.shopPriceCredits,
+          sell: set
+            ? {
+                metal: Math.round(set.sellMetal * equipment.qualitySellMultiplier.NORMAL),
+                crystal: Math.round(set.sellCrystal * equipment.qualitySellMultiplier.NORMAL),
+                maxMetal: Math.round(set.sellMetal * best * maxResearch),
+                maxCrystal: Math.round(set.sellCrystal * best * maxResearch),
+              }
+            : null,
+        };
+      }),
+    };
+  }
+
+  /** Saves what the Shop sells and the prices; logs only the items that changed. */
+  async saveShop(dto: SaveShopDto, admin: AdminJwtPayload): Promise<AdminShopDto> {
+    assertAdmin(admin);
+    const price = (x: unknown) => typeof x === 'number' && Number.isInteger(x) && x >= 0 && x <= 10_000_000;
+    if (!Array.isArray(dto.items) || dto.items.length > 1000) throw new BadRequestException('SHOP_OUT_OF_RANGE');
+    for (const i of dto.items) {
+      if (typeof i?.key !== 'string' || typeof i.inShop !== 'boolean' || !price(i.priceMetal) || !price(i.priceCrystal) || !price(i.priceCredits)) {
+        throw new BadRequestException('SHOP_OUT_OF_RANGE');
+      }
+    }
+    await this.prisma.$transaction(async (tx) => {
+      const existing = new Map((await tx.itemDefinition.findMany()).map((d) => [d.key, d]));
+      const changes: { key: string; before: unknown; after: unknown }[] = [];
+      for (const i of dto.items) {
+        const d = existing.get(i.key);
+        if (!d) throw new BadRequestException('UNKNOWN_ITEM');
+        const before = { inShop: d.inShop, priceMetal: d.shopPriceMetal, priceCrystal: d.shopPriceCrystal, priceCredits: d.shopPriceCredits };
+        const after = { inShop: i.inShop, priceMetal: i.priceMetal, priceCrystal: i.priceCrystal, priceCredits: i.priceCredits };
+        if (JSON.stringify(before) === JSON.stringify(after)) continue;
+        await tx.itemDefinition.update({
+          where: { key: i.key },
+          data: { inShop: i.inShop, shopPriceMetal: i.priceMetal, shopPriceCrystal: i.priceCrystal, shopPriceCredits: i.priceCredits },
+        });
+        changes.push({ key: i.key, before, after });
+      }
+      if (changes.length > 0) {
+        await tx.adminActionLog.create({
+          data: { adminId: admin.sub, adminUsername: admin.username, actionType: 'UPDATE_SHOP', details: { changes } as unknown as Prisma.InputJsonValue },
+        });
+      }
+    });
+    return this.getShop(admin);
   }
 
   // ---- XP per level (owner decision, 2026-10-19) ----

@@ -9,6 +9,8 @@ import type {
   AdminOtherBalanceDto,
   AdminPlayerLoginsDto,
   AdminRewardBalanceDto,
+  AdminShopDto,
+  AdminShopItemDto,
   AdminPaymentProductDto,
   AdminPentiliBalanceDto,
   AdminXpBalanceDto,
@@ -3147,7 +3149,7 @@ function curveAt(c: BalanceCurveDto, level: number): number {
 }
 
 function BalancePanel() {
-  const [area, setArea] = useState<'pentili' | 'xp' | 'buildings' | 'research' | 'clan' | 'equipment' | 'expeditions' | 'bosses' | 'rewards' | 'other'>('pentili');
+  const [area, setArea] = useState<'pentili' | 'xp' | 'buildings' | 'research' | 'clan' | 'equipment' | 'expeditions' | 'bosses' | 'rewards' | 'shop' | 'other'>('pentili');
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -3162,6 +3164,7 @@ function BalancePanel() {
             ['expeditions', 'Експедиции'],
             ['bosses', 'Босове'],
             ['rewards', 'Награди'],
+            ['shop', 'Магазин'],
             ['other', 'Други стойности'],
           ] as const
         ).map(([key, label]) => (
@@ -3184,8 +3187,171 @@ function BalancePanel() {
       {area === 'expeditions' && <ExpeditionBalancePanel />}
       {area === 'bosses' && <BossBalancePanel />}
       {area === 'rewards' && <RewardBalancePanel />}
+      {area === 'shop' && <ShopBalancePanel />}
       {area === 'other' && <OtherBalancePanel />}
     </>
+  );
+}
+
+// The Shop's groups: equipment by set, then the rest by kind.
+function shopGroup(item: AdminShopItemDto): string {
+  if (item.category === 'EQUIPMENT') return SET_LABELS.find(([tier]) => tier === (item.tier ?? '').toLowerCase())?.[1] ?? 'Екипировка';
+  if (item.key.endsWith('_upgrade') || item.key.endsWith('_fragment')) return 'Камъни и фрагменти';
+  if (item.key.endsWith('_box')) return 'Кутии';
+  return 'Други консумативи';
+}
+
+/**
+ * godmaster → Balance → Shop (owner decision, 2026-10-20): what the Shop sells and for how much.
+ * A buy price below what selling can return is flagged in red, so "buy cheap, sell dear" can't happen again.
+ */
+function ShopBalancePanel() {
+  const [data, setData] = useState<AdminShopDto | null>(null);
+  const [items, setItems] = useState<AdminShopItemDto[] | null>(null);
+  const [onlyInShop, setOnlyInShop] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setError(null);
+    adminFetch<AdminShopDto>('/admin/balance/shop')
+      .then((res) => {
+        setData(res);
+        setItems(res.items);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  if (!data || !items) {
+    return (
+      <section className="rounded-lg border border-panelBorder bg-panel p-4">
+        <h2 className="text-sm font-semibold">Магазин</h2>
+        {error ? <p className="mt-2 text-xs text-danger">{error}</p> : <p className="mt-2 text-xs text-textFaint">Зареждане…</p>}
+      </section>
+    );
+  }
+
+  const original = new Map(data.items.map((i) => [i.key, i]));
+  const changed = items.filter((i) => {
+    const o = original.get(i.key);
+    return !o || o.inShop !== i.inShop || o.priceMetal !== i.priceMetal || o.priceCrystal !== i.priceCrystal || o.priceCredits !== i.priceCredits;
+  });
+  const update = (key: string, patch: Partial<AdminShopItemDto>) => setItems((list) => list?.map((i) => (i.key === key ? { ...i, ...patch } : i)) ?? null);
+  // Selling must never return more than buying costs: compared with the most selling can ever give.
+  const underpriced = (i: AdminShopItemDto) => i.inShop && !!i.sell && i.priceCredits === 0 && (i.priceMetal < i.sell.maxMetal || i.priceCrystal < i.sell.maxCrystal);
+
+  async function save() {
+    if (!items) return;
+    const warn = changed.filter(underpriced).length;
+    const text =
+      `Да запиша ли промените в Магазина (${changed.length})? Важат веднага за всички играчи.` +
+      (warn ? `\n\nВНИМАНИЕ: ${warn} предмета се купуват по-евтино, отколкото може да се продадат.` : '');
+    if (!window.confirm(text)) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await adminFetch<AdminShopDto>('/admin/balance/shop', {
+        method: 'PUT',
+        body: { items: changed.map(({ key, inShop, priceMetal, priceCrystal, priceCredits }) => ({ key, inShop, priceMetal, priceCrystal, priceCredits })) },
+      });
+      setData(res);
+      setItems(res.items);
+      setMessage('Записано.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const visible = items.filter((i) => !onlyInShop || i.inShop);
+  const groups = [...new Set(visible.map(shopGroup))];
+  const priceInput = 'w-20 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent disabled:opacity-30';
+
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">Магазин</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-textMuted">
+            <input type="checkbox" checked={onlyInShop} onChange={(e) => setOnlyInShop(e.target.checked)} className="accent-accent" />
+            само в магазина
+          </label>
+          <button type="button" disabled={busy || changed.length === 0} onClick={save} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+            Запази {changed.length > 0 ? `(${changed.length})` : ''}
+          </button>
+          <button type="button" disabled={busy || changed.length === 0} onClick={() => setItems(data.items)} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+            Отказ
+          </button>
+        </div>
+      </div>
+      <p className="mb-3 text-[11px] text-textFaint">
+        Отметнатите предмети се продават в Магазина на тези цени (0 = не се плаща с този ресурс). „Продажба дава“ е колко връща продажбата на
+        нормален предмет без проучвания, а в скоби — най-многото (епичен предмет, максимално „Рециклиране“). В червено е цена, по-ниска от това
+        най-много.
+      </p>
+      {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+      {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+      <div className="max-w-full overflow-x-auto">
+        <table className={GRID_TABLE}>
+          <thead className="text-[10px] uppercase text-textFaint">
+            <tr>
+              <th>предмет</th>
+              <th>в магазина</th>
+              <th>метал</th>
+              <th>кристал</th>
+              <th>кредити</th>
+              <th>продажба дава</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((group) => (
+              <Fragment key={group}>
+                <tr>
+                  <td colSpan={6} className="pt-3 text-[11px] font-semibold text-textMuted">
+                    {group}
+                  </td>
+                </tr>
+                {visible
+                  .filter((i) => shopGroup(i) === group)
+                  .map((i) => (
+                    <tr key={i.key} className={underpriced(i) ? 'text-danger' : ''}>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <ItemIcon iconAssetId={i.iconAssetId} className="h-7 w-7 shrink-0 object-contain" />
+                          <span>{resolveMessageKey(i.nameKey)}</span>
+                        </div>
+                      </td>
+                      <td className="text-center">
+                        <input type="checkbox" checked={i.inShop} onChange={(e) => update(i.key, { inShop: e.target.checked })} className="h-4 w-4 accent-accent" />
+                      </td>
+                      {(['priceMetal', 'priceCrystal', 'priceCredits'] as const).map((field) => (
+                        <td key={field}>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            disabled={!i.inShop}
+                            value={i[field]}
+                            onChange={(e) => update(i.key, { [field]: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
+                            className={priceInput}
+                          />
+                        </td>
+                      ))}
+                      <td className="tabular-nums text-textMuted">
+                        {i.sell ? `${gmNumber(i.sell.metal)} / ${gmNumber(i.sell.crystal)} (до ${gmNumber(i.sell.maxMetal)} / ${gmNumber(i.sell.maxCrystal)})` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

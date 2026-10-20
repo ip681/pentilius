@@ -51,6 +51,9 @@ function RewardSummary({ report }: { report: BattleReportDto }) {
       {report.lootSummary.map((loot, index) => (
         <LootEntry key={index} loot={loot} />
       ))}
+      {report.lostLoot.map((loot, index) => (
+        <LootEntry key={`lost-${index}`} loot={loot} lost />
+      ))}
     </span>
   );
 }

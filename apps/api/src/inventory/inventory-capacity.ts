@@ -26,6 +26,15 @@ export function getUsedInventorySlots(playerId: string, tx: Tx): Promise<number>
 }
 
 /**
+ * The one check for "is there room for one more item row" — used by every way an
+ * item reaches a player: grantItem below (loot, Shop, boxes, rewards) and a Market purchase.
+ */
+export async function hasFreeInventorySlot(playerId: string, tx: Tx): Promise<boolean> {
+  const [used, capacity] = await Promise.all([getUsedInventorySlots(playerId, tx), getEffectiveInventoryCapacity(playerId, tx)]);
+  return used < capacity;
+}
+
+/**
  * Grants one unit of an item to a player, server-authoritative on capacity.
  * A CONSUMABLE stacks onto its existing (unequipped) row for free — stacking
  * never needs a new slot, so it's never blocked by a full inventory. Anything
@@ -47,7 +56,7 @@ export async function grantItem(
   playerId: string,
   itemDefinitionId: string,
   tx: Tx,
-  overrides: { quality?: ItemQuality } = {},
+  overrides: { quality?: ItemQuality; ignoreCapacity?: boolean } = {},
 ): Promise<boolean> {
   const itemDefinition = await tx.itemDefinition.findUniqueOrThrow({ where: { id: itemDefinitionId } });
 
@@ -66,8 +75,9 @@ export async function grantItem(
     }
   }
 
-  const [used, capacity] = await Promise.all([getUsedInventorySlots(playerId, tx), getEffectiveInventoryCapacity(playerId, tx)]);
-  if (used >= capacity) {
+  // Recycling always gives its fragments/stones (owner decision, 2026-10-20): it frees slots itself,
+  // and a new stack could otherwise be lost when the recycled items were the last free room.
+  if (!overrides.ignoreCapacity && !(await hasFreeInventorySlot(playerId, tx))) {
     return false;
   }
 

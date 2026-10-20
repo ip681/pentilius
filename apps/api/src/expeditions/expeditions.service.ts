@@ -143,12 +143,15 @@ export class ExpeditionsService {
 
       // A random item of the set of the player's highest unlocked zone (owner decision, 2026-10-19).
       let bonusItem: ExpeditionClaimResultDto['bonusItem'] = null;
+      let bonusItemLost: ExpeditionClaimResultDto['bonusItemLost'] = null;
       const tier = await this.bonusTier(level, balance.pentili, tx);
       if (tier && expeditionType.bonusItemChance && Math.random() < expeditionType.bonusItemChance) {
         const slot = EQUIPMENT_SLOTS[Math.floor(Math.random() * EQUIPMENT_SLOTS.length)];
         const definition = await tx.itemDefinition.findUnique({ where: { key: equipmentItemKey(tier, slot) } });
-        if (definition && (await grantItem(playerId, definition.id, tx))) {
-          bonusItem = { itemDefinitionKey: definition.key, itemNameKey: definition.nameKey, itemIconAssetId: definition.iconAssetId };
+        if (definition) {
+          const found = { itemDefinitionKey: definition.key, itemNameKey: definition.nameKey, itemIconAssetId: definition.iconAssetId };
+          if (await grantItem(playerId, definition.id, tx)) bonusItem = found;
+          else bonusItemLost = found;
         }
       }
 
@@ -160,6 +163,7 @@ export class ExpeditionsService {
       return {
         rewards: { ...resources, xp: earned.xp },
         bonusItem,
+        bonusItemLost,
         leveledUp,
         playerLevel: player.level,
       };
@@ -204,7 +208,7 @@ export class ExpeditionsService {
 
       await tx.playerExpedition.update({ where: { id: active.id }, data: { claimedAt: new Date(), cancelled: true } });
 
-      return { rewards, bonusItem: null, leveledUp, playerLevel: player.level };
+      return { rewards, bonusItem: null, bonusItemLost: null, leveledUp, playerLevel: player.level };
     });
   }
 }

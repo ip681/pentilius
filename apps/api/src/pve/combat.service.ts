@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CombatRoundDto, CombatStatsDto } from '@pentilius/shared';
 import { ItemOption, Prisma, ResearchBonusType } from '@prisma/client';
 import { equipmentRuntime } from '../config/equipment-balance';
-import { GAME_BALANCE } from '../config/game-config';
+import { DamageFormula, GAME_BALANCE } from '../config/game-config';
 import { ClanBonusService } from '../player/clan-bonus.service';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -351,7 +351,7 @@ function resolveHit(
   defender: { defense: number; damageDecrease?: number; damageReflect?: number },
 ): HitResult {
   const variance = 1 - GAME_BALANCE.combat.damageVariance + Math.random() * (2 * GAME_BALANCE.combat.damageVariance);
-  let damage = (attacker.attack - defender.defense * 0.5) * variance;
+  let damage = baseHitDamage(attacker.attack, defender.defense) * variance;
 
   const critical = Math.random() < GAME_BALANCE.combat.criticalChance;
   if (critical) {
@@ -363,6 +363,14 @@ function resolveHit(
 
   const reflected = Math.round(damage * (defender.damageReflect ?? 0));
   return { damage, reflected, critical };
+}
+
+/** A hit's damage before variance, crits and item options — see GAME_BALANCE.combat.damageFormula. */
+export function baseHitDamage(attack: number, defense: number, formula: DamageFormula = GAME_BALANCE.combat.damageFormula): number {
+  if (formula === 'ratio') {
+    return attack + defense > 0 ? (attack * attack) / (attack + defense) : 0;
+  }
+  return attack - defense * GAME_BALANCE.combat.defenseFactor;
 }
 
 /** Rounds raw CombatStats for client display (PvP scout, the robot page's own summary, etc.). */

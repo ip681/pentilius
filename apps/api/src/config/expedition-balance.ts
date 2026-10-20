@@ -48,10 +48,27 @@ export interface ExpeditionRewards {
   xp: number;
 }
 
-/** What an expedition pays a player of this level (before the Navigation research). */
+/**
+ * What an expedition pays a player of this level (before the Navigation
+ * research). A Pentil's rewards are its curve × its zone's strength, so the
+ * zone whose Pentili are at this level counts here too (owner decision,
+ * 2026-10-20) — with zone strengths above 1 an expedition would otherwise pay
+ * less than the fights it stands for.
+ */
 export function expeditionRewards(expedition: ExpeditionBalance, pentili: PentiliBalanceConfig, level: number): ExpeditionRewards {
-  const at = (curve: { base: number; growth: number }) => Math.max(1, Math.round(expedition.fights * curve.base * Math.pow(level, curve.growth)));
+  const zoneStrength = zoneStrengthAtLevel(pentili, level);
+  const at = (curve: { base: number; growth: number }) =>
+    Math.max(1, Math.round(expedition.fights * curve.base * Math.pow(level, curve.growth) * zoneStrength));
   return { metal: at(pentili.rewards.metal), crystal: at(pentili.rewards.crystal), xp: at(pentili.stats.xp) };
+}
+
+/** Strength of the zone whose Pentili are at this level: the zone with the highest start level not above it. */
+function zoneStrengthAtLevel(pentili: PentiliBalanceConfig, level: number): number {
+  let best: { startLevel: number; strength: number } | null = null;
+  for (const zone of Object.values(pentili.zones)) {
+    if (zone.startLevel <= level && (!best || zone.startLevel > best.startLevel)) best = zone;
+  }
+  return best?.strength ?? 1;
 }
 
 export async function loadExpeditionBalance(db: Db): Promise<ExpeditionBalanceConfig> {

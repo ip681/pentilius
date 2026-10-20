@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { MarketListingDto, MyMarketListingsDto } from '@pentilius/shared';
 import { ItemDefinition, ItemInstance, MarketListing, Player, Prisma } from '@prisma/client';
+import { hasFreeInventorySlot } from '../inventory/inventory-capacity';
 import { computeItemStats } from '../inventory/inventory.service';
 import { marketSlots } from '../base/building-effects';
 import { isVip } from '../vip/vip';
@@ -171,6 +172,12 @@ export class MarketService {
       const buyer = await tx.player.findUniqueOrThrow({ where: { id: buyerId } });
       if (buyer.metal < listing.priceMetal || buyer.crystal < listing.priceCrystal || buyer.credits < listing.priceCredits) {
         throw new BadRequestException('NOT_ENOUGH_RESOURCES');
+      }
+      // A bought item needs a free slot, like every other way of getting one (grantItem).
+      // Only set items are listable and they never stack, so this always needs a new slot —
+      // if consumables are ever listed, a buyer's existing stack must be allowed like in grantItem.
+      if (!(await hasFreeInventorySlot(buyerId, tx))) {
+        throw new BadRequestException('INVENTORY_FULL');
       }
 
       await tx.player.update({

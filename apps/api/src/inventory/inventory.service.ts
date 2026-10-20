@@ -59,7 +59,7 @@ export class InventoryService {
     }
     const effects = await this.researchEffects(playerId, tx);
 
-    return { items: items.map((item) => toInventoryItemDto(item, ownedFragmentsByTier, effects)), capacity, used };
+    return { items: items.map((item) => toInventoryItemDto(item, ownedFragmentsByTier, effects)), capacity, used, nearlyFullSlots: GAME_BALANCE.inventory.nearlyFullSlots, bulkMaxItems: GAME_BALANCE.itemBulk.maxItems };
   }
 
   /** Metallurgy and Recycling research effects (owner decision, 2026-10-14). */
@@ -123,49 +123,76 @@ export class InventoryService {
   }
 
   async sellItem(playerId: string, itemInstanceId: string): Promise<InventoryResponseDto> {
+    return this.sellItems(playerId, [itemInstanceId]);
+  }
+
+  async recycleItem(playerId: string, itemInstanceId: string): Promise<InventoryResponseDto> {
+    return this.recycleItems(playerId, [itemInstanceId]);
+  }
+
+  /**
+   * Sells several set items at once (owner decision, 2026-10-20) — one
+   * transaction: every item is checked first, so either all are sold or none.
+   */
+  async sellItems(playerId: string, itemInstanceIds: string[]): Promise<InventoryResponseDto> {
     return this.prisma.$transaction(async (tx) => {
-      const item = await tx.itemInstance.findUnique({
-        where: { id: itemInstanceId },
-        include: { itemDefinition: true },
-      });
-      if (!item) {
-        throw new NotFoundException('Item not found');
+      const items = await this.loadOwnFreeEquipment(playerId, itemInstanceIds, 'ITEM_NOT_SELLABLE', tx);
+      const { sellMultiplier } = await this.researchEffects(playerId, tx);
+      let metal = 0;
+      let crystal = 0;
+      for (const item of items) {
+        const value = computeSellValue(item.itemDefinition.tier!, item.quality, sellMultiplier);
+        metal += value.metal;
+        crystal += value.crystal;
       }
-      if (item.playerId !== playerId) {
-        throw new ForbiddenException('Item does not belong to this player');
-      }
-      if (item.itemDefinition.category !== 'EQUIPMENT') {
-        throw new BadRequestException('ITEM_NOT_SELLABLE');
-      }
-      if (item.equippedSlot !== null) {
-        throw new BadRequestException('ITEM_EQUIPPED');
-      }
-      if (item.listedForSale) {
-        throw new BadRequestException('ITEM_LISTED');
-      }
-
-      const { metal, crystal } = computeSellValue(item.itemDefinition.tier!, item.quality, (await this.researchEffects(playerId, tx)).sellMultiplier);
       await tx.player.update({ where: { id: playerId }, data: { metal: { increment: metal }, crystal: { increment: crystal } } });
-      await tx.itemInstance.delete({ where: { id: itemInstanceId } });
-
+      await tx.itemInstance.deleteMany({ where: { id: { in: items.map((i) => i.id) } } });
       return this.getInventory(playerId, tx);
     });
   }
 
-  async recycleItem(playerId: string, itemInstanceId: string): Promise<InventoryResponseDto> {
+  /**
+   * Recycles several set items at once (owner decision, 2026-10-20) into their
+   * set's fragments, then turns every full stack into upgrade stones — one
+   * transaction, all or none.
+   */
+  async recycleItems(playerId: string, itemInstanceIds: string[]): Promise<InventoryResponseDto> {
     return this.prisma.$transaction(async (tx) => {
-      const item = await tx.itemInstance.findUnique({
-        where: { id: itemInstanceId },
-        include: { itemDefinition: true },
-      });
-      if (!item) {
-        throw new NotFoundException('Item not found');
+      const items = await this.loadOwnFreeEquipment(playerId, itemInstanceIds, 'ITEM_NOT_RECYCLABLE', tx);
+      const perItem = GAME_BALANCE.itemRecycle.fragmentsPerItem + (await this.researchEffects(playerId, tx)).extraFragments;
+      const byTier = new Map<ItemTier, number>();
+      for (const item of items) {
+        const tier = item.itemDefinition.tier!;
+        byTier.set(tier, (byTier.get(tier) ?? 0) + perItem);
       }
+      await tx.itemInstance.deleteMany({ where: { id: { in: items.map((i) => i.id) } } });
+      for (const [tier, fragments] of byTier) {
+        const fragmentDefinition = await tx.itemDefinition.findUniqueOrThrow({ where: { key: FRAGMENT_KEYS_BY_TIER[tier] } });
+        for (let i = 0; i < fragments; i++) {
+          await grantItem(playerId, fragmentDefinition.id, tx, { ignoreCapacity: true });
+        }
+        await this.convertFragmentsToStones(playerId, tier, fragmentDefinition.id, tx);
+      }
+      return this.getInventory(playerId, tx);
+    });
+  }
+
+  /** The player's own set items, none equipped or on the Market — or the whole request fails. */
+  private async loadOwnFreeEquipment(playerId: string, itemInstanceIds: string[], notAllowedCode: string, tx: Prisma.TransactionClient) {
+    const ids = [...new Set(itemInstanceIds)];
+    if (ids.length === 0 || ids.length > GAME_BALANCE.itemBulk.maxItems) {
+      throw new BadRequestException('TOO_MANY_ITEMS');
+    }
+    const items = await tx.itemInstance.findMany({ where: { id: { in: ids } }, include: { itemDefinition: true } });
+    if (items.length !== ids.length) {
+      throw new NotFoundException('Item not found');
+    }
+    for (const item of items) {
       if (item.playerId !== playerId) {
         throw new ForbiddenException('Item does not belong to this player');
       }
       if (item.itemDefinition.category !== 'EQUIPMENT') {
-        throw new BadRequestException('ITEM_NOT_RECYCLABLE');
+        throw new BadRequestException(notAllowedCode);
       }
       if (item.equippedSlot !== null) {
         throw new BadRequestException('ITEM_EQUIPPED');
@@ -173,36 +200,28 @@ export class InventoryService {
       if (item.listedForSale) {
         throw new BadRequestException('ITEM_LISTED');
       }
+    }
+    return items;
+  }
 
-      const tier = item.itemDefinition.tier!;
-      const fragmentDefinition = await tx.itemDefinition.findUniqueOrThrow({ where: { key: FRAGMENT_KEYS_BY_TIER[tier] } });
-      const fragments = GAME_BALANCE.itemRecycle.fragmentsPerItem + (await this.researchEffects(playerId, tx)).extraFragments;
-      for (let i = 0; i < fragments; i++) {
-        await grantItem(playerId, fragmentDefinition.id, tx);
+  /** Auto-convert every full stack of a set's fragments into its upgrade stone (owner decision). */
+  private async convertFragmentsToStones(playerId: string, tier: ItemTier, fragmentDefinitionId: string, tx: Prisma.TransactionClient): Promise<void> {
+    const fragmentsPerStone = equipmentRuntime().upgrade.fragmentsPerStone;
+    let fragmentStack = await tx.itemInstance.findFirst({ where: { playerId, itemDefinitionId: fragmentDefinitionId, equippedSlot: null } });
+    if (!fragmentStack || fragmentStack.quantity < fragmentsPerStone) return;
+    const upgradeStoneDefinition = await tx.itemDefinition.findUniqueOrThrow({ where: { key: `${tier.toLowerCase()}_upgrade` } });
+    while (fragmentStack && fragmentStack.quantity >= fragmentsPerStone) {
+      if (fragmentStack.quantity === fragmentsPerStone) {
+        await tx.itemInstance.delete({ where: { id: fragmentStack.id } });
+        fragmentStack = null;
+      } else {
+        fragmentStack = await tx.itemInstance.update({
+          where: { id: fragmentStack.id },
+          data: { quantity: { decrement: fragmentsPerStone } },
+        });
       }
-      await tx.itemInstance.delete({ where: { id: itemInstanceId } });
-
-      // Auto-convert every full stack of fragments into an upgrade stone (owner decision).
-      const fragmentsPerStone = equipmentRuntime().upgrade.fragmentsPerStone;
-      let fragmentStack = await tx.itemInstance.findFirst({ where: { playerId, itemDefinitionId: fragmentDefinition.id, equippedSlot: null } });
-      if (fragmentStack && fragmentStack.quantity >= fragmentsPerStone) {
-        const upgradeStoneDefinition = await tx.itemDefinition.findUniqueOrThrow({ where: { key: `${tier.toLowerCase()}_upgrade` } });
-        while (fragmentStack && fragmentStack.quantity >= fragmentsPerStone) {
-          if (fragmentStack.quantity === fragmentsPerStone) {
-            await tx.itemInstance.delete({ where: { id: fragmentStack.id } });
-            fragmentStack = null;
-          } else {
-            fragmentStack = await tx.itemInstance.update({
-              where: { id: fragmentStack.id },
-              data: { quantity: { decrement: fragmentsPerStone } },
-            });
-          }
-          await grantItem(playerId, upgradeStoneDefinition.id, tx);
-        }
-      }
-
-      return this.getInventory(playerId, tx);
-    });
+      await grantItem(playerId, upgradeStoneDefinition.id, tx, { ignoreCapacity: true });
+    }
   }
 
   async useConsumable(playerId: string, itemInstanceId: string, buildingKey?: string): Promise<InventoryResponseDto> {

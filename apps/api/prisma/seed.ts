@@ -6,6 +6,7 @@ import { applyEquipmentBalance, DEFAULT_EQUIPMENT_BALANCE, EQUIPMENT_BALANCE_KEY
 import { applyExpeditionBalance, DEFAULT_EXPEDITION_BALANCE, EXPEDITION_BALANCE_KEY, loadExpeditionBalance } from '../src/config/expedition-balance';
 import { applyBossBalance, BOSS_BALANCE_KEY, DEFAULT_BOSS_BALANCE, loadBossBalance } from '../src/config/boss-balance';
 import { applyXpBalance, DEFAULT_XP_BALANCE, loadXpBalance, XP_BALANCE_KEY } from '../src/config/xp-balance';
+import { GAME_BALANCE } from '../src/config/game-config';
 
 const prisma = new PrismaClient();
 
@@ -378,30 +379,29 @@ async function main() {
       maxUpgradeLevel: 0,
       iconAssetId: 'items.coreforged_box.icon',    },
   ];
-  // System Shop (owner decision, testing-phase only) — cycles through every
-  // non-empty combination of the 3 currencies at 1 unit each, so the Shop UI
-  // can be exercised against every price-display case before real per-item
-  // prices are set. See instructions/OPEN_DECISIONS.md.
-  const SHOP_PRICE_COMBOS = [
-    { shopPriceMetal: 1, shopPriceCrystal: 0, shopPriceCredits: 0 },
-    { shopPriceMetal: 0, shopPriceCrystal: 1, shopPriceCredits: 0 },
-    { shopPriceMetal: 0, shopPriceCrystal: 0, shopPriceCredits: 1 },
-    { shopPriceMetal: 1, shopPriceCrystal: 1, shopPriceCredits: 0 },
-    { shopPriceMetal: 1, shopPriceCrystal: 0, shopPriceCredits: 1 },
-    { shopPriceMetal: 0, shopPriceCrystal: 1, shopPriceCredits: 1 },
-    { shopPriceMetal: 1, shopPriceCrystal: 1, shopPriceCredits: 1 },
-  ];
+  // The Shop (owner decision, 2026-10-20): a new database sells what
+  // GAME_BALANCE.shopDefaults lists; afterwards the owner decides, so the
+  // update below never touches inShop or the prices.
+  const shop = GAME_BALANCE.shopDefaults;
+  const shopItemKeys = new Set<string>(shop.itemKeys);
   const itemsByKey: Record<string, Awaited<ReturnType<typeof prisma.itemDefinition.upsert>>> = {};
-  for (const [index, data] of itemData.entries()) {
+  for (const data of itemData) {
     // update: data (not {}) — category/slot/baseStats must follow this list
     // when it changes, not freeze at whatever an existing row already has.
-    const priced = { ...data, ...SHOP_PRICE_COMBOS[index % SHOP_PRICE_COMBOS.length] };
+    const sold = shopItemKeys.has(data.key);
+    const create = {
+      ...data,
+      inShop: sold,
+      shopPriceMetal: sold ? shop.priceMetal : 0,
+      shopPriceCrystal: sold ? shop.priceCrystal : 0,
+      shopPriceCredits: sold ? shop.priceCredits : 0,
+    };
     // Set items' stats and max upgrade come from the equipment balance in
     // godmaster since 2026-10-19 — not overwritten here (the list's values
     // only matter for a new database, and equal the defaults).
-    const { baseStats, maxUpgradeLevel, ...rest } = priced;
+    const { baseStats, maxUpgradeLevel, ...rest } = data;
     const update = equipmentKeys.has(data.key) ? rest : { ...rest, baseStats, maxUpgradeLevel };
-    itemsByKey[data.key] = await prisma.itemDefinition.upsert({ where: { key: data.key }, update, create: priced });
+    itemsByKey[data.key] = await prisma.itemDefinition.upsert({ where: { key: data.key }, update, create });
   }
 
   // Equipment sets from the balance (owner decision, 2026-10-19): save the

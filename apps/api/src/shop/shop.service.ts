@@ -14,7 +14,8 @@ export class ShopService {
   ) {}
 
   async getShopItems(): Promise<ShopResponseDto> {
-    const items = await this.prisma.itemDefinition.findMany({ orderBy: { key: 'asc' } });
+    // Only what the owner put in the Shop (owner decision, 2026-10-20).
+    const items = await this.prisma.itemDefinition.findMany({ where: { inShop: true }, orderBy: { key: 'asc' } });
     return {
       items: items.map(
         (item): ShopItemDto => ({
@@ -38,7 +39,8 @@ export class ShopService {
   async buyItem(playerId: string, itemKey: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const itemDefinition = await tx.itemDefinition.findUnique({ where: { key: itemKey } });
-      if (!itemDefinition) {
+      // Anything not in the Shop can't be bought, whatever the client sends.
+      if (!itemDefinition || !itemDefinition.inShop) {
         throw new NotFoundException('Item not found');
       }
 
