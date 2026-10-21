@@ -25,6 +25,7 @@ import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
 import { EnergyRefill } from '@/components/EnergyRefill';
 import { formatNumber } from '@/lib/format-number';
+import { ClanEmblem } from '@/components/ClanEmblem';
 
 interface LogLine {
   text: React.ReactNode;
@@ -233,11 +234,13 @@ export default function ClanWarPage() {
         <>
           <section className="mb-6 rounded-lg border border-panelBorderDanger bg-panel p-5">
             <div className="mb-2 flex items-center justify-between text-xs">
-              <span className="font-semibold text-positive">
+              <span className="flex items-center gap-1.5 font-semibold text-positive">
+                <ClanEmblem emblem={war.myClanEmblem} size={24} />
                 [{war.myClanTag}] {war.myClanName}
               </span>
-              <span className="font-semibold text-danger">
+              <span className="flex items-center gap-1.5 font-semibold text-danger">
                 [{war.enemyClanTag}] {war.enemyClanName}
+                <ClanEmblem emblem={war.enemyClanEmblem} size={24} />
               </span>
             </div>
             <div className="mb-2 flex h-4 overflow-hidden rounded-full bg-wellBorder">

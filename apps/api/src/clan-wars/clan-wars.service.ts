@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { toClanEmblemDto } from '../clans/clan-emblem';
 import {
   ClanWarAttackReportDto,
   ClanWarContributionsDto,
@@ -493,9 +494,11 @@ export class ClanWarsService {
       myClanId,
       myClanName: myClan.name,
       myClanTag: myClan.tag,
+      myClanEmblem: toClanEmblemDto(myClan),
       enemyClanId,
       enemyClanName: enemyClan.name,
       enemyClanTag: enemyClan.tag,
+      enemyClanEmblem: toClanEmblemDto(enemyClan),
       startedAt: war.startedAt.toISOString(),
       endsAt: war.endsAt.toISOString(),
       resolvedAt: war.resolvedAt?.toISOString() ?? null,

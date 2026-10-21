@@ -15,6 +15,8 @@ import type {
   BoxOpenResultDto,
   BuildingStateDto,
   ClanDetailDto,
+  ClanEmblemChoiceDto,
+  ClanEmblemOptionsDto,
   ClanLeaderboardPageDto,
   ClanLeaderboardSortBy,
   ClanMessageDto,
@@ -225,8 +227,14 @@ export function login(payload: LoginRequest): Promise<AuthResponse> {
 }
 
 /** The menu dots — a light check kept out of the profile. */
-export function getNotifications(): Promise<NotificationsDto> {
-  return request<NotificationsDto>('/player/me/notifications', { auth: true });
+// `locale` picks the staff announcements' language (owner decision, 2026-10-21).
+export function getNotifications(locale?: string): Promise<NotificationsDto> {
+  const query = locale ? `?locale=${encodeURIComponent(locale)}` : '';
+  return request<NotificationsDto>(`/player/me/notifications${query}`, { auth: true });
+}
+
+export function dismissAnnouncement(id: string): Promise<void> {
+  return request<void>(`/player/me/announcements/${encodeURIComponent(id)}/dismiss`, { method: 'POST', auth: true });
 }
 
 // --- Notifications and Web Push (owner decision, 2026-10-13) ---
@@ -690,6 +698,15 @@ export function getMyClan(): Promise<MyClanResponseDto> {
 
 export function getClan(clanId: string): Promise<ClanDetailDto> {
   return request<ClanDetailDto>(`/clans/${clanId}`, { auth: true });
+}
+
+// Clan emblem (owner decision, 2026-10-21).
+export function getClanEmblemOptions(): Promise<ClanEmblemOptionsDto> {
+  return request<ClanEmblemOptionsDto>('/clans/emblem-options', { auth: true });
+}
+
+export function updateClanEmblem(choice: ClanEmblemChoiceDto): Promise<ClanDetailDto> {
+  return request<ClanDetailDto>('/clans/emblem', { method: 'POST', auth: true, body: choice });
 }
 
 export function updateClan(payload: { name?: string; description?: string }): Promise<ClanDetailDto> {

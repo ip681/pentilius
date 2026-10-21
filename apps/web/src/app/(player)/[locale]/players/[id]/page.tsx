@@ -27,6 +27,7 @@ import {
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
 import { formatNumber } from '@/lib/format-number';
+import { ClanLink } from '@/components/ClanLink';
 
 export default function PlayerProfilePage() {
   useRequireAuth();
@@ -140,7 +141,9 @@ export default function PlayerProfilePage() {
       {error && <p className="mb-4 text-red-400">{error}</p>}
 
       {profile && (
-        <section className="max-w-xl rounded-lg border border-panelBorder bg-panel p-6">
+        <section className="grid max-w-5xl grid-cols-1 gap-x-8 rounded-lg border border-panelBorder bg-panel p-4 sm:p-6 lg:grid-cols-2">
+          {/* Wide screens: who and the actions on the left, seasons and bio on the right. */}
+          <div className="min-w-0">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <PlayerAvatarFrame avatarKey={profile.selectedAvatarKey} frameKey={profile.selectedFrameKey} className="h-14 w-14 shrink-0" />
@@ -162,7 +165,9 @@ export default function PlayerProfilePage() {
             <span>
               {profile.clan ? (
                 <>
-                  {t('profile.clan')}: [{profile.clan.tag}] {profile.clan.name} · {t(`clans.roleLabel.${profile.clan.role}`)}
+                  {t('profile.clan')}:{' '}
+                  <ClanLink clanId={profile.clan.id} tag={profile.clan.tag} name={profile.clan.name} emblem={profile.clan.emblem} emblemSize={20} /> ·{' '}
+                  {t(`clans.roleLabel.${profile.clan.role}`)}
                 </>
               ) : (
                 t('profile.noClan')
@@ -278,6 +283,9 @@ export default function PlayerProfilePage() {
             />
           )}
 
+          </div>
+
+          <div className="min-w-0">
           {/* Past seasons (owner decision, 2026-10-13), newest first. */}
           {profile.seasonHistory.length > 0 && (
             <div className="mb-4 rounded-md border border-wellBorder bg-well p-4">
@@ -348,12 +356,7 @@ export default function PlayerProfilePage() {
               <p className="text-sm text-textMuted">{profile.bio || t('profile.noBio')}</p>
             )}
           </div>
-
-          {profile.clan && (
-            <Link href="/clans" className="mt-4 inline-block text-xs text-accent underline">
-              {t('profile.viewClan')}
-            </Link>
-          )}
+          </div>
         </section>
       )}
     </GameLayout>

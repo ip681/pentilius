@@ -9,19 +9,19 @@ import { onNotificationsChanged } from './notifications-events';
 // useFriendsUnread: once per page (GameLayout remounts per page) and when
 // notifyNotificationsChanged() fires. No polling, and not part of the profile.
 // Also carries the timers and the last PvP defense for NotificationCenter.
-export function useNotifications(enabled: boolean): NotificationsDto | null {
+export function useNotifications(enabled: boolean, locale?: string): NotificationsDto | null {
   const [state, setState] = useState<NotificationsDto | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
     function refresh() {
-      getNotifications()
+      getNotifications(locale)
         .then(setState)
         .catch(() => undefined);
     }
     refresh();
     return onNotificationsChanged(refresh);
-  }, [enabled]);
+  }, [enabled, locale]);
 
   return state;
 }

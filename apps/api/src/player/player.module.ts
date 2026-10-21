@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AnnouncementsModule } from '../announcements/announcements.module';
 import { AchievementsController } from '../achievements/achievements.controller';
 import { AchievementsService } from '../achievements/achievements.service';
 import { DailyTasksController } from '../daily-tasks/daily-tasks.controller';
@@ -12,6 +13,7 @@ import { PlayerController } from './player.controller';
 import { PlayerService } from './player.service';
 
 @Module({
+  imports: [AnnouncementsModule],
   controllers: [PlayerController, DailyTasksController, AchievementsController, NotificationsController],
   providers: [PlayerService, EconomyService, ClanBonusService, DailyTasksService, AchievementsService, PushService, PushSchedulerService],
   exports: [EconomyService, ClanBonusService, DailyTasksService, AchievementsService, PushService],

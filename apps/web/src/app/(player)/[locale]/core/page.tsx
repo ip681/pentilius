@@ -268,7 +268,7 @@ function StandingRow({ standing }: { standing: CoreStandingDto }) {
           </span>
           <span className="truncate">
             {standing.clanId ? (
-              <ClanLink clanId={standing.clanId} tag={standing.clanTag} name={standing.clanName} />
+              <ClanLink clanId={standing.clanId} tag={standing.clanTag} name={standing.clanName} emblem={standing.emblem} />
             ) : (
               `[${standing.clanTag}] ${standing.clanName}`
             )}

@@ -12,6 +12,7 @@ import { getCachedProfile, setCachedProfile } from '@/lib/profile-cache';
 import { useFriendsUnread } from '@/lib/use-friends-unread';
 import { useNotifications } from '@/lib/use-notifications';
 import { NotificationCenter } from '@/components/NotificationCenter';
+import { AnnouncementBanners } from '@/components/AnnouncementBanners';
 import { BottomNav } from './BottomNav';
 import { RaceSelectModal } from './RaceSelectModal';
 import { Sidebar } from './Sidebar';
@@ -23,8 +24,8 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const hasUnreadFriends = useFriendsUnread();
-  const notifications = useNotifications(loggedIn);
   const locale = useLocale();
+  const notifications = useNotifications(loggedIn, locale);
   const t = useTranslations();
   const pathname = usePathname();
   const router = useRouter();
@@ -137,6 +138,7 @@ export function GameLayout({ children }: { children: React.ReactNode }) {
               </button>
             </div>
           )}
+          {notifications?.announcements && <AnnouncementBanners announcements={notifications.announcements} />}
           {children}
         </main>
       </div>

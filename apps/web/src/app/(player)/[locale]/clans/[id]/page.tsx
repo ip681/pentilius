@@ -13,6 +13,7 @@ import { Link } from '@/i18n/navigation';
 import { ApiError, declareClanWar, getClan, getClanWarStatus, getMyClan, getProfile, getRobotAttributes, joinClan } from '@/lib/api-client';
 import { hasAnyRequirement, meetsJoinRequirements } from '@/lib/clan-requirements';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { ClanEmblem } from '@/components/ClanEmblem';
 
 export default function ClanDetailPage() {
   useRequireAuth();
@@ -107,10 +108,14 @@ export default function ClanDetailPage() {
       {error && <p className="mb-4 text-red-400">{error}</p>}
 
       {clan && (
-        <section className="max-w-xl rounded-lg border border-panelBorder bg-panel p-6">
-          <div className="mb-1 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">
-              [{clan.tag}] {clan.name}
+        <section className="max-w-6xl rounded-lg border border-panelBorder bg-panel p-4 sm:p-6">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="flex min-w-0 items-center gap-3 text-xl font-semibold">
+              <ClanEmblem emblem={clan.emblem} size={72} className="sm:hidden" />
+              <ClanEmblem emblem={clan.emblem} size={96} className="hidden sm:inline-block" />
+              <span>
+                [{clan.tag}] {clan.name}
+              </span>
             </h2>
             <span className="text-xs text-textFaint">
               {clan.memberCount}/{clan.memberCap}
@@ -174,12 +179,13 @@ export default function ClanDetailPage() {
             </div>
           )}
 
-          {hasClan === false && (
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:gap-2">
+            {hasClan === false && (
             <button
               type="button"
               aria-disabled={full || !eligible}
               onClick={handleJoin}
-              className="mb-4 w-full rounded-md border border-accent bg-accentBg py-2 text-[11px] uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
+              className="mb-4 w-full rounded-md border border-accent bg-accentBg py-2 text-[11px] uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 sm:w-auto sm:px-8"
             >
               {t('clans.join')}
             </button>
@@ -196,11 +202,12 @@ export default function ClanDetailPage() {
                 }
                 setDeclareWarConfirmOpen(true);
               }}
-              className="mb-4 w-full rounded-md border border-panelBorderDanger bg-well py-2 text-[11px] uppercase text-danger hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30"
+              className="mb-4 w-full rounded-md border border-panelBorderDanger bg-well py-2 text-[11px] uppercase text-danger hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 sm:w-auto sm:px-8"
             >
               {t('clans.war.declareWar')}
             </button>
           )}
+          </div>
 
           <BottomSheet open={declareWarConfirmOpen} onClose={() => setDeclareWarConfirmOpen(false)}>
             <p className="mb-4 text-sm text-textMuted">{t('clans.war.confirmDeclareWar')}</p>
@@ -226,14 +233,14 @@ export default function ClanDetailPage() {
           </BottomSheet>
 
           {/* Same tile look as the own-clan page (picture, then "Name (level)"), read-only — description on hover. */}
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-5">
             {clan.buildings.map((building) => (
               <div
                 key={building.key}
                 title={t(building.descriptionKey)}
-                className="flex flex-col items-center rounded-lg border border-wellBorder bg-well p-3 text-center"
+                className="flex flex-col items-center rounded-lg border border-wellBorder bg-well p-2 text-center sm:p-3"
               >
-                <div className="mb-2 flex h-20 w-20 items-center justify-center sm:h-24 sm:w-24">
+                <div className="mb-2 flex h-14 w-14 items-center justify-center sm:h-24 sm:w-24">
                   <AssetIcon
                     assetId={`clanBuildings.${building.key}.icon`}
                     alt={t(building.nameKey)}
@@ -241,7 +248,7 @@ export default function ClanDetailPage() {
                     fallback={<span className="text-3xl font-semibold text-textMuted">{t(building.nameKey).charAt(0)}</span>}
                   />
                 </div>
-                <span className="text-xs font-semibold">
+                <span className="text-[11px] font-semibold sm:text-xs">
                   {t(building.nameKey)} <span className="text-textMuted">({building.level})</span>
                 </span>
               </div>
@@ -252,6 +259,7 @@ export default function ClanDetailPage() {
             <thead>
               <tr className="text-[10px] uppercase text-textFaint">
                 <th className="pb-2">{t('clans.member')}</th>
+                <th className="pb-2">{t('leaderboard.race')}</th>
                 <th className="pb-2">{t('clans.level')}</th>
                 <th className="pb-2">{t('clans.role')}</th>
               </tr>
@@ -261,6 +269,17 @@ export default function ClanDetailPage() {
                 <tr key={member.playerId} className="border-t border-wellBorder">
                   <td className="py-2">
                     <PlayerLink playerId={member.playerId} username={member.username} isVip={member.isVip} />
+                  </td>
+                  <td className="py-2 text-textMuted">
+                    <div className="flex items-center gap-1.5">
+                      <AssetIcon
+                        assetId={`races.${member.race.toLowerCase()}.icon`}
+                        alt={t(`race.${member.race}.name`)}
+                        className="h-4 w-4 object-contain"
+                        fallback={<div className="h-4 w-4 rounded-sm bg-accent opacity-60" />}
+                      />
+                      {t(`race.${member.race}.name`)}
+                    </div>
                   </td>
                   <td className="py-2">{member.level}</td>
                   <td className="py-2">{t(`clans.roleLabel.${member.role}`)}</td>

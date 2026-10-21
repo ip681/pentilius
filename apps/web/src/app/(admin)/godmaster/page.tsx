@@ -1,6 +1,11 @@
 'use client';
 
 import type {
+  AdminAnnouncementDto,
+  AdminAnnouncementsDto,
+  AnnouncementKind,
+  AnnouncementStatus,
+  SaveAnnouncementDto,
   AdminBuildingBalanceDto,
   AdminClanBalanceDto,
   AdminBossBalanceDto,
@@ -32,6 +37,7 @@ import type {
   AdminSupportTicketDetailDto,
   AdminSupportTicketsDto,
 } from '@pentilius/shared';
+import { SUPPORTED_LOCALES } from '@pentilius/shared';
 import { Fragment, useEffect, useRef, useState } from 'react';
 // Plain JSON import — godmaster deliberately has no next-intl setup (see the
 // (admin) layout comment), so item display names are resolved by hand from
@@ -252,6 +258,7 @@ const TABS = [
   { key: 'settings', label: 'Настройки' },
   { key: 'payments', label: 'Плащания' },
   { key: 'balance', label: 'Баланс' },
+  { key: 'announcements', label: 'Съобщения' },
 ] as const;
 type AdminTab = (typeof TABS)[number]['key'];
 
@@ -291,8 +298,8 @@ function AdminPanel({
   }
 
   // Every tab is visible to both roles (the Admins tab shows a MODERATOR only
-  // their own account) — except Payments, which is ADMIN only (the API re-checks).
-  const visibleTabs = TABS.filter((t) => (t.key !== 'payments' && t.key !== 'balance') || role === 'ADMIN');
+  // their own account) — except Payments, Balance and Announcements, which are ADMIN only (the API re-checks).
+  const visibleTabs = TABS.filter((t) => (t.key !== 'payments' && t.key !== 'balance' && t.key !== 'announcements') || role === 'ADMIN');
 
   // Conversations waiting for staff — the badge on the "Обратна връзка" tab.
   const [supportOpen, setSupportOpen] = useState(0);
@@ -370,6 +377,8 @@ function AdminPanel({
       {tab === 'payments' && role === 'ADMIN' && <PaymentsPanel />}
 
       {tab === 'balance' && role === 'ADMIN' && <BalancePanel />}
+
+      {tab === 'announcements' && role === 'ADMIN' && <AnnouncementsPanel />}
 
       {tab === 'settings' && (
         <>
@@ -1613,6 +1622,289 @@ const SEASON_ERROR_LABEL: Record<string, string> = {
   OPENING_TIME_MUST_BE_IN_FUTURE: 'Часът на отваряне трябва да е в бъдещето.',
   ADMIN_ROLE_REQUIRED: 'Само ADMIN може да променя настройките.',
 };
+
+const LOCALE_LABELS: Record<string, string> = { en: 'Английски', bg: 'Български' };
+const localeLabel = (code: string) => LOCALE_LABELS[code] ?? code.toUpperCase();
+
+const ANNOUNCEMENT_ERRORS: Record<string, string> = {
+  ENGLISH_TEXT_REQUIRED: 'Английският текст е задължителен.',
+  TEXT_TOO_LONG: 'Текстът е твърде дълъг.',
+  BAD_TIME_RANGE: 'Краят трябва да е след началото.',
+  UNKNOWN_LOCALE: 'Непознат език.',
+};
+const announcementError = (err: unknown) => {
+  const message = err instanceof Error ? err.message : '';
+  return Object.entries(ANNOUNCEMENT_ERRORS).find(([code]) => message.includes(code))?.[1] ?? (message || 'Грешка');
+};
+
+const STATUS_LABELS: Record<AnnouncementStatus, [string, string]> = {
+  SCHEDULED: ['Планирано', 'border-panelBorder text-textMuted'],
+  ACTIVE: ['Активно', 'border-positive text-positive'],
+  ENDED: ['Изтекло', 'border-panelBorder text-textFaint'],
+};
+
+type AnnouncementForm = {
+  id: string | null;
+  kind: AnnouncementKind;
+  texts: Record<string, string>;
+  everyone: boolean;
+  locales: string[];
+  startsAt: string;
+  endsAt: string;
+};
+
+function newAnnouncementForm(): AnnouncementForm {
+  const now = new Date();
+  return {
+    id: null,
+    kind: 'INFO',
+    texts: {},
+    everyone: true,
+    locales: [],
+    startsAt: toLocalInputValue(now.toISOString()),
+    endsAt: toLocalInputValue(new Date(now.getTime() + 24 * 3600_000).toISOString()),
+  };
+}
+
+/**
+ * godmaster → Съобщения (owner decision, 2026-10-21): banners at the top of every
+ * player page. English is required; a player whose language has no text gets English.
+ */
+function AnnouncementsPanel() {
+  const [data, setData] = useState<AdminAnnouncementsDto | null>(null);
+  const [form, setForm] = useState<AnnouncementForm | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    adminFetch<AdminAnnouncementsDto>('/admin/announcements')
+      .then(setData)
+      .catch((err) => setError(announcementError(err)));
+  }
+  useEffect(load, []);
+
+  function edit(a: AdminAnnouncementDto) {
+    setMessage(null);
+    setError(null);
+    setForm({
+      id: a.id,
+      kind: a.kind,
+      texts: { ...a.texts },
+      everyone: a.locales.length === 0,
+      locales: a.locales,
+      startsAt: toLocalInputValue(a.startsAt),
+      endsAt: toLocalInputValue(a.endsAt),
+    });
+  }
+
+  async function save() {
+    if (!form) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    const body: SaveAnnouncementDto = {
+      kind: form.kind,
+      texts: form.texts,
+      locales: form.everyone ? [] : form.locales,
+      startsAt: new Date(form.startsAt).toISOString(),
+      endsAt: new Date(form.endsAt).toISOString(),
+    };
+    try {
+      await adminFetch(form.id ? `/admin/announcements/${form.id}` : '/admin/announcements', { method: form.id ? 'PUT' : 'POST', body });
+      setForm(null);
+      setMessage('Записано.');
+      load();
+    } catch (err) {
+      setError(announcementError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function act(a: AdminAnnouncementDto, action: 'end' | 'delete') {
+    const question =
+      action === 'end' ? 'Да спра ли съобщението сега? Играчите спират да го виждат.' : 'Да изтрия ли съобщението завинаги? Няма връщане назад.';
+    if (!window.confirm(question)) return;
+    setError(null);
+    setMessage(null);
+    try {
+      await adminFetch(action === 'end' ? `/admin/announcements/${a.id}/end` : `/admin/announcements/${a.id}`, { method: action === 'end' ? 'POST' : 'DELETE' });
+      load();
+    } catch (err) {
+      setError(announcementError(err));
+    }
+  }
+
+  const max = data?.maxTextLength ?? 500;
+  const input = 'rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent';
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="rounded-lg border border-panelBorder bg-panel p-4">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Съобщения до играчите</h2>
+          {!form && (
+            <button type="button" onClick={() => setForm(newAnnouncementForm())} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover">
+              Ново съобщение
+            </button>
+          )}
+        </div>
+        <p className="text-[11px] text-textFaint">
+          Показват се най-горе на всяка страница между началото и края. Играчът може да ги затвори с ×. Английският текст е задължителен — който няма текст
+          на своя език, получава английския. Само текст, без линкове.
+        </p>
+        {message && <p className="mt-2 text-[11px] text-positive">{message}</p>}
+        {error && <p className="mt-2 text-[11px] text-danger">{error}</p>}
+      </div>
+
+      {form && (
+        <div className="flex flex-col gap-4 rounded-lg border border-accent bg-panel p-4">
+          <h3 className="text-sm font-semibold">{form.id ? 'Редакция' : 'Ново съобщение'}</h3>
+
+          <div className="flex flex-wrap gap-4 text-xs">
+            {(['INFO', 'IMPORTANT'] as const).map((kind) => (
+              <label key={kind} className="flex items-center gap-2">
+                <input type="radio" checked={form.kind === kind} onChange={() => setForm({ ...form, kind })} className="accent-accent" />
+                {kind === 'INFO' ? 'Информация' : 'Важно (златисто)'}
+              </label>
+            ))}
+          </div>
+
+          {SUPPORTED_LOCALES.map((code) => {
+            const text = form.texts[code] ?? '';
+            return (
+              <label key={code} className="flex flex-col gap-1 text-xs">
+                <span className="flex items-center justify-between gap-2">
+                  <span>
+                    {localeLabel(code)}
+                    {code === 'en' ? <span className="text-danger"> *</span> : <span className="text-textFaint"> (по желание)</span>}
+                    {text.trim() ? <span className="ml-2 text-positive">✓ попълнен</span> : code !== 'en' && <span className="ml-2 text-textFaint">→ ще получат английския</span>}
+                  </span>
+                  <span className={`tabular-nums ${text.length > max ? 'text-danger' : 'text-textFaint'}`}>
+                    {text.length}/{max}
+                  </span>
+                </span>
+                <textarea
+                  rows={3}
+                  value={text}
+                  onChange={(e) => setForm({ ...form, texts: { ...form.texts, [code]: e.target.value } })}
+                  className={`${input} resize-y`}
+                />
+              </label>
+            );
+          })}
+
+          <div className="flex flex-col gap-2 text-xs">
+            <span>Кой го вижда</span>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={form.everyone} onChange={() => setForm({ ...form, everyone: true })} className="accent-accent" />
+                Всички играчи
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={!form.everyone} onChange={() => setForm({ ...form, everyone: false })} className="accent-accent" />
+                Само играчите на езиците:
+              </label>
+              {!form.everyone &&
+                SUPPORTED_LOCALES.map((code) => (
+                  <label key={code} className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={form.locales.includes(code)}
+                      onChange={(e) =>
+                        setForm({ ...form, locales: e.target.checked ? [...form.locales, code] : form.locales.filter((l) => l !== code) })
+                      }
+                      className="accent-accent"
+                    />
+                    {localeLabel(code)}
+                  </label>
+                ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-4 text-xs">
+            <label className="flex flex-col gap-1">
+              начало (местно време)
+              <input type="datetime-local" value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} className={input} />
+            </label>
+            <label className="flex flex-col gap-1">
+              край (местно време)
+              <input type="datetime-local" value={form.endsAt} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} className={input} />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-2 text-xs">
+            <span className="text-textFaint">Преглед</span>
+            {SUPPORTED_LOCALES.filter((code) => form.everyone || form.locales.includes(code)).map((code) => {
+              const text = form.texts[code]?.trim() ? form.texts[code] : (form.texts.en ?? '');
+              const important = form.kind === 'IMPORTANT';
+              return (
+                <div key={code} className={`rounded-lg border px-4 py-3 ${important ? 'border-gold bg-gold/10' : 'border-panelBorder bg-ink'}`}>
+                  <div className={`mb-1 text-[9px] font-semibold uppercase tracking-wide ${important ? 'text-gold' : 'text-textFaint'}`}>
+                    {localeLabel(code)} · {important ? 'Важно' : 'Съобщение от екипа'}
+                  </div>
+                  <p className="whitespace-pre-line break-words">{text || '—'}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={busy || !form.texts.en?.trim() || (!form.everyone && form.locales.length === 0)}
+              onClick={save}
+              className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs hover:bg-accentBgHover disabled:opacity-50"
+            >
+              Запази
+            </button>
+            <button type="button" onClick={() => setForm(null)} className="rounded-md border border-panelBorder px-4 py-2 text-xs text-textMuted hover:bg-accentBgHover">
+              Отказ
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2">
+        {data?.items.length === 0 && <p className="text-xs text-textFaint">Няма съобщения.</p>}
+        {data?.items.map((a) => {
+          const [statusLabel, statusClass] = STATUS_LABELS[a.status];
+          return (
+            <div key={a.id} className="flex flex-col gap-2 rounded-lg border border-panelBorder bg-panel p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded border px-1.5 py-0.5 text-[10px] ${statusClass}`}>{statusLabel}</span>
+                <span className={a.kind === 'IMPORTANT' ? 'text-gold' : 'text-textMuted'}>{a.kind === 'IMPORTANT' ? 'Важно' : 'Информация'}</span>
+                <span className="text-textFaint">
+                  {new Date(a.startsAt).toLocaleString('bg-BG')} – {new Date(a.endsAt).toLocaleString('bg-BG')}
+                </span>
+              </div>
+              <p className="whitespace-pre-line break-words">{a.texts.en}</p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-textFaint">
+                <span>Езици: {SUPPORTED_LOCALES.map((code) => `${code.toUpperCase()} ${a.texts[code] ? '✓' : '—'}`).join('  ')}</span>
+                <span>За: {a.locales.length === 0 ? 'всички' : a.locales.map(localeLabel).join(', ')}</span>
+                <span>Затворили: {a.dismissedCount}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => edit(a)} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 hover:bg-accentBgHover">
+                  Редактирай
+                </button>
+                {a.status !== 'ENDED' && (
+                  <button type="button" onClick={() => act(a, 'end')} className="rounded-md border border-panelBorder px-3 py-1.5 text-textMuted hover:bg-accentBgHover">
+                    Спри сега
+                  </button>
+                )}
+                <button type="button" onClick={() => act(a, 'delete')} className="rounded-md border border-panelBorderDanger px-3 py-1.5 text-danger hover:bg-accentBgHover">
+                  Изтрий
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 /** `<input type="datetime-local">` value (browser-local time) for a UTC ISO string. */
 function toLocalInputValue(iso: string): string {

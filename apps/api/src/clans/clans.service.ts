@@ -1,4 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { emblemChangeAvailableAt, emblemValidationError, randomEmblem, toClanEmblemChoiceDto, toClanEmblemDto } from './clan-emblem';
+import { UpdateClanEmblemDto } from './dto/update-clan-emblem.dto';
 import {
   ClanActiveWarDto,
   ClanBuildingStateDto,
@@ -83,7 +85,16 @@ export class ClansService {
     const [myMembership, clans, resolvedWars] = await Promise.all([
       this.prisma.clanMembership.findUnique({ where: { playerId: viewerId } }),
       this.prisma.clan.findMany({
-        select: { id: true, name: true, tag: true, members: { select: { player: { select: { level: true } } } } },
+        select: {
+          id: true,
+          name: true,
+          tag: true,
+          emblemShape: true,
+          emblemSymbol: true,
+          emblemBgColor: true,
+          emblemSymbolColor: true,
+          members: { select: { player: { select: { level: true } } } },
+        },
       }),
       this.prisma.clanWar.findMany({
         where: { status: 'RESOLVED' },
@@ -112,6 +123,7 @@ export class ClansService {
         id: clan.id,
         name: clan.name,
         tag: clan.tag,
+        emblem: toClanEmblemDto(clan),
         memberCount: clan.members.length,
         averageMemberLevel,
         totalWars: stats.totalWars,
@@ -182,7 +194,7 @@ export class ClansService {
     }
 
     const clan = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.clan.create({ data: { name: dto.name, tag, description: dto.description } });
+      const created = await tx.clan.create({ data: { name: dto.name, tag, description: dto.description, ...randomEmblem() } });
       await tx.clanMembership.create({ data: { clanId: created.id, playerId, role: 'LEADER' } });
       return created;
     });
@@ -286,6 +298,30 @@ export class ClansService {
       },
     });
 
+    return this.getClan(membership.clanId, playerId);
+  }
+
+  /** The leader changes the emblem (owner decision, 2026-10-21): free on the clan's first day, then once per cooldown. */
+  async updateEmblem(playerId: string, dto: UpdateClanEmblemDto): Promise<ClanDetailDto> {
+    const membership = await this.prisma.clanMembership.findUnique({ where: { playerId }, include: { clan: true } });
+    if (!membership || membership.role !== 'LEADER') {
+      throw new ForbiddenException('Only the leader may change the emblem');
+    }
+    const invalid = emblemValidationError(dto);
+    if (invalid) throw new BadRequestException(invalid);
+    if (emblemChangeAvailableAt(membership.clan)) throw new BadRequestException('EMBLEM_COOLDOWN');
+    // Only goes through if nobody changed it in between (a double tap can't skip the cooldown).
+    const result = await this.prisma.clan.updateMany({
+      where: { id: membership.clanId, emblemChangedAt: membership.clan.emblemChangedAt },
+      data: {
+        emblemShape: dto.shape,
+        emblemSymbol: dto.symbol,
+        emblemBgColor: dto.backgroundColor,
+        emblemSymbolColor: dto.symbolColor,
+        emblemChangedAt: new Date(),
+      },
+    });
+    if (result.count !== 1) throw new BadRequestException('EMBLEM_COOLDOWN');
     return this.getClan(membership.clanId, playerId);
   }
 
@@ -617,6 +653,7 @@ function toSummaryDto(clan: ClanWithDetails): ClanSummaryDto {
     id: clan.id,
     name: clan.name,
     tag: clan.tag,
+    emblem: toClanEmblemDto(clan),
     description: clan.description,
     memberCount: clan.members.length,
     memberCap: effectiveMemberCap(clan),
@@ -676,7 +713,13 @@ async function getActiveWarInfo(clanId: string, tx: Tx): Promise<ClanActiveWarDt
     return null;
   }
   const opponent = war.attackerClanId === clanId ? war.defenderClan : war.attackerClan;
-  return { opponentClanId: opponent.id, opponentClanTag: opponent.tag, opponentClanName: opponent.name, endsAt: war.endsAt.toISOString() };
+  return {
+    opponentClanId: opponent.id,
+    opponentClanTag: opponent.tag,
+    opponentClanName: opponent.name,
+    opponentEmblem: toClanEmblemDto(opponent),
+    endsAt: war.endsAt.toISOString(),
+  };
 }
 
 async function toDetailDto(clan: ClanWithDetails, currentPlayerId: string, tx: Tx): Promise<ClanDetailDto> {
@@ -706,6 +749,8 @@ async function toDetailDto(clan: ClanWithDetails, currentPlayerId: string, tx: T
         lastActiveAt: m.player.lastActiveAt.toISOString(),
       })),
     myRole: myMembership?.role ?? null,
+    emblemChoice: toClanEmblemChoiceDto(clan),
+    emblemChangeAvailableAt: emblemChangeAvailableAt(clan)?.toISOString() ?? null,
     buildings: clan.buildings
       .slice()
       .sort((a, b) => a.clanBuildingType.key.localeCompare(b.clanBuildingType.key))

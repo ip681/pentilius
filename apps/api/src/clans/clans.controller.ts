@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { emblemOptions } from './clan-emblem';
+import { UpdateClanEmblemDto } from './dto/update-clan-emblem.dto';
 import { CurrentPlayer } from '../auth/decorators/current-player.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/jwt-payload.interface';
@@ -30,6 +32,12 @@ export class ClansController {
     return this.clansService.getLeaderboard(currentPlayer.sub, query);
   }
 
+  // Before ':id', so "emblem-options" isn't read as a clan id.
+  @Get('emblem-options')
+  getEmblemOptions() {
+    return emblemOptions();
+  }
+
   @Get(':id')
   getClan(@CurrentPlayer() currentPlayer: JwtPayload, @Param('id') id: string) {
     return this.clansService.getClan(id, currentPlayer.sub);
@@ -58,6 +66,11 @@ export class ClansController {
   @Post('update')
   updateClan(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: UpdateClanDto) {
     return this.clansService.updateClan(currentPlayer.sub, dto);
+  }
+
+  @Post('emblem')
+  updateEmblem(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: UpdateClanEmblemDto) {
+    return this.clansService.updateEmblem(currentPlayer.sub, dto);
   }
 
   @Post('join-requirements')

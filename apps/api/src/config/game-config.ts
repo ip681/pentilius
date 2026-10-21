@@ -23,6 +23,39 @@ export const GAME_BALANCE = {
     credits: 50,
     actionEnergy: 10,
   },
+  // Clan emblems (owner decision, 2026-10-21): shape + symbol images (numbered
+  // files in public/assets/clanShapes and clanSymbols) tinted with two palette
+  // colors. Only the leader changes it: free during the clan's first day, then
+  // once per changeCooldownDays. Palette keys are stored per clan — never rename one.
+  clanEmblem: {
+    shapeCount: 18,
+    symbolCount: 18,
+    symbolScale: 0.6,
+    changeCooldownDays: 7,
+    freeChangeHours: 24,
+    palette: [
+      { key: 'red', hex: '#c0392b' },
+      { key: 'darkred', hex: '#7b1e1e' },
+      { key: 'orange', hex: '#e67e22' },
+      { key: 'gold', hex: '#c5a873' },
+      { key: 'yellow', hex: '#f1c40f' },
+      { key: 'green', hex: '#27ae60' },
+      { key: 'darkgreen', hex: '#1e5631' },
+      { key: 'teal', hex: '#16a085' },
+      { key: 'lightblue', hex: '#3498db' },
+      { key: 'darkblue', hex: '#1f3a93' },
+      { key: 'purple', hex: '#8e44ad' },
+      { key: 'pink', hex: '#d35485' },
+      { key: 'white', hex: '#ecf0f1' },
+      { key: 'grey', hex: '#7f8c8d' },
+      { key: 'darkgrey', hex: '#34495e' },
+      { key: 'black', hex: '#111111' },
+    ],
+  },
+  // Staff announcements (owner decision, 2026-10-21): plain text, per language.
+  announcements: {
+    maxTextLength: 500,
+  },
   // Selling/recycling several set items at once (owner decision, 2026-10-20).
   itemBulk: {
     maxItems: 50,

@@ -214,7 +214,7 @@ function ClansTab() {
               <tr key={clan.id} className={`border-t border-wellBorder ${clan.isMyClan ? 'bg-accentBg' : ''}`}>
                 <td className="px-4 py-2.5 text-textFaint">#{clan.rank}</td>
                 <td className="px-4 py-2.5">
-                  <ClanLink clanId={clan.id} tag={clan.tag} name={clan.name} />
+                  <ClanLink clanId={clan.id} tag={clan.tag} name={clan.name} emblem={clan.emblem} />
                 </td>
                 <td className="px-4 py-2.5">{clan.memberCount}</td>
                 <td className="px-4 py-2.5">{clan.averageMemberLevel}</td>

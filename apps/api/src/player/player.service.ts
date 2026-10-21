@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { toClanEmblemDto } from '../clans/clan-emblem';
 import { CosmeticsCatalogDto, NotificationTimerDto, NotificationsDto, PlayerLeaderboardEntryDto, PlayerLeaderboardPageDto, PlayerLeaderboardSortBy, PlayerProfileDto, PlayerPublicProfileDto } from '@pentilius/shared';
 import { Race } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -84,7 +85,8 @@ export class PlayerService {
   }
 
   /** The menu dots — fetched on page change and after claims, not with every profile load. */
-  async getNotifications(playerId: string): Promise<NotificationsDto> {
+  // The announcements are added by the controller (they need the client's language).
+  async getNotifications(playerId: string): Promise<Omit<NotificationsDto, 'announcements'>> {
     // Timers that ended a moment ago are included, so a page change at the
     // wrong instant doesn't swallow the notification (the client dedupes).
     const since = new Date(Date.now() - 2 * 60_000);
@@ -189,7 +191,13 @@ export class PlayerService {
       bio: player.bio,
       createdAt: player.createdAt.toISOString(),
       clan: player.clanMembership
-        ? { id: player.clanMembership.clan.id, name: player.clanMembership.clan.name, tag: player.clanMembership.clan.tag, role: player.clanMembership.role }
+        ? {
+            id: player.clanMembership.clan.id,
+            name: player.clanMembership.clan.name,
+            tag: player.clanMembership.clan.tag,
+            role: player.clanMembership.role,
+            emblem: toClanEmblemDto(player.clanMembership.clan),
+          }
         : null,
       selectedAvatarKey: player.selectedAvatarKey,
       selectedFrameKey: player.selectedFrameKey,

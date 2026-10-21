@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Ip, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { AnnouncementsService } from '../announcements/announcements.service';
 import { CurrentPlayer } from '../auth/decorators/current-player.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/jwt-payload.interface';
@@ -21,6 +22,7 @@ export class PlayerController {
     private readonly playerService: PlayerService,
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly announcements: AnnouncementsService,
   ) {}
 
   @Get()
@@ -35,9 +37,14 @@ export class PlayerController {
     return { ...profile, paymentsAvailable: await paymentsOfferedTo(ip, this.prisma, this.config) };
   }
 
+  // `locale` = the language the client shows, for the announcements (owner decision, 2026-10-21).
   @Get('me/notifications')
-  getNotifications(@CurrentPlayer() currentPlayer: JwtPayload) {
-    return this.playerService.getNotifications(currentPlayer.sub);
+  async getNotifications(@CurrentPlayer() currentPlayer: JwtPayload, @Query('locale') locale?: string) {
+    const [notifications, announcements] = await Promise.all([
+      this.playerService.getNotifications(currentPlayer.sub),
+      this.announcements.forPlayer(currentPlayer.sub, locale),
+    ]);
+    return { ...notifications, announcements };
   }
 
   @Post('me/bio')

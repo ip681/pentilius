@@ -284,6 +284,7 @@ model Player {
   achievementProgress      AchievementProgress[]
   achievementClaims        AchievementClaim[]
   supportTickets           SupportTicket[]
+  announcementDismissals   AnnouncementDismissal[]
   pushSubscriptions        PushSubscription[]
   purchases                Purchase[]
   pushDispatches           PushDispatch[]
@@ -1014,6 +1015,15 @@ model Clan {
   joinMinEvasion   Int    @default(0)
   joinAllowedRaces Race[] @default([])
 
+  // Emblem (owner decision, 2026-10-21): image numbers + palette keys
+  // (GAME_BALANCE.clanEmblem); a random one is set when the clan is created.
+  emblemShape       Int       @default(1)
+  emblemSymbol      Int       @default(1)
+  emblemBgColor     String    @default("darkblue")
+  emblemSymbolColor String    @default("gold")
+  // Last change by the leader; null = never changed (the random start).
+  emblemChangedAt   DateTime?
+
   members        ClanMembership[]
   buildings      ClanBuilding[]
   messages       ClanMessage[]
@@ -1311,6 +1321,9 @@ enum AdminActionType {
   REFUND_PURCHASE
   UPDATE_PAYMENT_SETTINGS
   UPDATE_SHOP
+  SAVE_ANNOUNCEMENT
+  END_ANNOUNCEMENT
+  DELETE_ANNOUNCEMENT
 }
 
 // Audit trail for every godmaster mutation (owner decision, 2026-09-12) —
@@ -1885,4 +1898,43 @@ model LoginEvent {
   @@index([ip])
   @@index([createdAt])
   @@map("login_events")
+}
+
+// Staff announcements (owner decision, 2026-10-21): a banner on every page
+// between startsAt and endsAt. Texts per language ({ en, bg, ... }), English
+// required and used when the player's language has none. `locales` limits who
+// sees it; empty = everyone.
+enum AnnouncementKind {
+  INFO
+  IMPORTANT
+}
+
+model Announcement {
+  id        String           @id @default(uuid())
+  kind      AnnouncementKind
+  texts     Json
+  locales   String[]
+  startsAt  DateTime
+  endsAt    DateTime
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  dismissals AnnouncementDismissal[]
+
+  @@index([startsAt, endsAt])
+  @@map("announcements")
+}
+
+// A player closed an announcement — kept on the server, so it stays closed on every device.
+model AnnouncementDismissal {
+  announcementId String
+  playerId       String
+  dismissedAt    DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  player       Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([announcementId, playerId])
+  @@index([playerId])
+  @@map("announcement_dismissals")
 }

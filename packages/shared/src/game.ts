@@ -88,6 +88,34 @@ export interface PublicProfileClanDto {
   name: string;
   tag: string;
   role: ClanRole;
+  emblem: ClanEmblemDto;
+}
+
+// Clan emblem (owner decision, 2026-10-21): a background shape and a symbol,
+// white-on-transparent images the client tints with the two colors.
+export interface ClanEmblemDto {
+  shapeAssetId: string;
+  symbolAssetId: string;
+  backgroundColor: string;
+  symbolColor: string;
+  // Symbol size relative to the shape (0..1).
+  symbolScale: number;
+}
+
+// What the leader picked: image numbers and palette keys.
+export interface ClanEmblemChoiceDto {
+  shape: number;
+  symbol: number;
+  backgroundColor: string;
+  symbolColor: string;
+}
+
+export interface ClanEmblemOptionsDto {
+  shapes: { id: number; assetId: string }[];
+  symbols: { id: number; assetId: string }[];
+  palette: { key: string; hex: string }[];
+  symbolScale: number;
+  changeCooldownDays: number;
 }
 
 // Leaderboard (owner decision, 2026-09-10) — split into a player board and a
@@ -154,6 +182,7 @@ export interface ClanLeaderboardEntryDto {
   id: string;
   name: string;
   tag: string;
+  emblem: ClanEmblemDto;
   memberCount: number;
   averageMemberLevel: number;
   totalWars: number;
@@ -826,6 +855,7 @@ export interface ClanSummaryDto {
   id: string;
   name: string;
   tag: string;
+  emblem: ClanEmblemDto;
   description: string | null;
   memberCount: number;
   memberCap: number;
@@ -901,6 +931,7 @@ export interface ClanActiveWarDto {
   opponentClanId: string;
   opponentClanTag: string;
   opponentClanName: string;
+  opponentEmblem: ClanEmblemDto;
   endsAt: string;
 }
 
@@ -911,6 +942,9 @@ export interface ClanDetailDto extends Omit<ClanSummaryDto, 'treasury'> {
   members: ClanMemberDto[];
   myRole: ClanRole | null;
   buildings: ClanBuildingStateDto[];
+  // For the leader's emblem editor: the current pick, and when it can change again (null = now).
+  emblemChoice: ClanEmblemChoiceDto;
+  emblemChangeAvailableAt: string | null;
 }
 
 export interface MyClanResponseDto {
@@ -947,9 +981,11 @@ export interface ClanWarStateDto {
   myClanId: string;
   myClanName: string;
   myClanTag: string;
+  myClanEmblem: ClanEmblemDto;
   enemyClanId: string;
   enemyClanName: string;
   enemyClanTag: string;
+  enemyClanEmblem: ClanEmblemDto;
   startedAt: string;
   endsAt: string;
   resolvedAt: string | null;
@@ -1133,6 +1169,8 @@ export interface CoreStandingDto {
   clanId: string | null;
   clanName: string;
   clanTag: string;
+  // null when the clan no longer exists (final standings keep its name).
+  emblem: ClanEmblemDto | null;
   damage: number;
   // Relative to the leading clan, which is always 100 (owner decision).
   percentOfLeader: number;
@@ -1437,6 +1475,48 @@ export interface NotificationsDto {
   // The latest PvP battle where this player was the defender.
   lastAttack: { at: string; attacker: string; defenderWon: boolean } | null;
   settings: NotificationSettingsDto;
+  // Active staff announcements for this player's language, not dismissed yet (owner decision, 2026-10-21).
+  announcements: AnnouncementDto[];
+}
+
+// Staff announcements (owner decision, 2026-10-21): a banner on every page.
+export type AnnouncementKind = 'INFO' | 'IMPORTANT';
+
+export interface AnnouncementDto {
+  id: string;
+  kind: AnnouncementKind;
+  // Already in the player's language, or English when that language has no text.
+  text: string;
+}
+
+export type AnnouncementStatus = 'SCHEDULED' | 'ACTIVE' | 'ENDED';
+
+export interface AdminAnnouncementDto {
+  id: string;
+  kind: AnnouncementKind;
+  // Text per language; English is always present.
+  texts: Record<string, string>;
+  // Languages that see it; empty = everyone.
+  locales: string[];
+  startsAt: string;
+  endsAt: string;
+  status: AnnouncementStatus;
+  dismissedCount: number;
+  createdAt: string;
+}
+
+export interface AdminAnnouncementsDto {
+  items: AdminAnnouncementDto[];
+  // Longest text per language (GAME_BALANCE.announcements.maxTextLength).
+  maxTextLength: number;
+}
+
+export interface SaveAnnouncementDto {
+  kind: AnnouncementKind;
+  texts: Record<string, string>;
+  locales: string[];
+  startsAt: string;
+  endsAt: string;
 }
 
 // Real-money purchases (owner decision, 2026-10-15).

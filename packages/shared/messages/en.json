@@ -602,6 +602,19 @@
     "save": "Save"
   },
   "clans": {
+    "emblem": {
+      "edit": "Emblem",
+      "title": "Clan emblem",
+      "shape": "Shape",
+      "symbol": "Symbol",
+      "shapeColor": "Shape color",
+      "symbolColor": "Symbol color",
+      "rules": "During the clan's first day the emblem can be changed freely. After that, once every {days} days.",
+      "cooldown": "The emblem can be changed again on {date}.",
+      "cooldownError": "The emblem was changed recently. Try again later.",
+      "sameColors": "The shape and the symbol need different colors.",
+      "error": "Couldn't save the emblem. Please try again."
+    },
     "title": "Clan",
     "subtitle": "Team up with players of all five races.",
     "createTitle": "Found a Clan",
@@ -1489,5 +1502,9 @@
     "errorCredits": "You do not have enough Credits for the fee.",
     "errorTooSmall": "The amount is too small.",
     "errorResources": "You do not have enough of that resource."
+  },
+  "announcements": {
+    "info": "Message from the team",
+    "important": "Important"
   }
 }

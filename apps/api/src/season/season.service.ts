@@ -4,6 +4,7 @@ import {
   CorePlayerRankingPageDto,
   CorePlayerRankingScope,
   CorePlayerStandingDto,
+  ClanEmblemDto,
   CoreStandingDto,
   CoreStateDto,
   CoreStatus,
@@ -14,6 +15,7 @@ import { Prisma, Season } from '@prisma/client';
 import { findTavern, isTavernActive } from '../clans/clan-tavern';
 import { clanRuntime } from '../config/clan-balance';
 import { GAME_BALANCE } from '../config/game-config';
+import { toClanEmblemDto } from '../clans/clan-emblem';
 import { assertNoActiveExpedition } from '../expeditions/expedition-guard';
 import { EconomyService } from '../player/economy.service';
 import { AchievementsService } from '../achievements/achievements.service';
@@ -52,7 +54,10 @@ interface RankedScore {
   clanName: string;
   clanTag: string;
   damage: number;
+  emblem: ClanEmblemDto | null;
 }
+
+const EMBLEM_SELECT = { emblemShape: true, emblemSymbol: true, emblemBgColor: true, emblemSymbolColor: true } as const;
 
 /**
  * Seasons and the Core (owner decision, 2026-10-12). Any clan member attacks
@@ -176,6 +181,7 @@ export class SeasonService {
       clanId: score.clanId,
       clanName: score.clanName,
       clanTag: score.clanTag,
+      emblem: score.emblem,
       damage: score.damage,
       percentOfLeader: leaderDamage > 0 ? Math.round((score.damage / leaderDamage) * 1000) / 10 : 0,
       isMyClan: !!membership && score.clanId === membership.clanId,
@@ -369,15 +375,25 @@ export class SeasonService {
   private async loadLiveStandings(seasonId: number, tx: Tx): Promise<RankedScore[]> {
     const scores = await tx.clanCoreScore.findMany({
       where: { seasonId, damage: { gt: 0 } },
-      include: { clan: { select: { name: true, tag: true } } },
+      include: { clan: { select: { name: true, tag: true, ...EMBLEM_SELECT } } },
       orderBy: [{ damage: 'desc' }, { updatedAt: 'asc' }],
     });
-    return scores.map((s) => ({ clanId: s.clanId, clanName: s.clan.name, clanTag: s.clan.tag, damage: Number(s.damage) }));
+    return scores.map((s) => ({ clanId: s.clanId, clanName: s.clan.name, clanTag: s.clan.tag, damage: Number(s.damage), emblem: toClanEmblemDto(s.clan) }));
   }
 
   private async loadFinalStandings(seasonId: number, tx: Tx): Promise<RankedScore[]> {
     const results = await tx.seasonClanResult.findMany({ where: { seasonId }, orderBy: { rank: 'asc' } });
-    return results.map((r) => ({ clanId: r.clanId, clanName: r.clanName, clanTag: r.clanTag, damage: Number(r.damage) }));
+    // The clan's current emblem, while the clan still exists.
+    const ids = results.map((r) => r.clanId).filter((id): id is string => !!id);
+    const clans = await tx.clan.findMany({ where: { id: { in: ids } }, select: { id: true, ...EMBLEM_SELECT } });
+    const emblems = new Map(clans.map((c) => [c.id, toClanEmblemDto(c)]));
+    return results.map((r) => ({
+      clanId: r.clanId,
+      clanName: r.clanName,
+      clanTag: r.clanTag,
+      damage: Number(r.damage),
+      emblem: (r.clanId && emblems.get(r.clanId)) || null,
+    }));
   }
 
   /**

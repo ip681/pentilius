@@ -60,6 +60,8 @@ import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { displayPlayerName } from '@/lib/player-name';
 import { formatNumber } from '@/lib/format-number';
+import { ClanEmblem } from '@/components/ClanEmblem';
+import { ClanEmblemEditor } from '@/components/ClanEmblemEditor';
 
 const ALL_RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
 
@@ -151,6 +153,7 @@ export default function ClansPage() {
   const [donateCrystal, setDonateCrystal] = useState('');
   const [donateCredits, setDonateCredits] = useState('');
   const [editingClan, setEditingClan] = useState(false);
+  const [editingEmblem, setEditingEmblem] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [messages, setMessages] = useState<ClanMessageDto[] | null>(null);
@@ -522,7 +525,7 @@ export default function ClansPage() {
                   <div key={clan.id} className="rounded-lg border border-panelBorder bg-panel p-4">
                     <div className="mb-1 flex items-center justify-between">
                       <span className="text-sm font-semibold">
-                        <ClanLink clanId={clan.id} tag={clan.tag} name={clan.name} />
+                        <ClanLink clanId={clan.id} tag={clan.tag} name={clan.name} emblem={clan.emblem} emblemSize={24} />
                       </span>
                       <span className="text-[10px] uppercase text-textFaint">
                         {clan.memberCount}/{clan.memberCap}
@@ -593,7 +596,8 @@ export default function ClansPage() {
       {myClan && (
         <section className="rounded-lg border border-panelBorder bg-panel p-5">
           <div className="mb-1 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">
+            <h2 className="flex items-center gap-3 text-lg font-semibold">
+              <ClanEmblem emblem={myClan.emblem} size={56} />
               <ClanLink clanId={myClan.id} tag={myClan.tag} name={myClan.name} />
             </h2>
             <span className="text-[10px] uppercase text-textFaint">
@@ -627,6 +631,15 @@ export default function ClansPage() {
                   {t('clans.editClan')}
                 </button>
               )}
+              {myClan.myRole === 'LEADER' && !editingEmblem && (
+                <button
+                  type="button"
+                  onClick={() => setEditingEmblem(true)}
+                  className="rounded-md border border-wellBorder bg-well px-3 py-1.5 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
+                >
+                  {t('clans.emblem.edit')}
+                </button>
+              )}
               {(myClan.myRole === 'LEADER' || myClan.myRole === 'OFFICER') && !editingRequirements && (
                 <button
                   type="button"
@@ -637,6 +650,17 @@ export default function ClansPage() {
                 </button>
               )}
             </div>
+          )}
+
+          {editingEmblem && myClan.myRole === 'LEADER' && (
+            <ClanEmblemEditor
+              clan={myClan}
+              onCancel={() => setEditingEmblem(false)}
+              onSaved={() => {
+                setEditingEmblem(false);
+                void load();
+              }}
+            />
           )}
 
           {editingClan && (

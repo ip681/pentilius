@@ -12,6 +12,7 @@ import { ExpeditionsModule } from './expeditions/expeditions.module';
 import { FriendsModule } from './friends/friends.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { PaymentsModule } from './payments/payments.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 import { BalanceModule } from './balance/balance.module';
 import { MarketModule } from './market/market.module';
 import { ContentFilterModule } from './moderation/content-filter.service';
@@ -58,6 +59,7 @@ import { ZonesModule } from './zones/zones.module';
     MarketModule,
     PaymentsModule,
     BalanceModule,
+    AnnouncementsModule,
     AdminModule,
   ],
 })
