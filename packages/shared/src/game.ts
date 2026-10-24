@@ -447,6 +447,9 @@ export interface InventoryItemDto {
   itemDefinitionKey: string;
   nameKey: string;
   descriptionKey: string;
+  // Values the description needs, from the live settings — e.g. a fragment's
+  // { count } = fragments per stone (godmaster → Balance → Sets).
+  descriptionParams: Record<string, number> | null;
   category: ItemCategory;
   // Null for CONSUMABLE items — they have no equipment slot.
   slot: EquipmentSlot | null;
@@ -710,6 +713,9 @@ export interface BossFormationSlotDto {
   playerUsername: string | null;
   // VIP name colour (owner decision, 2026-10-14).
   playerIsVip: boolean;
+  // The player's profile picture and frame, shown in the filled slot (owner decision, 2026-10-21).
+  playerAvatarKey: string | null;
+  playerFrameKey: string | null;
   joinedAt: string | null;
   isCurrentPlayer: boolean;
   // Only set once the formation is RESOLVED and this slot was filled.
@@ -1557,6 +1563,9 @@ export interface PurchaseDto {
   currency: string;
   createdAt: string;
   completedAt: string | null;
+  // Its sale document and, after a refund, the refund document (Наредба Н-18).
+  saleDocumentId: string | null;
+  refundDocumentId: string | null;
 }
 
 // godmaster's Payments tab (owner decision, 2026-10-17).
@@ -1958,4 +1967,87 @@ export interface AdminPlayerLoginsDto {
   events: { createdAt: string; kind: string; ip: string; country: string | null; device: string | null; browser: string | null }[];
   // Other accounts seen from any of this player's addresses.
   sharedAccounts: { playerId: string; username: string; banned: boolean; sharedIps: string[] }[];
+}
+
+// --- Sales documents (owner decision, 2026-10-23; Наредба Н-18, чл. 52о) ---
+// The seller's details and NRA e-shop data, set in godmaster → Payments.
+export interface SellerInfoDto {
+  // The seller is a company (ЕООД): name, ЕИК, registered address.
+  name: string;
+  // 9 to 13 characters in the audit file.
+  eik: string;
+  address: string;
+  // Email or phone.
+  contact: string;
+  // The e-shop's unique number from the NRA (приложение № 33).
+  eshopNumber: string;
+  domain: string;
+  // The virtual POS number declared to the NRA, e.g. "01-STR-EUR".
+  posNumber: string;
+  // The Stripe account ID (acct_...).
+  merchantId: string;
+  // The payment service provider (Stripe), for the audit file: its name and VAT number.
+  providerName: string;
+  providerVatId: string;
+}
+
+export type SaleDocumentKind = 'SALE' | 'REFUND';
+
+export interface SaleDocumentLineDto {
+  name: string;
+  taxGroup: string;
+  quantity: number;
+  unitPriceCents: number;
+  amountCents: number;
+}
+
+export interface SaleDocumentDto {
+  id: string;
+  kind: SaleDocumentKind;
+  // 10 digits, zero-padded.
+  number: string;
+  test: boolean;
+  issuedAt: string;
+  orderNumber: string;
+  transactionRef: string;
+  seller: SellerInfoDto;
+  eshopNumber: string;
+  posNumber: string;
+  lines: SaleDocumentLineDto[];
+  totalCents: number;
+  currency: string;
+  paymentMethod: string;
+  qrPayload: string;
+  // A refund document's sale.
+  saleNumber: string | null;
+  saleIssuedAt: string | null;
+}
+
+export interface AdminSaleDocumentRowDto {
+  id: string;
+  kind: SaleDocumentKind;
+  number: string;
+  test: boolean;
+  issuedAt: string;
+  username: string;
+  orderNumber: string;
+  totalCents: number;
+  currency: string;
+}
+
+export interface AdminAuditFileDto {
+  id: string;
+  year: number;
+  month: number;
+  createdAt: string;
+  adminUsername: string;
+  orderCount: number;
+  refundCount: number;
+  totalCents: number;
+}
+
+export interface AdminSellerSettingsDto {
+  seller: SellerInfoDto;
+  // Missing fields that block live sales (test sales still work).
+  missing: string[];
 }

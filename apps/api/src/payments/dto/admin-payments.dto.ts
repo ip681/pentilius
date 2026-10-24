@@ -1,4 +1,4 @@
-import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 
 export class SavePaymentProductDto {
   // Stable identity, e.g. "credits_1200" — never shown to players.
@@ -56,4 +56,58 @@ export class UpdatePaymentsSettingsDto {
   @ArrayMaxSize(250)
   @IsString({ each: true })
   allowedCountries!: string[];
+}
+
+// The seller and NRA e-shop data for the sale documents (owner decision, 2026-10-23).
+export class UpdateSellerDto {
+  @IsString()
+  @MaxLength(200)
+  name!: string;
+
+  @IsString()
+  @MaxLength(13)
+  eik!: string;
+
+  @IsString()
+  @MaxLength(300)
+  address!: string;
+
+  @IsString()
+  @MaxLength(200)
+  contact!: string;
+
+  @IsString()
+  @MaxLength(10)
+  eshopNumber!: string;
+
+  @IsString()
+  @MaxLength(200)
+  domain!: string;
+
+  @IsString()
+  @MaxLength(200)
+  posNumber!: string;
+
+  @IsString()
+  @MaxLength(100)
+  merchantId!: string;
+
+  @IsString()
+  @MaxLength(150)
+  providerName!: string;
+
+  @IsString()
+  @MaxLength(40)
+  providerVatId!: string;
+}
+
+export class GenerateAuditFileDto {
+  @IsInt()
+  @Min(2020)
+  year!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  month!: number;
 }

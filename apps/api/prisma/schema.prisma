@@ -1320,6 +1320,8 @@ enum AdminActionType {
   VIEW_PLAYER_LOGINS
   REFUND_PURCHASE
   UPDATE_PAYMENT_SETTINGS
+  UPDATE_SELLER_SETTINGS
+  GENERATE_AUDIT_FILE
   UPDATE_SHOP
   SAVE_ANNOUNCEMENT
   END_ANNOUNCEMENT
@@ -1532,6 +1534,9 @@ model GameSettings {
   // Countries where real-money purchases are offered, comma-separated
   // (owner decision, 2026-10-15: Bulgaria first). Set in godmaster.
   paymentsAllowedCountries String   @default("BG")
+  // The seller's details and the NRA e-shop data for the sale documents and
+  // the monthly audit file (owner decision, 2026-10-23) — see SellerInfoDto.
+  sellerInfo               Json?
   updatedAt                DateTime @updatedAt
 
   @@map("game_settings")
@@ -1857,9 +1862,19 @@ model Purchase {
   createdAt   DateTime        @default(now())
   completedAt DateTime?
   refundedAt  DateTime?
+  // Direct sale (we are the seller; sale documents + audit file) or through
+  // Stripe Managed Payments (later; no documents from us until decided).
+  paymentPath     PaymentPath @default(DIRECT)
+  // Stripe's livemode: test payments get test documents, never in the audit file.
+  livemode        Boolean     @default(false)
+  // The reference number of the payment on the documents (Stripe PaymentIntent),
+  // and the charge behind it.
+  paymentIntentId String?
+  chargeId        String?
 
   player  Player         @relation(fields: [playerId], references: [id])
   product PaymentProduct @relation(fields: [productId], references: [id])
+  documents SaleDocument[]
 
   @@unique([provider, providerRef])
   @@index([playerId, createdAt])
@@ -1937,4 +1952,81 @@ model AnnouncementDismissal {
   @@id([announcementId, playerId])
   @@index([playerId])
   @@map("announcement_dismissals")
+}
+
+// Sales documents (owner decision, 2026-10-23; Наредба Н-18, чл. 52о): one per
+// direct sale and one per refund, issued in the same transaction that completes
+// or refunds the purchase. Never changed or deleted — a database trigger refuses
+// both (migration 20261023120000_sale_documents). Each kind and mode (live/test)
+// has its own gap-free 10-digit series (DocumentCounter). `seller` and the NRA
+// numbers are a snapshot taken at issue, so later settings changes can't alter
+// an issued document.
+enum PaymentPath {
+  DIRECT
+  MOR
+}
+
+enum SaleDocumentKind {
+  SALE
+  REFUND
+}
+
+model SaleDocument {
+  id             String           @id @default(uuid())
+  kind           SaleDocumentKind
+  number         BigInt
+  test           Boolean
+  purchaseId     String
+  // A refund document points at the sale it reverses.
+  saleDocumentId String?
+  issuedAt       DateTime         @default(now())
+  orderNumber    String
+  transactionRef String
+  chargeRef      String?
+  seller         Json
+  eshopNumber    String
+  posNumber      String
+  // [{ name, taxGroup, quantity, unitPriceCents, amountCents }]
+  lines          Json
+  totalCents     Int
+  currency       String
+  paymentMethod  String
+  qrPayload      String
+
+  purchase Purchase      @relation(fields: [purchaseId], references: [id])
+  sale     SaleDocument? @relation("RefundOfSale", fields: [saleDocumentId], references: [id], onDelete: Restrict)
+  refunds  SaleDocument[] @relation("RefundOfSale")
+
+  @@unique([kind, test, number])
+  @@unique([purchaseId, kind])
+  @@index([test, issuedAt])
+  @@map("sale_documents")
+}
+
+// The last number used per series ("SALE_LIVE", "SALE_TEST", "REFUND_LIVE",
+// "REFUND_TEST"); taken with a row lock inside the issuing transaction, so a
+// rolled-back purchase never uses up a number.
+model DocumentCounter {
+  key  String @id
+  last BigInt @default(0)
+
+  @@map("document_counters")
+}
+
+// Every monthly NRA audit file generated in godmaster (Приложение № 38), kept
+// as the exact bytes downloaded (UTF-8).
+model AuditFile {
+  id            String   @id @default(uuid())
+  year          Int
+  month         Int
+  createdAt     DateTime @default(now())
+  adminId       String
+  adminUsername String
+  orderCount    Int
+  refundCount   Int
+  totalCents    Int
+  xml           Bytes
+
+  @@index([year, month])
+  @@map("audit_files")
 }

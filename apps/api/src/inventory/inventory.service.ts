@@ -358,6 +358,8 @@ function toInventoryItemDto(
     itemDefinitionKey: item.itemDefinition.key,
     nameKey: item.itemDefinition.nameKey,
     descriptionKey: item.itemDefinition.descriptionKey,
+    // A fragment's text says how many make a stone — the current setting, not a fixed number.
+    descriptionParams: item.itemDefinition.key.endsWith('_fragment') ? { count: equipmentRuntime().upgrade.fragmentsPerStone } : null,
     category: item.itemDefinition.category,
     slot: item.itemDefinition.slot,
     tier: item.itemDefinition.tier,

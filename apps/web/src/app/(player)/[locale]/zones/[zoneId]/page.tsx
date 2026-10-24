@@ -1,35 +1,27 @@
 'use client';
 
-import type { BattleReportDto, BossDto, PentiliDto, PentiliLootDropDto } from '@pentilius/shared';
+import type { BattleReportDto, BossDto, PentiliDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { BattleDivider } from '@/components/BattleDivider';
-import { BossFormationCard } from '@/components/BossFormationCard';
-import { ConfirmButton } from '@/components/ConfirmButton';
 import { GameLayout } from '@/components/GameLayout';
 import { LootEntry } from '@/components/LootEntry';
 import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
-import { ResourceIcon } from '@/components/ResourceIcon';
 import {
   ApiError,
   attackPentili,
   attackPentiliMulti,
-  createBossFormation,
   getBossFormations,
-  getMyClan,
   getPentiliInZone,
-  joinBossFormation,
-  updateBossFormationVisibility,
 } from '@/lib/api-client';
-import { formatDuration } from '@/lib/format-duration';
+import { DropEntry } from '@/components/DropEntry';
+import { Link, useRouter } from '@/i18n/navigation';
 import { notifyProfileChanged } from '@/lib/profile-events';
-import { getCachedProfile } from '@/lib/profile-cache';
 import { takePendingBattle } from '@/lib/pending-battle';
 import { isVipActive, multiAttackCount } from '@/lib/vip';
 import { usePlayerEnergy } from '@/lib/use-player-energy';
-import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { EnergyRefill } from '@/components/EnergyRefill';
 import { formatNumber } from '@/lib/format-number';
@@ -54,34 +46,6 @@ function RewardSummary({ report }: { report: BattleReportDto }) {
       {report.lostLoot.map((loot, index) => (
         <LootEntry key={`lost-${index}`} loot={loot} lost />
       ))}
-    </span>
-  );
-}
-
-/** One Pentili loot-table entry — resource icon + drop chance, or item icon + name + drop chance. */
-function DropEntry({ drop }: { drop: PentiliLootDropDto }) {
-  const t = useTranslations();
-  const quantity = drop.minQuantity === drop.maxQuantity ? `${drop.minQuantity}` : `${drop.minQuantity}-${drop.maxQuantity}`;
-  const percent = Math.round(drop.dropChance * 100);
-
-  if (drop.type === 'resource') {
-    return (
-      <span className="inline-flex items-center gap-1">
-        <ResourceIcon type={drop.resourceType!} className="h-3.5 w-3.5" /> ×{quantity} ({percent}%)
-      </span>
-    );
-  }
-
-  const name = t(drop.itemNameKey!);
-  return (
-    <span className="inline-flex items-center gap-1">
-      <AssetIcon
-        assetId={drop.itemIconAssetId ?? ''}
-        alt={name}
-        className="h-3.5 w-3.5 object-contain"
-        fallback={<span className="text-[8px] font-semibold text-textMuted">{name.charAt(0)}</span>}
-      />
-      {name} ×{quantity} ({percent}%)
     </span>
   );
 }
@@ -143,10 +107,14 @@ function ZonePentiliPageInner() {
   const zoneId = params.zoneId;
   const searchParams = useSearchParams();
   const targetPentiliId = searchParams.get('pentili');
-  // Deep-link from the planet page's boss teaser (owner decision, 2026-10-11) —
-  // mirrors the Pentili focus above: show only the boss panel, not the
-  // Pentili list too.
-  const focusBoss = searchParams.get('boss') === '1';
+  // The old boss-only view (?boss=1) moved to its own page (owner decision,
+  // 2026-10-21): an old link forwards there and shows nothing meanwhile.
+  const legacyBossLink = searchParams.get('boss') === '1';
+  const router = useRouter();
+  useEffect(() => {
+    if (legacyBossLink) router.replace(`/zones/${zoneId}/boss`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legacyBossLink, zoneId]);
 
   const [pentili, setPentili] = useState<PentiliDto[] | null>(null);
   const { profile, refreshProfile } = usePlayerEnergy();
@@ -312,7 +280,7 @@ function ZonePentiliPageInner() {
 
       {error && <p className="mb-4 text-center text-red-400">{error}</p>}
 
-      {battle && !focusBoss && (
+      {battle && !legacyBossLink && (
         <>
           <section className="mb-6 grid grid-cols-[1fr_auto_1fr] items-stretch gap-1.5 sm:gap-5">
             <FighterPanel
@@ -350,7 +318,7 @@ function ZonePentiliPageInner() {
         </>
       )}
 
-      {pentili && !focusBoss && targetPentiliId && (
+      {pentili && !legacyBossLink && targetPentiliId && (
         <ul className="flex flex-col gap-3">
           {pentili
             .filter((entry) => entry.id === targetPentiliId)
@@ -413,7 +381,7 @@ function ZonePentiliPageInner() {
 
       {/* Full roster — 5 per row (2 rows for the current 10-per-zone roster), compact
           vertical cards instead of the wide single-focus row above. */}
-      {pentili && !focusBoss && !targetPentiliId && (
+      {pentili && !legacyBossLink && !targetPentiliId && (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {pentili.map((entry) => (
             <li key={entry.id} className="flex flex-col items-center gap-2 rounded-lg border border-panelBorder bg-panel p-3 text-center">
@@ -458,227 +426,47 @@ function ZonePentiliPageInner() {
           ))}
         </ul>
       )}
-      {pentili && !focusBoss && !targetPentiliId && <EnergyRefill profile={profile} onRefilled={refreshProfile} />}
+      {pentili && !legacyBossLink && !targetPentiliId && <EnergyRefill profile={profile} onRefilled={refreshProfile} />}
 
-      {!targetPentiliId && <ZoneBossPanel zoneId={zoneId} />}
+      {!legacyBossLink && !targetPentiliId && <ZoneBossLink zoneId={zoneId} />}
     </GameLayout>
   );
 }
 
-/**
- * This zone's own boss, embedded under its Pentili list (owner decision,
- * 2026-10-11) — an additive alternative entry point, not a replacement for
- * the standalone /bosses page (which still shows all 4 at once). Deliberately
- * self-contained (own fetch/poll/countdown) so it doesn't tangle with the
- * PvE combat state above it.
- *
- * Only OPEN formations are shown here (not resolved ones) — the owner was
- * explicit that this compact panel must never accumulate old/resolved
- * formations as a growing "history" list; the full /bosses page is still the
- * place to review a finished fight's result. Visually set apart from the
- * plain Pentili rows via a gold-bordered section + boss art, so it doesn't
- * read as just another monster in the list.
- */
-function ZoneBossPanel({ zoneId }: { zoneId: string }) {
+/** The zone's boss as a link card (owner decision, 2026-10-21): the boss and its formations have their own page. */
+function ZoneBossLink({ zoneId }: { zoneId: string }) {
   const t = useTranslations();
-  const [data, setData] = useState<{ bosses: BossDto[]; nextActionAvailableAt: string | null } | null>(null);
-  const [inClan, setInClan] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-  const [visibility, setVisibility] = useState({ visibleToClanOnly: false, visibleToFriendsOnly: false });
+  const [boss, setBoss] = useState<BossDto | null>(null);
 
-  const myRace = getCachedProfile()?.race ?? null;
-
-  async function load() {
-    try {
-      const [formations, myClan] = await Promise.all([getBossFormations(), getMyClan()]);
-      setData(formations);
-      setInClan(myClan.clan !== null);
-    } catch {
-      setError(t('bosses.loadError'));
-    }
-  }
-
-  // Other players fill formations — live, but only while the tab is visible.
-  useRefresh(load, { intervalMs: 10_000 });
-
-  const boss = data?.bosses.find((b) => b.zoneId === zoneId) ?? null;
-  const openFormations = boss?.formations.filter((f) => f.status === 'OPEN') ?? [];
-
-  const hasCountdown = Boolean(data?.nextActionAvailableAt) || openFormations.length > 0;
   useEffect(() => {
-    if (!hasCountdown) return;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [hasCountdown]);
-
-  function errorMessage(err: unknown): string {
-    if (err instanceof ApiError && err.code) {
-      const map: Record<string, string> = {
-        LEVEL_TOO_LOW: t('bosses.errorLevelTooLow', { level: boss?.minLevel ?? 0 }),
-        NOT_IN_CLAN: t('bosses.errorNotInClan'),
-        BOSS_FORMATION_COOLDOWN_ACTIVE: t('bosses.errorCooldownActive'),
-        EXPEDITION_IN_PROGRESS: t('bosses.expeditionInProgress'),
-        SLOT_ALREADY_FILLED: t('bosses.errorSlotFilled'),
-        FORMATION_ALREADY_RESOLVED: t('bosses.errorAlreadyResolved'),
-        VISIBILITY_EDIT_WINDOW_CLOSED: t('bosses.errorVisibilityLocked'),
-      };
-      if (map[err.code]) return map[err.code];
-    }
-    return t('bosses.actionError');
-  }
-
-  async function handleCreate() {
-    if (!boss) return;
-    setError(null);
-    try {
-      await createBossFormation(boss.key, visibility);
-      await load();
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  }
-
-  async function handleJoin(formationId: string) {
-    setError(null);
-    try {
-      await joinBossFormation(formationId);
-      await load();
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  }
-
-  async function handleVisibilityToggle(formationId: string, next: { visibleToClanOnly: boolean; visibleToFriendsOnly: boolean }) {
-    setError(null);
-    try {
-      await updateBossFormationVisibility(formationId, next);
-      await load();
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  }
+    getBossFormations()
+      .then((res) => setBoss(res.bosses.find((b) => b.zoneId === zoneId) ?? null))
+      .catch(() => undefined);
+  }, [zoneId]);
 
   if (!boss) return null;
-
-  const cooldownRemainingMs = data?.nextActionAvailableAt ? new Date(data.nextActionAvailableAt).getTime() - now : 0;
-  const onCooldown = cooldownRemainingMs > 0;
-
+  const open = boss.formations.filter((f) => f.status === 'OPEN').length;
   return (
-    <section className="mt-8 overflow-hidden rounded-lg border border-gold/50 bg-panel">
-      <div className="flex items-center justify-between border-b border-gold/50 bg-panelHeader px-4 py-3">
-        <span className="text-sm font-semibold uppercase text-gold">
+    <Link
+      href={`/zones/${zoneId}/boss`}
+      className="mt-8 flex items-center gap-4 rounded-lg border border-gold/50 bg-panel p-4 hover:border-gold"
+    >
+      <AssetIcon
+        assetId={boss.iconAssetId}
+        alt={t(boss.nameKey)}
+        className="h-16 w-16 shrink-0 object-contain"
+        fallback={<span className="flex h-16 w-16 shrink-0 items-center justify-center text-lg font-semibold text-textMuted">{t(boss.nameKey).charAt(0)}</span>}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold uppercase text-gold">
           {t('bosses.title')}: {t(boss.nameKey)}
-        </span>
-        {onCooldown && (
-          <span className="text-[10px] tabular-nums text-gold">
-            {t('bosses.cooldownActive')} {formatDuration(cooldownRemainingMs / 1000)}
-          </span>
-        )}
-      </div>
-
-      <div className="p-5">
-        {error && <p className="mb-3 text-xs text-danger">{error}</p>}
-
-        {!boss.unlocked && <p className="mb-3 text-xs text-textMuted">{t('bosses.locked', { level: boss.minLevel })}</p>}
-
-        {/* Visible but inactive below the required level — shown greyed out/desaturated
-            and non-interactive rather than hidden, same treatment as a locked zone wedge. */}
-        <div className={boss.unlocked ? undefined : 'pointer-events-none opacity-40 grayscale'}>
-          <div className="mb-4 flex items-center gap-5">
-            <AssetIcon
-              assetId={boss.iconAssetId}
-              alt={t(boss.nameKey)}
-              className="h-28 w-28 shrink-0 object-contain"
-              fallback={<span className="flex h-28 w-28 shrink-0 items-center justify-center text-lg font-semibold text-textMuted">{t(boss.nameKey).charAt(0)}</span>}
-            />
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-col gap-1 text-xs text-textMuted">
-                <span>HP {formatNumber(boss.maxHp)}</span>
-                <span>
-                  {t('bosses.attack')} {formatNumber(boss.attack)}
-                </span>
-                <span>
-                  {t('bosses.defense')} {formatNumber(boss.defense)}
-                </span>
-              </div>
-              <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
-                <span>{t('pve.drops')}:</span>
-                <span className="inline-flex items-center gap-1">
-                  {t('pve.xpGained')} +{formatNumber(boss.xpReward)}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <AssetIcon
-                    assetId={boss.guaranteedBoxIconAssetId}
-                    alt={t(boss.guaranteedBoxNameKey)}
-                    className="h-3.5 w-3.5 object-contain"
-                    fallback={<span className="text-[8px] font-semibold text-textMuted">{t(boss.guaranteedBoxNameKey).charAt(0)}</span>}
-                  />
-                  {t(boss.guaranteedBoxNameKey)} ({t('bosses.guaranteed')})
-                </span>
-                {boss.lootDrops.map((drop, index) => (
-                  <DropEntry key={index} drop={drop} />
-                ))}
-              </p>
-            </div>
-          </div>
-
-          <div className="mb-5 rounded border border-wellBorder bg-well p-3">
-            <p className="mb-2 text-xs font-semibold">{t('bosses.createFormation')}</p>
-            <div className="mb-3 flex flex-col gap-1.5">
-              <label className={`flex items-center gap-2 text-xs ${inClan ? 'text-textMuted' : 'cursor-not-allowed text-textFaint opacity-50'}`}>
-                <input
-                  type="checkbox"
-                  checked={visibility.visibleToClanOnly}
-                  disabled={!inClan}
-                  onChange={(e) => setVisibility({ ...visibility, visibleToClanOnly: e.target.checked })}
-                  className="accent-accent"
-                />
-                {t('market.clanOnly')}
-              </label>
-              <label className="flex items-center gap-2 text-xs text-textMuted">
-                <input
-                  type="checkbox"
-                  checked={visibility.visibleToFriendsOnly}
-                  onChange={(e) => setVisibility({ ...visibility, visibleToFriendsOnly: e.target.checked })}
-                  className="accent-accent"
-                />
-                {t('market.friendsOnly')}
-              </label>
-            </div>
-            <ConfirmButton
-              label={t('bosses.createFormation')}
-              confirmLabel={t('common.confirm')}
-              cancelLabel={t('common.cancel')}
-              message={t('bosses.createConfirm')}
-              onConfirm={handleCreate}
-              disabled={onCooldown || !boss.unlocked}
-              className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase text-text hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30"
-              confirmClassName="flex-1 rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase text-text hover:bg-accentBgHover"
-              cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel px-4 py-2 text-xs uppercase text-textMuted hover:bg-accentBgHover"
-            />
-          </div>
-
-          {openFormations.length === 0 ? (
-            <p className="text-xs text-textFaint">{t('bosses.noFormations')}</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {openFormations.map((formation) => (
-                <BossFormationCard
-                  key={formation.id}
-                  formation={formation}
-                  now={now}
-                  myRace={myRace}
-                  onCooldown={onCooldown}
-                  onJoin={() => handleJoin(formation.id)}
-                  onVisibilityToggle={(next) => handleVisibilityToggle(formation.id, next)}
-                />
-              ))}
-            </div>
-          )}
+        </div>
+        <div className="text-xs text-textMuted">
+          {boss.unlocked ? t('bosses.openFormationsCount', { count: open }) : t('bosses.locked', { level: boss.minLevel })}
         </div>
       </div>
-    </section>
+      <span className="shrink-0 text-xs uppercase text-gold">{t('bosses.goToBoss')} →</span>
+    </Link>
   );
 }
 

@@ -794,6 +794,9 @@
     "outcomeYouDefended": "You fended off an attack from <link>{name}</link>"
   },
   "bosses": {
+    "goToBoss": "Go to boss",
+    "backToZone": "Back to the zone",
+    "openFormationsCount": "{count, plural, =0 {No open formations} one {# open formation} other {# open formations}}",
     "title": "Boss Formations",
     "subtitle": "Form a 5-race squad and take down a boss together — once a day.",
     "locked": "Unlocks at level {level}.",
@@ -877,9 +880,9 @@
     "pioneer_upgrade": { "name": "Pioneer Upgrade", "description": "Used to upgrade Pioneer-tier equipment." },
     "ascendant_upgrade": { "name": "Ascendant Upgrade", "description": "Used to upgrade Ascendant-tier equipment." },
     "coreforged_upgrade": { "name": "Coreforged Upgrade", "description": "Used to upgrade Coreforged-tier equipment." },
-    "pioneer_fragment": { "name": "Pioneer Fragment", "description": "Recycled from Pioneer-tier equipment. Collect 10 to forge a Pioneer Upgrade." },
-    "ascendant_fragment": { "name": "Ascendant Fragment", "description": "Recycled from Ascendant-tier equipment. Collect 10 to forge an Ascendant Upgrade." },
-    "coreforged_fragment": { "name": "Coreforged Fragment", "description": "Recycled from Coreforged-tier equipment. Collect 10 to forge a Coreforged Upgrade." },
+    "pioneer_fragment": { "name": "Pioneer Fragment", "description": "Recycled from Pioneer-tier equipment. Collect {count} to forge a Pioneer Upgrade." },
+    "ascendant_fragment": { "name": "Ascendant Fragment", "description": "Recycled from Ascendant-tier equipment. Collect {count} to forge an Ascendant Upgrade." },
+    "coreforged_fragment": { "name": "Coreforged Fragment", "description": "Recycled from Coreforged-tier equipment. Collect {count} to forge a Coreforged Upgrade." },
     "pioneer_box": { "name": "Pioneer Box", "description": "Open for a guaranteed Rare or Epic Pioneer-tier item." },
     "ascendant_box": { "name": "Ascendant Box", "description": "Open for a guaranteed Rare or Epic Ascendant-tier item." },
     "coreforged_box": { "name": "Coreforged Box", "description": "Open for a guaranteed Rare or Epic Coreforged-tier item." },
@@ -1317,8 +1320,9 @@
     "canceled": "Payment canceled. You were not charged.",
     "failed": "The payment wasn't completed.",
     "slow": "Your payment is still being processed. You'll get the reward as soon as it's confirmed.",
+    "viewDocument": "View the purchase document",
     "getCredits": "Buy Credits",
-    "history": { "title": "My purchases", "empty": "No purchases yet.", "count": "Purchases: {count}", "refunded": "refunded" }
+    "history": { "title": "My purchases", "empty": "No purchases yet.", "count": "Purchases: {count}", "refunded": "refunded", "document": "Document", "refundDocument": "Refund document" }
   },
   "dailyTasks": {
     "title": "Daily tasks",
@@ -1506,5 +1510,33 @@
   "announcements": {
     "info": "Message from the team",
     "important": "Important"
+  },
+  "saleDocument": {
+    "titleSale": "Sale registration document",
+    "titleRefund": "Refund document",
+    "date": "Date and time",
+    "refundOf": "For sale document",
+    "seller": "Seller",
+    "eik": "UIC (EIK)",
+    "registeredAddress": "Registered address",
+    "contact": "Contact",
+    "eshop": "Online shop",
+    "eshopNumber": "NRA unique number",
+    "order": "Order number",
+    "transaction": "Transaction reference",
+    "item": "Item",
+    "taxGroup": "Tax group",
+    "quantity": "Qty",
+    "unitPrice": "Unit price",
+    "amount": "Amount",
+    "total": "Total paid",
+    "totalRefund": "Amount refunded",
+    "noVat": "Basis for not charging VAT: Art. 113(9) of the Bulgarian VAT Act.",
+    "paymentMethod": "Payment method",
+    "qrAlt": "Sale QR code",
+    "testBanner": "TEST — NOT A REAL SALE",
+    "print": "Print / save as PDF",
+    "back": "Back to settings",
+    "loadError": "Couldn't load the document."
   }
 }

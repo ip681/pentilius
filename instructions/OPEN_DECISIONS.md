@@ -252,7 +252,7 @@ Architecture (agreed direction):
   grants), recomputed by one function on every event — no conflicts between
   platforms. Show "VIP already active via …" instead of a second purchase.
 - **Refunds / chargebacks** reverse the grant (VIP recomputed, Credits taken
-  back); the rule for already-spent Credits is still open.
+  back in full — the balance may go below 0, decided 2026-10-23).
 - Order: tables + VIP recompute → Stripe on the web → godmaster purchases
   view → stores when the apps exist.
 
@@ -320,6 +320,45 @@ Still open:
   be bought with purchased Credits;
 - VAT/invoicing, terms of sale and right of withdrawal — owner's lawyer/
   accountant.
+
+### Sale documents and the NRA audit file (built 2026-10-23)
+Built: a document per direct sale and per refund (Наредба Н-18, чл. 52о), the
+monthly audit file (Приложение № 38) in godmaster; see
+`instructions/DECISIONS_LOG.md`. Still open:
+
+For the accountant:
+- payment code in the audit file: 4 "payment service provider" (owner's
+  choice, 2026-10-23 — Stripe charges the card and pays out later) or 2
+  "virtual POS" — confirm; one line to change;
+- the basis for not charging VAT on the documents: "чл. 113, ал. 9 от ЗДДС"
+  for a company registered only under Art. 97a — confirm the article;
+- the QR code's second field, written in the ordinance as "< >": empty (as
+  now) or a space;
+- a month with refunds but no sales: the NRA schema needs at least one order,
+  so no file can be built — is anything filed then, and how?
+
+Will show at the first real filing:
+- the file is UTF-8 (owner decision, 2026-10-23); the NRA's own sample is
+  Windows-1251. If the portal refuses it, switching back is a small change;
+- the embedded XSD is the NRA's of 06.06.2022 (still says "лв."; we file
+  euro). Replace it if the NRA publishes a new one.
+
+For the owner:
+- partial refunds: only full refunds are handled. A partial refund made by
+  hand in Stripe's dashboard creates no document and takes nothing back in
+  the game. Proposed rule: full refunds only, always through godmaster;
+- Managed Payments (abroad): whether those sales get our documents / go in
+  the audit file (excluded until decided; the data is kept so either works),
+  VAT included in the price or added on top, and whether round prices in
+  other currencies are needed.
+
+Before the first real sale (steps, not questions):
+- register the e-shop with the NRA (Приложение № 33, with a qualified
+  e-signature) and enter its real unique number in godmaster;
+- set up the server's Stripe webhook, including `charge.dispute.closed`
+  (a lost dispute takes the purchase back);
+- the live Stripe key: with the test key every document is a test one; the
+  live series starts at 0000000001 with the first real payment.
 
 ## Monetization
 - VIP tiers

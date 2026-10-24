@@ -1700,3 +1700,42 @@ decision), but never its Credits — the same rule as for players' own Credits,
 since Credits can be bought for real money. The war history simply shows no
 Credits line for new wars.
 
+## Sale documents and the NRA audit file (2026-10-23)
+
+Owner decisions, built the same day (Наредба Н-18 alternative regime for an
+e-shop paid by card through Stripe — no fiscal device):
+- **A document per direct sale** (чл. 52о), issued in the same transaction
+  that completes the purchase: 10-digit number +1 per sale, no gaps, unique;
+  seller (company: name, ЕИК, registered address, contact); order number = our
+  purchase ID; transaction reference = Stripe's PaymentIntent ID (`pi_...`);
+  item, tax group "А", quantity, unit price, amount, total, payment method; QR
+  code per Приложение № 18а (`<e-shop no.>*<empty>*<order>*<transaction>*
+  <date>*<time>*<total>`). Always in Bulgarian; amounts in euro.
+- **A refund document** (own series) for every full refund, from godmaster, from
+  Stripe or a lost dispute; it points at the sale and has no QR code.
+- **Test payments** get test documents (own series, marked "ТЕСТ"), never in
+  the audit file.
+- **Documents are final:** a database trigger refuses any change or deletion
+  (Приложение № 29, т. 2 — integrity). Each keeps a copy of the seller data
+  from the moment it was issued.
+- **Given only in the account**, no email (owner: that is "electronically"
+  enough): right after paying in the Shop and in Settings → My purchases, as a
+  printable page (browser "Save as PDF"). godmaster shows the same page
+  ("изтегли").
+- **Seller and NRA data** in godmaster → Payments → "Данни на продавача и НАП"
+  (company only — the seller is an ЕООД). Live payments are refused until it
+  is complete.
+- **Audit file** (Приложение № 38) in godmaster: pick a month, generate,
+  checked against the NRA's own XSD (embedded, `nra-audit-xsd.ts`), kept and
+  downloaded; payment code 4 (payment service provider — owner's choice, Stripe
+  charges the card and pays out later), with POS number, transaction and
+  provider (ID + name, as the annex requires) filled in too; in UTF-8 (owner
+  decision). A
+  "Тестов XML" button builds the same file from test documents, not kept.
+- **Credits on a refund** are taken back in full, even below 0.
+- Managed Payments stays out until decided — Stripe's terms make it the
+  merchant of record but not the seller (`Sold through Link, LLC` acts for the
+  seller), so it's unclear whether those sales need our documents.
+
+Open items are in `OPEN_DECISIONS.md` (Payments → Sale documents).
+

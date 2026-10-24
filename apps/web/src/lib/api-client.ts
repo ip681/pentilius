@@ -1,6 +1,7 @@
 import type {
   PaymentsCatalogDto,
   PurchaseDto,
+  SaleDocumentDto,
   AccountDeletionCodeDto,
   AccountDeletionStatusDto,
   ActiveExpeditionDto,
@@ -550,6 +551,11 @@ export function getPaymentsCatalog(): Promise<PaymentsCatalogDto> {
 
 export function startCheckout(productKey: string, locale: 'bg' | 'en'): Promise<{ url: string }> {
   return request<{ url: string }>('/payments/checkout', { method: 'POST', auth: true, body: { productKey, locale } });
+}
+
+// A sale or refund document (owner decision, 2026-10-23; Наредба Н-18).
+export function getSaleDocument(id: string): Promise<SaleDocumentDto> {
+  return request<SaleDocumentDto>(`/payments/documents/${encodeURIComponent(id)}`, { auth: true });
 }
 
 export function getCheckoutStatus(sessionId: string): Promise<PurchaseDto> {

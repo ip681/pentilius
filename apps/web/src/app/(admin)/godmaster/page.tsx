@@ -1,6 +1,11 @@
 'use client';
 
 import type {
+  AdminAuditFileDto,
+  AdminSaleDocumentRowDto,
+  AdminSellerSettingsDto,
+  SaleDocumentDto,
+  SellerInfoDto,
   AdminAnnouncementDto,
   AdminAnnouncementsDto,
   AnnouncementKind,
@@ -3005,9 +3010,382 @@ function PaymentsPanel() {
   return (
     <>
       <PaymentSettingsPanel />
+      <SellerSettingsPanel />
       <PaymentProductsPanel />
       <PurchasesPanel />
+      <SaleDocumentsPanel />
+      <AuditFilesPanel />
     </>
+  );
+}
+
+const SELLER_FIELDS: { key: keyof SellerInfoDto; label: string; hint?: string }[] = [
+  { key: 'name', label: 'наименование на фирмата' },
+  { key: 'eik', label: 'ЕИК' },
+  { key: 'address', label: 'седалище и адрес на управление' },
+  { key: 'contact', label: 'имейл или телефон' },
+  { key: 'eshopNumber', label: 'уникален номер на магазина в НАП', hint: 'от регистрацията по Приложение 33, до 10 знака' },
+  { key: 'domain', label: 'домейн на магазина' },
+  { key: 'posNumber', label: 'номер на виртуалния ПОС', hint: 'както е деклариран в НАП, напр. 01-STR-EUR' },
+  { key: 'merchantId', label: 'Merchant ID (ID на акаунта в Stripe)', hint: 'acct_…' },
+  { key: 'providerName', label: 'доставчик на платежни услуги (Stripe)', hint: 'не е твоят — данните на Stripe, за одиторския файл' },
+  { key: 'providerVatId', label: 'ДДС номер на доставчика (Stripe)', hint: 'не е твоят — ирландският ДДС номер на Stripe' },
+];
+
+const SELLER_FIELD_LABEL: Record<string, string> = Object.fromEntries(SELLER_FIELDS.map((f) => [f.key, f.label]));
+
+function centsText(cents: number, currency = 'EUR'): string {
+  return `${(cents / 100).toFixed(2).replace('.', ',')} ${currency.toUpperCase()}`;
+}
+
+function currentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Downloads an audit file through the authenticated API (a plain link can't carry
+ * the Bearer token): a kept one by id, or a test one built on the spot.
+ */
+async function downloadAuditFile(target: { id: string } | { testYear: number; testMonth: number }): Promise<void> {
+  const token = getToken();
+  const isTest = 'testYear' in target;
+  const response = await fetch(
+    isTest ? `${API_BASE_URL}/admin/payments/audit-files/test` : `${API_BASE_URL}/admin/payments/audit-files/${encodeURIComponent(target.id)}/download`,
+    {
+      method: isTest ? 'POST' : 'GET',
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(isTest ? { 'Content-Type': 'application/json' } : {}) },
+      body: isTest ? JSON.stringify({ year: target.testYear, month: target.testMonth }) : undefined,
+    },
+  );
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.message ?? `Изтеглянето се провали (${response.status})`);
+  }
+  const filename = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? 'audit.xml';
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * The seller and NRA e-shop data (owner decision, 2026-10-23; Наредба Н-18):
+ * printed on every sale document and put in the audit file. Each document keeps
+ * its own copy, so a change here only affects new documents. Live sales are
+ * refused until every field is filled; test sales work regardless.
+ */
+function SellerSettingsPanel() {
+  const [data, setData] = useState<AdminSellerSettingsDto | null>(null);
+  const [form, setForm] = useState<SellerInfoDto | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminFetch<AdminSellerSettingsDto>('/admin/payments/seller')
+      .then((res) => {
+        setData(res);
+        setForm(res.seller);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }, []);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form) return;
+    if (!window.confirm('Да запиша ли данните? Важат за новите документи; издадените не се променят.')) return;
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await adminFetch<AdminSellerSettingsDto>('/admin/payments/seller', { method: 'PUT', body: form });
+      setData(res);
+      setForm(res.seller);
+      setMessage('Записано.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  const input = 'rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent';
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <details open={!!data && data.missing.length > 0}>
+        <summary className="cursor-pointer text-sm font-semibold">
+          Данни на продавача и НАП{' '}
+          {data && (data.missing.length > 0 ? <span className="text-xs font-normal text-danger">— непопълнени: {data.missing.length}</span> : <span className="text-xs font-normal text-positive">— попълнени</span>)}
+        </summary>
+        <p className="mt-2 text-[11px] text-textFaint">
+          Отпечатват се на всеки документ за продажба и влизат в месечния одиторски файл. Всеки издаден документ пази своето копие — промяна тук засяга само новите.
+          Истински плащания не се приемат, докато не е попълнено всичко; тестовите работят и без това.
+        </p>
+        {data && data.missing.length > 0 && (
+          <p className="mt-2 text-[11px] text-danger">Липсват: {data.missing.map((key) => SELLER_FIELD_LABEL[key] ?? key).join(', ')}</p>
+        )}
+        {message && <p className="mt-2 text-[11px] text-positive">{message}</p>}
+        {error && <p className="mt-2 text-[11px] text-danger">{error}</p>}
+        {form && (
+          <form onSubmit={save} className="mt-3 flex flex-col gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {SELLER_FIELDS.map((f) => (
+                <label key={f.key} className="flex flex-col gap-1 text-[10px] text-textFaint">
+                  {f.label}
+                  <input value={String(form[f.key] ?? '')} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} className={input} />
+                  {f.hint && <span className="text-[10px] text-textFaint/70">{f.hint}</span>}
+                </label>
+              ))}
+            </div>
+            <button type="submit" className="w-fit rounded-md border border-accent bg-accentBg px-4 py-2 text-xs hover:bg-accentBgHover">
+              Запази
+            </button>
+          </form>
+        )}
+      </details>
+    </section>
+  );
+}
+
+/** A month's sale and refund documents; live by default, test ones on request. */
+function SaleDocumentsPanel() {
+  const [month, setMonth] = useState(currentMonth());
+  const [mode, setMode] = useState<'live' | 'test' | 'all'>('live');
+  const [rows, setRows] = useState<AdminSaleDocumentRowDto[] | null>(null);
+  const [open, setOpen] = useState<SaleDocumentDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setError(null);
+    adminFetch<AdminSaleDocumentRowDto[]>(`/admin/payments/documents?month=${month}&mode=${mode}`)
+      .then(setRows)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }, [month, mode]);
+
+  async function show(id: string) {
+    try {
+      setOpen(await adminFetch<SaleDocumentDto>(`/admin/payments/documents/${id}`));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <h2 className="mb-2 text-sm font-semibold">Документи за продажба и връщане</h2>
+      <div className="mb-3 flex flex-wrap items-end gap-3 text-[10px] text-textFaint">
+        <label className="flex flex-col gap-1">
+          месец
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent" />
+        </label>
+        <label className="flex flex-col gap-1">
+          вид
+          <select value={mode} onChange={(e) => setMode(e.target.value as 'live' | 'test' | 'all')} className="rounded-md border border-wellBorder bg-well px-3 py-2 text-sm">
+            <option value="live">истински</option>
+            <option value="test">тестови</option>
+            <option value="all">всички</option>
+          </select>
+        </label>
+      </div>
+      {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+      {rows && rows.length === 0 && <p className="text-xs text-textFaint">Няма документи за този месец.</p>}
+      {rows && rows.length > 0 && (
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>№</th>
+                <th>вид</th>
+                <th>дата</th>
+                <th>играч</th>
+                <th>сума</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td className="font-mono">{row.number}</td>
+                  <td>
+                    {row.kind === 'SALE' ? 'продажба' : 'връщане'}
+                    {row.test && <span className="ml-1 text-gold">тест</span>}
+                  </td>
+                  <td>{new Date(row.issuedAt).toLocaleString('bg-BG')}</td>
+                  <td>{row.username}</td>
+                  <td className="tabular-nums">{centsText(row.totalCents, row.currency)}</td>
+                  <td className="whitespace-nowrap">
+                    <button type="button" onClick={() => show(row.id)} className="text-accent underline">
+                      виж
+                    </button>
+                    {/* The same document as the player's, in a new tab; its print dialog saves it as PDF. */}
+                    <a href={`/godmaster/documents/${row.id}?print=1`} target="_blank" rel="noopener" className="ml-3 text-accent underline">
+                      изтегли
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {open && (
+        <div className="mt-3 rounded-md border border-wellBorder bg-well p-3 text-xs">
+          <div className="mb-2 flex items-center justify-between">
+            <strong>
+              {open.kind === 'SALE' ? 'Документ за продажба' : 'Документ за връщане'} № {open.number}
+              {open.test && <span className="ml-2 text-gold">ТЕСТ</span>}
+            </strong>
+            <button type="button" onClick={() => setOpen(null)} className="text-textFaint hover:text-text">
+              ✕
+            </button>
+          </div>
+          <p>Дата: {new Date(open.issuedAt).toLocaleString('bg-BG')}</p>
+          {open.saleNumber && <p>Към продажба № {open.saleNumber}</p>}
+          <p>Продавач: {open.seller.name}, ЕИК {open.seller.eik}, {open.seller.address}, {open.seller.contact}</p>
+          <p>Магазин: {open.seller.domain}, номер в НАП {open.eshopNumber}, ПОС {open.posNumber}</p>
+          <p className="break-all">Поръчка: {open.orderNumber}</p>
+          <p className="break-all">Трансакция: {open.transactionRef}</p>
+          <ul className="my-1 list-inside list-disc">
+            {open.lines.map((line, index) => (
+              <li key={index}>
+                {line.name} — група {line.taxGroup}, {line.quantity} × {centsText(line.unitPriceCents, open.currency)} = {centsText(line.amountCents, open.currency)}
+              </li>
+            ))}
+          </ul>
+          <p className="font-semibold">Общо: {centsText(open.totalCents, open.currency)}</p>
+          <p>Плащане: {open.paymentMethod}</p>
+          {open.qrPayload && <p className="break-all text-textFaint">QR: {open.qrPayload}</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The monthly NRA audit file (Наредба Н-18, приложение № 38): built from the
+ * live documents, checked against the NRA's own XSD, kept here and downloaded
+ * in UTF-8. Due by the 15th of the next month; it may be filed again
+ * within that window if something needs fixing.
+ */
+function AuditFilesPanel() {
+  const [month, setMonth] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [files, setFiles] = useState<AdminAuditFileDto[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    adminFetch<AdminAuditFileDto[]>('/admin/payments/audit-files')
+      .then(setFiles)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }
+  useEffect(load, []);
+
+  async function downloadTest() {
+    const [year, m] = month.split('-').map(Number);
+    if (!year || !m) return;
+    setError(null);
+    setMessage(null);
+    try {
+      await downloadAuditFile({ testYear: year, testMonth: m });
+      setMessage('Тестовият файл е свален (от тестовите документи, мина проверката по схемата на НАП). Не се подава и не се пази.');
+    } catch (err) {
+      const text = err instanceof Error ? err.message : 'Грешка';
+      setError(text.startsWith('NO_SALES_IN_MONTH') ? 'Няма тестови продажби за този месец.' : text.startsWith('SELLER_INCOMPLETE') ? 'Данните на продавача не са попълнени докрай.' : text);
+    }
+  }
+
+  async function generate() {
+    const [year, m] = month.split('-').map(Number);
+    if (!year || !m) return;
+    if (!window.confirm(`Да генерирам ли одиторския файл за ${month}? Влизат само истинските документи.`)) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const file = await adminFetch<AdminAuditFileDto>('/admin/payments/audit-files', { method: 'POST', body: { year, month: m } });
+      setMessage(`Готово: ${file.orderCount} поръчки, ${file.refundCount} връщания, ${centsText(file.totalCents)}. Файлът мина проверката по схемата на НАП.`);
+      load();
+    } catch (err) {
+      const text = err instanceof Error ? err.message : 'Грешка';
+      setError(
+        text.startsWith('NO_SALES_IN_MONTH')
+          ? 'Няма истински продажби за този месец — схемата на НАП изисква поне една поръчка.'
+          : text.startsWith('SELLER_INCOMPLETE')
+            ? 'Данните на продавача не са попълнени докрай.'
+            : text,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <h2 className="mb-1 text-sm font-semibold">Одиторски файл за НАП</h2>
+      <p className="mb-3 text-[11px] text-textFaint">
+        Месечният файл по Приложение № 38 към Наредба Н-18: подава се през портала на НАП с КЕП до 15-о число на следващия месец. Генерира се от истинските
+        документи, проверява се по официалната XSD схема и се сваля в кодировка UTF-8. В срока може да се подаде отново.
+      </p>
+      <div className="mb-3 flex flex-wrap items-end gap-3 text-[10px] text-textFaint">
+        <label className="flex flex-col gap-1">
+          месец
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-md border border-wellBorder bg-well px-3 py-2 text-sm outline-none focus:border-accent" />
+        </label>
+        <button type="button" disabled={busy} onClick={generate} className="rounded-md border border-accent bg-accentBg px-4 py-2 text-xs hover:bg-accentBgHover disabled:opacity-50">
+          {busy ? 'Генериране…' : 'Генерирай'}
+        </button>
+        <button type="button" onClick={downloadTest} className="rounded-md border border-gold px-4 py-2 text-xs text-gold hover:bg-accentBgHover">
+          Тестов XML
+        </button>
+      </div>
+      {message && <p className="mb-2 text-[11px] text-positive">{message}</p>}
+      {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+      {files && files.length > 0 && (
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>месец</th>
+                <th>генериран</th>
+                <th>от</th>
+                <th>поръчки</th>
+                <th>връщания</th>
+                <th>сума</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {files.map((file) => (
+                <tr key={file.id}>
+                  <td>
+                    {file.year}-{String(file.month).padStart(2, '0')}
+                  </td>
+                  <td>{new Date(file.createdAt).toLocaleString('bg-BG')}</td>
+                  <td>{file.adminUsername}</td>
+                  <td>{file.orderCount}</td>
+                  <td>{file.refundCount}</td>
+                  <td className="tabular-nums">{centsText(file.totalCents)}</td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => downloadAuditFile({ id: file.id }).catch((err) => setError(err instanceof Error ? err.message : 'Грешка'))}
+                      className="text-accent underline"
+                    >
+                      свали
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

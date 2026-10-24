@@ -34,6 +34,12 @@ export class PaymentsController {
     return this.payments.listPurchases(player.sub);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('documents/:id')
+  getDocument(@CurrentPlayer() player: JwtPayload, @Param('id') id: string) {
+    return this.payments.getDocument(player.sub, id);
+  }
+
   // Called by Stripe, not by players — no login; the signature proves it's Stripe.
   @Post('stripe/webhook')
   @HttpCode(HttpStatus.OK)

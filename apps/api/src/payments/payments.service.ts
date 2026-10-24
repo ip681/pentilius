@@ -1,13 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PaymentProductDto, PaymentsCatalogDto, PurchaseDto } from '@pentilius/shared';
-import { PaymentProduct, Prisma, Purchase } from '@prisma/client';
+import { PaymentProductDto, PaymentsCatalogDto, PurchaseDto, SaleDocumentDto } from '@pentilius/shared';
+import { PaymentProduct, Prisma, Purchase, SaleDocumentKind } from '@prisma/client';
 import Stripe from 'stripe';
 import { refreshEnergyBonuses } from '../base/building-finalizer';
 import { PushService } from '../notifications/push.service';
 import { EconomyService } from '../player/economy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { allowedPaymentCountries, countryOf, paymentsOfferedTo } from './payment-country';
+import { issueRefundDocument, issueSaleDocument, loadSellerInfo, missingSellerFields, toSaleDocumentDto } from './sale-documents';
 import { StripeProvider } from './stripe-provider';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -45,6 +46,10 @@ export class PaymentsService {
     if (!(await paymentsOfferedTo(ip, this.prisma, this.config))) throw new ForbiddenException('PAYMENTS_NOT_AVAILABLE');
     const product = await this.prisma.paymentProduct.findUnique({ where: { key: productKey } });
     if (!product || !product.active || !product.stripePriceId) throw new NotFoundException('PRODUCT_NOT_AVAILABLE');
+    // Real money needs a complete seller for the sale documents (Наредба Н-18); test payments don't.
+    if (this.stripe.live && missingSellerFields(await loadSellerInfo(this.prisma)).length > 0) {
+      throw new ForbiddenException('PAYMENTS_NOT_CONFIGURED');
+    }
     const player = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { email: true } });
 
     // Back to the Shop's offers; Stripe fills in {CHECKOUT_SESSION_ID} and the shop waits for the confirmation.
@@ -78,7 +83,7 @@ export class PaymentsService {
   async getCheckoutStatus(playerId: string, sessionId: string): Promise<PurchaseDto> {
     const purchase = await this.prisma.purchase.findUnique({
       where: { provider_providerRef: { provider: 'STRIPE', providerRef: sessionId } },
-      include: { product: true },
+      include: PURCHASE_INCLUDE,
     });
     if (!purchase || purchase.playerId !== playerId) throw new NotFoundException('PURCHASE_NOT_FOUND');
     return toPurchaseDto(purchase);
@@ -87,11 +92,18 @@ export class PaymentsService {
   async listPurchases(playerId: string): Promise<PurchaseDto[]> {
     const purchases = await this.prisma.purchase.findMany({
       where: { playerId, status: { in: ['COMPLETED', 'REFUNDED'] } },
-      include: { product: true },
+      include: PURCHASE_INCLUDE,
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
     return purchases.map(toPurchaseDto);
+  }
+
+  /** One of the player's own sale or refund documents (Наредба Н-18, чл. 52о, ал. 5: given electronically). */
+  async getDocument(playerId: string, documentId: string): Promise<SaleDocumentDto> {
+    const doc = await this.prisma.saleDocument.findUnique({ where: { id: documentId }, include: { purchase: { select: { playerId: true } }, sale: true } });
+    if (!doc || doc.purchase.playerId !== playerId) throw new NotFoundException('DOCUMENT_NOT_FOUND');
+    return toSaleDocumentDto(doc);
   }
 
   /** Stripe's notifications. Repeats are harmless: every change is conditional on the current status. */
@@ -120,6 +132,15 @@ export class PaymentsService {
           where: { provider: 'STRIPE', providerRef: session.id, status: 'PENDING' },
           data: { status: 'CANCELED' },
         });
+        break;
+      }
+      case 'charge.dispute.closed': {
+        // A lost dispute: the money went back to the customer, so the purchase is taken back.
+        const dispute = event.data.object as Stripe.Dispute;
+        if (dispute.status === 'lost' && typeof dispute.payment_intent === 'string') {
+          const sessionId = await this.stripe.sessionIdForPaymentIntent(dispute.payment_intent);
+          if (sessionId) await this.takeBack('STRIPE', sessionId);
+        }
         break;
       }
       case 'charge.refunded': {
@@ -164,20 +185,37 @@ export class PaymentsService {
         },
       });
     }
-    const cardCountry = await this.stripe.cardCountry(typeof session.payment_intent === 'string' ? session.payment_intent : null);
-    await this.grant(purchase.id, cardCountry);
+    const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : (session.payment_intent?.id ?? null);
+    const { cardCountry, chargeId } = await this.stripe.paymentDetails(paymentIntentId);
+    await this.grant(purchase.id, { cardCountry, chargeId, paymentIntentId, livemode: session.livemode });
   }
 
-  /** Grants a pending purchase exactly once (the status check makes repeats no-ops). */
-  private async grant(purchaseId: string, cardCountry: string | null): Promise<void> {
+  /**
+   * Grants a pending purchase exactly once (the status check makes repeats
+   * no-ops) and issues its sale document in the same transaction, so a paid
+   * order and its document can't exist without each other.
+   */
+  private async grant(
+    purchaseId: string,
+    payment: { cardCountry: string | null; chargeId: string | null; paymentIntentId: string | null; livemode: boolean },
+  ): Promise<void> {
+    const { cardCountry } = payment;
     const granted = await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.purchase.updateMany({
         where: { id: purchaseId, status: 'PENDING' },
-        data: { status: 'COMPLETED', completedAt: new Date(), cardCountry },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          cardCountry,
+          chargeId: payment.chargeId,
+          paymentIntentId: payment.paymentIntentId,
+          livemode: payment.livemode,
+        },
       });
       if (claimed.count !== 1) return null;
-      const purchase = await tx.purchase.findUniqueOrThrow({ where: { id: purchaseId } });
+      const purchase = await tx.purchase.findUniqueOrThrow({ where: { id: purchaseId }, include: { product: true } });
       await this.applyGrant(tx, purchase, 1);
+      await issueSaleDocument(tx, purchase, purchase.product);
       return purchase;
     });
     if (!granted) return;
@@ -197,6 +235,7 @@ export class PaymentsService {
       const claimed = await tx.purchase.updateMany({ where: { id: purchase.id, status: 'COMPLETED' }, data: { status: 'REFUNDED', refundedAt: new Date() } });
       if (claimed.count !== 1) return null;
       await this.applyGrant(tx, purchase, -1);
+      await issueRefundDocument(tx, purchase);
       return purchase;
     });
     if (refunded?.vipDays) await refreshEnergyBonuses({ prisma: this.prisma, economy: this.economy, push: this.push }, refunded.playerId);
@@ -206,17 +245,16 @@ export class PaymentsService {
   /**
    * Adds (direction 1) or takes back (-1) what the purchase granted — its own
    * snapshot, not the product's current values.
-   * - Credits: taken back only down to 0 — what to do when they were already
-   *   spent is still open (instructions/OPEN_DECISIONS.md, Payments).
+   * - Credits: taken back in full, even below 0 (owner decision, 2026-10-23):
+   *   with a negative balance nothing can be bought with Credits until it's
+   *   positive again, so a refund can't leave free Credits behind.
    * - VIP: extends from the current end (or now); a refund shortens it, never
    *   below now.
    */
   private async applyGrant(tx: Prisma.TransactionClient, purchase: Purchase, direction: 1 | -1): Promise<void> {
     if (purchase.credits) {
       await this.economy.settleAll(purchase.playerId, tx);
-      const player = await tx.player.findUniqueOrThrow({ where: { id: purchase.playerId }, select: { credits: true } });
-      const change = direction === 1 ? purchase.credits : -Math.min(player.credits, purchase.credits);
-      await tx.player.update({ where: { id: purchase.playerId }, data: { credits: { increment: change } } });
+      await tx.player.update({ where: { id: purchase.playerId }, data: { credits: { increment: direction * purchase.credits } } });
     }
     if (purchase.vipDays) {
       const player = await tx.player.findUniqueOrThrow({ where: { id: purchase.playerId }, select: { vipUntil: true } });
@@ -241,7 +279,9 @@ function toProductDto(product: PaymentProduct): PaymentProductDto {
   };
 }
 
-function toPurchaseDto(purchase: Purchase & { product: PaymentProduct }): PurchaseDto {
+const PURCHASE_INCLUDE = { product: true, documents: { select: { id: true, kind: true } } } as const;
+
+function toPurchaseDto(purchase: Purchase & { product: PaymentProduct; documents: { id: string; kind: SaleDocumentKind }[] }): PurchaseDto {
   return {
     id: purchase.id,
     productKey: purchase.product.key,
@@ -255,5 +295,7 @@ function toPurchaseDto(purchase: Purchase & { product: PaymentProduct }): Purcha
     currency: purchase.currency,
     createdAt: purchase.createdAt.toISOString(),
     completedAt: purchase.completedAt?.toISOString() ?? null,
+    saleDocumentId: purchase.documents.find((d) => d.kind === 'SALE')?.id ?? null,
+    refundDocumentId: purchase.documents.find((d) => d.kind === 'REFUND')?.id ?? null,
   };
 }

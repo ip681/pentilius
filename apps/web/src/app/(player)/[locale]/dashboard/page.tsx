@@ -1,6 +1,6 @@
 'use client';
 
-import type { BaseResponseDto, BossFormationsResponseDto, ClanWarStateDto, CoreStateDto, ExpeditionsResponseDto, MyClanResponseDto, PvpStatusDto, ResearchResponseDto, RobotSlotDto, ZoneDto } from '@pentilius/shared';
+import type { BaseResponseDto, BossFormationSlotDto, BossFormationsResponseDto, ClanWarStateDto, CoreStateDto, ExpeditionsResponseDto, MyClanResponseDto, PvpStatusDto, ResearchResponseDto, RobotSlotDto, ZoneDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
@@ -14,6 +14,7 @@ import { formatDuration } from '@/lib/format-duration';
 import { timerPercent } from '@/lib/timer-progress';
 import { useRefresh } from '@/lib/use-refresh';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { FormationSlots } from '@/components/FormationSlots';
 
 interface NavCard {
   key: string;
@@ -32,6 +33,8 @@ interface OperationRow {
   percent?: number | null;
   // Research is green, like on the Base; everything else uses the accent colour.
   barClass?: string;
+  // An open boss formation's slots, shown under the bar (owner decision, 2026-10-21).
+  formationSlots?: BossFormationSlotDto[];
 }
 
 export default function DashboardPage() {
@@ -259,15 +262,17 @@ export default function DashboardPage() {
           key: `boss-formation-${formation.id}`,
           label: t(boss.nameKey),
           secondsLeft: Math.max(0, secondsLeft),
-          href: '/bosses',
+          href: `/zones/${boss.zoneId}/boss`,
           percent: timerPercent(formation.createdAt, formation.resolvesAt, now),
+          formationSlots: formation.slots,
         });
       } else if (now - new Date(formation.resolvesAt).getTime() < READY_RESULT_WINDOW_MS) {
         operations.push({
           key: `boss-formation-${formation.id}`,
           label: t(boss.nameKey),
           secondsLeft: null,
-          href: '/bosses',
+          // The finished fight's result and loot are in the battle reports.
+          href: '/reports',
           readyLabel: t('bosses.resultReady'),
         });
       }
@@ -292,7 +297,14 @@ export default function DashboardPage() {
                 className="block rounded-lg border border-panelBorder bg-panel p-4 hover:border-accent"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs text-text">{op.label}</span>
+                  <span className="text-xs text-text">
+                    {op.label}
+                    {op.formationSlots && (
+                      <span className="ml-2 tabular-nums text-textMuted">
+                        {op.formationSlots.filter((s) => s.playerId).length}/{op.formationSlots.length}
+                      </span>
+                    )}
+                  </span>
                   {op.secondsLeft === null ? (
                     <span className="text-xs font-semibold uppercase text-positive">{op.readyLabel}</span>
                   ) : (
@@ -303,6 +315,11 @@ export default function DashboardPage() {
                 {op.secondsLeft !== null && op.percent != null && (
                   <div className="mt-2 h-[5px] overflow-hidden rounded-full bg-wellBorder">
                     <div className={`h-full transition-all ${op.barClass ?? 'bg-accent'}`} style={{ width: `${op.percent}%` }} />
+                  </div>
+                )}
+                {op.formationSlots && (
+                  <div className="mt-3">
+                    <FormationSlots slots={op.formationSlots} />
                   </div>
                 )}
               </Link>

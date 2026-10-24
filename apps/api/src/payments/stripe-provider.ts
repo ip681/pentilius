@@ -9,6 +9,7 @@ import Stripe from 'stripe';
  */
 @Injectable()
 export class StripeProvider {
+  private readonly secretKey: string;
   private readonly logger = new Logger(StripeProvider.name);
   private readonly client: Stripe | null;
   private readonly webhookSecret: string | undefined;
@@ -16,8 +17,14 @@ export class StripeProvider {
   constructor(config: ConfigService) {
     const secretKey = config.get<string>('stripe.secretKey');
     this.client = secretKey ? new Stripe(secretKey) : null;
+    this.secretKey = secretKey ?? '';
     this.webhookSecret = config.get<string>('stripe.webhookSecret');
     if (!this.client) this.logger.warn('STRIPE_SECRET_KEY is not set — payments are off.');
+  }
+
+  /** A live key (real money); test keys only make test payments and test documents. */
+  get live(): boolean {
+    return this.secretKey.startsWith('sk_live_') || this.secretKey.startsWith('rk_live_');
   }
 
   get enabled(): boolean {
@@ -56,16 +63,19 @@ export class StripeProvider {
     return client.webhooks.constructEvent(rawBody, signature, this.webhookSecret);
   }
 
-  /** The paying card's country, for the Bulgaria-only check (null if unknown). */
-  async cardCountry(paymentIntentId: string | null): Promise<string | null> {
-    if (!paymentIntentId) return null;
+  /**
+   * The paying card's country (the Bulgaria-only check) and the charge behind
+   * the payment (kept with the sale document); nulls if unknown.
+   */
+  async paymentDetails(paymentIntentId: string | null): Promise<{ cardCountry: string | null; chargeId: string | null }> {
+    if (!paymentIntentId) return { cardCountry: null, chargeId: null };
     try {
       const intent = await this.requireClient().paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge'] });
       const charge = intent.latest_charge as Stripe.Charge | null;
-      return charge?.payment_method_details?.card?.country ?? null;
+      return { cardCountry: charge?.payment_method_details?.card?.country ?? null, chargeId: charge?.id ?? null };
     } catch (error) {
-      this.logger.warn(`Could not read the card country: ${(error as Error).message}`);
-      return null;
+      this.logger.warn(`Could not read the payment details: ${(error as Error).message}`);
+      return { cardCountry: null, chargeId: null };
     }
   }
 

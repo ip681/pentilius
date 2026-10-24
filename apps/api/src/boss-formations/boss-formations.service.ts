@@ -475,6 +475,8 @@ function toFormationDto(formation: FormationWithRelations, viewerId: string): Bo
     playerId: slot.playerId,
     playerUsername: slot.player?.username ?? null,
     playerIsVip: slot.player ? isVip(slot.player) : false,
+    playerAvatarKey: slot.player?.selectedAvatarKey ?? null,
+    playerFrameKey: slot.player?.selectedFrameKey ?? null,
     joinedAt: slot.joinedAt?.toISOString() ?? null,
     isCurrentPlayer: slot.playerId === viewerId,
     xpGained: slot.xpGained,

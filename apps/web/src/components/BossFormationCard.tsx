@@ -2,16 +2,13 @@
 
 import type { BossFormationDto, Race } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
-import { AssetIcon } from '@/components/AssetIcon';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { LootEntry } from '@/components/LootEntry';
+import { FormationSlots } from '@/components/FormationSlots';
 import { formatDuration } from '@/lib/format-duration';
-import { RACE_BG_CLASS } from '@/lib/race-colors';
 import { displayPlayerName } from '@/lib/player-name';
 
-const ALL_RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
-
-/** One formation's 5-race-slot card — join button, visibility toggle, live countdown while OPEN, result summary once resolved. Shared by the full /bosses page and the per-zone boss panel. */
+/** One formation's 5-race-slot card — join button, visibility toggle, live countdown while OPEN, result summary once resolved. Used by the boss page's panel (ZoneBossPanel). */
 export function BossFormationCard({
   formation,
   now,
@@ -92,25 +89,8 @@ export function BossFormationCard({
         )
       )}
 
-      <div className="mb-3 grid grid-cols-5 gap-1.5">
-        {ALL_RACES.map((race) => {
-          const slot = formation.slots.find((s) => s.race === race);
-          const filled = Boolean(slot?.playerId);
-          return (
-            <div
-              key={race}
-              className={`flex flex-col items-center gap-1 rounded-md border p-2 text-center ${filled ? RACE_BG_CLASS[race] + ' border-transparent' : 'border-dashed border-wellBorder opacity-50'}`}
-            >
-              <AssetIcon
-                assetId={`races.${race.toLowerCase()}.icon`}
-                alt={t(`race.${race}.name`)}
-                className="h-6 w-6 object-contain"
-                fallback={<span className="text-xs font-semibold">{t(`race.${race}.name`).charAt(0)}</span>}
-              />
-              <span className={`w-full truncate text-[10px] ${slot?.playerIsVip ? 'text-vipGold' : 'text-text'}`}>{slot?.playerUsername ? displayPlayerName(t, slot.playerUsername) : t('bosses.emptySlot')}</span>
-            </div>
-          );
-        })}
+      <div className="mb-3">
+        <FormationSlots slots={formation.slots} raceBadge />
       </div>
 
       {canJoin && (

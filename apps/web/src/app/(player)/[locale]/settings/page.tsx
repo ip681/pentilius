@@ -276,6 +276,20 @@ export default function SettingsPage() {
                       {formatPrice(purchase.amountCents, purchase.currency, locale)}
                       {purchase.status === 'REFUNDED' && <span className="ml-2 text-textFaint">{t('payments.history.refunded')}</span>}
                     </span>
+                    {(purchase.saleDocumentId || purchase.refundDocumentId) && (
+                      <span className="flex w-full flex-wrap gap-3">
+                        {purchase.saleDocumentId && (
+                          <Link href={`/documents/${purchase.saleDocumentId}`} className="text-accent underline">
+                            {t('payments.history.document')}
+                          </Link>
+                        )}
+                        {purchase.refundDocumentId && (
+                          <Link href={`/documents/${purchase.refundDocumentId}`} className="text-accent underline">
+                            {t('payments.history.refundDocument')}
+                          </Link>
+                        )}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

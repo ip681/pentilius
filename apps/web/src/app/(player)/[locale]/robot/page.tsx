@@ -594,7 +594,7 @@ export default function RobotPage() {
               {hoveredItem.item.slot ? (
                 <EquipmentTooltipDetails item={hoveredItem.item} playerRace={profile?.race} />
               ) : (
-                <p className="text-textMuted">{t(hoveredItem.item.descriptionKey)}</p>
+                <p className="text-textMuted">{t(hoveredItem.item.descriptionKey, hoveredItem.item.descriptionParams ?? undefined)}</p>
               )}
             </ItemHoverTooltip>
           )}
@@ -820,7 +820,7 @@ export default function RobotPage() {
               {selected.category === 'CONSUMABLE' ? (
                 <>
                   <h3 className="mb-1 text-sm font-semibold">{t(selected.nameKey)}</h3>
-                  <p className="mb-2 text-[10px] text-textMuted">{t(selected.descriptionKey)}</p>
+                  <p className="mb-2 text-[10px] text-textMuted">{t(selected.descriptionKey, selected.descriptionParams ?? undefined)}</p>
                   <p className="text-[10px] text-textFaint">
                     {t('robot.quantity')}: {selected.quantity}
                   </p>

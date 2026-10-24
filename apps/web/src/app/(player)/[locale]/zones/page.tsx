@@ -495,7 +495,7 @@ export default function ZonesPage() {
                 <div className="mt-3 border-t border-white/10 pt-3">
                   {selectedBoss.unlocked ? (
                     <Link
-                      href={`/zones/${selected.id}?boss=1`}
+                      href={`/zones/${selected.id}/boss`}
                       className={`flex items-center gap-4 rounded-md border border-gold/50 bg-well p-2.5 hover:bg-accentBgHover ${selected.unlocked ? '' : 'pointer-events-none opacity-50'}`}
                     >
                       <AssetIcon

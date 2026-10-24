@@ -8,6 +8,7 @@ import { getCheckoutStatus, startCheckout } from '@/lib/api-client';
 import { formatPrice } from '@/lib/format-price';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { formatNumber } from '@/lib/format-number';
+import { Link } from '@/i18n/navigation';
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
@@ -208,5 +209,17 @@ export function CheckoutResult({ checkout, onDone }: { checkout: string; onDone:
   } else {
     text = t('payments.processing');
   }
-  return <p className={`mb-4 rounded-md border px-3 py-2 text-xs ${tone}`}>{text}</p>;
+  return (
+    <p className={`mb-4 rounded-md border px-3 py-2 text-xs ${tone}`}>
+      {text}
+      {purchase?.status === 'COMPLETED' && purchase.saleDocumentId && (
+        <>
+          {' '}
+          <Link href={`/documents/${purchase.saleDocumentId}`} className="text-accent underline">
+            {t('payments.viewDocument')}
+          </Link>
+        </>
+      )}
+    </p>
+  );
 }
