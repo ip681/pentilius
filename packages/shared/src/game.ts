@@ -1456,7 +1456,7 @@ export interface AdminSupportTicketDetailDto {
 // The menu dots (owner decision, 2026-10-13) — one light check, kept out of the
 // profile (loaded far more often), same idea as the friends unread status.
 // Timed and event notifications (owner decision, 2026-10-13).
-export type NotificationType = 'ENERGY_FULL' | 'CONSTRUCTION_DONE' | 'RESEARCH_DONE' | 'EXPEDITION_DONE' | 'PVP_ATTACKED';
+export type NotificationType = 'ENERGY_FULL' | 'CONSTRUCTION_DONE' | 'RESEARCH_DONE' | 'EXPEDITION_DONE' | 'PVP_ATTACKED' | 'BOSS_BATTLE_DONE';
 export type NotificationSettingsDto = Record<NotificationType, boolean>;
 
 // A timer the open game turns into an in-game/browser notification when it ends.
@@ -1467,6 +1467,9 @@ export interface NotificationTimerDto {
   nameKey: string | null;
   // The level being built or researched; null otherwise.
   level: number | null;
+  // Where a click takes the player when it depends on the timer (a boss
+  // fight's replay); null = the usual page for the type.
+  path: string | null;
 }
 
 export interface NotificationsDto {
@@ -1926,7 +1929,8 @@ export interface AdminBossBalanceDto {
 // godmaster → Balance → Other values (owner decision, 2026-10-19).
 // Mirrors apps/api/src/config/other-balance.ts; percent values are fractions.
 export interface AdminOtherBalanceDto {
-  values: { path: string; kind: 'int' | 'number' | 'percent'; min: number; max: number; value: number; default: number }[];
+  // oneOf: when set, only these values are allowed.
+  values: { path: string; kind: 'int' | 'number' | 'percent'; min: number; max: number; oneOf?: number[]; value: number; default: number }[];
 }
 
 // godmaster → Balance → Rewards (owner decision, 2026-10-19).

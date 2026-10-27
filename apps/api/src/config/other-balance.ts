@@ -21,6 +21,8 @@ export interface OtherValueDef {
   kind: OtherValueKind;
   min: number;
   max: number;
+  // When set, only these values are allowed (godmaster shows a dropdown).
+  oneOf?: number[];
 }
 
 const I = (path: string, min: number, max: number): OtherValueDef => ({ path, kind: 'int', min, max });
@@ -60,7 +62,9 @@ export const OTHER_VALUES: OtherValueDef[] = [
   // Boss formations
   N('bossFormations.enrollmentWindowHours', 0.1, 168),
   N('bossFormations.visibilityEditWindowHours', 0, 168),
-  N('bossFormations.actionCooldownHours', 0, 168),
+  // Hours between the cooldown resets; must divide 24 so the reset times repeat daily.
+  { path: 'bossFormations.actionCooldownHours', kind: 'int', min: 1, max: 24, oneOf: [1, 2, 3, 4, 6, 8, 12, 24] },
+  I('bossFormations.cooldownResetHour', 0, 23),
   P('bossFormations.maxDamageDecrease', 0.99),
   // PvP
   I('pvp.minLevel', 1, 100),

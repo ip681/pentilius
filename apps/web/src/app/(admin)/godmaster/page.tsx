@@ -5892,7 +5892,8 @@ const OTHER_GROUPS: { title: string; items: [string, string, string?][] }[] = [
     items: [
       ['bossFormations.enrollmentWindowHours', 'часове за записване'],
       ['bossFormations.visibilityEditWindowHours', 'часове, в които създателят може да сменя видимостта'],
-      ['bossFormations.actionCooldownHours', 'часове между две формации на играч'],
+      ['bossFormations.actionCooldownHours', 'изчакване за формация: нулира се на всеки … часа', 'всички играчи едновременно; стойности, които делят 24'],
+      ['bossFormations.cooldownResetHour', 'изчакване за формация: от кой час (UTC)', '0 = 00:00 UTC = 02:00 българско зимно / 03:00 лятно време'],
       ['bossFormations.maxDamageDecrease', 'таван на „намаление на щетата“ във формация %'],
     ],
   },
@@ -6127,13 +6128,27 @@ function OverridesPanel({
                         {hint && <div className="text-[10px] text-textFaint">{hint}</div>}
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        <input
-                          type="number"
-                          step="any"
-                          value={shown(path, value)}
-                          onChange={(e) => setValues((v) => ({ ...v, [path]: stored(path, Number(e.target.value)) }))}
-                          className="w-24 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent"
-                        />
+                        {def.oneOf ? (
+                          <select
+                            value={value}
+                            onChange={(e) => setValues((v) => ({ ...v, [path]: Number(e.target.value) }))}
+                            className="w-24 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent"
+                          >
+                            {def.oneOf.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="number"
+                            step="any"
+                            value={shown(path, value)}
+                            onChange={(e) => setValues((v) => ({ ...v, [path]: stored(path, Number(e.target.value)) }))}
+                            className="w-24 rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent"
+                          />
+                        )}
                         <button
                           type="button"
                           title={`по подразбиране: ${gmNumber(shown(path, def.default))}`}

@@ -90,7 +90,7 @@ export class PlayerService {
     // Timers that ended a moment ago are included, so a page change at the
     // wrong instant doesn't swallow the notification (the client dedupes).
     const since = new Date(Date.now() - 2 * 60_000);
-    const [dailyTasks, achievements, support, player, buildings, researches, expedition, lastDefense] = await Promise.all([
+    const [dailyTasks, achievements, support, player, buildings, researches, expedition, lastDefense, formationSlots] = await Promise.all([
       this.dailyTasks.hasClaimable(playerId),
       this.achievements.hasClaimable(playerId),
       this.prisma.supportTicket.count({ where: { playerId, playerUnread: true } }),
@@ -115,16 +115,35 @@ export class PlayerService {
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true, outcome: true, attacker: { select: { username: true } } },
       }),
+      // Own boss formations still waiting, or finished a moment ago.
+      this.prisma.bossFormationSlot.findMany({
+        where: { playerId, formation: { OR: [{ status: 'OPEN' }, { resolvesAt: { gte: since } }] } },
+        select: {
+          joinedAt: true,
+          formation: { select: { id: true, resolvesAt: true, boss: { select: { nameKey: true, zoneId: true } } } },
+        },
+      }),
     ]);
 
     const timers: NotificationTimerDto[] = [];
     if (player.actionEnergy < player.actionEnergyMax) {
       const fullAt = player.energyUpdatedAt.getTime() + (player.actionEnergyMax - player.actionEnergy) * energyIntervalMs(player);
-      timers.push({ type: 'ENERGY_FULL', at: new Date(fullAt).toISOString(), nameKey: null, level: null });
+      timers.push({ type: 'ENERGY_FULL', at: new Date(fullAt).toISOString(), nameKey: null, level: null, path: null });
     }
-    for (const b of buildings) timers.push({ type: 'CONSTRUCTION_DONE', at: b.constructionEndsAt!.toISOString(), nameKey: b.buildingType.nameKey, level: b.level + 1 });
-    for (const r of researches) timers.push({ type: 'RESEARCH_DONE', at: r.researchEndsAt!.toISOString(), nameKey: r.researchType.nameKey, level: r.level + 1 });
-    if (expedition) timers.push({ type: 'EXPEDITION_DONE', at: expedition.endsAt.toISOString(), nameKey: expedition.expeditionType.nameKey, level: null });
+    for (const b of buildings) timers.push({ type: 'CONSTRUCTION_DONE', at: b.constructionEndsAt!.toISOString(), nameKey: b.buildingType.nameKey, level: b.level + 1, path: null });
+    for (const r of researches) timers.push({ type: 'RESEARCH_DONE', at: r.researchEndsAt!.toISOString(), nameKey: r.researchType.nameKey, level: r.level + 1, path: null });
+    if (expedition) timers.push({ type: 'EXPEDITION_DONE', at: expedition.endsAt.toISOString(), nameKey: expedition.expeditionType.nameKey, level: null, path: null });
+    for (const { joinedAt, formation } of formationSlots) {
+      // Whoever filled the formation watched the fight live.
+      if (joinedAt && joinedAt >= formation.resolvesAt) continue;
+      timers.push({
+        type: 'BOSS_BATTLE_DONE',
+        at: formation.resolvesAt.toISOString(),
+        nameKey: formation.boss.nameKey,
+        level: null,
+        path: `/zones/${formation.boss.zoneId}/boss?battle=${formation.id}`,
+      });
+    }
 
     return {
       dailyTasks,

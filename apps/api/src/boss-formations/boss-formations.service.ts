@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import {
   BossFormationDto,
   BossFormationResultDto,
@@ -16,6 +16,7 @@ import { aggregateFormationCombatStats, CombatService } from '../pve/combat.serv
 import { EconomyService } from '../player/economy.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
+import { PushSchedulerService } from '../notifications/push-scheduler.service';
 import { isVip } from '../vip/vip';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -28,6 +29,9 @@ const RESOURCE_FIELD: Record<ResourceType, 'metal' | 'crystal' | 'credits'> = {
 const ALL_RACES: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
 
 type Tx = PrismaService | Prisma.TransactionClient;
+// How long a finished fight stays on the boss page (owner decision, 2026-10-23).
+const RECENT_BATTLES_HOURS = 24;
+
 type FormationWithRelations = BossFormation & {
   boss: Boss & { zone: Zone };
   creator: Player;
@@ -40,14 +44,21 @@ type FormationWithRelations = BossFormation & {
  * and the project_boss_formations.md design memory for the full spec.
  */
 @Injectable()
-export class BossFormationsService {
+export class BossFormationsService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly economy: EconomyService,
     private readonly combat: CombatService,
     private readonly dailyTasks: DailyTasksService,
     private readonly achievements: AchievementsService,
+    private readonly scheduler: PushSchedulerService,
   ) {}
+
+  onModuleInit(): void {
+    // Fights formations whose time is up within a minute, even if nobody opens
+    // a page, so "the boss battle is over" can be sent (owner decision, 2026-10-27).
+    this.scheduler.addMinuteTask('boss formations', () => this.globalFinalizeSweep());
+  }
 
   async getFormations(playerId: string): Promise<BossFormationsResponseDto> {
     const player = await this.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
@@ -57,8 +68,15 @@ export class BossFormationsService {
       include: { zone: true, guaranteedBoxItem: true, lootDrops: { include: { itemDefinition: true } } },
       orderBy: { level: 'asc' },
     });
+    // Open formations, plus the viewer's own finished fights of the last day
+    // (the boss page's "recent battles", owner decision 2026-10-23) — older
+    // ones stay in the battle reports, so this list doesn't grow all season.
+    const recentSince = new Date(Date.now() - RECENT_BATTLES_HOURS * 60 * 60 * 1000);
     const allFormations = await this.prisma.bossFormation.findMany({
-      where: { bossId: { in: bosses.map((b) => b.id) } },
+      where: {
+        bossId: { in: bosses.map((b) => b.id) },
+        OR: [{ status: 'OPEN' }, { status: 'RESOLVED', resolvesAt: { gte: recentSince }, slots: { some: { playerId } } }],
+      },
       include: { boss: { include: { zone: true } }, creator: true, slots: { include: { player: true }, orderBy: { race: 'asc' } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -184,9 +202,10 @@ export class BossFormationsService {
       }
       await this.assertVisible(formation, playerId, tx);
 
+      const now = new Date();
       const updated = await tx.bossFormationSlot.updateMany({
         where: { formationId, race: player.race, playerId: null },
-        data: { playerId, joinedAt: new Date() },
+        data: { playerId, joinedAt: now },
       });
       if (updated.count !== 1) {
         throw new BadRequestException('SLOT_ALREADY_FILLED');
@@ -194,6 +213,18 @@ export class BossFormationsService {
 
       await setCooldown(tx, playerId);
       await this.dailyTasks.record(playerId, 'BOSS_FORMATION_JOIN', 1, tx);
+
+      // The fifth fighter fills the formation: it fights right away instead of
+      // waiting out the timer (owner decision, 2026-10-27). resolvesAt = their
+      // joinedAt marks who filled it (they watch it live, so no notice for them).
+      const full = await tx.bossFormation.findUniqueOrThrow({
+        where: { id: formationId },
+        include: { boss: { include: { lootDrops: true } }, slots: true },
+      });
+      if (full.slots.every((s) => s.playerId !== null)) {
+        await tx.bossFormation.update({ where: { id: formationId }, data: { resolvesAt: now } });
+        await this.settle(full.boss, full, full.slots, tx);
+      }
 
       const refreshed = await this.loadFormation(formationId, tx);
       return toFormationDto(refreshed!, playerId);
@@ -237,7 +268,7 @@ export class BossFormationsService {
     });
   }
 
-  /** Finalizes every OPEN formation whose enrollment window has already elapsed, across every boss — no cron, checked lazily on the main list read. */
+  /** Finalizes every OPEN formation whose enrollment window has already elapsed, across every boss — once a minute, and again on the main list read so a page opened right at the end already shows the result. */
   private async globalFinalizeSweep(): Promise<void> {
     const expired = await this.prisma.bossFormation.findMany({
       where: { status: 'OPEN', resolvesAt: { lte: new Date() } },
@@ -416,6 +447,8 @@ export class BossFormationsService {
   /** Single-formation defensive re-check — never trust the client only reached this formation through the filtered list (instructions/ARCHITECTURE.md). Mirrors market.service.ts's buyListing. */
   private async assertVisible(formation: FormationWithRelations, viewerId: string, tx: Tx): Promise<void> {
     if (formation.creatorId === viewerId) return;
+    // Anyone who fought in it can always see it (e.g. their own battle after leaving the clan).
+    if (formation.slots.some((s) => s.playerId === viewerId)) return;
     if (!formation.visibleToClanOnly && !formation.visibleToFriendsOnly) return;
 
     const [viewerMembership, creatorMembership, friendship] = await Promise.all([
@@ -446,8 +479,22 @@ function assertCooldownFree(player: Player): void {
 }
 
 async function setCooldown(tx: Prisma.TransactionClient, playerId: string): Promise<void> {
-  const until = new Date(Date.now() + GAME_BALANCE.bossFormations.actionCooldownHours * 60 * 60 * 1000);
-  await tx.player.update({ where: { id: playerId }, data: { nextBossFormationActionAt: until } });
+  await tx.player.update({ where: { id: playerId }, data: { nextBossFormationActionAt: nextFormationReset(new Date()) } });
+}
+
+/**
+ * The next cooldown reset after `now` (owner decision, 2026-10-23): every
+ * actionCooldownHours hours from cooldownResetHour o'clock UTC — the same
+ * clock times every day, for everyone, with no summer/winter time shifts
+ * (the game isn't only for Bulgaria).
+ */
+export function nextFormationReset(now: Date): Date {
+  const HOUR = 60 * 60 * 1000;
+  const { actionCooldownHours, cooldownResetHour } = GAME_BALANCE.bossFormations;
+  // Start from yesterday's reset hour and step forward to the first reset after now.
+  let reset = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + (cooldownResetHour - 24) * HOUR;
+  while (reset <= now.getTime()) reset += actionCooldownHours * HOUR;
+  return new Date(reset);
 }
 
 function cooldownIso(player: Player): string | null {

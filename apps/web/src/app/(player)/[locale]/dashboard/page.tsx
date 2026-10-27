@@ -251,29 +251,20 @@ export default function DashboardPage() {
     });
   }
 
-  const READY_RESULT_WINDOW_MS = 24 * 60 * 60 * 1000;
   for (const boss of bossFormations?.bosses ?? []) {
     for (const formation of boss.formations) {
       const mine = formation.slots.some((s) => s.isCurrentPlayer);
       if (!mine) continue;
-      if (formation.status === 'OPEN') {
-        const secondsLeft = Math.ceil((new Date(formation.resolvesAt).getTime() - now) / 1000);
+      const secondsLeft = Math.ceil((new Date(formation.resolvesAt).getTime() - now) / 1000);
+      // Gone once the time is up, like the other timers; the result comes as a notification (owner decision, 2026-10-27).
+      if (formation.status === 'OPEN' && secondsLeft > 0) {
         operations.push({
           key: `boss-formation-${formation.id}`,
           label: t(boss.nameKey),
-          secondsLeft: Math.max(0, secondsLeft),
+          secondsLeft,
           href: `/zones/${boss.zoneId}/boss`,
           percent: timerPercent(formation.createdAt, formation.resolvesAt, now),
           formationSlots: formation.slots,
-        });
-      } else if (now - new Date(formation.resolvesAt).getTime() < READY_RESULT_WINDOW_MS) {
-        operations.push({
-          key: `boss-formation-${formation.id}`,
-          label: t(boss.nameKey),
-          secondsLeft: null,
-          // The finished fight's result and loot are in the battle reports.
-          href: '/reports',
-          readyLabel: t('bosses.resultReady'),
         });
       }
     }

@@ -886,6 +886,8 @@ model BossFormation {
   creator Player              @relation("BossFormationsCreated", fields: [creatorId], references: [id])
   slots   BossFormationSlot[]
 
+  // The once-a-minute check for formations whose time is up (owner decision, 2026-10-27).
+  @@index([status, resolvesAt])
   @@map("boss_formations")
 }
 

@@ -16,6 +16,6 @@ import { PlayerService } from './player.service';
   imports: [AnnouncementsModule],
   controllers: [PlayerController, DailyTasksController, AchievementsController, NotificationsController],
   providers: [PlayerService, EconomyService, ClanBonusService, DailyTasksService, AchievementsService, PushService, PushSchedulerService],
-  exports: [EconomyService, ClanBonusService, DailyTasksService, AchievementsService, PushService],
+  exports: [EconomyService, ClanBonusService, DailyTasksService, AchievementsService, PushService, PushSchedulerService],
 })
 export class PlayerModule {}

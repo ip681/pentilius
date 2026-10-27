@@ -17,6 +17,7 @@ const TARGET: Record<NotificationType, string> = {
   RESEARCH_DONE: '/research',
   EXPEDITION_DONE: '/expeditions',
   PVP_ATTACKED: '/reports',
+  BOSS_BATTLE_DONE: '/bosses',
 };
 
 interface Toast {
@@ -57,10 +58,10 @@ export function NotificationCenter({ notifications, profile }: { notifications: 
   const router = useRouter();
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  function show(tag: string, type: NotificationType, title: string, body: string) {
+  function show(tag: string, type: NotificationType, title: string, body: string, path?: string | null) {
     if (!markShown(tag)) return;
     if (document.visibilityState === 'visible') {
-      const toast = { id: tag, title, body, href: TARGET[type] };
+      const toast = { id: tag, title, body, href: path ?? TARGET[type] };
       setToasts((list) => [...list.slice(-3), toast]);
       setTimeout(() => setToasts((list) => list.filter((item) => item.id !== tag)), TOAST_MS);
     } else if (getDeviceState() === 'on' && !devicePushActive()) {
@@ -81,6 +82,8 @@ export function NotificationCenter({ notifications, profile }: { notifications: 
         return { title: t('notifications.constructionDone.title'), body: t('notifications.constructionDone.body', { name, level: timer.level ?? 0 }) };
       case 'RESEARCH_DONE':
         return { title: t('notifications.researchDone.title'), body: t('notifications.researchDone.body', { name, level: timer.level ?? 0 }) };
+      case 'BOSS_BATTLE_DONE':
+        return { title: t('notifications.bossBattleDone.title'), body: t('notifications.bossBattleDone.body', { name }) };
       default:
         return { title: t('notifications.expeditionDone.title'), body: t('notifications.expeditionDone.body', { name }) };
     }
@@ -94,7 +97,7 @@ export function NotificationCenter({ notifications, profile }: { notifications: 
     if (!notifications) return;
     const timers: NotificationTimerDto[] = [
       ...notifications.timers.filter((timer) => timer.type !== 'ENERGY_FULL'),
-      ...(energyFullAt ? [{ type: 'ENERGY_FULL' as const, at: energyFullAt, nameKey: null, level: null }] : []),
+      ...(energyFullAt ? [{ type: 'ENERGY_FULL' as const, at: energyFullAt, nameKey: null, level: null, path: null }] : []),
     ];
     const handles = timers
       .filter((timer) => notifications.settings[timer.type])
@@ -103,7 +106,7 @@ export function NotificationCenter({ notifications, profile }: { notifications: 
         if (delay > 24 * 60 * 60 * 1000) return null;
         return setTimeout(() => {
           const text = timerText(timer);
-          show(`${timer.type}:${timer.at}`, timer.type, text.title, text.body);
+          show(`${timer.type}:${timer.path ?? ''}:${timer.at}`, timer.type, text.title, text.body, timer.path);
           // Refresh the timer list (and the dots) after something ended.
           notifyNotificationsChanged();
         }, delay);

@@ -1739,3 +1739,35 @@ e-shop paid by card through Stripe — no fiscal device):
 
 Open items are in `OPEN_DECISIONS.md` (Payments → Sale documents).
 
+## Boss battles: cooldown clock, replay, early start, notification (2026-10-23 – 2026-10-27)
+
+Owner decisions:
+- **Formation cooldown on a fixed clock, in UTC.** Creating or joining a
+  formation (one shared action across all bosses) is allowed again at the
+  next reset, which happens at the same moment for every player: every N
+  hours (N in 1/2/3/4/6/8/12/24, default 24) counted from a reset hour 0–23
+  UTC (default 0). It replaced the rolling 24 h from the player's own last
+  action. Both are in godmaster → Balance → Other values → "Формации срещу
+  босове".
+- **Boss battle report and replay** on the boss page ("Последни битки"): only
+  formations the player fought in, from the last 24 hours; a summary (date,
+  win/loss, how much of the boss's life was taken, own XP and loot) and a
+  round-by-round replay like a Pentili battle — the formation picture
+  (`bosses.formation.icon`) with one shared life bar against the boss, and
+  the participants above it as the formation squares. Older fights stay in
+  the battle reports (no replay link there for now). Nothing is deleted.
+- **A full formation fights at once:** when the fifth place is filled, the
+  battle is played right away instead of waiting out the enrollment window.
+  The player who filled it watches the replay on the spot.
+- **New notification "the boss battle is over"** (in-game, browser, Web
+  Push; own switch in Settings, on by default) to every participant except
+  the one who filled the formation; the push says win or loss, a click opens
+  the replay. Formations whose time is up are fought within a minute by the
+  existing once-a-minute server check (plus an index on status + end time),
+  so the result exists even if nobody opens a page.
+- **Command Center:** the boss timer disappears when it ends, like the other
+  timers — no "Result" row.
+- **The land's full Pentili list page was removed:** the map's land panel is
+  the only place to pick and attack Pentili (its "Enter" button is gone); the
+  land page only shows a fight; the boss page's "Back to the lands" opens the
+  map on that land.

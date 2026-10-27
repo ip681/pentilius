@@ -7,7 +7,7 @@ import { getNotificationSettings, updateNotificationSettings } from '@/lib/api-c
 import { notifyNotificationsChanged } from '@/lib/notifications-events';
 import { type DeviceNotificationState, devicePushActive, disableDeviceNotifications, enableDeviceNotifications, getDeviceState, getPushFailure } from '@/lib/push';
 
-const TYPES: NotificationType[] = ['ENERGY_FULL', 'CONSTRUCTION_DONE', 'RESEARCH_DONE', 'EXPEDITION_DONE', 'PVP_ATTACKED'];
+const TYPES: NotificationType[] = ['ENERGY_FULL', 'CONSTRUCTION_DONE', 'RESEARCH_DONE', 'EXPEDITION_DONE', 'PVP_ATTACKED', 'BOSS_BATTLE_DONE'];
 
 /**
  * Notifications in Settings (owner decision, 2026-10-13): switch browser

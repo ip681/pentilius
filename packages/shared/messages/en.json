@@ -794,8 +794,16 @@
     "outcomeYouDefended": "You fended off an attack from <link>{name}</link>"
   },
   "bosses": {
+    "recentBattles": "Recent battles",
+    "noRecentBattles": "No battles with this boss in the last 24 hours.",
+    "watchBattle": "Watch the battle",
+    "watchAgain": "Watch again",
+    "skip": "Skip",
+    "formationLabel": "The formation",
+    "bossDown": "The boss is down!",
+    "lifeTaken": "You took {percent}% of the boss’s life",
     "goToBoss": "Go to boss",
-    "backToZone": "Back to the zone",
+    "backToZones": "Back to the lands",
     "openFormationsCount": "{count, plural, =0 {No open formations} one {# open formation} other {# open formations}}",
     "title": "Boss Formations",
     "subtitle": "Form a 5-race squad and take down a boss together — once a day.",
@@ -1405,6 +1413,10 @@
     "errorGeneric": "The message could not be sent."
   },
   "notifications": {
+    "bossBattleDone": {
+      "title": "Boss battle finished",
+      "body": "{name} — see how the battle went."
+    },
     "energyFull": {
       "title": "Energy is full",
       "body": "Time to fight — your energy is at its maximum."
@@ -1444,7 +1456,8 @@
         "CONSTRUCTION_DONE": "Construction finished",
         "RESEARCH_DONE": "Research finished",
         "EXPEDITION_DONE": "Expedition finished",
-        "PVP_ATTACKED": "PvP attack"
+        "PVP_ATTACKED": "PvP attack",
+        "BOSS_BATTLE_DONE": "Boss battle"
       },
       "note": "On iPhone, notifications with the game closed only work once the game is added to the home screen (Share → Add to Home Screen).",
       "pushFailure": {

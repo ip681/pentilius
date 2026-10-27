@@ -159,6 +159,9 @@ export default function ZonesPage() {
         setZones(res);
         setSelectedId((current) => {
           if (current) return current;
+          // ?zone=<id>: back from a land's boss or battle page, open on that land.
+          const wanted = new URLSearchParams(window.location.search).get('zone');
+          if (wanted && res.some((z) => z.id === wanted && z.unlocked)) return wanted;
           // Reopen on the last selection if it still exists and is reachable.
           const remembered = getRememberedSelectedZone();
           if (remembered === CORE_ID || res.some((z) => z.id === remembered && z.unlocked)) return remembered;
@@ -421,13 +424,8 @@ export default function ZonesPage() {
                       </p>
                     )}
                   </div>
-                  {selected.unlocked ? (
-                    <Link href={`/zones/${selected.id}`} className="shrink-0 rounded-md border border-accent bg-accentBg px-4 py-2 text-xs uppercase hover:bg-accentBgHover">
-                      {t('zones.enter')}
-                    </Link>
-                  ) : (
-                    <span className="shrink-0 text-xs text-white/70">{t('zones.locked')}</span>
-                  )}
+                  {/* No "Enter" (owner decision, 2026-10-27): the land's Pentili are fought from this panel. */}
+                  {!selected.unlocked && <span className="shrink-0 text-xs text-white/70">{t('zones.locked')}</span>}
                 </div>
 
                 {selected.pentiliPreview.length > 0 && (

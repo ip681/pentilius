@@ -238,7 +238,14 @@ export class AdminBalanceService implements OnModuleInit {
     for (const d of set.defs) {
       const v = dto.values?.[d.path];
       if (v === undefined) continue;
-      if (typeof v !== 'number' || !Number.isFinite(v) || v < d.min || v > d.max || (d.kind === 'int' && !Number.isInteger(v))) {
+      if (
+        typeof v !== 'number' ||
+        !Number.isFinite(v) ||
+        v < d.min ||
+        v > d.max ||
+        (d.kind === 'int' && !Number.isInteger(v)) ||
+        (d.oneOf && !d.oneOf.includes(v))
+      ) {
         throw new BadRequestException(`VALUE_OUT_OF_RANGE:${d.path}`);
       }
       if (v !== set.defaults[d.path]) overrides[d.path] = v;

@@ -264,7 +264,8 @@ Other notifications may be added later.
 
 **Built (2026-10-13):**
 - **Kinds:** full energy, construction finished, research finished,
-  expedition finished, and a PvP attack on you. Each can be switched off in
+  expedition finished, a PvP attack on you, and a finished boss battle
+  (2026-10-27). Each can be switched off in
   Settings; the setting is server-side and shared by all devices.
 - **Delivery:**
   - an in-game notice while the game is in front of the player;

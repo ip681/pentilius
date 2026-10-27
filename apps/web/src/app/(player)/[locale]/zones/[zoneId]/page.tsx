@@ -1,6 +1,6 @@
 'use client';
 
-import type { BattleReportDto, BossDto, PentiliDto } from '@pentilius/shared';
+import type { BattleReportDto, PentiliDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -13,11 +13,10 @@ import {
   ApiError,
   attackPentili,
   attackPentiliMulti,
-  getBossFormations,
   getPentiliInZone,
 } from '@/lib/api-client';
 import { DropEntry } from '@/components/DropEntry';
-import { Link, useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { takePendingBattle } from '@/lib/pending-battle';
 import { isVipActive, multiAttackCount } from '@/lib/vip';
@@ -113,8 +112,11 @@ function ZonePentiliPageInner() {
   const router = useRouter();
   useEffect(() => {
     if (legacyBossLink) router.replace(`/zones/${zoneId}/boss`);
+    // The land's full Pentili list was removed (owner decision, 2026-10-27) —
+    // the map's panel has it; this page only shows a fight.
+    else if (!targetPentiliId) router.replace(`/zones?zone=${zoneId}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [legacyBossLink, zoneId]);
+  }, [legacyBossLink, targetPentiliId, zoneId]);
 
   const [pentili, setPentili] = useState<PentiliDto[] | null>(null);
   const { profile, refreshProfile } = usePlayerEnergy();
@@ -381,92 +383,7 @@ function ZonePentiliPageInner() {
 
       {/* Full roster — 5 per row (2 rows for the current 10-per-zone roster), compact
           vertical cards instead of the wide single-focus row above. */}
-      {pentili && !legacyBossLink && !targetPentiliId && (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          {pentili.map((entry) => (
-            <li key={entry.id} className="flex flex-col items-center gap-2 rounded-lg border border-panelBorder bg-panel p-3 text-center">
-              <AssetIcon
-                assetId={entry.iconAssetId}
-                alt={t(entry.nameKey)}
-                className="h-14 w-auto object-contain"
-                fallback={<span className="flex h-14 w-14 items-center justify-center text-sm font-semibold text-textMuted">{t(entry.nameKey).charAt(0)}</span>}
-              />
-              <p className="text-xs font-medium">
-                {t(entry.nameKey)} (Lv. {entry.level})
-              </p>
-              <p className="text-[10px] tabular-nums text-textMuted">
-                HP {formatNumber(entry.maxHp)} · ATK {formatNumber(entry.attack)} · DEF {formatNumber(entry.defense)}
-              </p>
-              {entry.lootDrops.length > 0 && (
-                <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-[9px] text-textFaint">
-                  {entry.lootDrops.map((drop, index) => (
-                    <DropEntry key={index} drop={drop} />
-                  ))}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => handleAttack(entry)}
-                aria-disabled={attacking || (battle !== null && !battle.finished) || (profile?.energy.current ?? 0) < 1}
-                className="mt-1 w-full rounded-md border border-accent bg-accentBg py-1.5 text-[10px] uppercase hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
-              >
-                {t('pve.attack')}
-              </button>
-              {isVipActive(profile) && (
-                <button
-                  type="button"
-                  onClick={() => multiCount >= 2 && handleAttack(entry, true)}
-                  aria-disabled={attacking || (battle !== null && !battle.finished) || multiCount < 2}
-                  className="w-full rounded-md border border-vipGold bg-accentBg py-1.5 text-[10px] uppercase text-vipGold hover:bg-accentBgHover aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-accentBg"
-                >
-                  {t('pve.attackMulti', { count: multiCount >= 2 ? multiCount : (profile?.vipMultiAttackCount ?? 3) })}
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {pentili && !legacyBossLink && !targetPentiliId && <EnergyRefill profile={profile} onRefilled={refreshProfile} />}
-
-      {!legacyBossLink && !targetPentiliId && <ZoneBossLink zoneId={zoneId} />}
     </GameLayout>
-  );
-}
-
-/** The zone's boss as a link card (owner decision, 2026-10-21): the boss and its formations have their own page. */
-function ZoneBossLink({ zoneId }: { zoneId: string }) {
-  const t = useTranslations();
-  const [boss, setBoss] = useState<BossDto | null>(null);
-
-  useEffect(() => {
-    getBossFormations()
-      .then((res) => setBoss(res.bosses.find((b) => b.zoneId === zoneId) ?? null))
-      .catch(() => undefined);
-  }, [zoneId]);
-
-  if (!boss) return null;
-  const open = boss.formations.filter((f) => f.status === 'OPEN').length;
-  return (
-    <Link
-      href={`/zones/${zoneId}/boss`}
-      className="mt-8 flex items-center gap-4 rounded-lg border border-gold/50 bg-panel p-4 hover:border-gold"
-    >
-      <AssetIcon
-        assetId={boss.iconAssetId}
-        alt={t(boss.nameKey)}
-        className="h-16 w-16 shrink-0 object-contain"
-        fallback={<span className="flex h-16 w-16 shrink-0 items-center justify-center text-lg font-semibold text-textMuted">{t(boss.nameKey).charAt(0)}</span>}
-      />
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold uppercase text-gold">
-          {t('bosses.title')}: {t(boss.nameKey)}
-        </div>
-        <div className="text-xs text-textMuted">
-          {boss.unlocked ? t('bosses.openFormationsCount', { count: open }) : t('bosses.locked', { level: boss.minLevel })}
-        </div>
-      </div>
-      <span className="shrink-0 text-xs uppercase text-gold">{t('bosses.goToBoss')} →</span>
-    </Link>
   );
 }
 

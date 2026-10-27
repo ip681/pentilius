@@ -6,7 +6,7 @@ import * as webpush from 'web-push';
 import { PrismaService } from '../prisma/prisma.service';
 import { pushText } from './push-texts';
 
-export const NOTIFICATION_TYPES: NotificationType[] = ['ENERGY_FULL', 'CONSTRUCTION_DONE', 'RESEARCH_DONE', 'EXPEDITION_DONE', 'PVP_ATTACKED'];
+export const NOTIFICATION_TYPES: NotificationType[] = ['ENERGY_FULL', 'CONSTRUCTION_DONE', 'RESEARCH_DONE', 'EXPEDITION_DONE', 'PVP_ATTACKED', 'BOSS_BATTLE_DONE'];
 
 /** Every type is on unless the player switched it off (stored as { TYPE: false }). */
 export function readNotificationSettings(raw: Prisma.JsonValue | null | undefined): NotificationSettingsDto {
@@ -21,6 +21,7 @@ const TARGET_PATH: Record<NotificationType, string> = {
   RESEARCH_DONE: '/research',
   EXPEDITION_DONE: '/expeditions',
   PVP_ATTACKED: '/reports',
+  BOSS_BATTLE_DONE: '/bosses',
 };
 
 /**
@@ -71,7 +72,7 @@ export class PushService {
    * Sends one notification at most once per (player, type, refKey) — the
    * minute scanner and event hooks can both call this safely.
    */
-  async sendOnce(playerId: string, type: NotificationType, refKey: string, params: Record<string, string> = {}): Promise<void> {
+  async sendOnce(playerId: string, type: NotificationType, refKey: string, params: Record<string, string> = {}, path?: string): Promise<void> {
     if (!this.enabled) return;
     const player = await this.prisma.player.findUnique({
       where: { id: playerId },
@@ -89,7 +90,7 @@ export class PushService {
 
     const locale = player.preferredLocale === 'en' ? 'en' : 'bg';
     const text = pushText(locale, type, params);
-    const payload = JSON.stringify({ ...text, tag: `${type}:${refKey}`, url: `/${locale}${TARGET_PATH[type]}` });
+    const payload = JSON.stringify({ ...text, tag: `${type}:${refKey}`, url: `/${locale}${path ?? TARGET_PATH[type]}` });
 
     await Promise.all(
       player.pushSubscriptions.map(async (sub) => {

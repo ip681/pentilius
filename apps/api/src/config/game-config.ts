@@ -260,12 +260,17 @@ export const GAME_BALANCE = {
     // Creator may edit visibleToClanOnly/visibleToFriendsOnly only during
     // this many hours from creation; locked for the rest of the window.
     visibilityEditWindowHours: 2,
-    // The shared rolling cooldown (Player.nextBossFormationActionAt) covering
-    // BOTH creating a new formation AND joining an existing one — one action
-    // per rolling day, not two independent limits (owner decision: a personal
-    // rolling window, not a fixed global reset hour, to stay fair across
-    // timezones — see instructions/ARCHITECTURE.md's elapsed-time preference).
+    // The shared cooldown (Player.nextBossFormationActionAt) covering BOTH
+    // creating a new formation AND joining an existing one — one action per
+    // period, not two independent limits. Since 2026-10-23 (owner decision,
+    // replacing the earlier rolling 24 h from the last action) it ends at a
+    // fixed clock time for everyone: every `actionCooldownHours` hours counted
+    // from `cooldownResetHour` o'clock UTC (defaults: every 24 h at 00:00 UTC;
+    // UTC so there are no summer/winter time shifts). The hours must divide 24,
+    // so the reset times are the same every day. Both are set in godmaster →
+    // Other values.
     actionCooldownHours: 24,
+    cooldownResetHour: 0,
     // minLevel moved to Boss.minLevel (owner decision, 2026-10-11) — per-boss
     // now (30/50/70/90), not a single flat value for all 4 bosses.
     // Excellent-option percentages are SUMMED ACROSS every filled slot, then

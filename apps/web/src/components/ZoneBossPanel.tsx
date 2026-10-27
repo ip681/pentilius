@@ -1,13 +1,14 @@
 'use client';
 
-import type { BossDto } from '@pentilius/shared';
+import type { BossDto, BossFormationDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { AssetIcon } from './AssetIcon';
+import { BossBattleReport } from './BossBattleReport';
 import { BossFormationCard } from './BossFormationCard';
 import { ConfirmButton } from './ConfirmButton';
 import { DropEntry } from './DropEntry';
-import { ApiError, createBossFormation, getBossFormations, getMyClan, joinBossFormation, updateBossFormationVisibility } from '@/lib/api-client';
+import { ApiError, createBossFormation, getBossFormation, getBossFormations, getMyClan, joinBossFormation, updateBossFormationVisibility } from '@/lib/api-client';
 import { formatDuration } from '@/lib/format-duration';
 import { formatNumber } from '@/lib/format-number';
 import { getCachedProfile } from '@/lib/profile-cache';
@@ -20,7 +21,7 @@ import { useRefresh } from '@/lib/use-refresh';
  * finished fight's result is in the battle reports, so this never grows into
  * a history list.
  */
-export function ZoneBossPanel({ zoneId }: { zoneId: string }) {
+export function ZoneBossPanel({ zoneId, battleId }: { zoneId: string; battleId?: string | null }) {
   const t = useTranslations();
   const [data, setData] = useState<{ bosses: BossDto[]; nextActionAvailableAt: string | null } | null>(null);
   const [inClan, setInClan] = useState(false);
@@ -45,6 +46,19 @@ export function ZoneBossPanel({ zoneId }: { zoneId: string }) {
 
   const boss = data?.bosses.find((b) => b.zoneId === zoneId) ?? null;
   const openFormations = boss?.formations.filter((f) => f.status === 'OPEN') ?? [];
+  // The player's own finished fights of the last day (the server only sends those).
+  const recentBattles = boss?.formations.filter((f) => f.status === 'RESOLVED' && f.slots.some((s) => s.isCurrentPlayer) && f.result) ?? [];
+  // A battle opened by link (Command Center, battle reports) that's older than the recent list.
+  const [linkedBattle, setLinkedBattle] = useState<BossFormationDto | null>(null);
+  const [justFought, setJustFought] = useState<string | null>(null);
+  useEffect(() => {
+    if (!battleId || !boss || recentBattles.some((f) => f.id === battleId)) return;
+    getBossFormation(battleId)
+      .then((f) => setLinkedBattle(f.result ? f : null))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [battleId, boss?.id]);
+  const shownBattles = linkedBattle && !recentBattles.some((f) => f.id === linkedBattle.id) ? [linkedBattle, ...recentBattles] : recentBattles;
 
   const hasCountdown = Boolean(data?.nextActionAvailableAt) || openFormations.length > 0;
   useEffect(() => {
@@ -83,7 +97,9 @@ export function ZoneBossPanel({ zoneId }: { zoneId: string }) {
   async function handleJoin(formationId: string) {
     setError(null);
     try {
-      await joinBossFormation(formationId);
+      const joined = await joinBossFormation(formationId);
+      // The fifth fighter starts the fight at once — play it for them.
+      if (joined.status === 'RESOLVED') setJustFought(joined.id);
       await load();
     } catch (err) {
       setError(errorMessage(err));
@@ -214,6 +230,18 @@ export function ZoneBossPanel({ zoneId }: { zoneId: string }) {
                   onJoin={() => handleJoin(formation.id)}
                   onVisibilityToggle={(next) => handleVisibilityToggle(formation.id, next)}
                 />
+              ))}
+            </div>
+          )}
+
+          {/* The player's own finished fights (owner decision, 2026-10-23). */}
+          <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-textFaint">{t('bosses.recentBattles')}</h3>
+          {shownBattles.length === 0 ? (
+            <p className="text-xs text-textFaint">{t('bosses.noRecentBattles')}</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {shownBattles.map((formation) => (
+                <BossBattleReport key={formation.id} formation={formation} boss={boss} autoPlay={formation.id === battleId || formation.id === justFought} />
               ))}
             </div>
           )}
