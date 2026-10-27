@@ -167,6 +167,7 @@ export class DailyTasksService {
         completed: allCompleted,
         claimed: claimed.has(ALL_DONE_KEY),
         bonusItemKey: GAME_BALANCE.dailyTasks.allDoneBonusItemKey,
+        bonusCredits: GAME_BALANCE.dailyTasks.allDoneBonusCredits,
         progress: visible.filter((t) => (progress.get(t.type) ?? 0) >= t.target).length,
         target: visible.length,
       },
@@ -231,7 +232,13 @@ export class DailyTasksService {
     if (item && !(await grantItem(playerId, item.id, tx))) throw new BadRequestException('INVENTORY_FULL');
     await tx.player.update({
       where: { id: playerId },
-      data: { dailyStreakDays: 0, dailyStreakMisses: 0, dailyStreakLastDay: null, dailyStreakReady: false },
+      data: {
+        credits: { increment: STREAK.rewardCredits },
+        dailyStreakDays: 0,
+        dailyStreakMisses: 0,
+        dailyStreakLastDay: null,
+        dailyStreakReady: false,
+      },
     });
   }
 
@@ -240,6 +247,8 @@ export class DailyTasksService {
     await tx.dailyTaskClaim.create({ data: { playerId, day, taskKey: ALL_DONE_KEY, auto } });
     // Counts toward the "all daily tasks" achievement.
     await this.achievements.record(playerId, 'DAILY_ALL_DONE', 1, tx);
+    const credits = GAME_BALANCE.dailyTasks.allDoneBonusCredits;
+    if (credits > 0) await tx.player.update({ where: { id: playerId }, data: { credits: { increment: credits } } });
     const item = await tx.itemDefinition.findUnique({ where: { key: GAME_BALANCE.dailyTasks.allDoneBonusItemKey } });
     if (!item) return;
     const granted = await grantItem(playerId, item.id, tx);
@@ -285,7 +294,7 @@ function advanceStreak(state: StreakState, day: string): Partial<StreakState> {
 
 /** What the player sees today; skipped days count as soon as they're over. */
 function streakView(state: StreakState, today: string): DailyStreakDto {
-  const base = { target: STREAK.days, allowedMisses: STREAK.allowedMisses, rewardItemKey: STREAK.rewardItemKey };
+  const base = { target: STREAK.days, allowedMisses: STREAK.allowedMisses, rewardItemKey: STREAK.rewardItemKey, rewardCredits: STREAK.rewardCredits };
   if (state.dailyStreakReady) {
     return { ...base, days: STREAK.days, missesUsed: state.dailyStreakMisses, ready: true, restarted: false };
   }

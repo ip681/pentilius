@@ -485,15 +485,18 @@ export const GAME_BALANCE = {
 
   // Season achievements (owner decision, 2026-10-13): each is a chain of
   // tiers; only the next unclaimed tier is shown. Placeholder rewards.
+  // Credits (owner decision, 2026-10-27) only on the higher tiers — a small
+  // in-game source of Credits besides buying them; edited in godmaster →
+  // Balance → Rewards.
   achievements: [
     {
       key: 'pentili_wins',
       metric: 'PVE_WIN',
       tiers: [
         { target: 100, reward: { metal: 2000, crystal: 500 } },
-        { target: 500, reward: { metal: 6000, crystal: 1500, itemKey: 'energy_pack_small' } },
-        { target: 2000, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large' } },
-        { target: 10000, reward: { metal: 40000, crystal: 10000, itemKey: 'coreforged_box' } },
+        { target: 500, reward: { metal: 6000, crystal: 1500, itemKey: 'energy_pack_small', credits: 10 } },
+        { target: 2000, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large', credits: 20 } },
+        { target: 10000, reward: { metal: 40000, crystal: 10000, itemKey: 'coreforged_box', credits: 40 } },
       ],
     },
     {
@@ -501,8 +504,8 @@ export const GAME_BALANCE = {
       metric: 'EXPEDITION_COMPLETED',
       tiers: [
         { target: 10, reward: { metal: 1500, crystal: 400 } },
-        { target: 50, reward: { metal: 5000, crystal: 1200, itemKey: 'energy_pack_small' } },
-        { target: 200, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large' } },
+        { target: 50, reward: { metal: 5000, crystal: 1200, itemKey: 'energy_pack_small', credits: 10 } },
+        { target: 200, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large', credits: 20 } },
       ],
     },
     {
@@ -511,8 +514,8 @@ export const GAME_BALANCE = {
       metric: 'PVP_WIN',
       tiers: [
         { target: 10, reward: { metal: 2000, crystal: 500 } },
-        { target: 50, reward: { metal: 6000, crystal: 1500, itemKey: 'energy_pack_small' } },
-        { target: 200, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large' } },
+        { target: 50, reward: { metal: 6000, crystal: 1500, itemKey: 'energy_pack_small', credits: 10 } },
+        { target: 200, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large', credits: 20 } },
       ],
     },
     {
@@ -520,8 +523,8 @@ export const GAME_BALANCE = {
       metric: 'BOSS_WIN',
       tiers: [
         { target: 1, reward: { metal: 1000, crystal: 250 } },
-        { target: 10, reward: { metal: 5000, crystal: 1200, itemKey: 'energy_pack_small' } },
-        { target: 50, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large' } },
+        { target: 10, reward: { metal: 5000, crystal: 1200, itemKey: 'energy_pack_small', credits: 10 } },
+        { target: 50, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large', credits: 20 } },
       ],
     },
     {
@@ -529,7 +532,7 @@ export const GAME_BALANCE = {
       metric: 'MAX_ITEM_UPGRADE',
       tiers: [
         { target: 5, reward: { metal: 2000, crystal: 500 } },
-        { target: 10, reward: { metal: 8000, crystal: 2000, itemKey: 'energy_pack_small' } },
+        { target: 10, reward: { metal: 8000, crystal: 2000, itemKey: 'energy_pack_small', credits: 20 } },
       ],
     },
     {
@@ -538,8 +541,8 @@ export const GAME_BALANCE = {
       metric: 'FULL_SET',
       tiers: [
         { target: 7, setTier: 'PIONEER', reward: { metal: 2000, crystal: 500 } },
-        { target: 7, setTier: 'ASCENDANT', reward: { metal: 8000, crystal: 2000, itemKey: 'energy_pack_small' } },
-        { target: 7, setTier: 'COREFORGED', reward: { metal: 20000, crystal: 5000, itemKey: 'energy_pack_large' } },
+        { target: 7, setTier: 'ASCENDANT', reward: { metal: 8000, crystal: 2000, itemKey: 'energy_pack_small', credits: 10 } },
+        { target: 7, setTier: 'COREFORGED', reward: { metal: 20000, crystal: 5000, itemKey: 'energy_pack_large', credits: 20 } },
       ],
     },
     {
@@ -548,7 +551,7 @@ export const GAME_BALANCE = {
       metric: 'MIN_BUILDING_LEVEL',
       tiers: [
         { target: 5, reward: { metal: 5000, crystal: 1200 } },
-        { target: 10, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large' } },
+        { target: 10, reward: { metal: 15000, crystal: 4000, itemKey: 'energy_pack_large', credits: 20 } },
       ],
     },
     {
@@ -556,7 +559,7 @@ export const GAME_BALANCE = {
       metric: 'CLAN_DONATION',
       tiers: [
         { target: 10000, reward: { metal: 2000, crystal: 500 } },
-        { target: 100000, reward: { metal: 10000, crystal: 2500, itemKey: 'energy_pack_small' } },
+        { target: 100000, reward: { metal: 10000, crystal: 2500, itemKey: 'energy_pack_small', credits: 20 } },
       ],
     },
     {
@@ -564,7 +567,7 @@ export const GAME_BALANCE = {
       metric: 'CORE_ATTACK',
       tiers: [
         { target: 1, reward: { metal: 500, crystal: 100 } },
-        { target: 50, reward: { metal: 8000, crystal: 2000, itemKey: 'energy_pack_large' } },
+        { target: 50, reward: { metal: 8000, crystal: 2000, itemKey: 'energy_pack_large', credits: 20 } },
       ],
     },
     {
@@ -573,7 +576,7 @@ export const GAME_BALANCE = {
       metric: 'DAILY_ALL_DONE',
       tiers: [
         { target: 7, reward: { metal: 3000, crystal: 800, itemKey: 'energy_pack_small' } },
-        { target: 30, reward: { metal: 12000, crystal: 3000, itemKey: 'energy_pack_large' } },
+        { target: 30, reward: { metal: 12000, crystal: 3000, itemKey: 'energy_pack_large', credits: 20 } },
       ],
     },
   ] as AchievementConfig[],
@@ -602,11 +605,14 @@ export const GAME_BALANCE = {
     ] as DailyTaskConfig[],
     // Bonus for completing every task shown to the player that day.
     allDoneBonusItemKey: 'energy_pack_small',
+    // Credits with that bonus (owner decision, 2026-10-27), flat, not by level.
+    allDoneBonusCredits: 3,
     // Streak (owner decision, 2026-10-14): every daily task done on `days`
     // days gives the reward item, claimed by hand. Up to `allowedMisses` days
     // may be skipped along the way; one more and the series starts over.
     // The reward is a placeholder and may change later.
-    streak: { days: 7, allowedMisses: 2, rewardItemKey: 'energy_pack_large' },
+    // rewardCredits: Credits with the streak reward (owner decision, 2026-10-27).
+    streak: { days: 7, allowedMisses: 2, rewardItemKey: 'energy_pack_large', rewardCredits: 15 },
   },
   moderation: {
     // Report-abuse limits (owner decision, 2026-10-12). A report never acts on
@@ -652,6 +658,11 @@ export const GAME_BALANCE = {
     historyLimit: 200,
   },
   market: {
+    // Share of a sale's Credits kept back from the seller and removed from the
+    // game (owner decision, 2026-10-27): at least 1 Credit when the price has
+    // Credits, rounded up. Metal and Crystal pay no fee. Edited in godmaster →
+    // Balance → Other values.
+    creditsSaleFee: 0.1,
     // Owner decisions (2026-09-10): no listing fee, listings never expire
     // (only removed by sale or cancellation). Equipment only for now (see
     // MarketListing's schema comment). Listing capacity itself moved off
@@ -710,6 +721,7 @@ export interface AchievementRewardConfig {
   metal: number;
   crystal: number;
   itemKey?: string;
+  credits?: number;
 }
 
 export interface AchievementConfig {

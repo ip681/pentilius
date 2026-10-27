@@ -458,6 +458,10 @@ export class ClansService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      // One clan building at a time (owner decision, 2026-10-27). Locking the
+      // clan row makes two officers' simultaneous starts wait for each other,
+      // so the second one sees the first construction and is refused.
+      await tx.$queryRaw`SELECT id FROM "clans" WHERE id = ${acting.clanId} FOR UPDATE`;
       await this.ensureClanBuildingsExist(acting.clanId, tx);
       await this.finalizeCompletedClanBuildings(acting.clanId, tx);
 
@@ -472,6 +476,10 @@ export class ClansService {
       if (building.constructionEndsAt) {
         throw new BadRequestException('Building is already under construction');
       }
+      const busy = await tx.clanBuilding.findFirst({ where: { clanId: acting.clanId, constructionEndsAt: { not: null } } });
+      if (busy) {
+        throw new BadRequestException('ANOTHER_BUILDING_UNDER_CONSTRUCTION');
+      }
 
       const nextLevelCost = await tx.clanBuildingLevelCost.findUnique({
         where: { clanBuildingTypeId_level: { clanBuildingTypeId: buildingType.id, level: building.level + 1 } },
@@ -480,24 +488,33 @@ export class ClansService {
         throw new BadRequestException('Building is already at max level');
       }
 
-      const clan = await tx.clan.findUniqueOrThrow({ where: { id: acting.clanId } });
-      if (clan.treasuryMetal < nextLevelCost.metalCost || clan.treasuryCrystal < nextLevelCost.crystalCost || clan.treasuryCredits < nextLevelCost.creditsCost) {
-        throw new BadRequestException('NOT_ENOUGH_TREASURY');
+      // Both writes are conditional, so two officers clicking at the same
+      // moment can't start the same building twice (paying twice) or take
+      // the treasury below zero — the database decides which one wins.
+      const started = await tx.clanBuilding.updateMany({
+        where: { id: building.id, constructionEndsAt: null },
+        data: { constructionEndsAt: new Date(Date.now() + nextLevelCost.constructionSeconds * 1000) },
+      });
+      if (started.count !== 1) {
+        throw new BadRequestException('Building is already under construction');
       }
 
-      await tx.clan.update({
-        where: { id: acting.clanId },
+      const paid = await tx.clan.updateMany({
+        where: {
+          id: acting.clanId,
+          treasuryMetal: { gte: nextLevelCost.metalCost },
+          treasuryCrystal: { gte: nextLevelCost.crystalCost },
+          treasuryCredits: { gte: nextLevelCost.creditsCost },
+        },
         data: {
           treasuryMetal: { decrement: nextLevelCost.metalCost },
           treasuryCrystal: { decrement: nextLevelCost.crystalCost },
           treasuryCredits: { decrement: nextLevelCost.creditsCost },
         },
       });
-
-      await tx.clanBuilding.update({
-        where: { id: building.id },
-        data: { constructionEndsAt: new Date(Date.now() + nextLevelCost.constructionSeconds * 1000) },
-      });
+      if (paid.count !== 1) {
+        throw new BadRequestException('NOT_ENOUGH_TREASURY');
+      }
     });
 
     return this.getClan(acting.clanId, actingPlayerId);

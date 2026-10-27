@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { MarketListingDto, MyMarketListingsDto } from '@pentilius/shared';
+import { MarketListingDto, marketCreditsFee, MyMarketListingsDto } from '@pentilius/shared';
 import { ItemDefinition, ItemInstance, MarketListing, Player, Prisma } from '@prisma/client';
+import { GAME_BALANCE } from '../config/game-config';
 import { hasFreeInventorySlot } from '../inventory/inventory-capacity';
 import { computeItemStats } from '../inventory/inventory.service';
 import { marketSlots } from '../base/building-effects';
@@ -65,7 +66,7 @@ export class MarketService {
       }),
       this.getEffectiveListingCapacity(sellerId, this.prisma),
     ]);
-    return { listings: listings.map(toListingDto), capacity };
+    return { listings: listings.map(toListingDto), capacity, creditsSaleFee: GAME_BALANCE.market.creditsSaleFee };
   }
 
   async createListing(
@@ -184,9 +185,11 @@ export class MarketService {
         where: { id: buyerId },
         data: { metal: { decrement: listing.priceMetal }, crystal: { decrement: listing.priceCrystal }, credits: { decrement: listing.priceCredits } },
       });
+      // The seller gets the Credits less the sale fee, which leaves the game (owner decision, 2026-10-27).
+      const fee = marketCreditsFee(listing.priceCredits, GAME_BALANCE.market.creditsSaleFee);
       await tx.player.update({
         where: { id: listing.sellerId },
-        data: { metal: { increment: listing.priceMetal }, crystal: { increment: listing.priceCrystal }, credits: { increment: listing.priceCredits } },
+        data: { metal: { increment: listing.priceMetal }, crystal: { increment: listing.priceCrystal }, credits: { increment: listing.priceCredits - fee } },
       });
       await tx.itemInstance.update({ where: { id: listing.itemInstanceId }, data: { playerId: buyerId, listedForSale: false } });
       await tx.marketListing.update({ where: { id: listingId }, data: { status: 'SOLD', resolvedAt: new Date(), buyerId } });

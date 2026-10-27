@@ -220,6 +220,7 @@ export default function ClansPage() {
         CLAN_FULL: t('clans.errorFull'),
         NOT_ENOUGH_RESOURCES: t('clans.errorNotEnoughResources'),
         NOT_ENOUGH_TREASURY: t('clans.errorNotEnoughTreasury'),
+        ANOTHER_BUILDING_UNDER_CONSTRUCTION: t('clans.errorAnotherBuilding'),
         SENDING_TOO_FAST: t('clans.errorSendingTooFast'),
         ALREADY_AT_WAR: t('clans.war.errorAlreadyAtWar'),
         TARGET_ALREADY_AT_WAR: t('clans.war.errorTargetAlreadyAtWar'),
@@ -1240,6 +1241,8 @@ function ClanBuildingsGrid({
   }, []);
 
   const selected = buildings.find((b) => b.key === selectedKey) ?? null;
+  // One clan building at a time (owner decision, 2026-10-27).
+  const constructing = buildings.find((b) => buildingProgress(b).active) ?? null;
 
   return (
     <>
@@ -1247,7 +1250,7 @@ function ClanBuildingsGrid({
       <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5">
         {buildings.map((building) => {
           const progress = buildingProgress(building);
-          const upgradeReady = canManage && !progress.active && !!building.nextLevelCost && canAffordCost(treasury, building.nextLevelCost);
+          const upgradeReady = canManage && !constructing && !!building.nextLevelCost && canAffordCost(treasury, building.nextLevelCost);
           const tavernSecondsLeft = building.activation?.activeUntil
             ? Math.max(0, Math.ceil((new Date(building.activation.activeUntil).getTime() - Date.now()) / 1000))
             : 0;
@@ -1298,6 +1301,7 @@ function ClanBuildingsGrid({
             building={selected}
             treasury={treasury}
             canManage={canManage}
+            otherConstructing={constructing && constructing.key !== selected.key ? constructing : null}
             onUpgrade={onUpgrade}
             onActivate={onActivate}
             onClose={() => setSelectedKey(null)}
@@ -1313,6 +1317,7 @@ function ClanBuildingDetails({
   building,
   treasury,
   canManage,
+  otherConstructing,
   onUpgrade,
   onActivate,
   onClose,
@@ -1321,6 +1326,8 @@ function ClanBuildingDetails({
   building: ClanBuildingStateDto;
   treasury: { metal: number; crystal: number; credits: number };
   canManage: boolean;
+  // Another clan building under construction blocks this one.
+  otherConstructing: ClanBuildingStateDto | null;
   onUpgrade: (key: string, canAfford: boolean) => Promise<void>;
   onActivate: (key: string, canAfford: boolean) => Promise<void>;
   onClose: () => void;
@@ -1388,9 +1395,12 @@ function ClanBuildingDetails({
         <p className="mb-3 text-[11px] text-textFaint">{t('clans.buildingMaxLevel')}</p>
       )}
 
+      {otherConstructing && building.nextLevelCost && (
+        <p className="mb-2 text-[11px] text-textMuted">{t('clans.anotherBuildingActive', { name: t(otherConstructing.nameKey) })}</p>
+      )}
       <button
         type="button"
-        disabled={!canManage || progress.active || !building.nextLevelCost}
+        disabled={!canManage || progress.active || !building.nextLevelCost || !!otherConstructing}
         aria-disabled={!canAfford}
         onClick={() => onUpgrade(building.key, canAfford)}
         className="w-full rounded-md border border-accent bg-accentBg py-2 text-[11px] uppercase hover:bg-accentBgHover disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30"

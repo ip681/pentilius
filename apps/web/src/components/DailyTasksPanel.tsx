@@ -201,6 +201,7 @@ function StreakRow({ streak, busy, onClaim }: { streak: DailyStreakDto; busy: bo
             className="h-10 w-10 shrink-0 object-contain"
             fallback={null}
           />
+          <CreditsBadge credits={streak.rewardCredits} />
           {streak.ready && <ClaimButton busy={busy} onClick={onClaim} />}
         </div>
       </div>
@@ -240,7 +241,19 @@ function AllDoneRow({ allDone, busy, onClaim }: { allDone: DailyTasksDto['allDon
           </div>
         </div>
         <AssetIcon assetId={`items.${allDone.bonusItemKey}.icon`} alt={itemName} className="h-10 w-10 shrink-0 object-contain" fallback={null} />
+        <CreditsBadge credits={allDone.bonusCredits} />
       </div>
     </div>
+  );
+}
+
+/** Credits that come with a bonus reward (owner decision, 2026-10-27). */
+function CreditsBadge({ credits }: { credits: number }) {
+  if (credits <= 0) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-0.5 text-[11px] tabular-nums text-textMuted">
+      +{formatNumber(credits)}
+      <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
+    </span>
   );
 }

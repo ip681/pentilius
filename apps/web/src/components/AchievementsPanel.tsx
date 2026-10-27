@@ -196,6 +196,12 @@ function RewardLine({ reward }: { reward: AchievementRewardDto }) {
           {formatNumber(reward.crystal)}
         </span>
       )}
+      {reward.credits > 0 && (
+        <span className="flex items-center gap-0.5">
+          <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
+          {formatNumber(reward.credits)}
+        </span>
+      )}
       {reward.itemKey && (
         <span className="flex items-center gap-1">
           <AssetIcon assetId={`items.${reward.itemKey}.icon`} alt={t(`items.${reward.itemKey}.name`)} className="h-4 w-4 object-contain" fallback={null} />

@@ -489,6 +489,7 @@
     "selectToChat": "Select a friend to start a conversation."
   },
   "market": {
+    "creditsYouGet": "You'll get {amount} after a {percent}% fee",
     "title": "Market",
     "subtitle": "Buy and sell equipment with other players.",
     "loadError": "Could not load the market.",
@@ -602,6 +603,8 @@
     "save": "Save"
   },
   "clans": {
+    "errorAnotherBuilding": "The clan is already building something else — wait for it to finish.",
+    "anotherBuildingActive": "The clan is building {name} — one building at a time.",
     "emblem": {
       "edit": "Emblem",
       "title": "Clan emblem",

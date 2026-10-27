@@ -5898,6 +5898,10 @@ const OTHER_GROUPS: { title: string; items: [string, string, string?][] }[] = [
     ],
   },
   {
+    title: 'Пазар',
+    items: [['market.creditsSaleFee', 'такса от кредитите при продажба %', 'удържа се от продавача, поне 1 кредит; металът и кристалът са без такса']],
+  },
+  {
     title: 'PvP',
     items: [
       ['pvp.minLevel', 'от ниво', 'и не може да бъде нападан под него'],
@@ -6343,6 +6347,10 @@ function RewardBalancePanel() {
               {itemSelect(config.dailyTasks.allDoneBonusItemKey, (v) => update((c) => (c.dailyTasks.allDoneBonusItemKey = v ?? c.dailyTasks.allDoneBonusItemKey)), false)}
             </label>
             <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+              бонус: кредити
+              {input(config.dailyTasks.allDoneBonusCredits, (v) => update((c) => (c.dailyTasks.allDoneBonusCredits = v)))}
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-textFaint">
               серия: дни
               {input(config.dailyTasks.streak.days, (v) => update((c) => (c.dailyTasks.streak.days = v)))}
             </label>
@@ -6353,6 +6361,10 @@ function RewardBalancePanel() {
             <label className="flex flex-col gap-1 text-[11px] text-textFaint">
               серия: награда
               {itemSelect(config.dailyTasks.streak.rewardItemKey, (v) => update((c) => (c.dailyTasks.streak.rewardItemKey = v ?? c.dailyTasks.streak.rewardItemKey)), false)}
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+              серия: кредити
+              {input(config.dailyTasks.streak.rewardCredits, (v) => update((c) => (c.dailyTasks.streak.rewardCredits = v)))}
             </label>
           </div>
         </section>
@@ -6376,6 +6388,7 @@ function RewardBalancePanel() {
                           <th>цел (N)</th>
                           <th>метал</th>
                           <th>кристал</th>
+                          <th>кредити</th>
                           <th>предмет</th>
                         </tr>
                       </thead>
@@ -6388,6 +6401,7 @@ function RewardBalancePanel() {
                               <td>{fullSet ? <span className="text-textFaint">7 слота</span> : input(tier.target, (v) => set((t) => (t.target = v)))}</td>
                               <td>{input(tier.reward.metal, (v) => set((t) => (t.reward.metal = v)))}</td>
                               <td>{input(tier.reward.crystal, (v) => set((t) => (t.reward.crystal = v)))}</td>
+                              <td>{input(tier.reward.credits, (v) => set((t) => (t.reward.credits = v)))}</td>
                               <td>{itemSelect(tier.reward.itemKey, (v) => set((t) => (t.reward.itemKey = v)), true)}</td>
                             </tr>
                           );

@@ -150,6 +150,7 @@ export class AdminBalanceService implements OnModuleInit {
       if (!num(r.metalPerLevel, 0, 1_000_000) || !num(r.crystalPerLevel, 0, 1_000_000) || !num(r.xpPerLevel, 0, 1_000_000) || !int(r.energy, 0, 100)) throw bad();
     }
     if (!item(dt.allDoneBonusItemKey) || !item(dt.streak.rewardItemKey) || !int(dt.streak.days, 1, 60) || !int(dt.streak.allowedMisses, 0, 30)) throw bad();
+    if (!int(dt.allDoneBonusCredits, 0, 10_000) || !int(dt.streak.rewardCredits, 0, 10_000)) throw bad();
 
     for (const [key, tiers] of Object.entries(current.achievements)) {
       const t = config.achievements?.[key];
@@ -157,11 +158,17 @@ export class AdminBalanceService implements OnModuleInit {
       for (const tier of t) {
         if (!int(tier.target, 1, 100_000_000) || !num(tier.reward.metal, 0, 100_000_000) || !num(tier.reward.crystal, 0, 100_000_000)) throw bad();
         if (tier.reward.itemKey !== null && !item(tier.reward.itemKey)) throw bad();
+        if (!int(tier.reward.credits, 0, 10_000)) throw bad();
       }
     }
     return {
       levelRewards: lr,
-      dailyTasks: { tasks: Object.fromEntries(Object.keys(current.dailyTasks.tasks).map((k) => [k, dt.tasks[k]])), allDoneBonusItemKey: dt.allDoneBonusItemKey, streak: dt.streak },
+      dailyTasks: {
+        tasks: Object.fromEntries(Object.keys(current.dailyTasks.tasks).map((k) => [k, dt.tasks[k]])),
+        allDoneBonusItemKey: dt.allDoneBonusItemKey,
+        allDoneBonusCredits: dt.allDoneBonusCredits,
+        streak: dt.streak,
+      },
       achievements: Object.fromEntries(Object.keys(current.achievements).map((k) => [k, config.achievements[k]])),
     };
   }

@@ -152,7 +152,9 @@ are **UNDEFINED**.
 ## Trading
 **LOCKED direction:** Player trade/item transfer is built as the fixed-price player Market. An auction with bidding was dropped (owner decision, 2026-10-13).
 
-Exact fees, restrictions and binding rules are **UNDEFINED**.
+**Sale fee (owner decision, 2026-10-27):** 10% of a sale's Credits is kept back from the seller and leaves the game (rounded up, at least 1 Credit); the buyer pays the listed price. Metal and Crystal pay no fee. Listing stays free and listings still never expire. The share is **PROVISIONAL** (godmaster → Balance → Other values → Market).
+
+Exact restrictions and binding rules are **UNDEFINED**.
 
 ## Smelting / Recycling
 **LOCKED direction:** Unwanted items may be smelted/recycled.

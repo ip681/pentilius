@@ -1,6 +1,7 @@
 'use client';
 
 import type { EquipmentSlot, InventoryItemDto, ItemOption, ItemQuality, MarketListingDto, PlayerProfileDto, Race } from '@pentilius/shared';
+import { marketCreditsFee } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
@@ -264,6 +265,7 @@ export default function MarketPage() {
   const [listings, setListings] = useState<MarketListingDto[] | null>(null);
   const [myListings, setMyListings] = useState<MarketListingDto[] | null>(null);
   const [myListingsCapacity, setMyListingsCapacity] = useState(0);
+  const [creditsSaleFee, setCreditsSaleFee] = useState(0);
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [browseFilters, setBrowseFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -286,6 +288,7 @@ export default function MarketPage() {
       setListings(all);
       setMyListings(mine.listings);
       setMyListingsCapacity(mine.capacity);
+      setCreditsSaleFee(mine.creditsSaleFee);
       setProfile(profileRes);
       setInClan(myClanRes.clan !== null);
     } catch {
@@ -514,6 +517,16 @@ export default function MarketPage() {
                 />
               </label>
             </div>
+            {/* The Credits fee on a sale (owner decision, 2026-10-27): what the seller will actually get. */}
+            {(Number(priceCredits) || 0) > 0 && creditsSaleFee > 0 && (
+              <p className="flex flex-wrap items-center gap-1 text-[11px] text-textMuted">
+                {t('market.creditsYouGet', {
+                  amount: formatNumber((Number(priceCredits) || 0) - marketCreditsFee(Number(priceCredits) || 0, creditsSaleFee)),
+                  percent: Math.round(creditsSaleFee * 100),
+                })}
+                <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
+              </p>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <label className={`flex items-center gap-2 text-xs ${inClan ? 'text-textMuted' : 'cursor-not-allowed text-textFaint opacity-50'}`}>

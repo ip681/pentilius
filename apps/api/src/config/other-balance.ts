@@ -66,6 +66,8 @@ export const OTHER_VALUES: OtherValueDef[] = [
   { path: 'bossFormations.actionCooldownHours', kind: 'int', min: 1, max: 24, oneOf: [1, 2, 3, 4, 6, 8, 12, 24] },
   I('bossFormations.cooldownResetHour', 0, 23),
   P('bossFormations.maxDamageDecrease', 0.99),
+  // Market
+  P('market.creditsSaleFee', 0.5),
   // PvP
   I('pvp.minLevel', 1, 100),
   I('pvp.attackCostEnergy', 0, 100),

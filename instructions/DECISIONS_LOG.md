@@ -1771,3 +1771,24 @@ Owner decisions:
   the only place to pick and attack Pentili (its "Enter" button is gone); the
   land page only shows a fight; the boss page's "Back to the lands" opens the
   map on that land.
+
+## Earnable Credits, Market sale fee, one clan building at a time (2026-10-27)
+
+Owner decisions:
+- **A little Credits from play** (Credits aren't sold yet and some Shop
+  prices were set to 0 meanwhile): the all-daily-tasks bonus gives +3, the
+  7-day streak +15, and the higher achievement tiers 10 / 20 (40 for the
+  last Pentili tier) — about 650–750 a season for a very active player. No
+  level gate for now. All amounts are in godmaster → Balance → Rewards.
+- **Market sale fee:** 10% of a sale's Credits, taken from the seller and
+  removed from the game (rounded up, at least 1). It is mainly a Credits sink
+  and makes moving Credits between one's own accounts costlier. Listing stays
+  free; a refundable listing deposit or listing expiry were discussed and left
+  for later, if the Market clogs. The seller sees "you'll get X" while
+  listing. godmaster → Balance → Other values → Market.
+- **One clan building under construction at a time** (no queue), like the
+  personal base. Starting a construction and paying from the treasury are
+  now conditional writes under a lock on the clan, so two officers clicking
+  at once can neither pay twice nor take the treasury below zero. At the
+  default build times, maxing every clan building takes about 80 days in
+  sequence (18 in parallel) — to keep in mind when the season length is set.

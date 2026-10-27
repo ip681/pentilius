@@ -60,7 +60,10 @@ export class AchievementsService {
         reward = achievement.reward;
       }
       await tx.achievementClaim.create({ data: { playerId, key: claimKey } });
-      await tx.player.update({ where: { id: playerId }, data: { metal: { increment: reward.metal }, crystal: { increment: reward.crystal } } });
+      await tx.player.update({
+        where: { id: playerId },
+        data: { metal: { increment: reward.metal }, crystal: { increment: reward.crystal }, credits: { increment: reward.credits } },
+      });
       if (reward.itemKey) {
         const item = await tx.itemDefinition.findUnique({ where: { key: reward.itemKey } });
         // A full inventory rolls the whole claim back, so nothing is lost.
@@ -160,12 +163,12 @@ function tierKeyOf(achievement: AchievementConfig, tierIndex: number): string {
 }
 
 function toRewardDto(reward: AchievementRewardConfig): AchievementRewardDto {
-  return { metal: reward.metal, crystal: reward.crystal, itemKey: reward.itemKey ?? null };
+  return { metal: reward.metal, crystal: reward.crystal, credits: reward.credits ?? 0, itemKey: reward.itemKey ?? null };
 }
 
 /** Resources grow with the level; every Nth level adds a box of the set of the zone being entered. */
 function levelReward(level: number): AchievementRewardDto {
   const config = GAME_BALANCE.levelRewards;
   const box = level % config.boxEveryLevels === 0 ? (config.boxes.find((b) => level <= b.upToLevel)?.itemKey ?? null) : null;
-  return { metal: config.metalPerLevel * level, crystal: config.crystalPerLevel * level, itemKey: box };
+  return { metal: config.metalPerLevel * level, crystal: config.crystalPerLevel * level, credits: 0, itemKey: box };
 }

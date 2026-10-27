@@ -1162,6 +1162,14 @@ export interface MarketListingDto {
 export interface MyMarketListingsDto {
   listings: MarketListingDto[];
   capacity: number;
+  // Share of a sale's Credits kept back from the seller (owner decision, 2026-10-27).
+  creditsSaleFee: number;
+}
+
+/** The Credits fee on a Market sale: the share rounded up, at least 1 when the price has Credits. */
+export function marketCreditsFee(priceCredits: number, rate: number): number {
+  if (priceCredits <= 0 || rate <= 0) return 0;
+  return Math.min(priceCredits, Math.max(1, Math.ceil(priceCredits * rate)));
 }
 
 // --- Seasons and the Core (owner decision, 2026-10-12) ---
@@ -1341,7 +1349,7 @@ export interface DailyTasksDto {
   // Only the tasks this player can see right now (level/clan gating; one per chain).
   tasks: DailyTaskDto[];
   // progress/target: how many of today's tasks (every tier of every chain) are done.
-  allDone: { completed: boolean; claimed: boolean; bonusItemKey: string; progress: number; target: number };
+  allDone: { completed: boolean; claimed: boolean; bonusItemKey: string; bonusCredits: number; progress: number; target: number };
   streak: DailyStreakDto;
 }
 
@@ -1358,12 +1366,14 @@ export interface DailyStreakDto {
   // The previous series was lost to too many skipped days (shown once as a note).
   restarted: boolean;
   rewardItemKey: string;
+  rewardCredits: number;
 }
 
 // Season achievements and level rewards (owner decision, 2026-10-13).
 export interface AchievementRewardDto {
   metal: number;
   crystal: number;
+  credits: number;
   // An item definition key (box, energy pack) — the client builds "items.<key>.name"/".icon".
   itemKey: string | null;
 }
@@ -1940,9 +1950,10 @@ export interface RewardBalanceConfigDto {
   dailyTasks: {
     tasks: Record<string, { target: number; reward: { metalPerLevel: number; crystalPerLevel: number; xpPerLevel: number; energy: number } }>;
     allDoneBonusItemKey: string;
-    streak: { days: number; allowedMisses: number; rewardItemKey: string };
+    allDoneBonusCredits: number;
+    streak: { days: number; allowedMisses: number; rewardItemKey: string; rewardCredits: number };
   };
-  achievements: Record<string, { target: number; reward: { metal: number; crystal: number; itemKey: string | null } }[]>;
+  achievements: Record<string, { target: number; reward: { metal: number; crystal: number; credits: number; itemKey: string | null } }[]>;
 }
 
 export interface AdminRewardLevelRowDto {

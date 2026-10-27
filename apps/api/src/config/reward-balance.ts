@@ -28,10 +28,11 @@ export interface RewardBalanceConfig {
   dailyTasks: {
     tasks: Record<string, { target: number; reward: DailyTaskReward }>;
     allDoneBonusItemKey: string;
-    streak: { days: number; allowedMisses: number; rewardItemKey: string };
+    allDoneBonusCredits: number;
+    streak: { days: number; allowedMisses: number; rewardItemKey: string; rewardCredits: number };
   };
   // Per achievement, its tiers in order (the count is fixed).
-  achievements: Record<string, { target: number; reward: { metal: number; crystal: number; itemKey: string | null } }[]>;
+  achievements: Record<string, { target: number; reward: { metal: number; crystal: number; credits: number; itemKey: string | null } }[]>;
 }
 
 export const REWARD_BALANCE_KEY = 'rewards';
@@ -49,12 +50,16 @@ function snapshot(): RewardBalanceConfig {
     dailyTasks: {
       tasks: Object.fromEntries(dt.tasks.map((t) => [t.key, { target: t.target, reward: { ...t.reward } }])),
       allDoneBonusItemKey: dt.allDoneBonusItemKey,
-      streak: { days: dt.streak.days, allowedMisses: dt.streak.allowedMisses, rewardItemKey: dt.streak.rewardItemKey },
+      allDoneBonusCredits: dt.allDoneBonusCredits,
+      streak: { days: dt.streak.days, allowedMisses: dt.streak.allowedMisses, rewardItemKey: dt.streak.rewardItemKey, rewardCredits: dt.streak.rewardCredits },
     },
     achievements: Object.fromEntries(
       GAME_BALANCE.achievements.map((a) => [
         a.key,
-        a.tiers.map((t) => ({ target: t.target, reward: { metal: t.reward.metal, crystal: t.reward.crystal, itemKey: t.reward.itemKey ?? null } })),
+        a.tiers.map((t) => ({
+          target: t.target,
+          reward: { metal: t.reward.metal, crystal: t.reward.crystal, credits: t.reward.credits ?? 0, itemKey: t.reward.itemKey ?? null },
+        })),
       ]),
     ),
   };
@@ -81,12 +86,14 @@ export async function loadRewardBalance(db: Db): Promise<RewardBalanceConfig> {
         }),
       ),
       allDoneBonusItemKey: saved.dailyTasks?.allDoneBonusItemKey ?? d.dailyTasks.allDoneBonusItemKey,
+      allDoneBonusCredits: saved.dailyTasks?.allDoneBonusCredits ?? d.dailyTasks.allDoneBonusCredits,
       streak: { ...d.dailyTasks.streak, ...(saved.dailyTasks?.streak ?? {}) },
     },
     achievements: Object.fromEntries(
       Object.entries(d.achievements).map(([key, tiers]) => {
         const s = saved.achievements?.[key];
-        return [key, s && s.length === tiers.length ? s : tiers];
+        // Saved before Credits existed: keep the default Credits of each tier.
+        return [key, s && s.length === tiers.length ? s.map((t, i) => ({ ...t, reward: { ...tiers[i].reward, ...t.reward } })) : tiers];
       }),
     ),
   };
@@ -103,6 +110,7 @@ export function applyRewardBalance(config: RewardBalanceConfig): void {
   const dt = GAME_BALANCE.dailyTasks as unknown as {
     tasks: { key: string; target: number; reward: DailyTaskReward }[];
     allDoneBonusItemKey: string;
+    allDoneBonusCredits: number;
     streak: RewardBalanceConfig['dailyTasks']['streak'];
   };
   for (const task of dt.tasks) {
@@ -112,15 +120,20 @@ export function applyRewardBalance(config: RewardBalanceConfig): void {
     Object.assign(task.reward, c.reward);
   }
   dt.allDoneBonusItemKey = config.dailyTasks.allDoneBonusItemKey;
+  dt.allDoneBonusCredits = config.dailyTasks.allDoneBonusCredits;
   Object.assign(dt.streak, config.dailyTasks.streak);
 
-  for (const achievement of GAME_BALANCE.achievements as unknown as { key: string; tiers: { target: number; reward: { metal: number; crystal: number; itemKey?: string } }[] }[]) {
+  for (const achievement of GAME_BALANCE.achievements as unknown as {
+    key: string;
+    tiers: { target: number; reward: { metal: number; crystal: number; credits?: number; itemKey?: string } }[];
+  }[]) {
     const tiers = config.achievements[achievement.key];
     if (!tiers || tiers.length !== achievement.tiers.length) continue;
     achievement.tiers.forEach((tier, i) => {
       tier.target = tiers[i].target;
       tier.reward.metal = tiers[i].reward.metal;
       tier.reward.crystal = tiers[i].reward.crystal;
+      tier.reward.credits = tiers[i].reward.credits;
       if (tiers[i].reward.itemKey) tier.reward.itemKey = tiers[i].reward.itemKey!;
       else delete tier.reward.itemKey;
     });
