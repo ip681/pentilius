@@ -8,6 +8,7 @@ import { SaveBuildingBalanceDto } from './dto/save-building-balance.dto';
 import { SaveClanBalanceDto } from './dto/save-clan-balance.dto';
 import { SaveEquipmentBalanceDto } from './dto/save-equipment-balance.dto';
 import { SaveExpeditionBalanceDto } from './dto/save-expedition-balance.dto';
+import { BossRealTestDto } from './dto/boss-real-test.dto';
 import { SaveBossBalanceDto } from './dto/save-boss-balance.dto';
 import { SaveOtherBalanceDto } from './dto/save-other-balance.dto';
 import { SaveRewardBalanceDto } from './dto/save-reward-balance.dto';
@@ -93,6 +94,11 @@ export class AdminBalanceController {
   @Post('bosses/preview')
   previewBosses(@Body() dto: SaveBossBalanceDto, @CurrentAdmin() admin: AdminJwtPayload) {
     return this.balance.previewBosses(dto, admin);
+  }
+
+  @Post('bosses/real-test')
+  testBossWithPlayers(@Body() dto: BossRealTestDto, @CurrentAdmin() admin: AdminJwtPayload) {
+    return this.balance.testBossWithPlayers(dto, admin);
   }
 
   @Put('bosses')

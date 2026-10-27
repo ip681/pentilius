@@ -1792,3 +1792,20 @@ Owner decisions:
   at once can neither pay twice nor take the treasury below zero. At the
   default build times, maxing every clan building takes about 80 days in
   sequence (18 in parallel) — to keep in mind when the season length is set.
+
+## godmaster boss preview: example participants and real players (2026-10-27)
+
+Owner decisions, for calibrating the bosses (godmaster → Balance → Bosses):
+- **Example participants:** each boss has its own example participant (level,
+  parts of the zone set — the rest from the previous set at +0 — upgrade,
+  point shares, research, Forge, Cantina), picked from a dropdown and fought
+  1 to 5 times over. Below the table: the boss strength (HP, attack and
+  defense scaled together) at which a chosen number of them wins a target
+  share, with "apply" into the form, and what each player gets. Remembered in
+  the browser only.
+- **Test with real players** (collapsed box): a boss and up to 5 players by
+  name; their real robots, read exactly as a boss fight reads them (the
+  Cantina only if active), against the boss as it is in the form. Read-only.
+- First calibration: three real players (levels 15–22, Pioneer +0…+5) beat
+  the first boss about 84% of the time at 83% of its old strength
+  (HP 1045, attack 247, defense 136), set by the owner for testing.

@@ -3,6 +3,8 @@ import {
   AdminBuildingBalanceDto,
   AdminClanBalanceDto,
   AdminBossBalanceDto,
+  BossParticipantDto,
+  BossRealTestResultDto,
   AdminBossRowDto,
   AdminEquipmentBalanceDto,
   AdminEquipmentZoneDto,
@@ -60,12 +62,14 @@ import { OTHER_SET, OverrideSet, TECHNICAL_SET } from '../config/other-balance';
 import { applyRewardBalance, loadRewardBalance, REWARD_BALANCE_KEY, RewardBalanceConfig } from '../config/reward-balance';
 import { applyXpBalance, computeXpThresholds, loadXpBalance, XP_BALANCE_KEY, XpBalanceConfig } from '../config/xp-balance';
 import { PrismaService } from '../prisma/prisma.service';
-import { simulateCombat } from '../pve/combat.service';
+import { aggregateFormationCombatStats, CombatService, simulateCombat } from '../pve/combat.service';
+import { findTavern, isTavernActive } from '../clans/clan-tavern';
 import { SavePentiliBalanceDto } from './dto/save-pentili-balance.dto';
 import { SaveBuildingBalanceDto } from './dto/save-building-balance.dto';
 import { SaveClanBalanceDto } from './dto/save-clan-balance.dto';
 import { SaveEquipmentBalanceDto } from './dto/save-equipment-balance.dto';
 import { SaveExpeditionBalanceDto } from './dto/save-expedition-balance.dto';
+import { BossRealTestDto } from './dto/boss-real-test.dto';
 import { SaveBossBalanceDto } from './dto/save-boss-balance.dto';
 import { SaveOtherBalanceDto } from './dto/save-other-balance.dto';
 import { SaveRewardBalanceDto } from './dto/save-reward-balance.dto';
@@ -80,7 +84,10 @@ import { SaveXpBalanceDto } from './dto/save-xp-balance.dto';
  */
 @Injectable()
 export class AdminBalanceService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly combat: CombatService,
+  ) {}
 
   /** The Hideout/Exchange/Cantina effects follow the saved production growth from the start. */
   async onModuleInit(): Promise<void> {
@@ -277,18 +284,20 @@ export class AdminBalanceService implements OnModuleInit {
 
   async getBosses(admin: AdminJwtPayload): Promise<AdminBossBalanceDto> {
     assertAdmin(admin);
-    return this.buildBosses(await loadBossBalance(this.prisma), null, DEFAULT_SPLIT, 0);
+    return this.buildBosses(await loadBossBalance(this.prisma), null, {}, DEFAULT_BOSS_PLAYERS, DEFAULT_BOSS_TARGET);
   }
 
   async previewBosses(dto: SaveBossBalanceDto, admin: AdminJwtPayload): Promise<AdminBossBalanceDto> {
     assertAdmin(admin);
-    const split = validateSplit(dto.split);
-    return this.buildBosses(validateBosses(dto.config), await loadBossBalance(this.prisma), split, validateTavern(dto.tavern));
+    const config = validateBosses(dto.config);
+    const preview = validateBossPreview(dto, config);
+    return this.buildBosses(config, await loadBossBalance(this.prisma), preview.participants, preview.players, preview.target);
   }
 
   async saveBosses(dto: SaveBossBalanceDto, admin: AdminJwtPayload): Promise<AdminBossBalanceDto> {
     assertAdmin(admin);
     const config = validateBosses(dto.config);
+    const preview = validateBossPreview(dto, config);
     await this.prisma.$transaction(async (tx) => {
       const before = await tx.balanceConfig.findUnique({ where: { key: BOSS_BALANCE_KEY } });
       await tx.balanceConfig.upsert({
@@ -306,55 +315,114 @@ export class AdminBalanceService implements OnModuleInit {
         },
       });
     });
-    return this.buildBosses(config, null, validateSplit(dto.split), validateTavern(dto.tavern));
+    return this.buildBosses(config, null, preview.participants, preview.players, preview.target);
   }
 
   /**
-   * Each boss with its rewards and, for 1 to 5 reference robots at the boss's
-   * minimum level wearing its zone's set (+0 and max), the share of real
-   * formation fights won. Identical robots, so the formation is simply k × one.
+   * Real players against a boss (owner decision, 2026-10-27): each robot is
+   * read exactly as a boss fight reads it (gear, upgrades, Excellent options,
+   * points, research, the clan's Forge, the Cantina only if active), combined
+   * like a formation, and fought against
+   * the boss as it is in the form. Read-only: nothing is saved or granted.
    */
-  private async buildBosses(config: BossBalanceConfig, saved: BossBalanceConfig | null, split: EquipmentSplitDto, tavern: number): Promise<AdminBossBalanceDto> {
-    const [pentili, equipment, bosses, items, maxBonuses, tavernType] = await Promise.all([
+  async testBossWithPlayers(dto: BossRealTestDto, admin: AdminJwtPayload): Promise<BossRealTestResultDto> {
+    assertAdmin(admin);
+    const config = validateBosses(dto.config);
+    const boss = config.bosses[dto.bossKey];
+    if (!boss) throw new BadRequestException('BOSS_NOT_FOUND');
+    const names = [...new Set(dto.usernames.map((n) => n.trim()).filter(Boolean))];
+    const found = await this.prisma.player.findMany({
+      where: { deletedAt: null, OR: names.map((username) => ({ username: { equals: username, mode: 'insensitive' as const } })) },
+      select: { id: true, username: true, level: true, race: true, clanMembership: { select: { clanId: true } } },
+    });
+    const players = [];
+    const breakdowns = [];
+    for (const player of found) {
+      const breakdown = await this.combat.computeCombatBreakdown(player.id, this.prisma, { bossOrCore: true });
+      const tavern = player.clanMembership ? await findTavern(player.clanMembership.clanId, this.prisma) : null;
+      const tavernActive = isTavernActive(tavern);
+      const alone = aggregateFormationCombatStats([breakdown]);
+      players.push({
+        username: player.username,
+        level: player.level,
+        race: player.race,
+        attack: Math.round(alone.attack),
+        defense: Math.round(alone.defense),
+        hp: Math.round(alone.hp),
+        tavernActive,
+      });
+      breakdowns.push(breakdown);
+    }
+
+    const party = breakdowns.length > 0 ? aggregateFormationCombatStats(breakdowns) : null;
+    let wins = 0;
+    if (party) for (let i = 0; i < SIMULATION_RUNS; i++) if (simulateCombat(party, { attack: boss.attack, defense: boss.defense, maxHp: boss.maxHp }).won) wins++;
+    const lower = new Set(found.map((p) => p.username.toLowerCase()));
+    return {
+      bossKey: dto.bossKey,
+      players,
+      missing: names.filter((n) => !lower.has(n.toLowerCase())),
+      duplicateRaces: new Set(found.map((p) => p.race)).size < found.length,
+      party: party ? { attack: Math.round(party.attack), defense: Math.round(party.defense), hp: Math.round(party.hp) } : { attack: 0, defense: 0, hp: 0 },
+      win: party ? Math.round((wins / SIMULATION_RUNS) * 1000) / 10 : 0,
+    };
+  }
+
+  /**
+   * Each boss with its rewards and its example participant (owner decision,
+   * 2026-10-27): one robot set up per boss and fought 1 to 5 times over; the
+   * boss strength at which `players` of them win about `target`; and the
+   * zone's strongest Pentil to compare the rewards with.
+   */
+  private async buildBosses(
+    config: BossBalanceConfig,
+    saved: BossBalanceConfig | null,
+    participants: Record<string, BossParticipantDto>,
+    players: number,
+    target: number,
+  ): Promise<AdminBossBalanceDto> {
+    const [pentili, equipment, bosses, items, maxBonuses, tavernType, strongest] = await Promise.all([
       loadPentiliBalance(this.prisma),
       loadEquipmentBalance(this.prisma),
       this.prisma.boss.findMany({ include: { zone: { select: { key: true, nameKey: true } } }, orderBy: { level: 'asc' } }),
       this.prisma.itemDefinition.findMany({ select: { key: true, nameKey: true, category: true }, orderBy: { key: 'asc' } }),
       this.maxCombatBonuses(),
       this.prisma.clanBuildingType.findFirst({ where: { bonusType: 'BOSS_CORE_DAMAGE' } }),
+      this.prisma.pentili.findMany({ select: { zoneId: true, level: true, xpReward: true }, orderBy: { level: 'desc' } }),
     ]);
-    const rows = (c: BossBalanceConfig): AdminBossRowDto[] =>
+    const rows = (c: BossBalanceConfig, withSuggestion: boolean): AdminBossRowDto[] =>
       bosses
         .filter((boss) => c.bosses[boss.key])
         .map((boss) => {
           const b = c.bosses[boss.key];
           const tier = (pentili.zones[boss.zone.key]?.itemTier ?? 'pioneer') as SetTier;
-          const opponent = { attack: b.attack, defense: b.defense, maxHp: b.maxHp };
-          const one = (upgrade: number) => referenceRobot(equipment, split, b.minLevel, tier, upgrade, tavern);
-          const base = one(0);
-          const max = one(equipment.sets[tier].maxUpgradeLevel);
-          const scaled = (r: { attack: number; defense: number; hp: number }, k: number) => ({ attack: r.attack * k, defense: r.defense * k, hp: r.hp * k });
+          const participant = participants[boss.key] ?? defaultBossParticipant(b.minLevel);
+          const one = participantRobot(equipment, tier, participant);
+          const party = (k: number) => ({ attack: one.attack * k, defense: one.defense * k, hp: one.hp * k });
+          const top = strongest.find((x) => x.zoneId === boss.zoneId);
           return {
             key: boss.key,
             nameKey: boss.nameKey,
             zoneNameKey: boss.zone.nameKey,
             tier,
             ...bossResourceRanges(b, pentili),
-            formations: [1, 2, 3, 4, 5].map((players) => ({
-              players,
-              xpEach: Math.floor(b.xpReward / players),
-              base: winRate(scaled(base, players), opponent),
-              max: winRate(scaled(max, players), opponent),
+            participant,
+            formations: [1, 2, 3, 4, 5].map((k) => ({
+              players: k,
+              xpEach: Math.floor(b.xpReward / k),
+              win: winRate(party(k), { attack: b.attack, defense: b.defense, maxHp: b.maxHp }),
             })),
+            suggestion: withSuggestion ? suggestBossStrength(party(players), b, target) : null,
+            lastPentil: top ? { level: top.level, xp: top.xpReward, metal: Math.round(pentili.rewards.metal.base * Math.pow(top.level, pentili.rewards.metal.growth)) } : null,
           };
         });
     return {
       config,
-      bosses: rows(config),
-      currentBosses: saved ? rows(saved) : null,
+      bosses: rows(config, true),
+      currentBosses: saved ? rows(saved, false) : null,
       items: items.map((i) => ({ key: i.key, nameKey: i.nameKey, category: i.category })),
-      split,
-      tavern,
+      players,
+      target,
       maxBonuses: { ...maxBonuses, tavern: tavernType ? Math.round(tavernType.bonusPerLevel * tavernType.maxLevel * 10000) / 10000 : 0 },
       simulationRuns: SIMULATION_RUNS,
     };
@@ -961,12 +1029,6 @@ function validateBuildings(config: BuildingBalanceConfig): BuildingBalanceConfig
 const SIMULATION_RUNS = 400;
 const DEFAULT_SPLIT: EquipmentSplitDto = { damage: 1, defense: 1, hp: 1, researchAttack: 0, researchHp: 0, forge: 0 };
 
-function validateTavern(tavern: number | undefined): number {
-  if (tavern === undefined) return 0;
-  if (typeof tavern !== 'number' || !Number.isFinite(tavern) || tavern < 0 || tavern > 100) throw new BadRequestException('SPLIT_OUT_OF_RANGE');
-  return tavern;
-}
-
 function validateSplit(split: EquipmentSplitDto | undefined): EquipmentSplitDto {
   if (!split) return DEFAULT_SPLIT;
   const ok = (x: unknown) => typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 100;
@@ -1009,6 +1071,101 @@ function referenceRobot(equipment: EquipmentBalanceConfig, split: EquipmentSplit
     hp: (combat.basePlayerHp + gear.hp + ((points * split.hp) / total) * attrs.hpPointValue) * (1 + split.researchHp),
     points,
   };
+}
+
+const DEFAULT_BOSS_PLAYERS = 3;
+const DEFAULT_BOSS_TARGET = 0.8;
+
+/** A boss's example participant before any change: its minimum level, the full zone set at +0, points spread evenly, no bonuses. */
+function defaultBossParticipant(level: number): BossParticipantDto {
+  return { level, parts: 7, upgrade: 0, damage: 1, defense: 1, hp: 1, researchAttack: 0, researchHp: 0, forge: 0, tavern: 0 };
+}
+
+/**
+ * The example participant's robot: like referenceRobot, but only `parts`
+ * slots wear the zone set at `upgrade` and the rest the previous set at +0
+ * (nothing below Pioneer). Slots are averaged (a set's total × parts / 7), so
+ * which slots are missing doesn't matter.
+ */
+function participantRobot(equipment: EquipmentBalanceConfig, tier: SetTier, p: BossParticipantDto) {
+  const attrs = GAME_BALANCE.robotAttributes;
+  const combat = GAME_BALANCE.combat;
+  const previous = SET_TIERS[SET_TIERS.indexOf(tier) - 1] as SetTier | undefined;
+  const setTotal = (t: SetTier, upgrade: number) => {
+    const k = 1 + upgrade * equipment.upgrade.bonusPerLevel;
+    return EQUIPMENT_SLOTS.reduce(
+      (sum, slot) => {
+        const st = equipment.sets[t].slots[slot];
+        return { attack: sum.attack + st.attack * k, defense: sum.defense + st.defense * k, hp: sum.hp + st.hp * k };
+      },
+      { attack: 0, defense: 0, hp: 0 },
+    );
+  };
+  const main = setTotal(tier, p.upgrade);
+  const rest = previous ? setTotal(previous, 0) : { attack: 0, defense: 0, hp: 0 };
+  const share = p.parts / EQUIPMENT_SLOTS.length;
+  let points = 0;
+  for (let l = 2; l <= p.level; l++) points += attributePointsForLevel(l);
+  const total = p.damage + p.defense + p.hp;
+  const gear = (stat: 'attack' | 'defense' | 'hp') => main[stat] * share + rest[stat] * (1 - share);
+  return {
+    attack: (combat.baseAttack + gear('attack') + ((points * p.damage) / total) * attrs.damagePointValue) * (1 + p.researchAttack + p.forge + p.tavern),
+    defense: (combat.baseDefense + gear('defense') + ((points * p.defense) / total) * attrs.defensePointValue) * (1 + p.forge),
+    hp: (combat.basePlayerHp + gear('hp') + ((points * p.hp) / total) * attrs.hpPointValue) * (1 + p.researchHp),
+  };
+}
+
+/** HP, attack and defense scaled together until the party wins about `target`; null if it can't even beat a very weak boss. */
+function suggestBossStrength(
+  party: { attack: number; defense: number; hp: number },
+  boss: { maxHp: number; attack: number; defense: number },
+  target: number,
+): AdminBossRowDto['suggestion'] {
+  const scaled = (f: number) => ({ maxHp: Math.max(1, Math.round(boss.maxHp * f)), attack: Math.round(boss.attack * f), defense: Math.round(boss.defense * f) });
+  let low = 0.02;
+  let high = 20;
+  if (winRate(party, scaled(low)) / 100 < target) return null;
+  // A stronger boss wins more often: halve the range until the share is close to the target.
+  for (let i = 0; i < 16; i++) {
+    const mid = Math.sqrt(low * high);
+    if (winRate(party, scaled(mid)) / 100 >= target) low = mid;
+    else high = mid;
+  }
+  const stats = scaled(low);
+  return { ...stats, win: winRate(party, stats) };
+}
+
+/** Sanity limits for the preview's participants, player count and target. */
+function validateBossPreview(
+  dto: SaveBossBalanceDto,
+  config: BossBalanceConfig,
+): { participants: Record<string, BossParticipantDto>; players: number; target: number } {
+  const bad = () => new BadRequestException('PARTICIPANT_OUT_OF_RANGE');
+  const between = (x: unknown, min: number, max: number) => typeof x === 'number' && Number.isFinite(x) && x >= min && x <= max;
+  const int = (x: unknown, min: number, max: number) => between(x, min, max) && Number.isInteger(x);
+  const players = dto.players ?? DEFAULT_BOSS_PLAYERS;
+  const target = dto.target ?? DEFAULT_BOSS_TARGET;
+  if (!int(players, 1, 5) || !between(target, 0.01, 0.99)) throw bad();
+  const participants: Record<string, BossParticipantDto> = {};
+  for (const [key, p] of Object.entries(dto.participants ?? {})) {
+    if (!config.bosses[key]) continue;
+    if (!int(p.level, 1, 100) || !int(p.parts, 0, 7) || !int(p.upgrade, 0, 100)) throw bad();
+    if (!between(p.damage, 0, 100) || !between(p.defense, 0, 100) || !between(p.hp, 0, 100) || p.damage + p.defense + p.hp <= 0) throw bad();
+    if (!between(p.researchAttack, 0, 10) || !between(p.researchHp, 0, 10) || !between(p.forge, 0, 10) || !between(p.tavern, 0, 10)) throw bad();
+    participants[key] = {
+      level: p.level,
+      parts: p.parts,
+      upgrade: p.upgrade,
+      damage: p.damage,
+      defense: p.defense,
+      hp: p.hp,
+      researchAttack: p.researchAttack,
+      researchHp: p.researchHp,
+      forge: p.forge,
+      tavern: p.tavern,
+    };
+  }
+  return { participants, players, target };
 }
 
 /** Share of SIMULATION_RUNS real fights won, in %. */

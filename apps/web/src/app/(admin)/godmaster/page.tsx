@@ -27,6 +27,8 @@ import type {
   AdminXpLevelDto,
   BalanceCurveDto,
   BossBalanceConfigDto,
+  BossParticipantDto,
+  BossRealTestResultDto,
   BuildingBalanceConfigDto,
   ClanBalanceConfigDto,
   EquipmentBalanceConfigDto,
@@ -43,7 +45,7 @@ import type {
   AdminSupportTicketsDto,
 } from '@pentilius/shared';
 import { SUPPORTED_LOCALES } from '@pentilius/shared';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 // Plain JSON import — godmaster deliberately has no next-intl setup (see the
 // (admin) layout comment), so item display names are resolved by hand from
 // the same message file the player app uses, not a duplicated translation system.
@@ -5583,38 +5585,75 @@ function ExpeditionBalancePanel() {
   );
 }
 
+// Each boss's example participant for the preview (owner decision,
+// 2026-10-27) — a godmaster convenience kept in this browser only; nothing
+// about it is saved on the server.
+const BOSS_PREVIEW_KEY = 'pentilius.godmaster.bossPreview';
+type BossPreviewState = { participants: Record<string, BossParticipantDto>; players: number; target: number };
+
+function readBossPreview(): BossPreviewState | null {
+  try {
+    const raw = window.localStorage.getItem(BOSS_PREVIEW_KEY);
+    if (raw) return JSON.parse(raw) as BossPreviewState;
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 function BossBalancePanel() {
   const [data, setData] = useState<AdminBossBalanceDto | null>(null);
   const [config, setConfig] = useState<BossBalanceConfigDto | null>(null);
-  const [split, setSplit] = useState<EquipmentSplitDto>({ damage: 1, defense: 1, hp: 1, researchAttack: 0, researchHp: 0, forge: 0 });
-  const [tavern, setTavern] = useState(0);
+  const [participants, setParticipants] = useState<Record<string, BossParticipantDto>>({});
+  const [players, setPlayers] = useState(3);
+  const [target, setTarget] = useState(80);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [restored, setRestored] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function load() {
+  function load(saved?: BossPreviewState | null) {
     setError(null);
     adminFetch<AdminBossBalanceDto>('/admin/balance/bosses')
       .then((res) => {
         setData(res);
         setConfig(res.config);
         setDirty(false);
+        // Participants remembered from last time: show their numbers straight away.
+        if (saved && Object.keys(saved.participants ?? {}).length > 0) void request('POST', res.config, saved);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
   }
-  useEffect(load, []);
+  useEffect(() => {
+    const saved = readBossPreview();
+    if (saved) {
+      setParticipants(saved.participants ?? {});
+      setPlayers(saved.players ?? 3);
+      setTarget(saved.target ?? 80);
+    }
+    setRestored(true);
+    load(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      window.localStorage.setItem(BOSS_PREVIEW_KEY, JSON.stringify({ participants, players, target }));
+    } catch {
+      // ignore
+    }
+  }, [restored, participants, players, target]);
 
-  async function send(method: 'POST' | 'PUT') {
-    if (!config) return;
-    if (method === 'PUT' && !window.confirm('Да запиша ли баланса на босовете?')) return;
+  async function request(method: 'POST' | 'PUT', cfg: BossBalanceConfigDto, state: BossPreviewState) {
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
       const res = await adminFetch<AdminBossBalanceDto>(method === 'PUT' ? '/admin/balance/bosses' : '/admin/balance/bosses/preview', {
         method,
-        body: { config, split, tavern },
+        body: { config: cfg, participants: state.participants, players: state.players, target: state.target / 100 },
       });
       setData(res);
       if (method === 'PUT') {
@@ -5629,6 +5668,12 @@ function BossBalancePanel() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function send(method: 'POST' | 'PUT') {
+    if (!config) return;
+    if (method === 'PUT' && !window.confirm('Да запиша ли баланса на босовете?')) return;
+    await request(method, config, { participants, players, target });
   }
 
   if (!data || !config) {
@@ -5675,7 +5720,7 @@ function BossBalancePanel() {
             <button type="button" disabled={busy || !dirty} onClick={() => send('PUT')} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
               Запази и приложи
             </button>
-            <button type="button" disabled={busy || !dirty} onClick={load} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
+            <button type="button" disabled={busy || !dirty} onClick={() => load()} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs text-textMuted hover:bg-accentBgHover disabled:opacity-50">
               Отказ
             </button>
           </div>
@@ -5758,81 +5803,392 @@ function BossBalancePanel() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-panelBorder bg-panel p-4">
-        <h3 className="mb-1 text-xs font-semibold">Преглед: формации от еталонни роботи</h3>
-        <p className="mb-2 text-[11px] text-textFaint">
-          1 до 5 еднакви робота на мин. ниво на боса, със сета на зоната му (+0 и макс.), точки и бонуси както долу (същите като в „Сетове“, плюс
-          Кръчмата, която важи само срещу босове и Ядрото). Шансът е от {data.simulationRuns} истински симулации на боя. Не се записва.
-        </p>
+      <BossPreview
+        data={data}
+        config={config}
+        participants={participants}
+        players={players}
+        target={target}
+        editing={editing ?? data.bosses[0]?.key ?? null}
+        busy={busy}
+        field={field}
+        winCell={winCell}
+        onEditing={setEditing}
+        onParticipant={(key, p) => setParticipants((all) => ({ ...all, [key]: p }))}
+        onResetParticipant={(key) =>
+          setParticipants((all) => {
+            const next = { ...all };
+            delete next[key];
+            return next;
+          })
+        }
+        onPlayers={setPlayers}
+        onTarget={setTarget}
+        onCalculate={() => send('POST')}
+        onApplySuggestion={(key, stats) =>
+          update((c) => {
+            c.bosses[key].maxHp = stats.maxHp;
+            c.bosses[key].attack = stats.attack;
+            c.bosses[key].defense = stats.defense;
+          })
+        }
+      />
+      <BossRealTest data={data} config={config} />
+    </>
+  );
+}
+
+/**
+ * Real players against a boss (owner decision, 2026-10-27), in a collapsed
+ * box: pick the boss and up to 5 players by name; their real robots fight the
+ * boss as it is in the form above (unsaved changes included). Read-only —
+ * nothing is saved and nobody gets anything. Independent of the example
+ * participants.
+ */
+function BossRealTest({ data, config }: { data: AdminBossBalanceDto; config: BossBalanceConfigDto }) {
+  const [bossKey, setBossKey] = useState(data.bosses[0]?.key ?? '');
+  const [names, setNames] = useState<string[]>([]);
+  const [query, setQuery] = useState('');
+  const [result, setResult] = useState<BossRealTestResultDto | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function add(username: string) {
+    const name = username.trim();
+    if (!name || names.length >= 5 || names.some((n) => n.toLowerCase() === name.toLowerCase())) return;
+    setNames([...names, name]);
+    setQuery('');
+  }
+
+  async function calculate() {
+    if (names.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setResult(await adminFetch<BossRealTestResultDto>('/admin/balance/bosses/real-test', { method: 'POST', body: { config, bossKey, usernames: names } }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Грешка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const pct = (v: number) => Math.round(v * 10000) / 100;
+  const shown = result && result.bossKey === bossKey ? result : null;
+  const b = config.bosses[bossKey];
+  const row = data.bosses.find((r) => r.key === bossKey);
+  const n = shown?.players.length ?? 0;
+  const itemName = (key: string) => resolveMessageKey(data.items.find((i) => i.key === key)?.nameKey ?? key);
+
+  return (
+    <details className="rounded-lg border border-panelBorder bg-panel p-4">
+      <summary className="cursor-pointer text-xs font-semibold">Тест с реални играчи</summary>
+      <p className="mb-3 mt-2 text-[11px] text-textFaint">
+        Истинските роботи на избраните играчи, точно както играта ги смята в битка с бос (екипировка, подобрения, опции, точки, проучвания,
+        Ковачницата на клана, Кръчмата — ако е активна). Бият боса такъв, какъвто е в полетата горе, включително незаписаните
+        промени. Само чете — нищо не се записва и никой не получава нищо.
+      </p>
+      <div className="mb-3 flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+          бос
+          <select value={bossKey} onChange={(e) => setBossKey(e.target.value)} className="rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent">
+            {data.bosses.map((r) => (
+              <option key={r.key} value={r.key}>
+                {resolveMessageKey(r.nameKey)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {names.length < 5 && (
+          <div className="flex flex-col gap-1 text-[11px] text-textFaint">
+            играч ({names.length}/5)
+            <PlayerAutocomplete value={query} onChange={setQuery} onSelect={add} />
+          </div>
+        )}
+        <button type="button" disabled={busy || names.length === 0} onClick={calculate} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+          Пресметни
+        </button>
+      </div>
+
+      {names.length > 0 && (
+        <div className="mb-3 flex flex-col gap-1.5">
+          {names.map((name) => {
+            const p = shown?.players.find((x) => x.username.toLowerCase() === name.toLowerCase());
+            return (
+              <div key={name} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-wellBorder px-3 py-1.5 text-[11px]">
+                <span className="font-semibold">{p?.username ?? name}</span>
+                {p ? (
+                  <>
+                    <span className="text-textMuted">
+                      ниво {p.level} · {resolveMessageKey(`race.${p.race}.name`)}
+                    </span>
+                    <span className="tabular-nums text-textMuted">
+                      атака {gmNumber(p.attack)} · защита {gmNumber(p.defense)} · HP {gmNumber(p.hp)}
+                    </span>
+                    {p.tavernActive && <span className="text-positive">Кръчмата е активна</span>}
+                  </>
+                ) : shown?.missing.some((m) => m.toLowerCase() === name.toLowerCase()) ? (
+                  <span className="text-danger">няма такъв играч</span>
+                ) : (
+                  <span className="text-textFaint">натисни „Пресметни“</span>
+                )}
+                <button type="button" onClick={() => setNames(names.filter((x) => x !== name))} className="ml-auto rounded-md border border-panelBorder px-2 py-0.5 text-danger hover:bg-accentBgHover">
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
+
+      {shown && n > 0 && b && row && (
+        <div className="flex flex-col gap-1 text-[11px]">
+          {shown.duplicateRaces && <p className="text-vipGold">Има двама играчи от една раса — в играта такава формация не е възможна (едно място на раса).</p>}
+          <p>
+            Формацията: атака {gmNumber(shown.party.attack)} · защита {gmNumber(shown.party.defense)} · HP {gmNumber(shown.party.hp)} — победа срещу{' '}
+            {resolveMessageKey(row.nameKey)} ({gmNumber(b.maxHp)} / {gmNumber(b.attack)} / {gmNumber(b.defense)}):{' '}
+            <span className={shown.win >= 90 ? 'text-positive' : shown.win <= 10 ? 'text-danger' : 'text-vipGold'}>{gmNumber(shown.win)}%</span>
+          </p>
+          <p className="text-textMuted">
+            Награди на играч при победа ({n} играч{n === 1 ? '' : 'а'}): опит {gmNumber(Math.floor(b.xpReward / n))} · метал {gmNumber(row.metal[0])}–
+            {gmNumber(row.metal[1])} · кристал {gmNumber(row.crystal[0])}–{gmNumber(row.crystal[1])} · кредити{' '}
+            {b.credits.chance > 0 && b.credits.max > 0 ? `${gmNumber(pct(b.credits.chance))}% за ${gmNumber(b.credits.min)}–${gmNumber(b.credits.max)}` : 'няма'} ·{' '}
+            {itemName(b.boxKey)}
+            {b.items.map((drop, i) => (
+              <span key={i}>
+                {' · '}
+                {itemName(drop.itemKey)}: {gmNumber(pct(drop.chance))}% за {gmNumber(drop.min)}–{gmNumber(drop.max)}
+              </span>
+            ))}
+          </p>
+          <p className="text-textFaint">
+            Очаквано на опит (× {gmNumber(shown.win)}% победа): опит ≈ {gmNumber(Math.round((Math.floor(b.xpReward / n) * shown.win) / 100))} · метал ≈{' '}
+            {gmNumber(Math.round((((row.metal[0] + row.metal[1]) / 2) * shown.win) / 100))}
+          </p>
+        </div>
+      )}
+    </details>
+  );
+}
+
+/** A boss's example participant before any change (the same default as the API's). */
+function defaultBossParticipant(level: number): BossParticipantDto {
+  return { level, parts: 7, upgrade: 0, damage: 1, defense: 1, hp: 1, researchAttack: 0, researchHp: 0, forge: 0, tavern: 0 };
+}
+
+/**
+ * The bosses preview (owner decision, 2026-10-27): each boss has its own
+ * example participant, picked from a dropdown and set up here; the table
+ * fights it 1 to 5 times over; below, the suggested boss strength for the
+ * chosen player count and target, and what each player gets.
+ */
+function BossPreview({
+  data,
+  config,
+  participants,
+  players,
+  target,
+  editing,
+  busy,
+  field,
+  winCell,
+  onEditing,
+  onParticipant,
+  onResetParticipant,
+  onPlayers,
+  onTarget,
+  onCalculate,
+  onApplySuggestion,
+}: {
+  data: AdminBossBalanceDto;
+  config: BossBalanceConfigDto;
+  participants: Record<string, BossParticipantDto>;
+  players: number;
+  target: number;
+  editing: string | null;
+  busy: boolean;
+  field: (label: string, value: number, onChange: (v: number) => void) => ReactNode;
+  winCell: (rate: number, current: number | undefined) => ReactNode;
+  onEditing: (key: string) => void;
+  onParticipant: (key: string, p: BossParticipantDto) => void;
+  onResetParticipant: (key: string) => void;
+  onPlayers: (players: number) => void;
+  onTarget: (target: number) => void;
+  onCalculate: () => void;
+  onApplySuggestion: (key: string, stats: { maxHp: number; attack: number; defense: number }) => void;
+}) {
+  const pct = (v: number) => Math.round(v * 10000) / 100;
+  const setLabel = (tier: string) => SET_LABELS.find(([t]) => t === tier)?.[1] ?? tier;
+  const participantOf = (key: string) => participants[key] ?? defaultBossParticipant(config.bosses[key]?.minLevel ?? 1);
+  const p = editing ? participantOf(editing) : null;
+  const set = (patch: Partial<BossParticipantDto>) => editing && p && onParticipant(editing, { ...p, ...patch });
+  const itemName = (key: string) => resolveMessageKey(data.items.find((i) => i.key === key)?.nameKey ?? key);
+  const n = data.players;
+  const button = 'rounded-md border border-panelBorder px-2 py-1.5 text-[11px] hover:bg-accentBgHover';
+
+  return (
+    <section className="rounded-lg border border-panelBorder bg-panel p-4">
+      <h3 className="mb-1 text-xs font-semibold">Преглед: формации от примерни участници</h3>
+      <p className="mb-2 text-[11px] text-textFaint">
+        Всеки бос има свой примерен участник, повторен 1 до 5 пъти. Носи сета на зоната на боса: „части“ от него на „подобрение“, останалите от
+        предишния сет на +0; всички точки до нивото си, по дяловете; бонусите както са зададени (Кръчмата важи само срещу босове и Ядрото). Шансът е
+        от {data.simulationRuns} истински симулации на боя. Нищо не се записва; участниците се помнят в този браузър.
+      </p>
+
+      {editing && p && (
         <div className="mb-3 flex flex-wrap items-end gap-3">
-          {field('точки: атака (дял)', split.damage, (v) => setSplit((s) => ({ ...s, damage: v })))}
-          {field('точки: защита (дял)', split.defense, (v) => setSplit((s) => ({ ...s, defense: v })))}
-          {field('точки: HP (дял)', split.hp, (v) => setSplit((s) => ({ ...s, hp: v })))}
-          {field('проучване атака %', pct(split.researchAttack), (v) => setSplit((s) => ({ ...s, researchAttack: v / 100 })))}
-          {field('проучване HP %', pct(split.researchHp), (v) => setSplit((s) => ({ ...s, researchHp: v / 100 })))}
-          {field('Ковачница %', pct(split.forge), (v) => setSplit((s) => ({ ...s, forge: v / 100 })))}
-          {field('Кръчма %', pct(tavern), (v) => setTavern(v / 100))}
-          <button
-            type="button"
-            onClick={() => {
-              const { tavern: maxTavern, ...rest } = data.maxBonuses;
-              setSplit((s) => ({ ...s, ...rest }));
-              setTavern(maxTavern);
-            }}
-            className="rounded-md border border-panelBorder px-2 py-1.5 text-[11px] hover:bg-accentBgHover"
-          >
-            максимални
+          <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+            участник за
+            <select value={editing} onChange={(e) => onEditing(e.target.value)} className="rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent">
+              {data.bosses.map((r) => (
+                <option key={r.key} value={r.key}>
+                  {resolveMessageKey(r.nameKey)} ({setLabel(r.tier)})
+                </option>
+              ))}
+            </select>
+          </label>
+          {field('ниво', p.level, (v) => set({ level: Math.min(100, Math.max(1, Math.round(v))) }))}
+          {field('части от сета (0–7)', p.parts, (v) => set({ parts: Math.min(7, Math.max(0, Math.round(v))) }))}
+          {field('подобрение', p.upgrade, (v) => set({ upgrade: Math.max(0, Math.round(v)) }))}
+          {field('точки: атака (дял)', p.damage, (v) => set({ damage: Math.max(0, v) }))}
+          {field('точки: защита (дял)', p.defense, (v) => set({ defense: Math.max(0, v) }))}
+          {field('точки: HP (дял)', p.hp, (v) => set({ hp: Math.max(0, v) }))}
+          {field('проучване атака %', pct(p.researchAttack), (v) => set({ researchAttack: Math.max(0, v / 100) }))}
+          {field('проучване HP %', pct(p.researchHp), (v) => set({ researchHp: Math.max(0, v / 100) }))}
+          {field('Ковачница %', pct(p.forge), (v) => set({ forge: Math.max(0, v / 100) }))}
+          {field('Кръчма %', pct(p.tavern), (v) => set({ tavern: Math.max(0, v / 100) }))}
+          <button type="button" onClick={() => set({ ...data.maxBonuses })} className={button}>
+            максимални бонуси
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSplit((s) => ({ ...s, researchAttack: 0, researchHp: 0, forge: 0 }));
-              setTavern(0);
-            }}
-            className="rounded-md border border-panelBorder px-2 py-1.5 text-[11px] hover:bg-accentBgHover"
-          >
+          <button type="button" onClick={() => set({ researchAttack: 0, researchHp: 0, forge: 0, tavern: 0 })} className={button}>
             без бонуси
           </button>
-          <button type="button" disabled={busy} onClick={() => send('POST')} className="rounded-md border border-panelBorder px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+          <button type="button" onClick={() => onResetParticipant(editing)} className={button}>
+            по подразбиране
+          </button>
+          <button type="button" disabled={busy} onClick={onCalculate} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
             Пресметни
           </button>
         </div>
-        <div className="max-w-full overflow-x-auto">
-          <table className={GRID_TABLE}>
-            <thead className="text-[10px] uppercase text-textFaint">
-              <tr>
-                <th>бос</th>
-                {[1, 2, 3, 4, 5].map((k) => (
-                  <th key={k}>{k} играч{k === 1 ? '' : 'а'}: +0 / макс.</th>
+      )}
+
+      <div className="max-w-full overflow-x-auto">
+        <table className={GRID_TABLE}>
+          <thead className="text-[10px] uppercase text-textFaint">
+            <tr>
+              <th>бос (участник)</th>
+              {[1, 2, 3, 4, 5].map((k) => (
+                <th key={k}>
+                  {k} играч{k === 1 ? '' : 'а'}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.bosses.map((row) => {
+              const current = data.currentBosses?.find((r) => r.key === row.key);
+              const rp = row.participant;
+              return (
+                <tr key={row.key}>
+                  <td>
+                    {resolveMessageKey(row.nameKey)}
+                    <div className="text-[10px] text-textFaint">
+                      ниво {rp.level}, {rp.parts}× {setLabel(row.tier)} +{rp.upgrade}
+                      {rp.researchAttack + rp.researchHp + rp.forge + rp.tavern > 0 && ', с бонуси'}
+                    </div>
+                  </td>
+                  {row.formations.map((f) => {
+                    const cf = current?.formations.find((x) => x.players === f.players);
+                    return (
+                      <td key={f.players} className="tabular-nums">
+                        {winCell(f.win, cf?.win)}
+                        <div className="text-[10px] text-textFaint">опит {gmNumber(f.xpEach)} на играч</div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        {field('целеви шанс %', target, (v) => onTarget(Math.min(99, Math.max(1, Math.round(v)))))}
+        <label className="flex flex-col gap-1 text-[11px] text-textFaint">
+          брой играчи
+          <select value={players} onChange={(e) => onPlayers(Number(e.target.value))} className="rounded-md border border-wellBorder bg-well px-2 py-1 text-xs outline-none focus:border-accent">
+            {[1, 2, 3, 4, 5].map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" disabled={busy} onClick={onCalculate} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+          Пресметни
+        </button>
+        {(players !== data.players || target / 100 !== data.target) && <span className="text-[11px] text-vipGold">натисни „Пресметни“ за новите стойности</span>}
+      </div>
+
+      {/* Per boss: the suggested strength for the chosen count and target, and what each player gets (owner decision, 2026-10-27). */}
+      <div className="mt-3 flex flex-col gap-3">
+        {data.bosses.map((row) => {
+          const b = config.bosses[row.key];
+          if (!b) return null;
+          const xpEach = Math.floor(b.xpReward / n);
+          const win = (row.formations.find((f) => f.players === n)?.win ?? 0) / 100;
+          const metalMid = (row.metal[0] + row.metal[1]) / 2;
+          const crystalMid = (row.crystal[0] + row.crystal[1]) / 2;
+          const creditsAvg = b.credits.chance * ((b.credits.min + b.credits.max) / 2);
+          const fights = (value: number, per: number | undefined) => (per && per > 0 ? ` (≈ ${gmNumber(Math.round((value / per) * 10) / 10)} битки)` : '');
+          return (
+            <div key={row.key} className="rounded-md border border-wellBorder p-3 text-[11px]">
+              <p className="mb-1 text-xs font-semibold">{resolveMessageKey(row.nameKey)}</p>
+              {row.suggestion ? (
+                <p className="mb-1 flex flex-wrap items-center gap-2">
+                  <span>
+                    Сила за ~{gmNumber(Math.round(data.target * 100))}% при {n} играч{n === 1 ? '' : 'а'}: HP {gmNumber(row.suggestion.maxHp)}, атака{' '}
+                    {gmNumber(row.suggestion.attack)}, защита {gmNumber(row.suggestion.defense)}{' '}
+                    <span className="text-textFaint">
+                      (печели {gmNumber(row.suggestion.win)}%; сега {gmNumber(b.maxHp)} / {gmNumber(b.attack)} / {gmNumber(b.defense)})
+                    </span>
+                  </span>
+                  <button type="button" onClick={() => onApplySuggestion(row.key, row.suggestion!)} className="rounded-md border border-panelBorder px-2 py-1 text-[11px] hover:bg-accentBgHover">
+                    Приложи в полетата
+                  </button>
+                </p>
+              ) : (
+                <p className="mb-1 text-danger">Тези участници не стигат целевия шанс дори срещу много слаб бос.</p>
+              )}
+              <p className="text-textMuted">
+                Награди на играч при победа ({n} играч{n === 1 ? '' : 'а'}): опит {gmNumber(xpEach)}
+                {fights(xpEach, row.lastPentil?.xp)} · метал {gmNumber(row.metal[0])}–{gmNumber(row.metal[1])}
+                {fights(metalMid, row.lastPentil?.metal)} · кристал {gmNumber(row.crystal[0])}–{gmNumber(row.crystal[1])} · кредити{' '}
+                {b.credits.chance > 0 && b.credits.max > 0
+                  ? `${gmNumber(pct(b.credits.chance))}% за ${gmNumber(b.credits.min)}–${gmNumber(b.credits.max)}`
+                  : 'няма'}{' '}
+                · {itemName(b.boxKey)}
+                {b.items.map((drop, i) => (
+                  <span key={i}>
+                    {' · '}
+                    {itemName(drop.itemKey)}: {gmNumber(pct(drop.chance))}% за {gmNumber(drop.min)}–{gmNumber(drop.max)}
+                  </span>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.bosses.map((row) => {
-                const current = data.currentBosses?.find((r) => r.key === row.key);
-                return (
-                  <tr key={row.key}>
-                    <td>
-                      {resolveMessageKey(row.nameKey)}
-                      <div className="text-[10px] text-textFaint">ниво {config.bosses[row.key]?.minLevel}, {SET_LABELS.find(([t]) => t === row.tier)?.[1] ?? row.tier}</div>
-                    </td>
-                    {row.formations.map((f) => {
-                      const cf = current?.formations.find((x) => x.players === f.players);
-                      return (
-                        <td key={f.players} className="tabular-nums">
-                          {winCell(f.base, cf?.base)} / {winCell(f.max, cf?.max)}
-                          <div className="text-[10px] text-textFaint">опит {gmNumber(f.xpEach)} на играч</div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </>
+              </p>
+              <p className="text-textFaint">
+                Очаквано на опит (× {gmNumber(Math.round(win * 1000) / 10)}% победа): опит ≈ {gmNumber(Math.round(xpEach * win))} · метал ≈{' '}
+                {gmNumber(Math.round(metalMid * win))} · кристал ≈ {gmNumber(Math.round(crystalMid * win))} · кредити ≈{' '}
+                {gmNumber(Math.round(creditsAvg * win * 100) / 100)}
+                {row.lastPentil && ` · най-силният Пентил на земята (ниво ${row.lastPentil.level}): ${gmNumber(row.lastPentil.xp)} опит, ~${gmNumber(row.lastPentil.metal)} метал на битка`}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

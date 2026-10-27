@@ -1919,8 +1919,45 @@ export interface AdminBossRowDto {
   // What each rewarded participant gets.
   metal: [number, number];
   crystal: [number, number];
-  // 1 to 5 reference robots: XP each, and % of fights won with the set at +0 / max.
-  formations: { players: number; xpEach: number; base: number; max: number }[];
+  participant: BossParticipantDto;
+  // 1 to 5 copies of the participant: XP each, and % of fights won.
+  formations: { players: number; xpEach: number; win: number }[];
+  // The boss's stats scaled together so `players` participants win about `target` (null if out of reach).
+  suggestion: { maxHp: number; attack: number; defense: number; win: number } | null;
+  // The strongest Pentil of the boss's zone, to compare the rewards with.
+  lastPentil: { level: number; xp: number; metal: number } | null;
+}
+
+// godmaster → Balance → Bosses: each boss's example participant (owner
+// decision, 2026-10-27), fought 1 to 5 times over in the preview. Wears the
+// boss's zone set: `parts` slots (0-7) at `upgrade`, the rest the previous
+// set at +0; every attribute point up to `level`, split by the three shares.
+export interface BossParticipantDto {
+  level: number;
+  parts: number;
+  upgrade: number;
+  damage: number;
+  defense: number;
+  hp: number;
+  // Fractions: research attack/HP, Forge, Cantina.
+  researchAttack: number;
+  researchHp: number;
+  forge: number;
+  tavern: number;
+}
+
+// godmaster → Balance → Bosses → "test with real players" (owner decision,
+// 2026-10-27): real robots, read as the game reads them for a boss fight.
+export interface BossRealTestResultDto {
+  bossKey: string;
+  players: { username: string; level: number; race: string; attack: number; defense: number; hp: number; tavernActive: boolean }[];
+  // Names that matched no player.
+  missing: string[];
+  // Two players of one race — a real formation has one place per race.
+  duplicateRaces: boolean;
+  // The formation together, and its % of fights won against the boss as it is in the form.
+  party: { attack: number; defense: number; hp: number };
+  win: number;
 }
 
 export interface AdminBossBalanceDto {
@@ -1930,8 +1967,9 @@ export interface AdminBossBalanceDto {
   currentBosses: AdminBossRowDto[] | null;
   // Every item, for the box and drop pickers.
   items: { key: string; nameKey: string; category: string }[];
-  split: EquipmentSplitDto;
-  tavern: number;
+  // Participants for the suggestion and the rewards, and the win share (0-1) to suggest for.
+  players: number;
+  target: number;
   maxBonuses: { researchAttack: number; researchHp: number; forge: number; tavern: number };
   simulationRuns: number;
 }
