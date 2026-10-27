@@ -1,4 +1,5 @@
 import type {
+  IdentityChangeStatusDto,
   PaymentsCatalogDto,
   PurchaseDto,
   SaleDocumentDto,
@@ -308,6 +309,19 @@ export function checkSeason(): Promise<{ ok: boolean }> {
 /** New season: pick the race after a season reset (only while profile.needsRaceSelection). */
 export function chooseRace(race: Race): Promise<PlayerProfileDto> {
   return request<PlayerProfileDto>('/player/me/race', { method: 'POST', auth: true, body: { race } });
+}
+
+// Name and race change for Credits (owner decision, 2026-10-27).
+export function getIdentityChange(): Promise<IdentityChangeStatusDto> {
+  return request<IdentityChangeStatusDto>('/player/me/identity-change', { auth: true });
+}
+
+export function changeName(username: string): Promise<IdentityChangeStatusDto> {
+  return request<IdentityChangeStatusDto>('/player/me/identity-change/name', { method: 'POST', auth: true, body: { username } });
+}
+
+export function changeRace(race: Race): Promise<IdentityChangeStatusDto> {
+  return request<IdentityChangeStatusDto>('/player/me/identity-change/race', { method: 'POST', auth: true, body: { race } });
 }
 
 export function getRaceCounts(): Promise<RaceCountsDto> {

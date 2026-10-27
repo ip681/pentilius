@@ -298,8 +298,36 @@ model Player {
   blocksReceived       PlayerBlock[]  @relation("BlocksReceived")
   reportsFiled         PlayerReport[] @relation("ReportsFiled")
   reportsReceived      PlayerReport[] @relation("ReportsReceived")
+  identityChanges      PlayerIdentityChange[]
 
   @@map("players")
+}
+
+enum IdentityChangeKind {
+  NAME
+  RACE
+}
+
+// Name and race changes (owner decision, 2026-10-27): bought by the player in
+// Settings, or a name changed by staff in godmaster (adminUsername set, free,
+// no waiting time). Seen only by staff. Also where the waiting time between
+// paid changes and the old-name reservation are read from. The race picked at
+// the start of a season is not a change and is not recorded here.
+model PlayerIdentityChange {
+  id            String             @id @default(uuid())
+  playerId      String
+  kind          IdentityChangeKind
+  oldValue      String
+  newValue      String
+  creditsPaid   Int                @default(0)
+  adminUsername String?
+  createdAt     DateTime           @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, kind, createdAt])
+  @@index([kind, createdAt])
+  @@map("player_identity_changes")
 }
 
 enum FriendshipStatus {

@@ -17,6 +17,7 @@ import type {
   AdminEquipmentBalanceDto,
   AdminExpeditionBalanceDto,
   AdminOtherBalanceDto,
+  AdminIdentityChangeDto,
   AdminPlayerLoginsDto,
   AdminRewardBalanceDto,
   AdminShopDto,
@@ -28,7 +29,9 @@ import type {
   BalanceCurveDto,
   BossBalanceConfigDto,
   BossParticipantDto,
+  BossFormationDto,
   BossRealTestResultDto,
+  Race,
   BuildingBalanceConfigDto,
   ClanBalanceConfigDto,
   EquipmentBalanceConfigDto,
@@ -50,6 +53,8 @@ import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 // (admin) layout comment), so item display names are resolved by hand from
 // the same message file the player app uses, not a duplicated translation system.
 import bgMessages from '@pentilius/shared/messages/bg.json';
+import { type AbstractIntlMessages, NextIntlClientProvider } from 'next-intl';
+import { BossBattleReport } from '@/components/BossBattleReport';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api/v1';
 const TOKEN_KEY = 'godmaster.accessToken';
@@ -373,6 +378,12 @@ function AdminPanel({
 
           <GrantResourceForm username={username} onGranted={() => loadPlayer(username)} />
           <GrantItemForm username={username} onGranted={() => loadPlayer(username)} />
+          <details className="rounded-lg border border-panelBorder bg-panel p-4">
+            <summary className="cursor-pointer text-sm font-semibold">Смени на име и раса (всички)</summary>
+            <div className="mt-3">
+              <IdentityChangesList />
+            </div>
+          </details>
           <RecentActivityPanel />
         </>
       )}
@@ -492,6 +503,8 @@ function PlayerDetailView({ detail, onReload }: { detail: PlayerDetail; onReload
       <PasswordControls username={profile.username} onReload={onReload} />
 
       <PlayerLoginsControls key={profile.id} playerId={profile.id} onOpenPlayer={onReload} />
+
+      <IdentityChangesList key={`identity-${profile.id}`} playerId={profile.id} />
 
       <div>
         <p className="mb-1 text-[11px] font-medium text-textFaint">Екипировка ({equipped.length}/7)</p>
@@ -5850,6 +5863,8 @@ function BossRealTest({ data, config }: { data: AdminBossBalanceDto; config: Bos
   const [names, setNames] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<BossRealTestResultDto | null>(null);
+  // Bumped on every "start the simulation", so the replay starts over with the new fight.
+  const [replay, setReplay] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -5860,12 +5875,13 @@ function BossRealTest({ data, config }: { data: AdminBossBalanceDto; config: Bos
     setQuery('');
   }
 
-  async function calculate() {
+  async function calculate(withReplay = false) {
     if (names.length === 0) return;
     setBusy(true);
     setError(null);
     try {
       setResult(await adminFetch<BossRealTestResultDto>('/admin/balance/bosses/real-test', { method: 'POST', body: { config, bossKey, usernames: names } }));
+      setReplay((r) => (withReplay ? r + 1 : 0));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Грешка');
     } finally {
@@ -5905,7 +5921,7 @@ function BossRealTest({ data, config }: { data: AdminBossBalanceDto; config: Bos
             <PlayerAutocomplete value={query} onChange={setQuery} onSelect={add} />
           </div>
         )}
-        <button type="button" disabled={busy || names.length === 0} onClick={calculate} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+        <button type="button" disabled={busy || names.length === 0} onClick={() => calculate()} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
           Пресметни
         </button>
       </div>
@@ -5969,8 +5985,62 @@ function BossRealTest({ data, config }: { data: AdminBossBalanceDto; config: Bos
           </p>
         </div>
       )}
+
+      {/* One fight played out like on the boss page (owner decision, 2026-10-27) — a new random fight on every press. */}
+      <div className="mt-3">
+        <button type="button" disabled={busy || names.length === 0} onClick={() => calculate(true)} className="rounded-md border border-accent bg-accentBg px-3 py-1.5 text-xs hover:bg-accentBgHover disabled:opacity-50">
+          Стартирай симулацията
+        </button>
+        {shown?.sample && replay > 0 && (
+          <div className="mt-3">
+            <NextIntlClientProvider locale="bg" messages={bgMessages as unknown as AbstractIntlMessages} timeZone="Europe/Sofia">
+              <BossBattleReport key={replay} formation={replayFormation(shown)} boss={{ nameKey: shown.bossNameKey, iconAssetId: shown.bossIconAssetId }} autoPlay />
+            </NextIntlClientProvider>
+          </div>
+        )}
+      </div>
     </details>
   );
+}
+
+/** The real-player test's sample fight in the shape the boss page's replay reads. Nothing here is a real formation. */
+function replayFormation(result: BossRealTestResultDto): BossFormationDto {
+  const now = new Date().toISOString();
+  const races: Race[] = ['LUXARI', 'VORLUN', 'ZARYTH', 'THALION', 'NEXAR'];
+  const byRace = new Map(result.players.map((p) => [p.race, p]));
+  return {
+    id: 'godmaster-test',
+    bossKey: result.bossKey,
+    creatorId: '',
+    creatorUsername: '',
+    creatorIsVip: false,
+    status: 'RESOLVED',
+    createdAt: now,
+    resolvesAt: now,
+    visibleToClanOnly: false,
+    visibleToFriendsOnly: false,
+    canEditVisibility: false,
+    visibilityEditDeadline: null,
+    slots: races.map((race) => {
+      const p = byRace.get(race);
+      return {
+        race,
+        playerId: p ? p.username : null,
+        playerUsername: p?.username ?? null,
+        playerIsVip: p?.vip ?? false,
+        playerAvatarKey: p?.avatarKey ?? null,
+        playerFrameKey: p?.frameKey ?? null,
+        joinedAt: p ? now : null,
+        isCurrentPlayer: false,
+        xpGained: null,
+        lootSummary: null,
+        lostLoot: [],
+      };
+    }),
+    result: result.sample
+      ? { outcome: result.sample.won ? 'WIN' : 'LOSS', rounds: result.sample.rounds, partyMaxHp: result.sample.partyMaxHp, bossMaxHp: result.sample.bossMaxHp, totalDamageDealt: 0 }
+      : null,
+  };
 }
 
 /** A boss's example participant before any change (the same default as the API's). */
@@ -6256,6 +6326,16 @@ const OTHER_GROUPS: { title: string; items: [string, string, string?][] }[] = [
   {
     title: 'Пазар',
     items: [['market.creditsSaleFee', 'такса от кредитите при продажба %', 'удържа се от продавача, поне 1 кредит; металът и кристалът са без такса']],
+  },
+  {
+    title: 'Смяна на име и раса',
+    items: [
+      ['identityChange.nameCredits', 'цена за смяна на име (кредити)'],
+      ['identityChange.raceCredits', 'цена за смяна на раса (кредити)'],
+      ['identityChange.nameCooldownDays', 'дни между две смени на име'],
+      ['identityChange.raceCooldownDays', 'дни между две смени на раса', 'безплатният избор в началото на сезона не се брои'],
+      ['identityChange.oldNameReservedDays', 'дни, в които старото име е запазено', 'никой друг не може да го вземе; собственикът може'],
+    ],
   },
   {
     title: 'PvP',
@@ -6845,6 +6925,60 @@ function RewardBalancePanel() {
         </div>
       </section>
     </>
+  );
+}
+
+const RACE_LABELS: Record<string, string> = { LUXARI: 'Luxari', VORLUN: 'Vorlun', ZARYTH: 'Zaryth', THALION: 'Thalion', NEXAR: 'Nexar' };
+
+/**
+ * Name and race changes (owner decision, 2026-10-27): one player's (in the
+ * player lookup) or everyone's, newest first. Only staff sees them.
+ */
+function IdentityChangesList({ playerId }: { playerId?: string }) {
+  const [rows, setRows] = useState<AdminIdentityChangeDto[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminFetch<AdminIdentityChangeDto[]>(playerId ? `/admin/players/${playerId}/identity-changes` : '/admin/identity-changes')
+      .then(setRows)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
+  }, [playerId]);
+
+  const value = (kind: string, v: string) => (kind === 'RACE' ? (RACE_LABELS[v] ?? v) : v);
+  return (
+    <div className="rounded-md border border-wellBorder p-3">
+      <p className="mb-2 text-xs font-semibold">Смени на име и раса</p>
+      {error && <p className="text-[11px] text-danger">{error}</p>}
+      {rows && rows.length === 0 && <p className="text-[11px] text-textFaint">Няма смени.</p>}
+      {rows && rows.length > 0 && (
+        <div className="max-w-full overflow-x-auto">
+          <table className={GRID_TABLE}>
+            <thead className="text-[10px] uppercase text-textFaint">
+              <tr>
+                <th>кога</th>
+                {!playerId && <th>играч (сега)</th>}
+                <th>какво</th>
+                <th>от</th>
+                <th>на</th>
+                <th>платено</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="whitespace-nowrap">{new Date(r.createdAt).toLocaleString('bg-BG')}</td>
+                  {!playerId && <td>{r.username}</td>}
+                  <td>{r.kind === 'NAME' ? 'име' : 'раса'}</td>
+                  <td>{value(r.kind, r.oldValue)}</td>
+                  <td>{value(r.kind, r.newValue)}</td>
+                  <td className="tabular-nums">{r.adminUsername ? `от екипа (${r.adminUsername})` : `${gmNumber(r.creditsPaid)} кредита`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 

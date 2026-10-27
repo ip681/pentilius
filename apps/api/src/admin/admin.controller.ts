@@ -50,6 +50,18 @@ export class AdminController {
   }
 
   @UseGuards(AdminJwtAuthGuard)
+  @Get('players/:playerId/identity-changes')
+  getPlayerIdentityChanges(@Param('playerId') playerId: string) {
+    return this.adminService.getIdentityChanges(playerId);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('identity-changes')
+  getIdentityChanges() {
+    return this.adminService.getIdentityChanges(null);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
   @Get('players/:username')
   getPlayerDetail(@Param('username') username: string) {
     return this.adminService.getPlayerDetail(username);

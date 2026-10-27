@@ -1,4 +1,5 @@
 import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { isUsernameReserved } from '../player/identity-change.service';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthResponse, AuthTokens, RaceCountsDto } from '@pentilius/shared';
@@ -40,6 +41,10 @@ export class AuthService {
       throw new ConflictException('EMAIL_TAKEN');
     }
     if (existingUsername) {
+      throw new ConflictException('USERNAME_TAKEN');
+    }
+    // Recently given up by another player (owner decision, 2026-10-27).
+    if (await isUsernameReserved(this.prisma, dto.username)) {
       throw new ConflictException('USERNAME_TAKEN');
     }
 

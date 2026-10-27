@@ -1320,6 +1320,34 @@ export interface AccountDeletionCodeDto {
   code: string;
 }
 
+// --- Name and race change (owner decision, 2026-10-27) ---
+
+export interface IdentityChangeStatusDto {
+  username: string;
+  race: Race;
+  credits: number;
+  nameCredits: number;
+  raceCredits: number;
+  // When the next paid change is allowed; null = now.
+  nameAvailableAt: string | null;
+  raceAvailableAt: string | null;
+  // After a race change: how many equipped items locked to another race were taken off.
+  unequipped?: number;
+}
+
+// godmaster: one row of the history (newest first).
+export interface AdminIdentityChangeDto {
+  id: string;
+  playerId: string;
+  username: string;
+  kind: 'NAME' | 'RACE';
+  oldValue: string;
+  newValue: string;
+  creditsPaid: number;
+  adminUsername: string | null;
+  createdAt: string;
+}
+
 // --- Daily tasks (owner decision, 2026-10-13) ---
 
 export type DailyTaskType = 'PVE_BATTLE' | 'EXPEDITION_COMPLETED' | 'PVP_BATTLE' | 'BOSS_FORMATION_JOIN' | 'CLAN_DONATION';
@@ -1950,7 +1978,21 @@ export interface BossParticipantDto {
 // 2026-10-27): real robots, read as the game reads them for a boss fight.
 export interface BossRealTestResultDto {
   bossKey: string;
-  players: { username: string; level: number; race: string; attack: number; defense: number; hp: number; tavernActive: boolean }[];
+  bossNameKey: string;
+  bossIconAssetId: string;
+  players: {
+    username: string;
+    level: number;
+    race: Race;
+    attack: number;
+    defense: number;
+    hp: number;
+    tavernActive: boolean;
+    // For the replay's formation squares.
+    avatarKey: string | null;
+    frameKey: string | null;
+    vip: boolean;
+  }[];
   // Names that matched no player.
   missing: string[];
   // Two players of one race — a real formation has one place per race.
@@ -1958,6 +2000,8 @@ export interface BossRealTestResultDto {
   // The formation together, and its % of fights won against the boss as it is in the form.
   party: { attack: number; defense: number; hp: number };
   win: number;
+  // One more fight, round by round, for the replay in godmaster (owner decision, 2026-10-27).
+  sample: { won: boolean; rounds: CombatRoundDto[]; partyMaxHp: number; bossMaxHp: number } | null;
 }
 
 export interface AdminBossBalanceDto {

@@ -9,13 +9,14 @@ import { PushService } from '../notifications/push.service';
 import { DailyTasksService } from '../daily-tasks/daily-tasks.service';
 import { ClanBonusService } from './clan-bonus.service';
 import { EconomyService } from './economy.service';
+import { IdentityChangeService } from './identity-change.service';
 import { PlayerController } from './player.controller';
 import { PlayerService } from './player.service';
 
 @Module({
   imports: [AnnouncementsModule],
   controllers: [PlayerController, DailyTasksController, AchievementsController, NotificationsController],
-  providers: [PlayerService, EconomyService, ClanBonusService, DailyTasksService, AchievementsService, PushService, PushSchedulerService],
+  providers: [PlayerService, EconomyService, ClanBonusService, DailyTasksService, AchievementsService, PushService, PushSchedulerService, IdentityChangeService],
   exports: [EconomyService, ClanBonusService, DailyTasksService, AchievementsService, PushService, PushSchedulerService],
 })
 export class PlayerModule {}

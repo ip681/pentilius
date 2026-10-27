@@ -1,4 +1,4 @@
-import { AdminPlayerLoginsDto } from '@pentilius/shared';
+import { AdminIdentityChangeDto, AdminPlayerLoginsDto } from '@pentilius/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { AdminActionType, Prisma } from '@prisma/client';
@@ -193,6 +193,10 @@ export class AdminService {
       });
 
       await this.logAction(tx, admin, 'RENAME_PLAYER', updated, { oldUsername: dto.username, newUsername: dto.newUsername });
+      // Also in the name history (owner decision, 2026-10-27): free, no waiting time, marked as staff.
+      await tx.playerIdentityChange.create({
+        data: { playerId: player.id, kind: 'NAME', oldValue: dto.username, newValue: dto.newUsername, adminUsername: admin.username },
+      });
 
       return { oldUsername: dto.username, newUsername: updated.username };
     });
@@ -262,7 +266,12 @@ export class AdminService {
     inventory: { id: string; itemDefinitionKey: string; nameKey: string; category: string; tier: string | null; quality: string; upgradeLevel: number; quantity: number }[];
     actionLog: { id: string; adminUsername: string; actionType: string; details: unknown; createdAt: Date }[];
   }> {
-    const player = await this.prisma.player.findUnique({ where: { username } });
+    // An old name finds the player too (the name history, owner decision 2026-10-27).
+    const player =
+      (await this.prisma.player.findUnique({ where: { username } })) ??
+      (await this.prisma.playerIdentityChange
+        .findFirst({ where: { kind: 'NAME', oldValue: { equals: username, mode: 'insensitive' } }, orderBy: { createdAt: 'desc' }, select: { player: true } })
+        .then((row) => row?.player ?? null));
     if (!player) {
       throw new NotFoundException('PLAYER_NOT_FOUND');
     }
@@ -632,6 +641,27 @@ export class AdminService {
    * addresses are a hint (homes, offices and mobile networks share them),
    * never a verdict.
    */
+  /** Name and race changes, newest first — one player's, or everyone's (owner decision, 2026-10-27). */
+  async getIdentityChanges(playerId: string | null): Promise<AdminIdentityChangeDto[]> {
+    const rows = await this.prisma.playerIdentityChange.findMany({
+      where: playerId ? { playerId } : {},
+      orderBy: { createdAt: 'desc' },
+      take: playerId ? 100 : 200,
+      include: { player: { select: { username: true } } },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      playerId: r.playerId,
+      username: r.player.username,
+      kind: r.kind,
+      oldValue: r.oldValue,
+      newValue: r.newValue,
+      creditsPaid: r.creditsPaid,
+      adminUsername: r.adminUsername,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
   async getPlayerLogins(playerId: string, admin: AdminJwtPayload): Promise<AdminPlayerLoginsDto> {
     const player = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true, username: true } });
     if (!player) throw new NotFoundException('PLAYER_NOT_FOUND');

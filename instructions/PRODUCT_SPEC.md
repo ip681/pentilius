@@ -53,7 +53,9 @@ Race names and lore are **LOCKED**:
 | **Thalion** | Guardians of Honor | Proud and disciplined, Thalion are unmatched in leadership, strategy and combat. |
 | **Nexar** | Forgers of Strength | Resilient and relentless, Nexar thrive in harsh environments and turn resources into power. |
 
-Chosen once at registration, shown as player identity. Final racial visuals
+Chosen at registration and again, free and required, at the start of every
+season; shown as player identity. Since 2026-10-27 it can also be changed for
+Credits in Settings (see `instructions/DECISIONS_LOG.md`). Final racial visuals
 (symbols/art) and any individual per-race stat bonuses remain **UNDEFINED** —
 Milestone 1 treats race purely as identity with no mechanical effect. See
 `instructions/OPEN_DECISIONS.md`.

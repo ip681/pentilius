@@ -539,6 +539,36 @@
     "infoTitle": "Information"
   },
   "settings": {
+    "identity": {
+      "title": "Name and race",
+      "loadError": "We couldn't load this.",
+      "balance": "You have",
+      "current": "Now",
+      "price": "Price:",
+      "nameTitle": "Change your name",
+      "namePlaceholder": "new name",
+      "nameRules": "3–20 characters: Latin letters, digits and _. You log in with the new name or your email — the old name won't work.",
+      "nameButton": "Change name",
+      "nameConfirm": "Change your name to “{name}” for {price} Credits? The old name won't work for logging in any more.",
+      "nameDone": "Your name is now {name}.",
+      "raceTitle": "Change your race",
+      "raceButton": "Change race",
+      "raceWarning": "Some of the items you use now may be locked to your new race. They will be taken off but stay in your inventory.",
+      "raceConfirm": "Change your race to {race} for {price} Credits? Equipped items locked to another race will be taken off.",
+      "raceDone": "Your race has been changed.",
+      "raceDoneUnequipped": "Your race has been changed. Items taken off: {count} — they are in your inventory.",
+      "nextChange": "Next change: after {date}",
+      "confirmYes": "Yes, change",
+      "errors": {
+        "credits": "You don't have enough Credits.",
+        "cooldown": "You can't change it again yet.",
+        "taken": "That name is taken.",
+        "sameName": "That is already your name.",
+        "sameRace": "That is already your race.",
+        "format": "The name must be 3–20 characters: Latin letters, digits and _.",
+        "generic": "Something went wrong. Try again."
+      }
+    },
     "app": {
       "title": "Phone app",
       "card": "Play from the Android app",
@@ -578,6 +608,7 @@
       "notificationsOff": "Off for this device",
       "supportNew": "You have a new reply from the team",
       "supportIdle": "Send us an idea, a problem or a question",
+      "identity": "Change your name or race",
       "blockedNone": "No blocked players",
       "blockedCount": "Blocked: {count}",
       "deleteIdle": "Delete your account for good",

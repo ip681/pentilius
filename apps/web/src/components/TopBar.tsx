@@ -76,7 +76,14 @@ export function TopBar({
             // logo, same protection the mobile row already relies on elsewhere.
             <Link href={`/players/${profile.id}`} className="flex min-w-0 items-center gap-2 hover:opacity-80">
               <PlayerAvatarFrame avatarKey={profile.selectedAvatarKey} frameKey={profile.selectedFrameKey} className="h-10 w-10 shrink-0 md:h-11 md:w-11" />
-              <span className={`min-w-0 truncate text-xs font-semibold sm:text-sm ${isVipActive(profile) ? 'text-vipGold' : ''}`}>{profile.username}</span>
+              <span className="flex min-w-0 flex-col">
+                <span className={`min-w-0 truncate text-xs font-semibold sm:text-sm ${isVipActive(profile) ? 'text-vipGold' : ''}`}>{profile.username}</span>
+                {/* The race under the name (owner decision, 2026-10-27): its icon and its name in white, phones included. */}
+                <span className="flex min-w-0 items-center gap-1 text-[10px] leading-tight text-text">
+                  <AssetIcon assetId={`races.${profile.race.toLowerCase()}.icon`} alt={t(`race.${profile.race}.name`)} className="h-3.5 w-3.5 object-contain" fallback={null} />
+                  <span className="truncate">{t(`race.${profile.race}.name`)}</span>
+                </span>
+              </span>
             </Link>
           )}
         </div>

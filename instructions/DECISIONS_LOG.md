@@ -1809,3 +1809,28 @@ Owner decisions, for calibrating the bosses (godmaster → Balance → Bosses):
 - First calibration: three real players (levels 15–22, Pioneer +0…+5) beat
   the first boss about 84% of the time at 83% of its old strength
   (HP 1045, attack 247, defense 136), set by the owner for testing.
+
+## Name and race change for Credits (2026-10-27)
+
+Owner decisions (they replace the 2026-10-14 discussion where they differ):
+- **Settings → "Name and race"**, both with a confirmation step. Seen only by
+  staff; nothing is shown to other players.
+- **Name:** 600 Credits; the same rules as registering (format, content filter,
+  unique). Log in with the new name or the email — the old name no longer
+  works. The old name stays reserved for 7 days: nobody else can take it (not
+  by renaming, not by registering); its owner can.
+- **Race:** 500 Credits. No other limits (an open boss formation, a clan war
+  — allowed); a player in an open formation keeps their place there for that
+  fight. Equipped items locked to another race are taken off and stay in the
+  inventory; the confirmation warns about it. The free, required pick at the
+  start of a season is unchanged and is not a change.
+- **Waiting time** 7 days between two paid name changes and, separately,
+  two paid race changes.
+- All five numbers are in godmaster → Balance → Other values → "Смяна на име
+  и раса".
+- **History** (`PlayerIdentityChange`): who, when, from what to what, Credits
+  paid; staff renames from godmaster are recorded too (free, no waiting time,
+  marked as staff). Shown in the godmaster player lookup (an old name finds
+  the player too) and as a list of all changes on the Players tab.
+- The phone-app download card in Settings is hidden while the app isn't
+  worked on; the download and the app itself keep working.

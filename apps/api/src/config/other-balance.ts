@@ -69,6 +69,12 @@ export const OTHER_VALUES: OtherValueDef[] = [
   // Market
   P('market.creditsSaleFee', 0.5),
   // PvP
+  // Name and race changes
+  I('identityChange.nameCredits', 0, 1_000_000),
+  I('identityChange.raceCredits', 0, 1_000_000),
+  N('identityChange.nameCooldownDays', 0, 365),
+  N('identityChange.raceCooldownDays', 0, 365),
+  N('identityChange.oldNameReservedDays', 0, 365),
   I('pvp.minLevel', 1, 100),
   I('pvp.attackCostEnergy', 0, 100),
   P('pvp.resourceStealPercentage'),

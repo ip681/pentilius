@@ -4,7 +4,9 @@ import { CurrentPlayer } from '../auth/decorators/current-player.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/jwt-payload.interface';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ChangeNameDto } from './dto/change-name.dto';
 import { ChooseRaceDto } from './dto/choose-race.dto';
+import { IdentityChangeService } from './identity-change.service';
 import { ListPlayersDto } from './dto/list-players.dto';
 import { UpdateAvatarDto } from './dto/update-avatar.dto';
 import { UpdateBioDto } from './dto/update-bio.dto';
@@ -23,6 +25,7 @@ export class PlayerController {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly announcements: AnnouncementsService,
+    private readonly identityChange: IdentityChangeService,
   ) {}
 
   @Get()
@@ -65,6 +68,22 @@ export class PlayerController {
   @Post('me/race')
   chooseRace(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: ChooseRaceDto) {
     return this.playerService.chooseRace(currentPlayer.sub, dto.race);
+  }
+
+  // Name and race changes for Credits (owner decision, 2026-10-27).
+  @Get('me/identity-change')
+  getIdentityChange(@CurrentPlayer() currentPlayer: JwtPayload) {
+    return this.identityChange.getStatus(currentPlayer.sub);
+  }
+
+  @Post('me/identity-change/name')
+  changeName(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: ChangeNameDto) {
+    return this.identityChange.changeName(currentPlayer.sub, dto.username);
+  }
+
+  @Post('me/identity-change/race')
+  changeRace(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: ChooseRaceDto) {
+    return this.identityChange.changeRace(currentPlayer.sub, dto.race);
   }
 
   @Get('cosmetics')

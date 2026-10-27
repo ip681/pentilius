@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { GameLayout } from '@/components/GameLayout';
+import { IdentityChangeSection } from '@/components/IdentityChangeSection';
 import { PlayerAvatarFrame } from '@/components/PlayerAvatarFrame';
 import { PlayerLink } from '@/components/PlayerLink';
 import { NotificationSettingsSection } from '@/components/NotificationSettingsSection';
@@ -194,9 +195,12 @@ export default function SettingsPage() {
             t('settings.vip.inactive')
           )}
         </SettingsCard>
-        <SettingsCard title={t('settings.app.title')} onClick={() => setOpen('app')}>
-          {t('settings.app.card')}
-        </SettingsCard>
+        {/* Hidden while the app isn't worked on (owner decision, 2026-10-27); the download itself stays. */}
+        {SHOW_APP_DOWNLOAD && (
+          <SettingsCard title={t('settings.app.title')} onClick={() => setOpen('app')}>
+            {t('settings.app.card')}
+          </SettingsCard>
+        )}
         {vip?.canBuy && (
           <SettingsCard title={t('payments.history.title')} onClick={() => setOpen('purchases')}>
             {purchases && purchases.length > 0 ? t('payments.history.count', { count: purchases.length }) : t('payments.history.empty')}
@@ -210,6 +214,9 @@ export default function SettingsPage() {
         </SettingsCard>
         <SettingsCard title={t('settings.languageSection')} onClick={() => setOpen('language')}>
           {t(`settings.cards.languageNames.${selectedLocale === 'en' ? 'en' : 'bg'}`)}
+        </SettingsCard>
+        <SettingsCard title={t('settings.identity.title')} onClick={() => setOpen('identity')}>
+          {t('settings.cards.identity')}
         </SettingsCard>
         <SettingsCard title={t('settings.passwordSection')} onClick={() => setOpen('password')}>
           {t('settings.cards.password')}
@@ -416,6 +423,7 @@ export default function SettingsPage() {
           </section>
         )}
 
+        {open === 'identity' && <IdentityChangeSection />}
         {open === 'notifications' && <NotificationSettingsSection />}
         {open === 'support' && <SupportSection />}
         {open === 'blocked' && <BlockedPlayersSection />}
@@ -429,7 +437,10 @@ export default function SettingsPage() {
   );
 }
 
-type SettingsCardKey = 'vip' | 'app' | 'purchases' | 'cosmetics' | 'language' | 'password' | 'notifications' | 'support' | 'blocked' | 'delete';
+type SettingsCardKey = 'vip' | 'app' | 'purchases' | 'cosmetics' | 'language' | 'identity' | 'password' | 'notifications' | 'support' | 'blocked' | 'delete';
+
+// The phone-app download card (owner decision, 2026-10-27: hidden while the app isn't worked on).
+const SHOW_APP_DOWNLOAD = false;
 
 // The Android app (owner decision, 2026-10-19): served from the game's own
 // server while it isn't in Google Play yet. iPhone only through the App Store, later.

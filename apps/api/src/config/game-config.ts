@@ -282,6 +282,17 @@ export const GAME_BALANCE = {
     // the boss deal ~0 damage — capped here as a safety net, not a tuned value.
     maxDamageDecrease: 0.9,
   },
+  identityChange: {
+    // Name and race changes bought in Settings (owner decision, 2026-10-27).
+    // Prices in Credits, the waiting time between two paid changes of the
+    // same kind, and how long an old name stays reserved for its owner.
+    // Edited in godmaster → Balance → Other values.
+    nameCredits: 600,
+    raceCredits: 500,
+    nameCooldownDays: 7,
+    raceCooldownDays: 7,
+    oldNameReservedDays: 7,
+  },
   pvp: {
     // Owner-specified: PvP unlocks at level 5, and players below level 5
     // cannot be targeted either — not a placeholder guess.

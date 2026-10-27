@@ -64,6 +64,7 @@ import { applyXpBalance, computeXpThresholds, loadXpBalance, XP_BALANCE_KEY, XpB
 import { PrismaService } from '../prisma/prisma.service';
 import { aggregateFormationCombatStats, CombatService, simulateCombat } from '../pve/combat.service';
 import { findTavern, isTavernActive } from '../clans/clan-tavern';
+import { isVip } from '../vip/vip';
 import { SavePentiliBalanceDto } from './dto/save-pentili-balance.dto';
 import { SaveBuildingBalanceDto } from './dto/save-building-balance.dto';
 import { SaveClanBalanceDto } from './dto/save-clan-balance.dto';
@@ -333,8 +334,18 @@ export class AdminBalanceService implements OnModuleInit {
     const names = [...new Set(dto.usernames.map((n) => n.trim()).filter(Boolean))];
     const found = await this.prisma.player.findMany({
       where: { deletedAt: null, OR: names.map((username) => ({ username: { equals: username, mode: 'insensitive' as const } })) },
-      select: { id: true, username: true, level: true, race: true, clanMembership: { select: { clanId: true } } },
+      select: {
+        id: true,
+        username: true,
+        level: true,
+        race: true,
+        selectedAvatarKey: true,
+        selectedFrameKey: true,
+        vipUntil: true,
+        clanMembership: { select: { clanId: true } },
+      },
     });
+    const bossRow = await this.prisma.boss.findUnique({ where: { key: dto.bossKey }, select: { nameKey: true, iconAssetId: true } });
     const players = [];
     const breakdowns = [];
     for (const player of found) {
@@ -350,6 +361,9 @@ export class AdminBalanceService implements OnModuleInit {
         defense: Math.round(alone.defense),
         hp: Math.round(alone.hp),
         tavernActive,
+        avatarKey: player.selectedAvatarKey ?? null,
+        frameKey: player.selectedFrameKey ?? null,
+        vip: isVip(player),
       });
       breakdowns.push(breakdown);
     }
@@ -358,8 +372,12 @@ export class AdminBalanceService implements OnModuleInit {
     let wins = 0;
     if (party) for (let i = 0; i < SIMULATION_RUNS; i++) if (simulateCombat(party, { attack: boss.attack, defense: boss.defense, maxHp: boss.maxHp }).won) wins++;
     const lower = new Set(found.map((p) => p.username.toLowerCase()));
+    const sample = party ? simulateCombat(party, { attack: boss.attack, defense: boss.defense, maxHp: boss.maxHp }) : null;
     return {
       bossKey: dto.bossKey,
+      bossNameKey: bossRow?.nameKey ?? '',
+      bossIconAssetId: bossRow?.iconAssetId ?? '',
+      sample: sample ? { won: sample.won, rounds: sample.rounds, partyMaxHp: sample.playerMaxHp, bossMaxHp: sample.pentiliMaxHp } : null,
       players,
       missing: names.filter((n) => !lower.has(n.toLowerCase())),
       duplicateRaces: new Set(found.map((p) => p.race)).size < found.length,
