@@ -372,8 +372,6 @@ export interface RobotAttributesDto {
   nextCost: CoreAttributeValues;
   // Only Evasion can ever be capped — Damage/Defense/HP grow indefinitely by design.
   evasionAtCap: boolean;
-  // Free resets left: each gives every spent point back (owner decision, 2026-10-20).
-  respecsAvailable: number;
 }
 
 export interface ItemStatsDto {
@@ -793,6 +791,22 @@ export interface PvpStatusDto {
   unlocked: boolean;
   minLevel: number;
   attackCostEnergy: number;
+}
+
+// The full-set bonus (owner decision, 2026-10-27): the one active now (the
+// best set all slots wear or beat) and the next one, with how many of its
+// parts (or better) are on out of `slots`. Tiers: pioneer / ascendant / coreforged.
+export interface SetBonusStatsDto {
+  attack: number;
+  defense: number;
+  hp: number;
+}
+
+export interface FullSetBonusDto {
+  // bonus: fractions per stat (0.03 = +3%); 0 = none.
+  active: { tier: string; bonus: SetBonusStatsDto } | null;
+  next: { tier: string; count: number; bonus: SetBonusStatsDto } | null;
+  slots: number;
 }
 
 export interface CombatStatsDto {
@@ -1328,9 +1342,14 @@ export interface IdentityChangeStatusDto {
   credits: number;
   nameCredits: number;
   raceCredits: number;
+  // Resetting the attribute points (owner decision, 2026-10-30).
+  respecCredits: number;
   // When the next paid change is allowed; null = now.
   nameAvailableAt: string | null;
   raceAvailableAt: string | null;
+  respecAvailableAt: string | null;
+  // Points a reset would give back now (0 = nothing spent).
+  respecRefund: number;
   // After a race change: how many equipped items locked to another race were taken off.
   unequipped?: number;
 }
@@ -1340,7 +1359,7 @@ export interface AdminIdentityChangeDto {
   id: string;
   playerId: string;
   username: string;
-  kind: 'NAME' | 'RACE';
+  kind: 'NAME' | 'RACE' | 'RESPEC';
   oldValue: string;
   newValue: string;
   creditsPaid: number;
@@ -1851,7 +1870,8 @@ export interface EquipmentSlotStatsDto {
 
 export interface EquipmentBalanceConfigDto {
   // pioneer / ascendant / coreforged
-  sets: Record<string, { maxUpgradeLevel: number; sellMetal: number; sellCrystal: number; slots: Record<string, EquipmentSlotStatsDto> }>;
+  // fullSetBonus: fractions (0.05 = +5%) per stat with all 7 slots of this set or better.
+  sets: Record<string, { maxUpgradeLevel: number; fullSetBonus: EquipmentSlotStatsDto; sellMetal: number; sellCrystal: number; slots: Record<string, EquipmentSlotStatsDto> }>;
   upgrade: { bonusPerLevel: number; materialsPerLevel: number; fragmentsPerStone: number };
   qualitySellMultiplier: { NORMAL: number; RARE: number; EPIC: number };
 }

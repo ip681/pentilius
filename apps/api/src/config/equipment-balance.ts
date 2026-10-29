@@ -37,6 +37,11 @@ export interface SlotStats {
 
 export interface SetBalance {
   maxUpgradeLevel: number;
+  // Full-set bonus (owner decision, 2026-10-27): with all 7 slots wearing this
+  // set or a better one, each stat gets its own fraction more (0.05 = +5%),
+  // added to the same sums as research and the Forge. Only the best full set
+  // counts; the bonuses don't add up. Defaults: attack only.
+  fullSetBonus: SlotStats;
   // What selling one item of this set pays (before the quality multiplier).
   sellMetal: number;
   sellCrystal: number;
@@ -59,8 +64,9 @@ export interface EquipmentBalanceConfig {
 export const EQUIPMENT_BALANCE_KEY = 'equipment';
 
 const S = (attack: number, defense: number, hp: number): SlotStats => ({ attack, defense, hp });
-const SET = (maxUpgradeLevel: number, tier: 'PIONEER' | 'ASCENDANT' | 'COREFORGED', slots: SlotStats[]): SetBalance => ({
+const SET = (maxUpgradeLevel: number, tier: 'PIONEER' | 'ASCENDANT' | 'COREFORGED', fullSetBonus: SlotStats, slots: SlotStats[]): SetBalance => ({
   maxUpgradeLevel,
+  fullSetBonus,
   sellMetal: GAME_BALANCE.itemSell.baseMetalByTier[tier],
   sellCrystal: GAME_BALANCE.itemSell.baseCrystalByTier[tier],
   slots: Object.fromEntries(EQUIPMENT_SLOTS.map((slot, i) => [slot, slots[i]])) as Record<EquipmentSlotKey, SlotStats>,
@@ -69,9 +75,9 @@ const SET = (maxUpgradeLevel: number, tier: 'PIONEER' | 'ASCENDANT' | 'COREFORGE
 // Slot order: Head, Left Arm, Right Arm, Armor, Core, Left Leg, Right Leg.
 export const DEFAULT_EQUIPMENT_BALANCE: EquipmentBalanceConfig = {
   sets: {
-    pioneer: SET(5, 'PIONEER', [S(1, 0, 0), S(5, 0, 0), S(0, 5, 0), S(0, 2, 15), S(2, 2, 0), S(0, 0, 5), S(0, 0, 5)]),
-    ascendant: SET(8, 'ASCENDANT', [S(4, 0, 0), S(12, 0, 0), S(0, 10, 0), S(0, 5, 30), S(6, 4, 0), S(0, 0, 20), S(0, 0, 20)]),
-    coreforged: SET(10, 'COREFORGED', [S(8, 0, 0), S(24, 0, 0), S(0, 20, 0), S(0, 10, 60), S(12, 8, 0), S(0, 0, 40), S(0, 0, 40)]),
+    pioneer: SET(5, 'PIONEER', S(0.03, 0, 0), [S(1, 0, 0), S(5, 0, 0), S(0, 5, 0), S(0, 2, 15), S(2, 2, 0), S(0, 0, 5), S(0, 0, 5)]),
+    ascendant: SET(8, 'ASCENDANT', S(0.05, 0, 0), [S(4, 0, 0), S(12, 0, 0), S(0, 10, 0), S(0, 5, 30), S(6, 4, 0), S(0, 0, 20), S(0, 0, 20)]),
+    coreforged: SET(10, 'COREFORGED', S(0.08, 0, 0), [S(8, 0, 0), S(24, 0, 0), S(0, 20, 0), S(0, 10, 60), S(12, 8, 0), S(0, 0, 40), S(0, 0, 40)]),
   },
   upgrade: {
     bonusPerLevel: GAME_BALANCE.combat.bonusPerUpgradeLevel,
@@ -97,6 +103,7 @@ export async function loadEquipmentBalance(db: Db): Promise<EquipmentBalanceConf
           tier,
           {
             maxUpgradeLevel: s?.maxUpgradeLevel ?? def.maxUpgradeLevel,
+            fullSetBonus: { ...def.fullSetBonus, ...(s?.fullSetBonus ?? {}) },
             sellMetal: s?.sellMetal ?? def.sellMetal,
             sellCrystal: s?.sellCrystal ?? def.sellCrystal,
             slots: Object.fromEntries(EQUIPMENT_SLOTS.map((slot) => [slot, { ...def.slots[slot], ...(s?.slots?.[slot] ?? {}) }])),
@@ -126,6 +133,36 @@ export async function applyEquipmentBalance(db: Db, config: EquipmentBalanceConf
     }
   }
   setEquipmentRuntime(config);
+}
+
+/**
+ * The full-set bonus for the equipped items' sets (owner decision,
+ * 2026-10-27): the best set that all 7 slots wear or beat — a better part
+ * still counts for a weaker set, so the bonus never drops while upgrading
+ * piece by piece. `next` is the following set and how many of its parts (or
+ * better) are on. Tiers are ItemDefinition.tier (PIONEER/…); null = empty slot.
+ */
+export function fullSetProgress(
+  tiers: (string | null)[],
+  config: EquipmentBalanceConfig = runtime,
+): { active: { tier: SetTier; bonus: SlotStats } | null; next: { tier: SetTier; count: number; bonus: SlotStats } | null } {
+  const ranks = tiers.filter((t): t is string => !!t).map((t) => SET_TIERS.indexOf(t.toLowerCase() as SetTier));
+  const countAtLeast = (rank: number) => ranks.filter((r) => r >= rank).length;
+  let active: { tier: SetTier; bonus: SlotStats } | null = null;
+  let activeRank = -1;
+  for (let rank = SET_TIERS.length - 1; rank >= 0; rank--) {
+    if (countAtLeast(rank) >= EQUIPMENT_SLOTS.length) {
+      active = { tier: SET_TIERS[rank], bonus: { ...config.sets[SET_TIERS[rank]].fullSetBonus } };
+      activeRank = rank;
+      break;
+    }
+  }
+  const nextRank = activeRank + 1;
+  const next =
+    nextRank < SET_TIERS.length
+      ? { tier: SET_TIERS[nextRank], count: countAtLeast(nextRank), bonus: { ...config.sets[SET_TIERS[nextRank]].fullSetBonus } }
+      : null;
+  return { active, next };
 }
 
 /** Stones needed to go from +0 to +maxLevel (no research discount). */

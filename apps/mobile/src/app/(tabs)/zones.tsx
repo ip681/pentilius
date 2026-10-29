@@ -313,7 +313,7 @@ export default function ZonesScreen() {
                           >
                             <AssetImage assetId={pentili.iconAssetId} size={48} label={t(pentili.nameKey)} />
                             <Chip text={`${t(pentili.nameKey)} (Lv. ${pentili.level})`} small />
-                            <Chip text={`HP ${formatNumber(pentili.maxHp)} · ATK ${formatNumber(pentili.attack)} · DEF ${formatNumber(pentili.defense)}`} tiny />
+                            <Chip text={t('pve.statsLine', { hp: formatNumber(pentili.maxHp), attack: formatNumber(pentili.attack), defense: formatNumber(pentili.defense) })} tiny />
                           </Pressable>
                         );
                       })}

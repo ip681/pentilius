@@ -360,8 +360,6 @@ Before the first real sale (steps, not questions):
   was a content filter; see `instructions/DECISIONS_LOG.md`. Still open:
   - growing the Bulgarian banned-word list (owner);
   - a legal review of the Rules and Privacy texts;
-  - the Privacy text must mention the login records (IP, country, device; kept
-    90 days, for security only), built 2026-10-19;
   - checking the current Apple/Google terms before submission;
   - filling in the store age-rating and data-safety forms;
   - a real support@pentilius.com mailbox (until then the public pages show

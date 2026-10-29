@@ -292,6 +292,10 @@ export const GAME_BALANCE = {
     nameCooldownDays: 7,
     raceCooldownDays: 7,
     oldNameReservedDays: 7,
+    // Resetting the attribute points (owner decision, 2026-10-30): every spent
+    // point comes back to spend again; no free resets any more.
+    respecCredits: 300,
+    respecCooldownDays: 1,
   },
   pvp: {
     // Owner-specified: PvP unlocks at level 5, and players below level 5

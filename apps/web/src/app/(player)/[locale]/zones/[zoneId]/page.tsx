@@ -341,7 +341,9 @@ function ZonePentiliPageInner() {
                     <p className="font-medium">
                       {t(entry.nameKey)} (Lv. {entry.level})
                     </p>
-                    <p className="text-xs text-textMuted">HP {formatNumber(entry.maxHp)} · ATK {formatNumber(entry.attack)} · DEF {formatNumber(entry.defense)}</p>
+                    <p className="text-xs text-textMuted">
+                      {t('pve.statsLine', { hp: formatNumber(entry.maxHp), attack: formatNumber(entry.attack), defense: formatNumber(entry.defense) })}
+                    </p>
                     {entry.lootDrops.length > 0 && (
                       <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-textFaint">
                         <span>{t('pve.drops')}:</span>
@@ -430,7 +432,7 @@ function FighterPanel({
         )}
       </div>
       <div className="mb-1 flex justify-between text-[9px] text-textMuted sm:mb-1.5 sm:text-[11px]">
-        {/* The enemy here is always a Pentili (creature) — "HP" — while the player side is the robot's "Здравина"/Durability. */}
+        {/* The enemy here is always a Pentili (creature) — "Живот"/Health — while the player side is the robot's "Здравина"/Durability. */}
         <span>{t(variant === 'enemy' ? 'pve.hp' : 'robot.stat.hp')}</span>
         <span>
           {Math.round(hp)} / {maxHp}

@@ -174,6 +174,17 @@
     "protectedResourcesNote": "When another player defeats you (PvP or clan-war duel), this much of each resource can't be stolen."
   },
   "robot": {
+    "setBonus": {
+      "title": "Set",
+      "active": "Full {set} set: {bonuses}",
+      "next": "Next: {set}",
+      "stats": {
+        "attack": "attack",
+        "defense": "defense",
+        "hp": "durability"
+      },
+      "rule": "Every part of this set or a better one counts — stronger parts don't remove the bonus. Only the best full set applies."
+    },
     "title": "Robot",
     "subtitle": "Configure the parts installed on your combat robot.",
     "inventory": "Inventory",
@@ -228,9 +239,6 @@
     "attributes": "Core Attributes",
     "attributePoints": "Available Points",
     "attributeNote": "Final combat stats = equipped parts + Core Attributes.",
-    "respec": "Reset points (free)",
-    "respecConfirm": "All spent points come back so you can spend them again. You have {count} free reset(s).",
-    "respecError": "Couldn't reset the points. Please try again.",
     "attributeMax": "MAX",
     "allocateError": "Could not allocate that point.",
     "stat": {
@@ -251,7 +259,7 @@
   "itemOption": {
     "INCREASE_DAMAGE": "Increase Damage +2%",
     "CRITICAL_DAMAGE": "Critical Damage +10%",
-    "INCREASE_MAX_HP": "Increase Max HP +4%",
+    "INCREASE_MAX_HP": "Increase Max Durability +4%",
     "DAMAGE_DECREASE": "Damage Decrease +4%",
     "DAMAGE_REFLECT": "Damage Reflect +4%"
   },
@@ -292,7 +300,8 @@
     "you": "Your Robot",
     "vs": "VS",
     "round": "Round",
-    "hp": "HP",
+    "hp": "Health",
+    "statsLine": "Health {hp} · Attack {attack} · Defense {defense}",
     "combatLog": "Combat Log",
     "noRewardsYet": "Rewards will appear after victory.",
     "encounterStart": "Encounter started against {name}.",
@@ -540,7 +549,7 @@
   },
   "settings": {
     "identity": {
-      "title": "Name and race",
+      "title": "Name, race and points",
       "loadError": "We couldn't load this.",
       "balance": "You have",
       "current": "Now",
@@ -559,12 +568,19 @@
       "raceDoneUnequipped": "Your race has been changed. Items taken off: {count} — they are in your inventory.",
       "nextChange": "Next change: after {date}",
       "confirmYes": "Yes, change",
+      "pointsTitle": "Reset your points",
+      "pointsText": "Every spent point comes back ({count}) to spend again on the Robot page",
+      "pointsButton": "Reset points",
+      "pointsConfirm": "Reset your points for {price} Credits? You get {count} points back to spend.",
+      "pointsDone": "Your points have been reset — {count} back.",
+      "pointsGoRobot": "Spend them on the Robot page",
       "errors": {
         "credits": "You don't have enough Credits.",
         "cooldown": "You can't change it again yet.",
         "taken": "That name is taken.",
         "sameName": "That is already your name.",
         "sameRace": "That is already your race.",
+        "nothingToReset": "You haven't spent any points yet.",
         "format": "The name must be 3–20 characters: Latin letters, digits and _.",
         "generic": "Something went wrong. Try again."
       }
@@ -608,7 +624,7 @@
       "notificationsOff": "Off for this device",
       "supportNew": "You have a new reply from the team",
       "supportIdle": "Send us an idea, a problem or a question",
-      "identity": "Change your name or race",
+      "identity": "Change your name or race, or reset your points",
       "blockedNone": "No blocked players",
       "blockedCount": "Blocked: {count}",
       "deleteIdle": "Delete your account for good",
@@ -721,10 +737,10 @@
     "requirementsError": "Could not save the join requirements.",
     "reqLevelLabel": "Level",
     "reqLevel": "Lvl {value}+",
-    "reqDamage": "DMG {value}+",
-    "reqDefense": "DEF {value}+",
-    "reqHp": "HP {value}+",
-    "reqEvasion": "EVA {value}+",
+    "reqDamage": "Attack {value}+",
+    "reqDefense": "Defense {value}+",
+    "reqHp": "Durability {value}+",
+    "reqEvasion": "Evasion {value}+",
     "reqRacesLabel": "Allowed races",
     "reqRacesHint": "None selected = every race can join.",
     "roleLabel": {
@@ -773,8 +789,8 @@
       "hits": "hits",
       "stats": "Combat stats",
       "damage": "DMG",
-      "defense": "DEF",
-      "evasion": "EVA"
+      "defense": "Defense",
+      "evasion": "Evasion"
     },
     "tavern": {
       "active": "Active",
@@ -842,8 +858,8 @@
     "title": "Boss Formations",
     "subtitle": "Form a 5-race squad and take down a boss together — once a day.",
     "locked": "Unlocks at level {level}.",
-    "attack": "ATK",
-    "defense": "DEF",
+    "attack": "Attack",
+    "defense": "Defense",
     "xpReward": "XP",
     "guaranteed": "guaranteed",
     "createFormation": "Create formation",
@@ -1204,7 +1220,8 @@
             "Game data: level, resources, items, buildings, battles, clan, donations, war and season participation.",
             "Content you create: your profile description, clan names and descriptions, clan-chat and private messages.",
             "Safety data: reports you file or that are filed against you, blocks, sanctions.",
-            "Technical data: when you were last active. Our servers may technically log IP addresses for security purposes."
+            "Technical data: when you were last active and, at every login, your IP address, country (derived from the IP address), device type and browser. We use them only for security: protecting your account and detecting fraud and several accounts run by one person.",
+            "Name and race change history: the old and new name or race, when the change was made and how many Credits it cost."
           ]
         },
         {
@@ -1218,7 +1235,7 @@
         {
           "heading": "4. Who we share it with",
           "paragraphs": [
-            "We do not sell personal data or use it for advertising. Data is stored with hosting and backup providers that process it only on our behalf. Other players see only your public information: username, race, level, clan, profile description, and the messages you send them."
+            "We do not sell personal data or use it for advertising. Data is stored with hosting and backup providers that process it only on our behalf. Other players see only your public information: username, race, level, clan, profile description, and the messages you send them. Login records and the name and race change history are seen only by the game's staff."
           ]
         },
         {
@@ -1227,6 +1244,7 @@
             "For as long as your account exists.",
             "When you delete your account, your personal data is removed {graceDays} days after you confirm. Game history (battles, wars, market, donations) stays, but no longer linked to you — shown as \"Deleted player\".",
             "Database backups are kept for a limited time and then replaced.",
+            "Login records (IP address, country, device) — {loginDays} days, after which they are deleted automatically.",
             "Reports about violations may be kept longer to protect other players."
           ]
         },

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CombatRoundDto, CombatStatsDto } from '@pentilius/shared';
 import { ItemOption, Prisma, ResearchBonusType } from '@prisma/client';
-import { equipmentRuntime } from '../config/equipment-balance';
+import { equipmentRuntime, fullSetProgress } from '../config/equipment-balance';
 import { DamageFormula, GAME_BALANCE } from '../config/game-config';
 import { ClanBonusService } from '../player/clan-bonus.service';
 import { EconomyService } from '../player/economy.service';
@@ -184,14 +184,16 @@ export class CombatService {
     ]);
     const tavernBonus = options.bossOrCore ? await this.clanBonus.getTavernBonus(playerId, tx) : 0;
     const defenseSystemBonus = options.defending ? await getDefenseSystemBonus(playerId, tx) : 0;
+    // Full-set bonus (owner decision, 2026-10-27): its own % per stat.
+    const setBonus = fullSetProgress(equipped.map((item) => item.itemDefinition.tier)).active?.bonus ?? { attack: 0, defense: 0, hp: 0 };
 
     return {
       base,
-      attackFactor: researchAttackMultiplier + clanCombatBonus + tavernBonus,
+      attackFactor: researchAttackMultiplier + clanCombatBonus + tavernBonus + setBonus.attack,
       // No personal research targets defense yet — only the clan's Clan Forge,
-      // plus the Defense System building while defending.
-      defenseFactor: 1 + clanCombatBonus + defenseSystemBonus,
-      hpFactor: hpMultiplier,
+      // plus the Defense System building while defending, and the full set.
+      defenseFactor: 1 + clanCombatBonus + defenseSystemBonus + setBonus.defense,
+      hpFactor: hpMultiplier + setBonus.hp,
       optionTotals: {
         increaseDamage: equippedStats.increaseDamage,
         increaseMaxHp: equippedStats.increaseMaxHp,

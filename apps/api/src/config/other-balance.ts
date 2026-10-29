@@ -75,6 +75,8 @@ export const OTHER_VALUES: OtherValueDef[] = [
   N('identityChange.nameCooldownDays', 0, 365),
   N('identityChange.raceCooldownDays', 0, 365),
   N('identityChange.oldNameReservedDays', 0, 365),
+  I('identityChange.respecCredits', 0, 1_000_000),
+  N('identityChange.respecCooldownDays', 0, 365),
   I('pvp.minLevel', 1, 100),
   I('pvp.attackCostEnergy', 0, 100),
   P('pvp.resourceStealPercentage'),

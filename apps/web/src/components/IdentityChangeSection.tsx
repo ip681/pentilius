@@ -3,7 +3,8 @@
 import type { IdentityChangeStatusDto, Race } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { ApiError, changeName, changeRace, getIdentityChange } from '@/lib/api-client';
+import { ApiError, changeName, changeRace, getIdentityChange, resetAttributePoints } from '@/lib/api-client';
+import { Link } from '@/i18n/navigation';
 import { formatDateTime } from '@/lib/format-datetime';
 import { formatNumber } from '@/lib/format-number';
 import { notifyProfileChanged } from '@/lib/profile-events';
@@ -23,7 +24,9 @@ export function IdentityChangeSection() {
   const [status, setStatus] = useState<IdentityChangeStatusDto | null>(null);
   const [name, setName] = useState('');
   const [race, setRace] = useState<Race | ''>('');
-  const [confirming, setConfirming] = useState<'name' | 'race' | null>(null);
+  const [confirming, setConfirming] = useState<'name' | 'race' | 'points' | null>(null);
+  // After a points reset: a link to the Robot page to spend them.
+  const [robotLink, setRobotLink] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +38,7 @@ export function IdentityChangeSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function errorText(err: unknown, kind: 'name' | 'race'): string {
+  function errorText(err: unknown, kind: 'name' | 'race' | 'points'): string {
     if (err instanceof ApiError) {
       if (err.code === 'NOT_ENOUGH_CREDITS') return t('settings.identity.errors.credits');
       if (err.code === 'CHANGE_COOLDOWN') return t('settings.identity.errors.cooldown');
@@ -43,21 +46,28 @@ export function IdentityChangeSection() {
       if (err.code === 'INAPPROPRIATE_CONTENT') return t('common.inappropriateContent');
       if (err.code === 'SAME_NAME') return t('settings.identity.errors.sameName');
       if (err.code === 'SAME_RACE') return t('settings.identity.errors.sameRace');
+      if (err.code === 'NOTHING_TO_RESET') return t('settings.identity.errors.nothingToReset');
       if (kind === 'name' && err.status === 400) return t('settings.identity.errors.format');
     }
     return t('settings.identity.errors.generic');
   }
 
-  async function submit(kind: 'name' | 'race') {
+  async function submit(kind: 'name' | 'race' | 'points') {
     setBusy(true);
     setError(null);
     setMessage(null);
+    setRobotLink(false);
     try {
       if (kind === 'name') {
         const next = await changeName(name.trim());
         setStatus(next);
         setName('');
         setMessage(t('settings.identity.nameDone', { name: next.username }));
+      } else if (kind === 'points') {
+        const refund = status?.respecRefund ?? 0;
+        setStatus(await resetAttributePoints());
+        setMessage(t('settings.identity.pointsDone', { count: refund }));
+        setRobotLink(true);
       } else if (race) {
         const next = await changeRace(race);
         setStatus(next);
@@ -96,7 +106,7 @@ export function IdentityChangeSection() {
       {t(`race.${r}.name`)}
     </span>
   );
-  const confirmBox = (kind: 'name' | 'race', text: string) => (
+  const confirmBox = (kind: 'name' | 'race' | 'points', text: string) => (
     <div className="mt-2 rounded-md border border-vipGold px-3 py-2 text-xs">
       {/* Old → new race with their icons, so the wrong one isn't picked by mistake (owner decision, 2026-10-27). */}
       {kind === 'race' && race && (
@@ -194,7 +204,37 @@ export function IdentityChangeSection() {
         )}
       </div>
 
-      {message && <p className="mt-4 text-xs text-positive">{message}</p>}
+      {/* Attribute points reset (owner decision, 2026-10-30) — the free reset on the Robot page is gone. */}
+      <div className="mt-5">
+        <h3 className="mb-1 text-xs font-semibold">{t('settings.identity.pointsTitle')}</h3>
+        <p className="mb-2 text-[11px] text-textMuted">
+          {t('settings.identity.pointsText', { count: status.respecRefund })} · {t('settings.identity.price')} {price(status.respecCredits)}
+        </p>
+        {status.respecAvailableAt ? (
+          <p className="text-[11px] text-textFaint">{t('settings.identity.nextChange', { date: formatDateTime(status.respecAvailableAt) })}</p>
+        ) : (
+          <>
+            <button type="button" disabled={busy || status.respecRefund <= 0} onClick={() => setConfirming('points')} className={button}>
+              {t('settings.identity.pointsButton')}
+            </button>
+            {confirming === 'points' && confirmBox('points', t('settings.identity.pointsConfirm', { count: status.respecRefund, price: status.respecCredits }))}
+          </>
+        )}
+      </div>
+
+      {message && (
+        <p className="mt-4 text-xs text-positive">
+          {message}
+          {robotLink && (
+            <>
+              {' '}
+              <Link href="/robot" className="text-accent underline">
+                {t('settings.identity.pointsGoRobot')}
+              </Link>
+            </>
+          )}
+        </p>
+      )}
       {error && <p className="mt-4 text-xs text-danger">{error}</p>}
     </section>
   );

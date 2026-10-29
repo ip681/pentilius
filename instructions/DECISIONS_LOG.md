@@ -1834,3 +1834,31 @@ Owner decisions (they replace the 2026-10-14 discussion where they differ):
   the player too) and as a list of all changes on the Players tab.
 - The phone-app download card in Settings is hidden while the app isn't
   worked on; the download and the app itself keep working.
+
+## Full-set bonus (2026-10-27)
+
+Owner decisions:
+- All 7 slots wearing a set **or a better one** give that set's bonus, so a
+  stronger part never removes it; only the best full set counts.
+- Separate % per stat (attack, defense, HP), added to the same sums as
+  research and the Forge (no bonus on a bonus). Defaults: attack only —
+  Pioneer 3%, Ascendant 5%, Coreforged 8%; defense and HP 0. Edited per set in
+  godmaster → Balance → Sets. Applies in every fight (Pentili, PvP, bosses,
+  the Core) and in the godmaster previews.
+- Shown only on the Robot page, at the bottom of the attributes column: the
+  active bonus, the next set with its progress (7 dots), and one line on the
+  rule. A 0% stat isn't shown. Not in item tooltips, profiles or PvP scouting.
+
+## Paid attribute points reset (2026-10-30)
+
+Owner decisions:
+- The free reset on the Robot page is gone, and there are no free resets any
+  more. Players' data on the server isn't touched (the old counter stays,
+  unused).
+- A reset is bought in Settings → "Name, race and points": every spent
+  point comes back to spend again on the Robot page. 300 Credits, at most
+  once a day; both in godmaster → Balance → Other values → "Смяна на име,
+  раса и точки". Confirmation required; nothing is charged if no points are
+  spent.
+- Recorded in the same history as name and race changes (ranks before and
+  the points given back).

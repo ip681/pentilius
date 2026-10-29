@@ -379,7 +379,7 @@ function AdminPanel({
           <GrantResourceForm username={username} onGranted={() => loadPlayer(username)} />
           <GrantItemForm username={username} onGranted={() => loadPlayer(username)} />
           <details className="rounded-lg border border-panelBorder bg-panel p-4">
-            <summary className="cursor-pointer text-sm font-semibold">Смени на име и раса (всички)</summary>
+            <summary className="cursor-pointer text-sm font-semibold">Смени на име, раса и точки (всички)</summary>
             <div className="mt-3">
               <IdentityChangesList />
             </div>
@@ -5111,9 +5111,9 @@ const SLOT_LABELS: [string, string][] = [
   ['RIGHT_LEG', 'Десен крак'],
 ];
 const SET_STAT_LABELS: [keyof EquipmentSlotStatsDto, string][] = [
-  ['attack', 'А'],
-  ['defense', 'З'],
-  ['hp', 'HP'],
+  ['attack', 'атака'],
+  ['defense', 'защита'],
+  ['hp', 'здравина'],
 ];
 const ROBOT_LABELS: Record<string, string> = { none: 'без екипировка', base: 'сет +0', max: 'сет макс.' };
 
@@ -5285,6 +5285,13 @@ function EquipmentBalancePanel() {
                 {field('продажба: метал', config.sets[tier].sellMetal, (v) => update((c) => (c.sets[tier].sellMetal = v)))}
                 {field('продажба: кристал', config.sets[tier].sellCrystal, (v) => update((c) => (c.sets[tier].sellCrystal = v)))}
               </div>
+              {/* Full-set bonus per stat (owner decision, 2026-10-27). */}
+              <p className="mb-1 mt-2 text-[11px] text-textFaint">бонус за пълен сет (7 части от него или по-добър), %</p>
+              <div className="flex flex-wrap gap-3">
+                {field('атака %', Math.round(config.sets[tier].fullSetBonus.attack * 10000) / 100, (v) => update((c) => (c.sets[tier].fullSetBonus.attack = v / 100)))}
+                {field('защита %', Math.round(config.sets[tier].fullSetBonus.defense * 10000) / 100, (v) => update((c) => (c.sets[tier].fullSetBonus.defense = v / 100)))}
+                {field('здравина %', Math.round(config.sets[tier].fullSetBonus.hp * 10000) / 100, (v) => update((c) => (c.sets[tier].fullSetBonus.hp = v / 100)))}
+              </div>
               <div className="mt-2 flex items-end gap-2">
                 <label className="flex flex-col gap-1 text-[11px] text-textFaint">
                   умножи статовете по
@@ -5326,9 +5333,9 @@ function EquipmentBalancePanel() {
         <div className="mb-3 flex flex-wrap items-end gap-3">
           {field('точки: атака (дял)', split.damage, (v) => setSplit((s) => ({ ...s, damage: v })))}
           {field('точки: защита (дял)', split.defense, (v) => setSplit((s) => ({ ...s, defense: v })))}
-          {field('точки: HP (дял)', split.hp, (v) => setSplit((s) => ({ ...s, hp: v })))}
+          {field('точки: здравина (дял)', split.hp, (v) => setSplit((s) => ({ ...s, hp: v })))}
           {field('проучване атака %', Math.round(split.researchAttack * 10000) / 100, (v) => setSplit((s) => ({ ...s, researchAttack: v / 100 })))}
-          {field('проучване HP %', Math.round(split.researchHp * 10000) / 100, (v) => setSplit((s) => ({ ...s, researchHp: v / 100 })))}
+          {field('проучване здравина %', Math.round(split.researchHp * 10000) / 100, (v) => setSplit((s) => ({ ...s, researchHp: v / 100 })))}
           {field('Ковачница %', Math.round(split.forge * 10000) / 100, (v) => setSplit((s) => ({ ...s, forge: v / 100 })))}
           <button
             type="button"
@@ -5380,7 +5387,7 @@ function EquipmentBalancePanel() {
                             <td>
                               {resolveMessageKey(f.nameKey)} (ниво {f.level})
                               <div className="text-[10px] text-textFaint">
-                                А {gmNumber(f.pentili.attack)} · З {gmNumber(f.pentili.defense)} · HP {gmNumber(f.pentili.maxHp)}
+                                атака {gmNumber(f.pentili.attack)} · защита {gmNumber(f.pentili.defense)} · живот {gmNumber(f.pentili.maxHp)}
                               </div>
                             </td>
                             <td className="tabular-nums">{gmNumber(f.attributePoints)}</td>
@@ -5388,7 +5395,7 @@ function EquipmentBalancePanel() {
                               <td key={r.kind} className="tabular-nums">
                                 {winCell(r.winRate, cf?.robots.find((x) => x.kind === r.kind)?.winRate)}
                                 <div className="text-[10px] text-textFaint">
-                                  А {gmNumber(r.stats.attack)} · З {gmNumber(r.stats.defense)} · HP {gmNumber(r.stats.hp)}
+                                  атака {gmNumber(r.stats.attack)} · защита {gmNumber(r.stats.defense)} · здравина {gmNumber(r.stats.hp)}
                                 </div>
                               </td>
                             ))}
@@ -5758,7 +5765,7 @@ function BossBalancePanel() {
                 </p>
                 <div className="flex flex-wrap gap-3">
                   {field('мин. ниво', b.minLevel, (v) => set((x) => (x.minLevel = v)))}
-                  {field('HP', b.maxHp, (v) => set((x) => (x.maxHp = v)))}
+                  {field('живот', b.maxHp, (v) => set((x) => (x.maxHp = v)))}
                   {field('атака', b.attack, (v) => set((x) => (x.attack = v)))}
                   {field('защита', b.defense, (v) => set((x) => (x.defense = v)))}
                   {field('опит (общо)', b.xpReward, (v) => set((x) => (x.xpReward = v)))}
@@ -5939,7 +5946,7 @@ function BossRealTest({ data, config }: { data: AdminBossBalanceDto; config: Bos
                       ниво {p.level} · {resolveMessageKey(`race.${p.race}.name`)}
                     </span>
                     <span className="tabular-nums text-textMuted">
-                      атака {gmNumber(p.attack)} · защита {gmNumber(p.defense)} · HP {gmNumber(p.hp)}
+                      атака {gmNumber(p.attack)} · защита {gmNumber(p.defense)} · здравина {gmNumber(p.hp)}
                     </span>
                     {p.tavernActive && <span className="text-positive">Кръчмата е активна</span>}
                   </>
@@ -5963,7 +5970,7 @@ function BossRealTest({ data, config }: { data: AdminBossBalanceDto; config: Bos
         <div className="flex flex-col gap-1 text-[11px]">
           {shown.duplicateRaces && <p className="text-vipGold">Има двама играчи от една раса — в играта такава формация не е възможна (едно място на раса).</p>}
           <p>
-            Формацията: атака {gmNumber(shown.party.attack)} · защита {gmNumber(shown.party.defense)} · HP {gmNumber(shown.party.hp)} — победа срещу{' '}
+            Формацията: атака {gmNumber(shown.party.attack)} · защита {gmNumber(shown.party.defense)} · здравина {gmNumber(shown.party.hp)} — победа срещу{' '}
             {resolveMessageKey(row.nameKey)} ({gmNumber(b.maxHp)} / {gmNumber(b.attack)} / {gmNumber(b.defense)}):{' '}
             <span className={shown.win >= 90 ? 'text-positive' : shown.win <= 10 ? 'text-danger' : 'text-vipGold'}>{gmNumber(shown.win)}%</span>
           </p>
@@ -6124,9 +6131,9 @@ function BossPreview({
           {field('подобрение', p.upgrade, (v) => set({ upgrade: Math.max(0, Math.round(v)) }))}
           {field('точки: атака (дял)', p.damage, (v) => set({ damage: Math.max(0, v) }))}
           {field('точки: защита (дял)', p.defense, (v) => set({ defense: Math.max(0, v) }))}
-          {field('точки: HP (дял)', p.hp, (v) => set({ hp: Math.max(0, v) }))}
+          {field('точки: здравина (дял)', p.hp, (v) => set({ hp: Math.max(0, v) }))}
           {field('проучване атака %', pct(p.researchAttack), (v) => set({ researchAttack: Math.max(0, v / 100) }))}
-          {field('проучване HP %', pct(p.researchHp), (v) => set({ researchHp: Math.max(0, v / 100) }))}
+          {field('проучване здравина %', pct(p.researchHp), (v) => set({ researchHp: Math.max(0, v / 100) }))}
           {field('Ковачница %', pct(p.forge), (v) => set({ forge: Math.max(0, v / 100) }))}
           {field('Кръчма %', pct(p.tavern), (v) => set({ tavern: Math.max(0, v / 100) }))}
           <button type="button" onClick={() => set({ ...data.maxBonuses })} className={button}>
@@ -6220,7 +6227,7 @@ function BossPreview({
               {row.suggestion ? (
                 <p className="mb-1 flex flex-wrap items-center gap-2">
                   <span>
-                    Сила за ~{gmNumber(Math.round(data.target * 100))}% при {n} играч{n === 1 ? '' : 'а'}: HP {gmNumber(row.suggestion.maxHp)}, атака{' '}
+                    Сила за ~{gmNumber(Math.round(data.target * 100))}% при {n} играч{n === 1 ? '' : 'а'}: живот {gmNumber(row.suggestion.maxHp)}, атака{' '}
                     {gmNumber(row.suggestion.attack)}, защита {gmNumber(row.suggestion.defense)}{' '}
                     <span className="text-textFaint">
                       (печели {gmNumber(row.suggestion.win)}%; сега {gmNumber(b.maxHp)} / {gmNumber(b.attack)} / {gmNumber(b.defense)})
@@ -6275,7 +6282,7 @@ const OTHER_GROUPS: { title: string; items: [string, string, string?][] }[] = [
   {
     title: 'Бой',
     items: [
-      ['combat.basePlayerHp', 'базово HP на робота', 'и без екипировка'],
+      ['combat.basePlayerHp', 'базова здравина на робота', 'и без екипировка'],
       ['combat.baseAttack', 'базова атака на робота'],
       ['combat.baseDefense', 'базова защита на робота'],
       ['combat.damageVariance', 'колебание на щетата %', '± от удара'],
@@ -6301,9 +6308,9 @@ const OTHER_GROUPS: { title: string; items: [string, string, string?][] }[] = [
       ['robotAttributes.attributeCostGrowthRate', 'растеж на цената', '0 = всяка точка струва еднакво'],
       ['robotAttributes.damagePointValue', 'атака за 1 точка'],
       ['robotAttributes.defensePointValue', 'защита за 1 точка'],
-      ['robotAttributes.hpPointValue', 'HP за 1 точка'],
-      ['robotAttributes.evasionPointValue', 'избягване за 1 точка (%)'],
-      ['robotAttributes.maxEvasionPercent', 'макс. избягване (%)'],
+      ['robotAttributes.hpPointValue', 'здравина за 1 точка'],
+      ['robotAttributes.evasionPointValue', 'маневреност за 1 точка (%)'],
+      ['robotAttributes.maxEvasionPercent', 'макс. маневреност (%)'],
     ],
   },
   {
@@ -6328,13 +6335,15 @@ const OTHER_GROUPS: { title: string; items: [string, string, string?][] }[] = [
     items: [['market.creditsSaleFee', 'такса от кредитите при продажба %', 'удържа се от продавача, поне 1 кредит; металът и кристалът са без такса']],
   },
   {
-    title: 'Смяна на име и раса',
+    title: 'Смяна на име, раса и точки',
     items: [
       ['identityChange.nameCredits', 'цена за смяна на име (кредити)'],
       ['identityChange.raceCredits', 'цена за смяна на раса (кредити)'],
       ['identityChange.nameCooldownDays', 'дни между две смени на име'],
       ['identityChange.raceCooldownDays', 'дни между две смени на раса', 'безплатният избор в началото на сезона не се брои'],
       ['identityChange.oldNameReservedDays', 'дни, в които старото име е запазено', 'никой друг не може да го вземе; собственикът може'],
+      ['identityChange.respecCredits', 'цена за нулиране на точките (кредити)'],
+      ['identityChange.respecCooldownDays', 'дни между две нулирания на точките'],
     ],
   },
   {
@@ -6356,7 +6365,7 @@ const OTHER_GROUPS: { title: string; items: [string, string, string?][] }[] = [
       ['clanWar.minMembersToParticipate', 'мин. членове на клан'],
       ['clanWar.maxDurationHours', 'макс. продължителност (часове)'],
       ['clanWar.rematchCooldownDays', 'дни до нова война със същия клан'],
-      ['clanWar.poolMultiplier', 'размер на пула ×', 'HP на членовете без екипировка × това'],
+      ['clanWar.poolMultiplier', 'размер на пула ×', 'здравина на членовете без екипировка × това'],
       ['clanWar.targetProtectionMinutes', 'минути защита на нападнатия'],
       ['clanWar.attackCooldownMinutes', 'минути между две нападения на същия играч'],
       ['clanWar.conquestTreasuryStealPercentage', 'победа с разбиване: % от хазната на загубилия'],
@@ -6944,10 +6953,18 @@ function IdentityChangesList({ playerId }: { playerId?: string }) {
       .catch((err) => setError(err instanceof Error ? err.message : 'Грешка'));
   }, [playerId]);
 
-  const value = (kind: string, v: string) => (kind === 'RACE' ? (RACE_LABELS[v] ?? v) : v);
+  const value = (kind: string, v: string, side: 'old' | 'new') => {
+    if (kind === 'RACE') return RACE_LABELS[v] ?? v;
+    if (kind === 'RESPEC') {
+      if (side === 'new') return `+${v} точки`;
+      const [damage, defense, hp, evasion] = v.split('/');
+      return `атака ${damage} · защита ${defense} · здравина ${hp} · маневреност ${evasion}`;
+    }
+    return v;
+  };
   return (
     <div className="rounded-md border border-wellBorder p-3">
-      <p className="mb-2 text-xs font-semibold">Смени на име и раса</p>
+      <p className="mb-2 text-xs font-semibold">Смени на име, раса и точки</p>
       {error && <p className="text-[11px] text-danger">{error}</p>}
       {rows && rows.length === 0 && <p className="text-[11px] text-textFaint">Няма смени.</p>}
       {rows && rows.length > 0 && (
@@ -6968,9 +6985,9 @@ function IdentityChangesList({ playerId }: { playerId?: string }) {
                 <tr key={r.id}>
                   <td className="whitespace-nowrap">{new Date(r.createdAt).toLocaleString('bg-BG')}</td>
                   {!playerId && <td>{r.username}</td>}
-                  <td>{r.kind === 'NAME' ? 'име' : 'раса'}</td>
-                  <td>{value(r.kind, r.oldValue)}</td>
-                  <td>{value(r.kind, r.newValue)}</td>
+                  <td>{r.kind === 'NAME' ? 'име' : r.kind === 'RACE' ? 'раса' : 'точки'}</td>
+                  <td>{value(r.kind, r.oldValue, 'old')}</td>
+                  <td>{value(r.kind, r.newValue, 'new')}</td>
                   <td className="tabular-nums">{r.adminUsername ? `от екипа (${r.adminUsername})` : `${gmNumber(r.creditsPaid)} кредита`}</td>
                 </tr>
               ))}

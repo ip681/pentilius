@@ -1074,6 +1074,8 @@ function referenceRobot(equipment: EquipmentBalanceConfig, split: EquipmentSplit
   let points = 0;
   for (let l = 2; l <= level; l++) points += attributePointsForLevel(l);
   const gear = { attack: 0, defense: 0, hp: 0 };
+  // A full set: its bonus too (owner decision, 2026-10-27).
+  const setBonus = tier ? equipment.sets[tier].fullSetBonus : { attack: 0, defense: 0, hp: 0 };
   if (tier) {
     const m = 1 + upgrade * equipment.upgrade.bonusPerLevel;
     for (const slot of EQUIPMENT_SLOTS) {
@@ -1084,9 +1086,9 @@ function referenceRobot(equipment: EquipmentBalanceConfig, split: EquipmentSplit
     }
   }
   return {
-    attack: (combat.baseAttack + gear.attack + ((points * split.damage) / total) * attrs.damagePointValue) * (1 + split.researchAttack + split.forge + tavern),
-    defense: (combat.baseDefense + gear.defense + ((points * split.defense) / total) * attrs.defensePointValue) * (1 + split.forge),
-    hp: (combat.basePlayerHp + gear.hp + ((points * split.hp) / total) * attrs.hpPointValue) * (1 + split.researchHp),
+    attack: (combat.baseAttack + gear.attack + ((points * split.damage) / total) * attrs.damagePointValue) * (1 + split.researchAttack + split.forge + tavern + setBonus.attack),
+    defense: (combat.baseDefense + gear.defense + ((points * split.defense) / total) * attrs.defensePointValue) * (1 + split.forge + setBonus.defense),
+    hp: (combat.basePlayerHp + gear.hp + ((points * split.hp) / total) * attrs.hpPointValue) * (1 + split.researchHp + setBonus.hp),
     points,
   };
 }
@@ -1126,10 +1128,12 @@ function participantRobot(equipment: EquipmentBalanceConfig, tier: SetTier, p: B
   for (let l = 2; l <= p.level; l++) points += attributePointsForLevel(l);
   const total = p.damage + p.defense + p.hp;
   const gear = (stat: 'attack' | 'defense' | 'hp') => main[stat] * share + rest[stat] * (1 - share);
+  // Full set: 7 parts of the zone set, or the previous set's bonus when the rest is from it (owner decision, 2026-10-27).
+  const setBonus = p.parts >= EQUIPMENT_SLOTS.length ? equipment.sets[tier].fullSetBonus : previous ? equipment.sets[previous].fullSetBonus : { attack: 0, defense: 0, hp: 0 };
   return {
-    attack: (combat.baseAttack + gear('attack') + ((points * p.damage) / total) * attrs.damagePointValue) * (1 + p.researchAttack + p.forge + p.tavern),
-    defense: (combat.baseDefense + gear('defense') + ((points * p.defense) / total) * attrs.defensePointValue) * (1 + p.forge),
-    hp: (combat.basePlayerHp + gear('hp') + ((points * p.hp) / total) * attrs.hpPointValue) * (1 + p.researchHp),
+    attack: (combat.baseAttack + gear('attack') + ((points * p.damage) / total) * attrs.damagePointValue) * (1 + p.researchAttack + p.forge + p.tavern + setBonus.attack),
+    defense: (combat.baseDefense + gear('defense') + ((points * p.defense) / total) * attrs.defensePointValue) * (1 + p.forge + setBonus.defense),
+    hp: (combat.basePlayerHp + gear('hp') + ((points * p.hp) / total) * attrs.hpPointValue) * (1 + p.researchHp + setBonus.hp),
   };
 }
 
@@ -1231,6 +1235,8 @@ function validateEquipment(config: EquipmentBalanceConfig): EquipmentBalanceConf
     const set = config.sets?.[tier];
     if (!set || !between(set.maxUpgradeLevel, 0, 50) || !Number.isInteger(set.maxUpgradeLevel)) throw bad('SET_OUT_OF_RANGE');
     if (!between(set.sellMetal, 0, 10_000_000) || !between(set.sellCrystal, 0, 10_000_000)) throw bad('SET_OUT_OF_RANGE');
+    const fb = set.fullSetBonus;
+    if (!fb || !between(fb.attack, 0, 1) || !between(fb.defense, 0, 1) || !between(fb.hp, 0, 1)) throw bad('SET_OUT_OF_RANGE');
     for (const slot of EQUIPMENT_SLOTS) {
       const s = set.slots?.[slot];
       if (!s || !between(s.attack, 0, 100_000) || !between(s.defense, 0, 100_000) || !between(s.hp, 0, 1_000_000)) throw bad('STATS_OUT_OF_RANGE');

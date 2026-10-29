@@ -454,7 +454,7 @@ export default function ZonesPage() {
                             {t(pentili.nameKey)} (Lv. {pentili.level})
                           </span>
                           <span className="rounded bg-black/55 px-1.5 py-0.5 text-[9px] tabular-nums text-white/80">
-                            HP {formatNumber(pentili.maxHp)} · ATK {formatNumber(pentili.attack)} · DEF {formatNumber(pentili.defense)}
+                            {t('pve.statsLine', { hp: formatNumber(pentili.maxHp), attack: formatNumber(pentili.attack), defense: formatNumber(pentili.defense) })}
                           </span>
                         </button>
                       );
@@ -505,7 +505,9 @@ export default function ZonesPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-semibold uppercase text-gold">{t(selectedBoss.nameKey)}</p>
                         <div className="mt-1 flex flex-col text-[10px] text-textMuted">
-                          <span>HP {formatNumber(selectedBoss.maxHp)}</span>
+                          <span>
+                            {t('pve.hp')} {formatNumber(selectedBoss.maxHp)}
+                          </span>
                           <span>
                             {t('bosses.attack')} {formatNumber(selectedBoss.attack)}
                           </span>
@@ -531,7 +533,9 @@ export default function ZonesPage() {
                       <div className="min-w-0 flex-1 opacity-60">
                         <p className="truncate text-xs font-semibold uppercase text-gold">{t(selectedBoss.nameKey)}</p>
                         <div className="mt-1 flex flex-col text-[10px] text-textMuted">
-                          <span>HP {formatNumber(selectedBoss.maxHp)}</span>
+                          <span>
+                            {t('pve.hp')} {formatNumber(selectedBoss.maxHp)}
+                          </span>
                           <span>
                             {t('bosses.attack')} {formatNumber(selectedBoss.attack)}
                           </span>

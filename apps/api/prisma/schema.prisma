@@ -241,9 +241,10 @@ model Player {
   // Tracked and spendable now; has no effect on combat until evasion is
   // wired into the formula in a later phase.
   baseEvasion              Int @default(0)
-  // Free resets of the points above: every spent point comes back to spend
-  // again (owner decision, 2026-10-20 — one for everyone when the combat
-  // formula changes, so points spent under the old rules can be moved).
+  // Free resets of the points above (owner decision, 2026-10-20). No longer
+  // used: since 2026-10-30 resets are only bought in Settings for Credits
+  // (IdentityChangeService.resetPoints). The column stays so no player data
+  // is touched.
   attributeRespecs         Int @default(0)
 
   // Cosmetic profile picture — shown above everything on the Robot page and
@@ -306,6 +307,8 @@ model Player {
 enum IdentityChangeKind {
   NAME
   RACE
+  // Attribute points reset for Credits (owner decision, 2026-10-30).
+  RESPEC
 }
 
 // Name and race changes (owner decision, 2026-10-27): bought by the player in

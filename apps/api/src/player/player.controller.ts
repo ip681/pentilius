@@ -86,6 +86,11 @@ export class PlayerController {
     return this.identityChange.changeRace(currentPlayer.sub, dto.race);
   }
 
+  @Post('me/identity-change/points')
+  resetPoints(@CurrentPlayer() currentPlayer: JwtPayload) {
+    return this.identityChange.resetPoints(currentPlayer.sub);
+  }
+
   @Get('cosmetics')
   getCosmeticsCatalog() {
     return this.playerService.getCosmeticsCatalog();

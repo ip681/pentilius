@@ -35,10 +35,11 @@ export class RobotController {
     return this.robotService.getCombatStats(currentPlayer.sub);
   }
 
-  @Post('attributes/respec')
-  respecAttributes(@CurrentPlayer() currentPlayer: JwtPayload) {
-    return this.robotService.respecAttributes(currentPlayer.sub);
+  @Get('set-bonus')
+  getFullSetBonus(@CurrentPlayer() currentPlayer: JwtPayload) {
+    return this.robotService.getFullSetBonus(currentPlayer.sub);
   }
+
 
   @Post('attributes/allocate')
   allocateAttribute(@CurrentPlayer() currentPlayer: JwtPayload, @Body() dto: AllocateAttributeDto) {

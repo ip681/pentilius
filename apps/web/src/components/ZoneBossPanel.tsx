@@ -151,7 +151,9 @@ export function ZoneBossPanel({ zoneId, battleId }: { zoneId: string; battleId?:
             />
             <div className="flex flex-col gap-1">
               <div className="flex flex-col gap-1 text-xs text-textMuted">
-                <span>HP {formatNumber(boss.maxHp)}</span>
+                <span>
+                  {t('pve.hp')} {formatNumber(boss.maxHp)}
+                </span>
                 <span>
                   {t('bosses.attack')} {formatNumber(boss.attack)}
                 </span>

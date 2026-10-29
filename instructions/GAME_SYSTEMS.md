@@ -106,6 +106,8 @@ Race-locking is stamped at the *dropped/granted instance* level, not the item ty
 - **Ascendant** — a 6-way equal split: 1/6 stays universal, the other 5/6 splits evenly across the 5 races (1/6 each).
 - **Coreforged** — always locked to one of the 5 races (never universal).
 
+**Full-set bonus (owner decision, 2026-10-27):** with all 7 slots wearing a set or a better one, the player gets that set's bonus — its own % per stat (attack, defense, HP), added to the same sums as research and the Forge. A better part still counts for a weaker set, so the bonus never drops while upgrading piece by piece; only the best full set applies. Defaults: attack only — Pioneer +3%, Ascendant +5%, Coreforged +8% (**PROVISIONAL**, godmaster → Balance → Sets). Shown on the Robot page under the attributes.
+
 `ItemDefinition.race` also exists in the schema, reserved for a possible future fixed-race item *type* — unrelated to and unused by the instance-stamping above.
 
 Slot schema — **LOCKED** (7 anatomical slots):
@@ -118,7 +120,7 @@ Slot schema — **LOCKED** (7 anatomical slots):
 - Right Leg.
 
 ## Core Attributes
-**LOCKED direction:** Alongside equipment, the player allocates personal stat points earned from leveling — Damage, Defense, HP, Evasion. Pure point-buy: no resource cost, no respec (for now). Owner decision (2026-09-09): no starting point grant at registration — a new account has 0 unspent points; every point comes from leveling.
+**LOCKED direction:** Alongside equipment, the player allocates personal stat points earned from leveling — Damage, Defense, HP, Evasion. Pure point-buy: no resource cost. A reset (every spent point back) is bought in Settings for Credits, with a waiting time (owner decision, 2026-10-30; 300 Credits and 1 day, edited in godmaster); there are no free resets any more. Owner decision (2026-09-09): no starting point grant at registration — a new account has 0 unspent points; every point comes from leveling.
 
 - Points awarded per level and the cost to raise a stat both grow with a percentage curve (compounding), so higher levels grant proportionally more points, and each successive point in the *same* stat costs progressively more. Cost resets per stat, so spreading points across stats is cheaper than dumping everything into one.
 - Exact starting points, growth rates, and how much each point contributes to combat are **PROVISIONAL** — see `apps/api/src/config/game-config.ts`'s `robotAttributes` block, not hard-coded anywhere else.

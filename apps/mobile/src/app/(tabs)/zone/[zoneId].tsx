@@ -270,7 +270,7 @@ function ZoneContent({ params }: { params: { zoneId: string; pentili?: string; b
                     {t(entry.nameKey)} (Lv. {entry.level})
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.textMuted }}>
-                    HP {formatNumber(entry.maxHp)} · ATK {formatNumber(entry.attack)} · DEF {formatNumber(entry.defense)}
+                    {t('pve.statsLine', { hp: formatNumber(entry.maxHp), attack: formatNumber(entry.attack), defense: formatNumber(entry.defense) })}
                   </Text>
                   {entry.lootDrops.length > 0 && (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 4, marginTop: 4 }}>
@@ -299,7 +299,7 @@ function ZoneContent({ params }: { params: { zoneId: string; pentili?: string; b
                   {t(entry.nameKey)} (Lv. {entry.level})
                 </Text>
                 <Text style={{ fontSize: 10, color: colors.textMuted, textAlign: 'center' }}>
-                  HP {formatNumber(entry.maxHp)} · ATK {formatNumber(entry.attack)} · DEF {formatNumber(entry.defense)}
+                  {t('pve.statsLine', { hp: formatNumber(entry.maxHp), attack: formatNumber(entry.attack), defense: formatNumber(entry.defense) })}
                 </Text>
                 {entry.lootDrops.length > 0 && (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 6, rowGap: 4 }}>

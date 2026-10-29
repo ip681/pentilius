@@ -1,4 +1,5 @@
 import type {
+  FullSetBonusDto,
   IdentityChangeStatusDto,
   PaymentsCatalogDto,
   PurchaseDto,
@@ -324,6 +325,10 @@ export function changeRace(race: Race): Promise<IdentityChangeStatusDto> {
   return request<IdentityChangeStatusDto>('/player/me/identity-change/race', { method: 'POST', auth: true, body: { race } });
 }
 
+export function resetAttributePoints(): Promise<IdentityChangeStatusDto> {
+  return request<IdentityChangeStatusDto>('/player/me/identity-change/points', { method: 'POST', auth: true });
+}
+
 export function getRaceCounts(): Promise<RaceCountsDto> {
   return request<RaceCountsDto>('/auth/race-counts');
 }
@@ -507,16 +512,16 @@ export function getRobotAttributes(): Promise<RobotAttributesDto> {
   return request<RobotAttributesDto>('/robot/attributes', { auth: true });
 }
 
-export function respecAttributes(): Promise<RobotAttributesDto> {
-  return request<RobotAttributesDto>('/robot/attributes/respec', { method: 'POST', auth: true });
-}
-
 export function allocateAttribute(stat: string): Promise<RobotAttributesDto> {
   return request<RobotAttributesDto>('/robot/attributes/allocate', { method: 'POST', auth: true, body: { stat } });
 }
 
 export function getRobotCombatStats(): Promise<CombatStatsDto> {
   return request<CombatStatsDto>('/robot/combat-stats', { auth: true });
+}
+
+export function getRobotSetBonus(): Promise<FullSetBonusDto> {
+  return request<FullSetBonusDto>('/robot/set-bonus', { auth: true });
 }
 
 // Inventory

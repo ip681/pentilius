@@ -1,6 +1,6 @@
 'use client';
 
-import type { BoxOpenResultDto, CombatStatsDto, EquipmentSlot, EquippedItemDto, InventoryItemDto, PlayerProfileDto, Race, RobotAttributesDto, RobotSlotDto } from '@pentilius/shared';
+import type { BoxOpenResultDto, CombatStatsDto, EquipmentSlot, EquippedItemDto, InventoryItemDto, PlayerProfileDto, Race, RobotAttributesDto, RobotSlotDto , FullSetBonusDto, SetBonusStatsDto } from '@pentilius/shared';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
@@ -13,7 +13,6 @@ import { NextLevelValue } from '@/components/NextLevelValue';
 import { ResourceIcon } from '@/components/ResourceIcon';
 import {
   allocateAttribute,
-  respecAttributes,
   ApiError,
   consumeItem,
   equipItem,
@@ -21,6 +20,7 @@ import {
   getProfile,
   getRobot,
   getRobotAttributes,
+  getRobotSetBonus,
   getRobotCombatStats,
   openBox,
   recycleItem,
@@ -166,6 +166,7 @@ export default function RobotPage() {
   const [slots, setSlots] = useState<RobotSlotDto[] | null>(null);
   const [attributes, setAttributes] = useState<RobotAttributesDto | null>(null);
   const [combatStats, setCombatStats] = useState<CombatStatsDto | null>(null);
+  const [setBonus, setSetBonus] = useState<FullSetBonusDto | null>(null);
   const [profile, setProfile] = useState<PlayerProfileDto | null>(null);
   const [filter, setFilter] = useState<EquipmentSlot | 'ALL' | 'CONSUMABLE'>('ALL');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -195,12 +196,13 @@ export default function RobotPage() {
 
   async function load() {
     try {
-      const [inventory, robot, attrs, stats, profileRes] = await Promise.all([
+      const [inventory, robot, attrs, stats, profileRes, bonus] = await Promise.all([
         getInventory(),
         getRobot(),
         getRobotAttributes(),
         getRobotCombatStats(),
         getProfile(),
+        getRobotSetBonus(),
       ]);
       setItems(inventory.items);
       setCapacity(inventory.capacity);
@@ -210,6 +212,7 @@ export default function RobotPage() {
       setSlots(robot);
       setAttributes(attrs);
       setCombatStats(stats);
+      setSetBonus(bonus);
       setProfile(profileRes);
     } catch {
       setError(t('robot.loadError'));
@@ -403,16 +406,6 @@ export default function RobotPage() {
       await load();
     } catch {
       setError(t('robot.actionError'));
-    }
-  }
-
-  async function handleRespec() {
-    try {
-      setAttributes(await respecAttributes());
-      notifyProfileChanged();
-      await load();
-    } catch {
-      setError(t('robot.respecError'));
     }
   }
 
@@ -669,23 +662,9 @@ export default function RobotPage() {
                 })}
               </div>
               <p className="mt-2 text-[9px] text-textFaint">{t('robot.attributeNote')}</p>
-              {/* A free reset (owner decision, 2026-10-20) — only shown while one is left. */}
-              {attributes.respecsAvailable > 0 && (
-                <div className="mt-3">
-                  <ConfirmButton
-                    label={t('robot.respec')}
-                    confirmLabel={t('common.confirm')}
-                    cancelLabel={t('common.cancel')}
-                    message={t('robot.respecConfirm', { count: attributes.respecsAvailable })}
-                    onConfirm={handleRespec}
-                    className="w-full rounded-md border border-accent bg-accentBg py-2 text-[10px] uppercase hover:bg-accentBgHover"
-                    confirmClassName="flex-1 rounded-md border border-accent bg-accentBg py-2 text-[10px] uppercase hover:bg-accentBgHover"
-                    cancelClassName="flex-1 rounded-md border border-panelBorder bg-panel py-2 text-[10px] uppercase text-textMuted hover:bg-accentBgHover"
-                  />
-                </div>
-              )}
             </>
           )}
+          {setBonus && <FullSetBonusBlock bonus={setBonus} />}
         </section>
         </div>
       </div>
@@ -994,5 +973,47 @@ export default function RobotPage() {
         )}
       </BottomSheet>
     </GameLayout>
+  );
+}
+
+const SET_NAMES: Record<string, string> = { pioneer: 'Pioneer', ascendant: 'Ascendant', coreforged: 'Coreforged' };
+
+/**
+ * The full-set bonus (owner decision, 2026-10-27), at the bottom of the
+ * attributes column: the active bonus, and the next set with its progress.
+ * Better parts count for a weaker set, so the bonus never drops.
+ */
+function FullSetBonusBlock({ bonus }: { bonus: FullSetBonusDto }) {
+  const t = useTranslations();
+  const pct = (v: number) => Math.round(v * 1000) / 10;
+  // Only the stats the set actually raises (owner decision: a 0% isn't shown).
+  const list = (b: SetBonusStatsDto) =>
+    (['attack', 'defense', 'hp'] as const)
+      .filter((stat) => b[stat] > 0)
+      .map((stat) => `+${pct(b[stat])}% ${t(`robot.setBonus.stats.${stat}`)}`)
+      .join(', ');
+  return (
+    <div className="mt-4 rounded-md border border-wellBorder bg-well p-2.5 text-[11px]">
+      <div className="mb-1.5 text-[9px] uppercase text-textFaint">{t('robot.setBonus.title')}</div>
+      {bonus.active && (
+        <p className="text-positive">
+          ✓ {t('robot.setBonus.active', { set: SET_NAMES[bonus.active.tier] ?? bonus.active.tier, bonuses: list(bonus.active.bonus) })}
+        </p>
+      )}
+      {bonus.next && (
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-textMuted">
+          <span>→ {t('robot.setBonus.next', { set: SET_NAMES[bonus.next.tier] ?? bonus.next.tier })}</span>
+          <span className="flex gap-0.5" aria-hidden="true">
+            {Array.from({ length: bonus.slots }, (_, i) => (
+              <span key={i} className={`h-2 w-2 rounded-full ${i < bonus.next!.count ? 'bg-accent' : 'border border-wellBorder'}`} />
+            ))}
+          </span>
+          <span className="tabular-nums">
+            {bonus.next.count}/{bonus.slots} → {list(bonus.next.bonus)}
+          </span>
+        </p>
+      )}
+      <p className="mt-1.5 text-[9px] text-textFaint">{t('robot.setBonus.rule')}</p>
+    </div>
   );
 }
