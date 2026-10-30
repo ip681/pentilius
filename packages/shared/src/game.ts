@@ -1421,6 +1421,8 @@ export interface AchievementRewardDto {
   metal: number;
   crystal: number;
   credits: number;
+  // Days of VIP (level rewards, owner decision 2026-10-30); 0 = none.
+  vipDays: number;
   // An item definition key (box, energy pack) — the client builds "items.<key>.name"/".icon".
   itemKey: string | null;
 }
@@ -2048,7 +2050,13 @@ export interface AdminOtherBalanceDto {
 // godmaster → Balance → Rewards (owner decision, 2026-10-19).
 // Mirrors apps/api/src/config/reward-balance.ts.
 export interface RewardBalanceConfigDto {
-  levelRewards: { metalPerLevel: number; crystalPerLevel: number; boxEveryLevels: number; boxes: { upToLevel: number; itemKey: string }[] };
+  levelRewards: {
+    metalPerLevel: number;
+    crystalPerLevel: number;
+    boxEveryLevels: number;
+    boxes: { upToLevel: number; itemKey: string }[];
+    vip: { level: number; days: number }[];
+  };
   dailyTasks: {
     tasks: Record<string, { target: number; reward: { metalPerLevel: number; crystalPerLevel: number; xpPerLevel: number; energy: number } }>;
     allDoneBonusItemKey: string;

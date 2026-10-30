@@ -149,6 +149,8 @@ export class AdminBalanceService implements OnModuleInit {
     lr.boxes.forEach((b, i) => {
       if (!int(b.upToLevel, 1, 100) || !item(b.itemKey) || (i > 0 && b.upToLevel <= lr.boxes[i - 1].upToLevel)) throw bad();
     });
+    if (!Array.isArray(lr.vip) || lr.vip.length > 20 || new Set(lr.vip.map((v) => v.level)).size !== lr.vip.length) throw bad();
+    for (const v of lr.vip) if (!int(v.level, 1, 100) || !int(v.days, 1, 365)) throw bad();
 
     const dt = config.dailyTasks;
     for (const key of Object.keys(current.dailyTasks.tasks)) {

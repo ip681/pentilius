@@ -6892,6 +6892,37 @@ function RewardBalancePanel() {
               </div>
             ))}
           </div>
+          {/* VIP with a level reward (owner decision, 2026-10-30). */}
+          <p className="mb-1 mt-4 text-[11px] font-semibold text-textMuted">VIP на ниво</p>
+          <p className="mb-2 text-[11px] text-textFaint">Дни VIP с наградата за това ниво — от момента на взимане, добавят се към активен VIP. Нулират се с наградите всеки сезон.</p>
+          <div className="flex flex-col gap-2">
+            {config.levelRewards.vip.map((row, index) => (
+              <div key={index} className="flex flex-wrap items-end gap-2 text-[11px] text-textFaint">
+                <label className="flex flex-col gap-1">
+                  ниво
+                  {input(row.level, (v) => update((c) => (c.levelRewards.vip[index].level = v)))}
+                </label>
+                <label className="flex flex-col gap-1">
+                  дни VIP
+                  {input(row.days, (v) => update((c) => (c.levelRewards.vip[index].days = v)))}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => update((c) => c.levelRewards.vip.splice(index, 1))}
+                  className="rounded-md border border-panelBorder px-2 py-1 text-[11px] text-danger hover:bg-accentBgHover"
+                >
+                  махни
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => update((c) => c.levelRewards.vip.push({ level: 20, days: 2 }))}
+              className="w-fit rounded-md border border-panelBorder px-2 py-1 text-[11px] hover:bg-accentBgHover"
+            >
+              + ниво с VIP
+            </button>
+          </div>
         </section>
       )}
 

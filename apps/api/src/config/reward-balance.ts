@@ -24,6 +24,7 @@ export interface RewardBalanceConfig {
     crystalPerLevel: number;
     boxEveryLevels: number;
     boxes: { upToLevel: number; itemKey: string }[];
+    vip: { level: number; days: number }[];
   };
   dailyTasks: {
     tasks: Record<string, { target: number; reward: DailyTaskReward }>;
@@ -46,6 +47,7 @@ function snapshot(): RewardBalanceConfig {
       crystalPerLevel: lr.crystalPerLevel,
       boxEveryLevels: lr.boxEveryLevels,
       boxes: lr.boxes.map((b) => ({ upToLevel: b.upToLevel, itemKey: b.itemKey })),
+      vip: lr.vip.map((v) => ({ level: v.level, days: v.days })),
     },
     dailyTasks: {
       tasks: Object.fromEntries(dt.tasks.map((t) => [t.key, { target: t.target, reward: { ...t.reward } }])),
@@ -106,6 +108,7 @@ export function applyRewardBalance(config: RewardBalanceConfig): void {
   lr.crystalPerLevel = config.levelRewards.crystalPerLevel;
   lr.boxEveryLevels = config.levelRewards.boxEveryLevels;
   config.levelRewards.boxes.forEach((b, i) => Object.assign(lr.boxes[i], b));
+  lr.vip = config.levelRewards.vip.map((v) => ({ ...v }));
 
   const dt = GAME_BALANCE.dailyTasks as unknown as {
     tasks: { key: string; target: number; reward: DailyTaskReward }[];

@@ -72,6 +72,9 @@
     "market": "Пазар"
   },
   "topbar": {
+    "vipDaysLeft": "VIP: {count, plural, one {# ден} other {# дни}}",
+    "vipHoursLeft": "VIP: {count, plural, one {# час} other {# часа}}",
+    "vipMinutesLeft": "VIP: {count} мин",
     "loggedOut": "Не си влязъл",
     "info": "Информация",
     "settings": "Настройки",
@@ -1361,12 +1364,11 @@
   },
   "claimedSection": { "title": "Взети ({count})" },
   "payments": {
+    "whatVipGives": "Какво дава?",
+    "creditsTitle": "Кредити",
     "productNames": { "VIP": "VIP за {days} дни", "CREDITS": "{count} кредита" },
     "vipTitle": "VIP",
     "vipActiveFor": "Активен още {days} дни",
-    "perksSummary": "Атака ×{count}, опашка за строеж, +{amount} енергия и още…",
-    "showPerks": "Виж всички",
-    "hidePerks": "Скрий",
     "days": "{days} дни",
     "perDay": "{price} на ден",
     "bestValue": "Най-изгодно",
@@ -1408,6 +1410,9 @@
     }
   },
   "achievements": {
+    "vipGranted": "Получи {count, plural, one {# ден} other {# дни}} VIP!",
+    "vipSeePerks": "Виж какво дава VIP",
+    "vipDays": "{count, plural, one {# ден VIP} other {# дни VIP}}",
     "allFinished": "Поздравления, завърши всички постижения за този сезон!",
     "levelHeading": "Награда за ниво",
     "listHeading": "Постижения на сезона",

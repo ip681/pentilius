@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { ClaimedSection } from '@/components/ClaimedSection';
 import { ResourceIcon } from '@/components/ResourceIcon';
+import { Link } from '@/i18n/navigation';
 import { ApiError, claimAchievement, getAchievements } from '@/lib/api-client';
 import { notifyProfileChanged } from '@/lib/profile-events';
 import { formatNumber } from '@/lib/format-number';
@@ -20,6 +21,8 @@ export function AchievementsPanel({ onChanged }: { onChanged?: () => void }) {
   const [data, setData] = useState<AchievementsDto | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Days of VIP just claimed — a notice with a link to what VIP gives (owner decision, 2026-10-30).
+  const [vipNotice, setVipNotice] = useState(0);
 
   function load() {
     getAchievements()
@@ -34,8 +37,11 @@ export function AchievementsPanel({ onChanged }: { onChanged?: () => void }) {
   async function handleClaim(claimKey: string) {
     setBusyKey(claimKey);
     setError(null);
+    setVipNotice(0);
+    const claimed = data?.levelReward?.claimKey === claimKey ? data.levelReward.reward : data?.achievements.find((a) => a.tierKey === claimKey)?.reward;
     try {
       setData(await claimAchievement(claimKey));
+      if (claimed && claimed.vipDays > 0) setVipNotice(claimed.vipDays);
       notifyProfileChanged();
       onChanged?.();
     } catch (err) {
@@ -71,6 +77,14 @@ export function AchievementsPanel({ onChanged }: { onChanged?: () => void }) {
     <div>
       <h3 className="mb-3 text-sm font-semibold">{t('achievements.title')}</h3>
       {error && <p className="mb-2 text-xs text-danger">{error}</p>}
+      {vipNotice > 0 && (
+        <p className="mb-2 rounded-md border border-vipGold px-3 py-2 text-xs text-vipGold">
+          {t('achievements.vipGranted', { count: vipNotice })}{' '}
+          <Link href="/settings?open=vip" className="underline">
+            {t('achievements.vipSeePerks')}
+          </Link>
+        </p>
+      )}
       {!data && <p className="text-xs text-textFaint">…</p>}
 
       <div className="flex flex-col gap-2">
@@ -200,6 +214,18 @@ function RewardLine({ reward }: { reward: AchievementRewardDto }) {
         <span className="flex items-center gap-0.5">
           <ResourceIcon type="CREDITS" className="h-3.5 w-3.5" />
           {formatNumber(reward.credits)}
+        </span>
+      )}
+      {/* VIP days (owner decision, 2026-10-30): the VIP icon once it exists, a gold "VIP" until then. */}
+      {reward.vipDays > 0 && (
+        <span className="flex items-center gap-1 font-semibold text-vipGold">
+          <AssetIcon
+            assetId="interface.vip.icon"
+            alt="VIP"
+            className="h-4 w-4 object-contain"
+            fallback={<span className="rounded border border-vipGold px-1 text-[9px] leading-tight">VIP</span>}
+          />
+          {t('achievements.vipDays', { count: reward.vipDays })}
         </span>
       )}
       {reward.itemKey && (

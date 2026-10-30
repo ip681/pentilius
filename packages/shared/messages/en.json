@@ -72,6 +72,9 @@
     "market": "Market"
   },
   "topbar": {
+    "vipDaysLeft": "VIP: {count, plural, one {# day} other {# days}}",
+    "vipHoursLeft": "VIP: {count, plural, one {# hour} other {# hours}}",
+    "vipMinutesLeft": "VIP: {count} min",
     "loggedOut": "Not logged in",
     "info": "Information",
     "settings": "Settings",
@@ -1361,12 +1364,11 @@
   },
   "claimedSection": { "title": "Claimed ({count})" },
   "payments": {
+    "whatVipGives": "What does it give?",
+    "creditsTitle": "Credits",
     "productNames": { "VIP": "VIP for {days} days", "CREDITS": "{count} Credits" },
     "vipTitle": "VIP",
     "vipActiveFor": "Active for {days} more days",
-    "perksSummary": "Attack ×{count}, build queue, +{amount} energy and more…",
-    "showPerks": "See all",
-    "hidePerks": "Hide",
     "days": "{days} days",
     "perDay": "{price} a day",
     "bestValue": "Best value",
@@ -1408,6 +1410,9 @@
     }
   },
   "achievements": {
+    "vipGranted": "You got {count, plural, one {# day} other {# days}} of VIP!",
+    "vipSeePerks": "See what VIP gives",
+    "vipDays": "{count, plural, one {# day of VIP} other {# days of VIP}}",
     "allFinished": "Congratulations, you finished every achievement this season!",
     "levelHeading": "Level reward",
     "listHeading": "Season achievements",

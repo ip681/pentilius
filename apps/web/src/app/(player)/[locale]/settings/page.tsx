@@ -71,6 +71,11 @@ export default function SettingsPage() {
 
   // Settings as cards that open a popup (owner decision, 2026-10-13).
   const [open, setOpen] = useState<SettingsCardKey | null>(null);
+  // ?open=<card> opens that card's popup straight away (e.g. from the VIP level reward, 2026-10-30).
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get('open');
+    if (wanted && (OPENABLE_CARDS as string[]).includes(wanted)) setOpen(wanted as SettingsCardKey);
+  }, []);
   const [summary, setSummary] = useState<{ notificationsOn: boolean; supportUnread: boolean; blockedCount: number | null; deletionScheduledFor: string | null }>({
     notificationsOn: false,
     supportUnread: false,
@@ -441,6 +446,9 @@ type SettingsCardKey = 'vip' | 'app' | 'purchases' | 'cosmetics' | 'language' | 
 
 // The phone-app download card (owner decision, 2026-10-27: hidden while the app isn't worked on).
 const SHOW_APP_DOWNLOAD = false;
+
+// Cards that ?open= may open (the hidden app card isn't one of them).
+const OPENABLE_CARDS: SettingsCardKey[] = ['vip', 'purchases', 'cosmetics', 'language', 'identity', 'password', 'notifications', 'support', 'blocked', 'delete'];
 
 // The Android app (owner decision, 2026-10-19): served from the game's own
 // server while it isn't in Google Play yet. iPhone only through the App Store, later.

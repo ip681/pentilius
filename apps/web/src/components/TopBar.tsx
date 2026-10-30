@@ -83,6 +83,8 @@ export function TopBar({
                   <AssetIcon assetId={`races.${profile.race.toLowerCase()}.icon`} alt={t(`race.${profile.race}.name`)} className="h-3.5 w-3.5 object-contain" fallback={null} />
                   <span className="truncate">{t(`race.${profile.race}.name`)}</span>
                 </span>
+                {/* VIP time left, only while active (owner decision, 2026-10-30): days, then hours, then minutes. */}
+                <VipTimeLeft vipUntil={profile.vipUntil} />
               </span>
             </Link>
           )}
@@ -204,4 +206,18 @@ export function TopBar({
       )}
     </header>
   );
+}
+
+/** "VIP: 30 дни" / "VIP: 10 часа" / "VIP: 20 мин" under the name and race; nothing without VIP. Rounded up. */
+function VipTimeLeft({ vipUntil }: { vipUntil: string | null }) {
+  const t = useTranslations();
+  const secondsLeft = vipUntil ? Math.floor((new Date(vipUntil).getTime() - Date.now()) / 1000) : 0;
+  if (secondsLeft <= 0) return null;
+  const text =
+    secondsLeft >= 24 * 3600
+      ? t('topbar.vipDaysLeft', { count: Math.ceil(secondsLeft / (24 * 3600)) })
+      : secondsLeft >= 3600
+        ? t('topbar.vipHoursLeft', { count: Math.ceil(secondsLeft / 3600) })
+        : t('topbar.vipMinutesLeft', { count: Math.max(1, Math.ceil(secondsLeft / 60)) });
+  return <span className="truncate text-[10px] font-semibold leading-tight text-vipGold">{text}</span>;
 }

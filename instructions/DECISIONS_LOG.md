@@ -1862,3 +1862,15 @@ Owner decisions:
   spent.
 - Recorded in the same history as name and race changes (ranks before and
   the points given back).
+
+## VIP as a level reward (2026-10-30)
+
+Owner decisions:
+- A taste of VIP: the reward for reaching level 20 also gives 2 days of VIP
+  (both settings: godmaster → Balance → Rewards → level rewards → "VIP на
+  ниво", several levels possible). The VIP starts when the reward is claimed
+  and extends an active VIP. Level rewards reset every season, so it comes
+  back each season.
+- Shown in the level reward with a VIP icon (`interface.vip.icon`, art by the
+  owner; a gold "VIP" badge until the file exists).
+- Players already past the level are compensated by hand by the owner.

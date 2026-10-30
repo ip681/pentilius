@@ -64,6 +64,12 @@ export class AchievementsService {
         where: { id: playerId },
         data: { metal: { increment: reward.metal }, crystal: { increment: reward.crystal }, credits: { increment: reward.credits } },
       });
+      // VIP with a level reward (owner decision, 2026-10-30): from the claim, or on top of an active VIP.
+      if (reward.vipDays > 0) {
+        const player = await tx.player.findUniqueOrThrow({ where: { id: playerId }, select: { vipUntil: true } });
+        const from = Math.max(Date.now(), player.vipUntil?.getTime() ?? 0);
+        await tx.player.update({ where: { id: playerId }, data: { vipUntil: new Date(from + reward.vipDays * 24 * 60 * 60 * 1000) } });
+      }
       if (reward.itemKey) {
         const item = await tx.itemDefinition.findUnique({ where: { key: reward.itemKey } });
         // A full inventory rolls the whole claim back, so nothing is lost.
@@ -163,12 +169,13 @@ function tierKeyOf(achievement: AchievementConfig, tierIndex: number): string {
 }
 
 function toRewardDto(reward: AchievementRewardConfig): AchievementRewardDto {
-  return { metal: reward.metal, crystal: reward.crystal, credits: reward.credits ?? 0, itemKey: reward.itemKey ?? null };
+  return { metal: reward.metal, crystal: reward.crystal, credits: reward.credits ?? 0, vipDays: 0, itemKey: reward.itemKey ?? null };
 }
 
 /** Resources grow with the level; every Nth level adds a box of the set of the zone being entered. */
 function levelReward(level: number): AchievementRewardDto {
   const config = GAME_BALANCE.levelRewards;
   const box = level % config.boxEveryLevels === 0 ? (config.boxes.find((b) => level <= b.upToLevel)?.itemKey ?? null) : null;
-  return { metal: config.metalPerLevel * level, crystal: config.crystalPerLevel * level, credits: 0, itemKey: box };
+  const vipDays = config.vip.filter((v) => v.level === level).reduce((sum, v) => sum + v.days, 0);
+  return { metal: config.metalPerLevel * level, crystal: config.crystalPerLevel * level, credits: 0, vipDays, itemKey: box };
 }

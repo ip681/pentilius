@@ -496,6 +496,10 @@ export const GAME_BALANCE = {
       { upToLevel: 35, itemKey: 'ascendant_box' },
       { upToLevel: 100, itemKey: 'coreforged_box' },
     ],
+    // Days of VIP with the reward of these levels (owner decision, 2026-10-30):
+    // a taste of VIP. Counted from the claim; extends an active VIP. Reset
+    // with the level rewards every season. Edited in godmaster → Rewards.
+    vip: [{ level: 20, days: 2 }] as { level: number; days: number }[],
   },
 
   // Season achievements (owner decision, 2026-10-13): each is a chain of

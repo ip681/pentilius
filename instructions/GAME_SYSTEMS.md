@@ -256,7 +256,7 @@ the day ends. Values live in `apps/api/src/config/game-config.ts`'s
 **LOCKED direction:** Achievements exist.
 
 **Built (2026-10-13):** season achievements (tiered chains) and per-level
-rewards. Every 5th level also gives a set box. Everything is claimed by hand
+rewards. Every 5th level also gives a set box. Level 20 also gives 2 days of VIP (2026-10-30, editable). Everything is claimed by hand
 and resets each season. Lists and rewards are in `game-config.ts`
 (`achievements`, `levelRewards`). Details are in
 `instructions/DECISIONS_LOG.md`.
